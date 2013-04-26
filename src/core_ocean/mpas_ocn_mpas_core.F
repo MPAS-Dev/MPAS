@@ -25,6 +25,8 @@ module mpas_core
    use mpas_timekeeping
    use mpas_dmpar
    use mpas_timer
+   ! mrp added to test stress tensor:
+   use mpas_tensor_operations
 
    use ocn_global_diagnostics
    use ocn_time_integration
@@ -213,6 +215,13 @@ module mpas_core
          block % state % time_levs(1) % state % xtime % scalar = startTimeStamp 
          block => block % next
       end do
+
+      ! mrp added just to test stress tensor ops:
+      print *, 'mpas_test_stress_tensor'
+      call mpas_test_tensor(domain)
+      print *, 'mpas_test_stress_tensor complete'
+!     stop
+      ! mrp added just to test stress tensor ops end
 
       if (config_write_stats_on_startup) then
           call mpas_timer_start("global diagnostics", .false., globalDiagTimer)
