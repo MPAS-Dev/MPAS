@@ -49,6 +49,7 @@
                 <nml_option name="config_h_theta_eddy_visc4"         type="real"          default_value="0.0"/>
                 <nml_option name="config_v_theta_eddy_visc2"         type="real"          default_value="0.0"/>
                 <nml_option name="config_visc4_2dsmag"               type="real"          default_value="0.0"/>
+                <nml_option name="config_del4u_div_factor"           type="real"          default_value="1.0"/>
                 <nml_option name="config_number_of_sub_steps"        type="integer"       default_value="4"/>
                 <nml_option name="config_w_adv_order"                type="integer"       default_value="3"/>
                 <nml_option name="config_theta_adv_order"            type="integer"       default_value="3"/>
@@ -560,12 +561,15 @@
                 <!--  zol       :z/L height over Monin-Obukhov length                                               [-] -->
                 <!--  znt       :time-varying roughness length                                                      [m] -->
                 <!--  wspd      :wind speed                                                                       [m/s] -->
+                <!--  fh        :integrated function for heat                                                       [-] -->
+                <!--  fm        :integrated function for momentum                                                   [-] -->
                 <!--  DIAGNOSTICS:                                                                                      -->
                 <!--  q2        :specific humidity at 2m                                                        [kg/kg] -->
                 <!--  u10       :u at 10 m                                                                        [m/s] -->
                 <!--  v10       :v at 10 m                                                                        [m/s] -->
                 <!--  t2m       :temperature at 2m                                                                  [K] -->
                 <!--  th2m      :potential temperature at 2m                                                        [K] -->
+
                 <var name="hfx"           type="real"     dimensions="nCells Time"                 streams="ro"/>
                 <var name="mavail"        type="real"     dimensions="nCells Time"                 streams="ro"/>
                 <var name="mol"           type="real"     dimensions="nCells Time"                 streams="ro"/>
@@ -595,6 +599,8 @@
                 <var name="regime"        type="real"     dimensions="nCells Time"                 streams="ro"/>
                 <var name="rmol"          type="real"     dimensions="nCells Time"                 streams="ro"/>
                 <var name="wspd"          type="real"     dimensions="nCells Time"                 streams="ro"/>
+                <var name="fh"            type="real"     dimensions="nCells Time"                 streams="ro"/>
+                <var name="fm"            type="real"     dimensions="nCells Time"                 streams="ro"/>
 
                 <!-- DIAGNOSTICS: -->
                 <var name="u10"           type="real"     dimensions="nCells Time"                 streams="ro"/>
@@ -703,6 +709,8 @@
                 <!--        in contrast,lwdnb is an optional ouput argument to the subroutine rrtmg_lwrad depending on  -->
                 <!--        the presence of lwupt (or not).                                                             -->
 
+                <!--  nlrad     :number of layers added above the model-top in the RRTMG lw radiation code          [-] -->
+                <!--  plrad     :pressure at model-top                                                             [Pa] -->
                 <!--  glw       :all-sky downwelling longwave flux at bottom-of-atmosphere                      [W m-2] -->
                 <!--  lwcf      :longwave cloud forcing at top-of-atmosphere                                    [W m-2] -->
                 <!--  lwdnb     :all-sky downwelling longwave flux at bottom-of-atmosphere                      [W m-2] -->
@@ -735,6 +743,9 @@
                 <!--  i_aclwupbc: counter related to how often lwupbc is begin reset relative to its bucket value   (-) -->
                 <!--  i_aclwupt : counter related to how often lwupt is begin reset relative to its bucket value    (-) -->
                 <!--  i_aclwuptc: counter related to how often lwuptc is begin reset relative to its bucket value   (-) -->
+
+                <var name="nlrad"         type="integer"  dimensions="nCells Time"                 streams="o" />
+                <var name="plrad"         type="real"     dimensions="nCells Time"                 streams="o" />
 
                 <var name="i_aclwdnb"     type="integer"  dimensions="nCells Time"                 streams="ro"/>
                 <var name="i_aclwdnbc"    type="integer"  dimensions="nCells Time"                 streams="ro"/>
