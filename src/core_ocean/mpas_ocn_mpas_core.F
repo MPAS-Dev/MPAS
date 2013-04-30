@@ -105,6 +105,9 @@ module mpas_core
       call ocn_monthly_forcing_init(err_tmp)
       err = ior(err, err_tmp)
 
+      call ocn_global_diagnostics_init(dminfo,err_tmp)
+      err = ior(err, err_tmp)
+
       call mpas_timer_init(domain)
 
       if(err.eq.1) then
@@ -303,12 +306,12 @@ module mpas_core
 
          block % state % time_levs(1) % state % normalVelocity % array( &
              block % mesh % maxLevelEdgeBot % array(iEdge)+1: &
-             block % mesh % nVertLevels,iEdge) = 0.0
+             block % mesh % nVertLevels,iEdge) = -1.0e34
       end do
       do iCell=1,block % mesh % nCells
          block % state % time_levs(1) % state % tracers % array( &
             :, block % mesh % maxLevelCell % array(iCell)+1 &
-              :block % mesh % nVertLevels,iCell) =  0.0
+              :block % mesh % nVertLevels,iCell) =  -1.0e34
       end do
 
       do i=2,nTimeLevs
