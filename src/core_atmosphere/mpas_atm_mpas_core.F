@@ -80,9 +80,9 @@ module mpas_core
          !     
          ! We need to decide which time slice to read from the surface file - read the most recent time slice that falls before or on the start time
          !
-         sfc_update_obj % time = MPAS_seekStream(sfc_update_obj % io_stream, trim(config_start_time), MPAS_STREAM_LATEST_BEFORE, timeStamp, ierr)
+         sfc_update_obj % time = MPAS_seekStream(sfc_update_obj % io_stream, trim(startTimeStamp), MPAS_STREAM_LATEST_BEFORE, timeStamp, ierr)
          if (ierr == MPAS_IO_ERR) then
-            write(0,*) 'Error: surface update file '//trim(sfc_update_obj % filename)//' did not contain any times at or before '//trim(config_start_time)
+            write(0,*) 'Error: surface update file '//trim(sfc_update_obj % filename)//' did not contain any times at or before '//trim(startTimeStamp)
             call mpas_dmpar_abort(domain % dminfo)
          end if
 
@@ -105,7 +105,14 @@ module mpas_core
       type (MPAS_TimeInterval_type) :: runDuration, timeStep, alarmTimeStep
       integer :: ierr
 
-      call mpas_set_time(curr_time=startTime, dateTimeString=config_start_time, ierr=ierr)
+      if(trim(config_start_time) == 'file') then
+         open(22,file='restart_timestamp',form='formatted',status='old')
+         read(22,*) startTimeStamp
+         close(22)
+      else
+        startTimeStamp = config_start_time
+      end if
+      call mpas_set_time(curr_time=startTime, dateTimeString=startTimeStamp, ierr=ierr)
       call mpas_set_timeInterval(timeStep, dt=dt, ierr=ierr)
 
       if (trim(config_run_duration) /= "none") then
