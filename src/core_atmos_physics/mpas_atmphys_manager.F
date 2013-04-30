@@ -85,6 +85,7 @@
 !local variables:
  type(block_type),pointer:: block
  type(MPAS_Time_Type):: currTime
+ type (MPAS_TimeInterval_type) :: dtInterval
 
  logical:: LeapYear
  character(len=StrKIND)   :: timeStamp
@@ -240,8 +241,10 @@
 
 !check to see if it is time to calculate additional physics diagnostics:
  l_diags = .false.
+ call mpas_set_timeInterval(dtInterval,dt=dt,ierr=ierr)
  if(mpas_is_alarm_ringing(clock,diagAlarmID,ierr=ierr)) then
     call mpas_reset_clock_alarm(clock,diagAlarmID,ierr=ierr)
+ else if(mpas_is_alarm_ringing(clock,diagAlarmID,interval=dtInterval,ierr=ierr)) then
     l_diags = .true.
  endif
  write(0,*) '--- time to calculate additional physics_diagnostics               =',l_diags
@@ -259,7 +262,7 @@
 
 !local variables:
  type(MPAS_Time_Type):: startTime,alarmStartTime
- type(MPAS_TimeInterval_Type):: alarmTimeStep
+ type(MPAS_TimeInterval_Type):: alarmTimeStep, alarmTimeStepHi
  integer:: ierr
 
 !=============================================================================================
@@ -438,6 +441,12 @@
 
 !set alarm to calculate physics diagnostics on IO outpt only:
  call mpas_set_timeInterval(alarmTimeStep,timeString=config_output_interval,ierr=ierr)
+ if (trim(config_hifreq_output_interval) /= 'none') then
+    call mpas_set_timeInterval(alarmTimeStepHi,timeString=config_hifreq_output_interval,ierr=ierr)
+    if (alarmTimeStepHi < alarmTimeStep) then
+       alarmTimeStep = alarmTimeStepHi
+    end if
+ end if
  alarmStartTime = startTime
  call mpas_add_clock_alarm(clock,diagAlarmID,alarmStartTime,alarmTimeStep,ierr=ierr)
 
