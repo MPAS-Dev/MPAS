@@ -299,7 +299,7 @@ mpas_main:
                  CPPINCLUDES="$(CPPINCLUDES)" \
                  FCINCLUDES="$(FCINCLUDES)" \
                  CORE="$(CORE)"
-	if [ ! -e $(CORE)_model.exe ]; then ln -s src/$(CORE)_model.exe .; fi
+	if [ -e src/$(CORE)_model ]; then mv src/$(CORE)_model .; fi
 	@echo ""
 	@echo $(DEBUG_MESSAGE)
 	@echo $(SERIAL_MESSAGE)
@@ -307,7 +307,7 @@ mpas_main:
 	@echo $(TAU_MESSAGE)
 clean:
 	cd src; $(MAKE) clean RM="$(RM)" CORE="$(CORE)"
-	$(RM) $(CORE)_model.exe
+	$(RM) $(CORE)_model
 error: errmsg
 
 else # CORE IF
