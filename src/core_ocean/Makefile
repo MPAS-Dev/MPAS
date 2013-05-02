@@ -1,5 +1,7 @@
 .SUFFIXES: .F .o
 
+CVMIX_REPO_ADDRESS=http://cvmix.googlecode.com/svn/trunk/src/shared
+
 OBJS = mpas_ocn_mpas_core.o \
        mpas_ocn_advection.o \
        mpas_ocn_thick_hadv.o \
@@ -22,9 +24,9 @@ OBJS = mpas_ocn_mpas_core.o \
        mpas_ocn_restoring.o \
        mpas_ocn_tendency.o \
        mpas_ocn_diagnostics.o \
-	   mpas_ocn_tracer_hmix.o \
-	   mpas_ocn_tracer_hmix_del2.o \
-	   mpas_ocn_tracer_hmix_del4.o \
+       mpas_ocn_tracer_hmix.o \
+       mpas_ocn_tracer_hmix_del2.o \
+       mpas_ocn_tracer_hmix_del4.o \
        mpas_ocn_tracer_advection.o \
        mpas_ocn_tracer_advection_std.o \
        mpas_ocn_tracer_advection_std_hadv.o \
@@ -45,10 +47,18 @@ OBJS = mpas_ocn_mpas_core.o \
        mpas_ocn_time_average.o \
        mpas_ocn_monthly_forcing.o
 
-all: core_hyd
+all: libcvmix core_hyd
+
+libcvmix:
+	if [ ! -d cvmix ]; then \
+		(svn checkout $(CVMIX_REPO_ADDRESS) cvmix) \
+	fi
+	if [ -d cvmix ]; then \
+		(cd cvmix; svn update; make all FC="$(FC)" FFLAGS="$(FFLAGS)" FINCLUDES="$(FINCLUDES)") \
+	fi
 
 core_hyd: $(OBJS)
-	ar -ru libdycore.a $(OBJS)
+	ar -ru libdycore.a $(OBJS) cvmix/*.o
 
 mpas_ocn_advection.o:
 
@@ -177,6 +187,9 @@ mpas_ocn_mpas_core.o: mpas_ocn_advection.o \
                       mpas_ocn_monthly_forcing.o
 
 clean:
+	if [ -d cvmix ]; then \
+		(cd cvmix; make clean) \
+	fi
 	$(RM) *.o *.mod *.f90 libdycore.a
 
 .F.o:
