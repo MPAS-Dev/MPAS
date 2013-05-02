@@ -57,6 +57,7 @@ struct group_list {
    char name[1024];
    struct variable_list * vlist; 
    struct group_list * next; 
+   int ntime_levs;
 };
 
 struct variable {
@@ -69,7 +70,6 @@ struct variable {
    int vtype;
    int ndims;
    int timedim;
-   int ntime_levs;
    int iostreams;
    int decomposed;
    struct dimension_list * dimlist;
