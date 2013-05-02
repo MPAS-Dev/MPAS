@@ -380,6 +380,9 @@ contains
 !               ==> consider thermal z0 when differs from mechanical z0
 !              a bug fix in wscale computation in stable bl, sukanta basu, jun 2012
 !               ==> wscale becomes small with height, and less mixing in stable bl
+!               ==> ri = max(ri,rimin). limits the richardson number to -100 in
+!               unstable layers, following Hong et al. 2006.
+!               Laura D. Fowler (2013-04-18).
 !
 !     references:
 !
@@ -1002,6 +1005,7 @@ contains
          rlamdz = min(dza(i,k+1),rlamdz)
          rl2 = (zk*rlamdz/(rlamdz+zk))**2
          dk = rl2*sqrt(ss)
+         ri = max(ri,rimin)
          if(ri.lt.0.)then
 ! unstable regime
            sri = sqrt(-ri)
