@@ -60,7 +60,8 @@
 
     !physics prep step:
 #ifdef non_hydrostatic_core
-    call MPAS_to_physics(block%mesh,block%state%time_levs(1)%state,block%diag)
+    call MPAS_to_physics(block%mesh,block%state%time_levs(1)%state,block%diag, &
+                         block%diag_physics)
 #elif hydrostatic_core
     call MPAS_to_physics(block%state%time_levs(1)%state,block%diag)
 #endif

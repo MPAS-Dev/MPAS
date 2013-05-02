@@ -345,6 +345,11 @@
 !... variables and arrays related to parameterization of long-wave radiation:
 !=============================================================================================
 
+ integer,dimension(:,:),allocatable:: &
+    nlrad_p            !number of layers added above the model top                         [-]
+ real(kind=RKIND),dimension(:,:),allocatable:: &
+    plrad_p            !pressure at model_top                                             [Pa]
+
  real(kind=RKIND),dimension(:,:),allocatable:: &
     glw_p,            &!net longwave flux at surface                                   [W m-2]
     lwcf_p,           &!longwave cloud forcing at top-of-atmosphere                    [W m-2]
