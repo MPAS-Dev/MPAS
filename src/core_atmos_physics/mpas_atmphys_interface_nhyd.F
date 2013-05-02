@@ -111,13 +111,16 @@
  end subroutine deallocate_forall_physics
 
 !=============================================================================================
- subroutine MPAS_to_physics(mesh,state,diag)
+ subroutine MPAS_to_physics(mesh,state,diag,diag_physics)
 !=============================================================================================
 
 !input variables:
  type(mesh_type) ,intent(in):: mesh
  type(state_type),intent(in):: state
  type(diag_type) ,intent(in):: diag
+
+!inout variables:
+ type(diag_physics_type),intent(inout):: diag_physics
 
 !local variables:
  integer:: i,k,j
@@ -319,6 +322,13 @@
     do k = kte,1,-1
        znu_hyd_p(i,k,j) = pres_hyd_p(i,k,j) / psfc_hyd_p(i,j) 
     enddo
+ enddo
+ enddo
+
+!save the model-top pressure:
+ do j = jts,jte
+ do i = its,ite
+    diag_physics % plrad % array(i) = pres2_p(i,kte+1,j) 
  enddo
  enddo
 
