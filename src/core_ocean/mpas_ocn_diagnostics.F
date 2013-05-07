@@ -71,12 +71,13 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_diagnostic_solve(dt, s, grid)!{{{
+   subroutine ocn_diagnostic_solve(dt, block, s, grid)!{{{
 
       implicit none
 
       real (kind=RKIND), intent(in) :: dt !< Input: Time step
       type (state_type), intent(inout) :: s !< Input/Output: State information
+      type (block_type), intent(inout) :: block
       type (mesh_type), intent(in) :: grid !< Input: Grid information
 
 
@@ -103,6 +104,7 @@ contains
         potentialVorticityEdge, potentialVorticityVertex, potentialVorticityCell, divergence, &
         density, displacedDensity, temperature, salinity, kineticEnergyVertex, kineticEnergyVertexOnCells, uBolusGM, uTransport, &
         vertVelocityTop, BruntVaisalaFreqTop
+      real (kind=RKIND), dimension(:,:,:), pointer :: gradVor_n, gradVor_t
       real (kind=RKIND), dimension(:,:,:), pointer :: tracers, deriv_two
       character :: c1*6
 
@@ -330,8 +332,10 @@ contains
       end do
 
 
-      call mpas_allocate_scratch_field(block_ptr % scratch % gradVor_n, .true.)
-      call mpas_allocate_scratch_field(block_ptr % scratch % gradVor_t, .true.)
+      call mpas_allocate_scratch_field(block % scratch % gradVor_n, .true.)
+      call mpas_allocate_scratch_field(block % scratch % gradVor_t, .true.)
+      gradVor_n => block % scratch % gradVor_n % array
+      gradVor_t => block % scratch % gradVor_n % array
       do iEdge = 1,nEdges
          cell1 = cellsOnEdge(1, iEdge)
          cell2 = cellsOnEdge(2, iEdge)
@@ -364,8 +368,8 @@ contains
                           + tangentialVelocity(k,iEdge) * gradVor_t(k,iEdge) )
          enddo
       enddo
-      call mpas_deallocate_scratch_field(block_ptr % scratch % gradVor_n, .true.)
-      call mpas_deallocate_scratch_field(block_ptr % scratch % gradVor_t, .true.)
+      call mpas_deallocate_scratch_field(block % scratch % gradVor_n, .true.)
+      call mpas_deallocate_scratch_field(block % scratch % gradVor_t, .true.)
 
       !
       ! equation of state
