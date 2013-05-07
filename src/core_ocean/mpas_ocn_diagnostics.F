@@ -72,6 +72,7 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_diagnostic_solve(dt, s, grid)!{{{
+
       implicit none
 
       real (kind=RKIND), intent(in) :: dt !< Input: Time step
@@ -99,7 +100,7 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: &
         weightsOnEdge, kiteAreasOnVertex, layerThicknessEdge, layerThickness, normalVelocity, tangentialVelocity, pressure,&
         circulation, relativeVorticity, kineticEnergy, kineticEnergyEdge, montgomeryPotential, vertTransportVelocityTop, zMid, &
-        potentialVorticityEdge, potentialVorticityVertex, potentialVorticityCell, gradVor_n, gradVor_t, divergence, &
+        potentialVorticityEdge, potentialVorticityVertex, potentialVorticityCell, divergence, &
         density, displacedDensity, temperature, salinity, kineticEnergyVertex, kineticEnergyVertexOnCells, uBolusGM, uTransport, &
         vertVelocityTop, BruntVaisalaFreqTop
       real (kind=RKIND), dimension(:,:,:), pointer :: tracers, deriv_two
@@ -121,8 +122,6 @@ contains
       potentialVorticityEdge    => s % potentialVorticityEdge % array
       potentialVorticityVertex  => s % potentialVorticityVertex % array
       potentialVorticityCell    => s % potentialVorticityCell % array
-      gradVor_n   => s % gradVor_n % array
-      gradVor_t   => s % gradVor_t % array
       density         => s % density % array
       displacedDensity=> s % displacedDensity % array
       montgomeryPotential     => s % montgomeryPotential % array
@@ -330,6 +329,9 @@ contains
         end do
       end do
 
+
+      call mpas_allocate_scratch_field(block_ptr % scratch % gradVor_n, .true.)
+      call mpas_allocate_scratch_field(block_ptr % scratch % gradVor_t, .true.)
       do iEdge = 1,nEdges
          cell1 = cellsOnEdge(1, iEdge)
          cell2 = cellsOnEdge(2, iEdge)
@@ -362,6 +364,8 @@ contains
                           + tangentialVelocity(k,iEdge) * gradVor_t(k,iEdge) )
          enddo
       enddo
+      call mpas_deallocate_scratch_field(block_ptr % scratch % gradVor_n, .true.)
+      call mpas_deallocate_scratch_field(block_ptr % scratch % gradVor_t, .true.)
 
       !
       ! equation of state
