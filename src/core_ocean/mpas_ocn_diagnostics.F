@@ -71,11 +71,13 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_diagnostic_solve(dt, s, grid)!{{{
+   subroutine ocn_diagnostic_solve(dt, block, s, grid)!{{{
+
       implicit none
 
       real (kind=RKIND), intent(in) :: dt !< Input: Time step
       type (state_type), intent(inout) :: s !< Input/Output: State information
+      type (block_type), intent(inout) :: block
       type (mesh_type), intent(in) :: grid !< Input: Grid information
 
 
@@ -99,9 +101,10 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: &
         weightsOnEdge, kiteAreasOnVertex, layerThicknessEdge, layerThickness, normalVelocity, tangentialVelocity, pressure,&
         circulation, relativeVorticity, kineticEnergy, kineticEnergyEdge, montgomeryPotential, vertTransportVelocityTop, zMid, &
-        potentialVorticityEdge, potentialVorticityVertex, potentialVorticityCell, gradVor_n, gradVor_t, divergence, &
+        potentialVorticityEdge, potentialVorticityVertex, potentialVorticityCell, divergence, &
         density, displacedDensity, temperature, salinity, kineticEnergyVertex, kineticEnergyVertexOnCells, uBolusGM, uTransport, &
         vertVelocityTop, BruntVaisalaFreqTop
+      real (kind=RKIND), dimension(:,:), pointer :: vorticityGradientNormalComponent, vorticityGradientTangentialComponent
       real (kind=RKIND), dimension(:,:,:), pointer :: tracers, deriv_two
       character :: c1*6
 
@@ -121,8 +124,6 @@ contains
       potentialVorticityEdge    => s % potentialVorticityEdge % array
       potentialVorticityVertex  => s % potentialVorticityVertex % array
       potentialVorticityCell    => s % potentialVorticityCell % array
-      gradVor_n   => s % gradVor_n % array
-      gradVor_t   => s % gradVor_t % array
       density         => s % density % array
       displacedDensity=> s % displacedDensity % array
       montgomeryPotential     => s % montgomeryPotential % array
@@ -330,6 +331,11 @@ contains
         end do
       end do
 
+
+      call mpas_allocate_scratch_field(block % scratch % vorticityGradientNormalComponent, .true.)
+      call mpas_allocate_scratch_field(block % scratch % vorticityGradientTangentialComponent, .true.)
+      vorticityGradientNormalComponent => block % scratch % vorticityGradientNormalComponent % array
+      vorticityGradientTangentialComponent => block % scratch % vorticityGradientTangentialComponent % array
       do iEdge = 1,nEdges
          cell1 = cellsOnEdge(1, iEdge)
          cell2 = cellsOnEdge(2, iEdge)
@@ -338,16 +344,18 @@ contains
 
          invLength = 1.0 / dcEdge(iEdge)
          ! Compute gradient of PV in normal direction
-         !   ( this computes gradVor_n for all edges bounding real cells )
+         !   ( this computes the gradient for all edges bounding real cells )
          do k=1,maxLevelEdgeTop(iEdge)
-            gradVor_n(k,iEdge) = (potentialVorticityCell(k,cell2) - potentialVorticityCell(k,cell1)) * invLength
+            vorticityGradientNormalComponent(k,iEdge) = &
+               (potentialVorticityCell(k,cell2) - potentialVorticityCell(k,cell1)) * invLength
          enddo
 
          invLength = 1.0 / dvEdge(iEdge)
          ! Compute gradient of PV in the tangent direction
-         !   ( this computes gradVor_t at all edges bounding real cells and distance-1 ghost cells )
+         !   ( this computes the gradient at all edges bounding real cells and distance-1 ghost cells )
          do k = 1,maxLevelEdgeBot(iEdge)
-           gradVor_t(k,iEdge) = (potentialVorticityVertex(k,vertex2) - potentialVorticityVertex(k,vertex1)) * invLength
+           vorticityGradientTangentialComponent(k,iEdge) = &
+              (potentialVorticityVertex(k,vertex2) - potentialVorticityVertex(k,vertex1)) * invLength
          enddo
 
       enddo
@@ -358,10 +366,13 @@ contains
       do iEdge = 1,nEdges
          do k = 1,maxLevelEdgeBot(iEdge)
            potentialVorticityEdge(k,iEdge) = potentialVorticityEdge(k,iEdge) &
-             - config_apvm_scale_factor * dt* (  normalVelocity(k,iEdge) * gradVor_n(k,iEdge) &
-                          + tangentialVelocity(k,iEdge) * gradVor_t(k,iEdge) )
+             - config_apvm_scale_factor * dt * &
+                 (  normalVelocity(k,iEdge)     * vorticityGradientNormalComponent(k,iEdge)      &
+                  + tangentialVelocity(k,iEdge) * vorticityGradientTangentialComponent(k,iEdge) )
          enddo
       enddo
+      call mpas_deallocate_scratch_field(block % scratch % vorticityGradientNormalComponent, .true.)
+      call mpas_deallocate_scratch_field(block % scratch % vorticityGradientTangentialComponent, .true.)
 
       !
       ! equation of state
