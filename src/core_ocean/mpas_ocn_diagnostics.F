@@ -100,7 +100,7 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: &
         weightsOnEdge, kiteAreasOnVertex, layerThicknessEdge, layerThickness, normalVelocity, tangentialVelocity, pressure,&
         circulation, relativeVorticity, kineticEnergy, kineticEnergyEdge, montgomeryPotential, vertTransportVelocityTop, zMid, &
-        potentialVorticityEdge, potentialVorticityVertex, potentialVorticityCell, divergence, &
+        potentialVorticityEdge, potentialVorticityVertex, potentialVorticityCell, relativeVorticityCell, divergence, &
         density, displacedDensity, temperature, salinity, kineticEnergyVertex, kineticEnergyVertexOnCells, uBolusGM, uTransport, &
         vertVelocityTop, BruntVaisalaFreqTop
       real (kind=RKIND), dimension(:,:), pointer :: vorticityGradientNormalComponent, vorticityGradientTangentialComponent
@@ -123,6 +123,7 @@ contains
       potentialVorticityEdge    => s % potentialVorticityEdge % array
       potentialVorticityVertex  => s % potentialVorticityVertex % array
       potentialVorticityCell    => s % potentialVorticityCell % array
+      relativeVorticityCell    => s % relativeVorticityCell % array
       density         => s % density % array
       displacedDensity=> s % displacedDensity % array
       montgomeryPotential     => s % montgomeryPotential % array
@@ -214,6 +215,20 @@ contains
             end do
          end do
       end do
+
+      relativeVorticityCell(:,:) = 0.0
+      do iCell = 1, nCells
+        invAreaCell1 = 1.0 / areaCell(iCell)
+
+        do i = 1, nEdgesOnCell(iCell)
+          j = kiteIndexOnCell(i, iCell)
+          iVertex = verticesOnCell(i, iCell)
+          do k = 1, maxLevelCell(iCell)
+            relativeVorticityCell(k, iCell) = relativeVorticityCell(k, iCell) + kiteAreasOnVertex(j, iVertex) * relativeVorticity(k, iVertex) * invAreaCell1
+          end do
+        end do
+      end do
+
 
       allocate(div_hu(nVertLevels))
       do iCell = 1, nCells
@@ -308,7 +323,6 @@ contains
          end do
       end do
 
-      potentialVorticityCell(:,:) = 0.0
       potentialVorticityEdge(:,:) = 0.0
       do iEdge = 1, nEdges
         vertex1 = verticesOnEdge(1, iEdge)
@@ -317,19 +331,6 @@ contains
           potentialVorticityEdge(k, iEdge) = 0.5 * (potentialVorticityVertex(k, vertex1) + potentialVorticityVertex(k, vertex2))
         end do
       end do
-
-      do iCell = 1, nCells
-        invAreaCell1 = 1.0 / areaCell(iCell)
-
-        do i = 1, nEdgesOnCell(iCell)
-          j = kiteIndexOnCell(i, iCell)
-          iVertex = verticesOnCell(i, iCell)
-          do k = 1, maxLevelCell(iCell)
-            potentialVorticityCell(k, iCell) = potentialVorticityCell(k, iCell) + kiteAreasOnVertex(j, iVertex) * potentialVorticityVertex(k, iVertex) * invAreaCell1
-          end do
-        end do
-      end do
-
 
       call mpas_allocate_scratch_field(scratch % vorticityGradientNormalComponent, .true.)
       call mpas_allocate_scratch_field(scratch % vorticityGradientTangentialComponent, .true.)
