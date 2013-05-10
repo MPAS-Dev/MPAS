@@ -42,7 +42,7 @@ module ocn_vel_coriolis
    !
    !--------------------------------------------------------------------
 
-   logical :: coriolisOn
+   logical :: coriolisOn, RK4On
 
 !***********************************************************************
 
@@ -61,7 +61,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_coriolis_tend(grid, Vor_edge, layerThicknessEdge, normalVelocity, kineticEnergy, tend, err)!{{{
+   subroutine ocn_vel_coriolis_tend(grid, normalizedRelativeVorticityEdge, normalizedPlanetaryVorticityEdge, layerThicknessEdge, normalVelocity, kineticEnergy, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -70,7 +70,9 @@ contains
       !-----------------------------------------------------------------
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
-         Vor_edge  !< Input: Potential vorticity on edge
+         normalizedRelativeVorticityEdge  !< Input: relative vorticity over thickness, on an edge
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         normalizedPlanetaryVorticityEdge  !< Input: planetary vorticity over thickness, on an edge
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          layerThicknessEdge  !< Input: Thickness on edge
       real (kind=RKIND), dimension(:,:), intent(in) :: &
@@ -111,7 +113,7 @@ contains
 
       integer :: j, k
       integer :: cell1, cell2, nEdgesSolve, iEdge, eoe
-      real (kind=RKIND) :: workpv, q, invLength
+      real (kind=RKIND) :: workVorticity, q, invLength
 
       err = 0
 
@@ -139,8 +141,10 @@ contains
             q = 0.0
             do j = 1,nEdgesOnEdge(iEdge)
                eoe = edgesOnEdge(j,iEdge)
-               workpv = 0.5 * (Vor_edge(k,iEdge) + Vor_edge(k,eoe))
-               q = q + weightsOnEdge(j,iEdge) * normalVelocity(k,eoe) * workpv * layerThicknessEdge(k,eoe) 
+               workVorticity = 0.5 &
+                  * (  normalizedRelativeVorticityEdge(k,iEdge) + RK4On * normalizedPlanetaryVorticityEdge(k,iEdge) &
+                     + normalizedRelativeVorticityEdge(k,eoe)   + RK4On * normalizedPlanetaryVorticityEdge(k,eoe))
+               q = q + weightsOnEdge(j,iEdge) * normalVelocity(k,eoe) * workVorticity * layerThicknessEdge(k,eoe) 
             end do
 
            tend(k,iEdge) = tend(k,iEdge) + edgeMask(k, iEdge) * (q - (   kineticEnergy(k,cell2) - kineticEnergy(k,cell1) ) * invLength )
@@ -184,6 +188,17 @@ contains
       coriolisOn = .true.
 
       if(config_disable_vel_coriolis) coriolisOn = .false.
+
+      if (trim(config_time_integrator) == 'RK4') then
+         ! For RK4, coriolis tendency term includes f: (eta+f)/h.
+         RK4On = 1
+      elseif (trim(config_time_integrator) == 'split_explicit' &
+        .or.trim(config_time_integrator) == 'unsplit_explicit') then
+         ! For split explicit, Coriolis tendency uses eta/h because the Coriolis term 
+         ! is added separately to the momentum tendencies.
+         RK4On = 0
+      end if
+
 
    !--------------------------------------------------------------------
 
