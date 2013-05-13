@@ -66,7 +66,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_forcing_tend(grid, u, normalVelocityForcing, kineticEnergyEdge, layerThicknessEdge, tend, err)!{{{
+   subroutine ocn_vel_forcing_tend(grid, u, normalVelocityForcing, layerThicknessEdge, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -79,9 +79,6 @@ contains
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          normalVelocityForcing     !< Input: wind stress
-
-      real (kind=RKIND), dimension(:,:), intent(in) :: &
-         kineticEnergyEdge     !< Input: kinetic energy at edge
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          layerThicknessEdge     !< Input: thickness at edge

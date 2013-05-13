@@ -146,7 +146,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_vmix_tend_implicit(grid, dt, kineticEnergyEdge, vertViscTopOfEdge, layerThickness, layerThicknessEdge, normalVelocity, err)!{{{
+   subroutine ocn_vel_vmix_tend_implicit(grid, dt, kineticEnergyCell, vertViscTopOfEdge, layerThickness, layerThicknessEdge, normalVelocity, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -158,7 +158,7 @@ contains
          grid          !< Input: grid information
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
-         kineticEnergyEdge        !< Input: kinetic energy at edge
+         kineticEnergyCell        !< Input: kinetic energy at cell
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          vertViscTopOfEdge !< Input: vertical mixing coefficients
@@ -249,8 +249,9 @@ contains
          enddo
 
          ! Apply bottom drag boundary condition on the viscous term
+         ! second line uses sqrt(2.0*kineticEnergyEdge(k,iEdge))
          B(N) = 1 - A(N) + dt*config_bottom_drag_coeff  &
-            *sqrt(2.0*kineticEnergyEdge(k,iEdge))/layerThicknessEdge(k,iEdge)
+            *sqrt(kineticEnergyCell(k,cell1) + kineticEnergyCell(k,cell2))/layerThicknessEdge(k,iEdge)
 
          call tridiagonal_solve(A(2:N),B,C(1:N-1),normalVelocity(:,iEdge),velTemp,N)
 
@@ -398,7 +399,7 @@ contains
       integer, intent(out) :: err
 
       integer :: nCells
-      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, layerThickness, layerThicknessEdge, vertViscTopOfEdge, vertDiffTopOfCell, kineticEnergyEdge
+      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, layerThickness, layerThicknessEdge, vertViscTopOfEdge, vertDiffTopOfCell, kineticEnergyCell
       real (kind=RKIND), dimension(:,:,:), pointer :: tracers
       integer, dimension(:), pointer :: maxLevelCell
 
@@ -408,7 +409,7 @@ contains
       tracers     => state % tracers % array
       layerThickness  => state % layerThickness % array
       layerThicknessEdge      => state % layerThicknessEdge % array
-      kineticEnergyEdge     => state % kineticEnergyEdge % array
+      kineticEnergyCell     => state % kineticEnergyCell % array
       vertViscTopOfEdge => diagnostics % vertViscTopOfEdge % array
       vertDiffTopOfCell => diagnostics % vertDiffTopOfCell % array
       maxLevelCell    => grid % maxLevelCell % array
@@ -420,7 +421,7 @@ contains
       !
       !  Implicit vertical solve for momentum
       !
-      call ocn_vel_vmix_tend_implicit(grid, dt, kineticEnergyEdge, vertViscTopOfEdge, layerThickness, layerThicknessEdge, normalVelocity, err)
+      call ocn_vel_vmix_tend_implicit(grid, dt, kineticEnergyCell, vertViscTopOfEdge, layerThickness, layerThicknessEdge, normalVelocity, err)
 
       !
       !  Implicit vertical solve for tracers
