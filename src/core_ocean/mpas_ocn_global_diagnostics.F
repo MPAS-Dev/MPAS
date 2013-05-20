@@ -1,3 +1,15 @@
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  ocn_global_diagnostics
+!
+!> \brief MPAS ocean statistics for the full domain
+!> \author Mark Petersen and Xylar Asay-Davis
+!> \date   15 April 2013
+!> \details
+!>  This module contains routines to compute global statistics such as
+!>  minimum, maximum, and mean of variables, taken over the full domain.
+!
+!-----------------------------------------------------------------------
 module ocn_global_diagnostics
 
    use mpas_grid_types
@@ -13,6 +25,19 @@ module ocn_global_diagnostics
    type (timer_node), pointer :: diagBlockTimer, diagMPITimer
 
    contains
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  ocn_compute_global_diagnostics
+!
+!> \brief MPAS ocean statistics for the full domain
+!> \author Mark Petersen and Xylar Asay-Davis
+!> \date   15 April 2013
+!> \details
+!>  This routines to computes and writes global statistics such as
+!>  minimum, maximum, and mean of variables, taken over the full domain.
+!
+!-----------------------------------------------------------------------
 
    subroutine ocn_compute_global_diagnostics(domain, timeLevel, timeIndex, dt)!{{{
 
@@ -220,7 +245,7 @@ module ocn_global_diagnostics
          ! vertTransportVelocityTop vertical velocity
          variableIndex = variableIndex + 1
          call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels+1, nCellsSolve, maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), layerThickness(:,1:nCellsSolve), &
-            vertTransportVelocityTop(:,1:nCellsSolve), sums_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
+            vertTransportVelocityTop(1:nVertLevels,1:nCellsSolve), sums_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
             verticalSumMaxes_tmp(variableIndex))
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
