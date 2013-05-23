@@ -1114,6 +1114,10 @@ module atm_time_integration
       ! we solved for these in the acoustic-step loop.  
       ! we will compute ru and u here also, given we are here, even though we only need them on nEdgesSolve
 
+      ! Avoid FP errors caused by a potential division by zero below by 
+      ! initializing the "garbage cell" of rho_zz to a non-zero value
+      rho_zz(:,nCells+1) = 1.0
+
       do iEdge = 1, nEdges
 
          cell1 = cellsOnEdge(1,iEdge)
@@ -1738,7 +1742,7 @@ module atm_time_integration
  
        ! rescale the vertical flux
  
-         do iCell=1,nCells
+         do iCell=1,nCellsSolve
             do k = 2, nVertLevels
                flux =  wdtn(k,iCell)
                flux = max(0.0_RKIND,flux) * min(scale_arr(SCALE_OUT,k-1,iCell), scale_arr(SCALE_IN,k  ,iCell)) &
@@ -3160,6 +3164,10 @@ module atm_time_integration
                ke(k,iCell) = ke_fact*ke(k,iCell)
             end do
          end do
+
+         ! Avoid FP errors caused by a potential division by zero below by 
+         ! initializing the "garbage cell" of areaCell to a non-zero value
+         areaCell(nCells+1) = 1.0
 
          do iVertex = 1, nVertices
             do i=1,vertexDegree

@@ -50,7 +50,11 @@
  real(kind=RKIND),dimension(:,:),allocatable  :: maxsnowalb
  real(kind=RKIND),dimension(:,:,:),allocatable:: vegfra
 
+
 !--------------------------------------------------------------------------------------------------
+
+ dminfo => mesh % block % domain % dminfo
+
  write(0,*)
  write(0,*) '--- enter subroutine init_atm_static:'
 
@@ -671,7 +675,11 @@
  real(kind=RKIND):: mindcEdge,maxdcEdge
  real(kind=RKIND),dimension(:,:),allocatable:: xarray
 
+
 !--------------------------------------------------------------------------------------------------
+
+ dminfo => mesh % block % domain % dminfo
+
  write(0,*)
  write(0,*) '--- enter subroutine init_atm_static_orogwd:'
 
