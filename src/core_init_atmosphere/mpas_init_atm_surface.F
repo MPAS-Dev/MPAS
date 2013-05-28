@@ -12,12 +12,12 @@
 
  implicit none
  private
- public:: init_atm_test_case_sfc,interp_sfc_to_MPAS
+ public:: init_atm_case_sfc,interp_sfc_to_MPAS
 
  contains
 
 !==================================================================================================
- subroutine init_atm_test_case_sfc(domain,dminfo,mesh,fg,state)
+ subroutine init_atm_case_sfc(domain,dminfo,mesh,fg,state)
 !==================================================================================================
 
 !input arguments:
@@ -75,7 +75,7 @@
 
  call mpas_output_state_finalize(sfc_update_obj, dminfo)
       
- end subroutine init_atm_test_case_sfc
+ end subroutine init_atm_case_sfc
 
 !==================================================================================================
  subroutine interp_sfc_to_MPAS(timeString,mesh,fg,dminfo)
