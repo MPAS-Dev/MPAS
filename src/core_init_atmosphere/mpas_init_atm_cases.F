@@ -1,4 +1,4 @@
-module init_atm_test_cases
+module init_atm_cases
 
    use mpas_kind_types
    use mpas_grid_types
@@ -22,7 +22,7 @@ module init_atm_test_cases
    contains
 
 
-   subroutine init_atm_setup_test_case(domain)
+   subroutine init_atm_setup_case(domain)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    ! Configure grid metadata and model state for the hydrostatic test case
    !   specified in the namelist
@@ -42,7 +42,7 @@ module init_atm_test_cases
       !
       ! Do some quick checks to make sure compile options are compatible with the chosen test case
       !
-      if (config_test_case == 6) then
+      if (config_init_case == 6) then
 #ifndef ROTATED_GRID
          write(0,*) '*** ERROR ***'
          write(0,*) 'To initialize and run the mountain wave test case (case 6),'
@@ -60,48 +60,48 @@ module init_atm_test_cases
 
 
 
-      if ((config_test_case == 1) .or. (config_test_case == 2) .or. (config_test_case == 3)) then
+      if ((config_init_case == 1) .or. (config_init_case == 2) .or. (config_init_case == 3)) then
 
          write(0,*) ' Jablonowski and Williamson baroclinic wave test case '
-         if (config_test_case == 1) write(0,*) ' no initial perturbation '
-         if (config_test_case == 2) write(0,*) ' initial perturbation included '
-         if (config_test_case == 3) write(0,*) ' normal-mode perturbation included '
+         if (config_init_case == 1) write(0,*) ' no initial perturbation '
+         if (config_init_case == 2) write(0,*) ' initial perturbation included '
+         if (config_init_case == 3) write(0,*) ' normal-mode perturbation included '
          block_ptr => domain % blocklist
          do while (associated(block_ptr))
             write(0,*) ' calling test case setup '
-            call init_atm_test_case_jw(block_ptr % mesh, block_ptr % state % time_levs(1) % state, block_ptr % diag, config_test_case)
+            call init_atm_case_jw(block_ptr % mesh, block_ptr % state % time_levs(1) % state, block_ptr % diag, config_init_case)
             call decouple_variables(block_ptr % mesh, block_ptr % state % time_levs(1) % state, block_ptr % diag)
             write(0,*) ' returned from test case setup '
             block_ptr => block_ptr % next
          end do
 
-      else if ((config_test_case == 4) .or. (config_test_case ==5)) then
+      else if ((config_init_case == 4) .or. (config_init_case ==5)) then
 
          write(0,*) ' squall line - super cell test case '
-         if (config_test_case == 4) write(0,*) ' squall line test case' 
-         if (config_test_case == 5) write(0,*) ' supercell test case'
+         if (config_init_case == 4) write(0,*) ' squall line test case' 
+         if (config_init_case == 5) write(0,*) ' supercell test case'
          block_ptr => domain % blocklist
          do while (associated(block_ptr))
             write(0,*) ' calling test case setup '
-            call init_atm_test_case_squall_line(domain % dminfo, block_ptr % mesh, block_ptr % state % time_levs(1) % state, block_ptr % diag, config_test_case)
+            call init_atm_case_squall_line(domain % dminfo, block_ptr % mesh, block_ptr % state % time_levs(1) % state, block_ptr % diag, config_init_case)
             call decouple_variables(block_ptr % mesh, block_ptr % state % time_levs(1) % state, block_ptr % diag)
             write(0,*) ' returned from test case setup '
             block_ptr => block_ptr % next
          end do
 
-      else if (config_test_case == 6 ) then
+      else if (config_init_case == 6 ) then
 
          write(0,*) ' mountain wave test case '
          block_ptr => domain % blocklist
          do while (associated(block_ptr))
             write(0,*) ' calling test case setup '
-            call init_atm_test_case_mtn_wave(block_ptr % mesh, block_ptr % state % time_levs(1) % state, block_ptr % diag, config_test_case)
+            call init_atm_case_mtn_wave(block_ptr % mesh, block_ptr % state % time_levs(1) % state, block_ptr % diag, config_init_case)
             call decouple_variables(block_ptr % mesh, block_ptr % state % time_levs(1) % state, block_ptr % diag)
             write(0,*) ' returned from test case setup '
             block_ptr => block_ptr % next
          end do
 
-      else if (config_test_case == 7 ) then
+      else if (config_init_case == 7 ) then
 
          write(0,*) ' real-data GFS test case '
          block_ptr => domain % blocklist
@@ -127,25 +127,25 @@ module init_atm_test_cases
                call init_atm_static(block_ptr % mesh)
                call init_atm_static_orogwd(block_ptr % mesh)
             endif
-            call init_atm_test_case_gfs(block_ptr % mesh, block_ptr % fg, & 
+            call init_atm_case_gfs(block_ptr % mesh, block_ptr % fg, & 
                                         block_ptr % state % time_levs(1) % state, block_ptr % diag, &
-                                        block_ptr % diag_physics, config_test_case)
+                                        block_ptr % diag_physics, config_init_case)
             if (config_met_interp) call physics_initialize_real(block_ptr % mesh, block_ptr % fg, domain % dminfo)
 
             block_ptr => block_ptr % next
          end do
 
-      else if (config_test_case == 8 ) then
+      else if (config_init_case == 8 ) then
 
          write(0,*) 'real-data surface (SST) update test case '
          block_ptr => domain % blocklist
          do while (associated(block_ptr))
             ! Defined in mpas_init_atm_surface.F
-            call init_atm_test_case_sfc(domain, domain % dminfo, block_ptr % mesh,block_ptr % fg, block_ptr % state % time_levs(1) % state)
+            call init_atm_case_sfc(domain, domain % dminfo, block_ptr % mesh,block_ptr % fg, block_ptr % state % time_levs(1) % state)
             block_ptr => block_ptr % next
          end do
 
-      else if (config_test_case == 9 ) then
+      else if (config_init_case == 9 ) then
 
          write(0,*) ' '
          write(0,*) ' '
@@ -158,8 +158,8 @@ module init_atm_test_cases
 
             block_ptr => domain % blocklist
             do while (associated(block_ptr))
-               call init_atm_test_case_resting_atmosphere(block_ptr % mesh, block_ptr % state % time_levs(1) % state, &
-                                                          block_ptr % diag, config_test_case)
+               call init_atm_case_resting_atmosphere(block_ptr % mesh, block_ptr % state % time_levs(1) % state, &
+                                                          block_ptr % diag, config_init_case)
                block_ptr => block_ptr % next
             end do
 
@@ -170,8 +170,8 @@ module init_atm_test_cases
 
             block_ptr => domain % blocklist
             do while (associated(block_ptr))
-               call init_atm_test_case_reduced_radius(block_ptr % mesh, block_ptr % state % time_levs(1) % state, &
-                                                      block_ptr % diag, config_test_case)
+               call init_atm_case_reduced_radius(block_ptr % mesh, block_ptr % state % time_levs(1) % state, &
+                                                      block_ptr % diag, config_init_case)
                block_ptr => block_ptr % next
             end do
 
@@ -210,7 +210,7 @@ module init_atm_test_cases
 
       !initialization of surface input variables technically not needed to run our current set of
       !idealized test cases:
-      if (config_test_case < 7)  then
+      if (config_init_case < 7)  then
          block_ptr => domain % blocklist
          do while (associated(block_ptr))
             call physics_idealized_init(block_ptr % mesh, block_ptr % fg)
@@ -218,11 +218,11 @@ module init_atm_test_cases
          end do
       endif
 
-   end subroutine init_atm_setup_test_case
+   end subroutine init_atm_setup_case
 
 !----------------------------------------------------------------------------------------------------------
 
-   subroutine init_atm_test_case_jw(grid, state, diag, test_case)
+   subroutine init_atm_case_jw(grid, state, diag, test_case)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    ! Setup baroclinic wave test case from Jablonowski and Williamson 2008 (QJRMS)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -791,12 +791,12 @@ module init_atm_test_cases
          iCell2 = grid % cellsOnEdge % array(2,iEdge)
          flux = (0.5*(lat2-lat1) - 0.125*(sin(4.*lat2) - sin(4.*lat1))) * grid % sphere_radius / grid % dvEdge % array(iEdge)
 
-         if (config_test_case == 2) then
+         if (config_init_case == 2) then
             r_pert = sphere_distance( grid % latEdge % array (iEdge), grid % lonEdge % array (iEdge), &
                                       lat_pert, lon_pert, 1.0_RKIND)/(pert_radius)
             u_pert = u_perturbation*exp(-r_pert**2)*(lat2-lat1) * grid % sphere_radius / grid % dvEdge % array(iEdge)
 
-         else if (config_test_case == 3) then
+         else if (config_init_case == 3) then
             lon_Edge = grid % lonEdge % array(iEdge)
             u_pert = u_perturbation*cos(k_x*(lon_Edge - lon_pert)) &
                          *(0.5*(lat2-lat1) - 0.125*(sin(4.*lat2) - sin(4.*lat1))) * grid % sphere_radius / grid % dvEdge % array(iEdge)
@@ -964,7 +964,7 @@ module init_atm_test_cases
          end do
       end do
 
-   end subroutine init_atm_test_case_jw
+   end subroutine init_atm_case_jw
 
 
    subroutine init_atm_calc_flux_zonal(u_2d,etavs_2d,lat_2d,flux_zonal,lat1_in,lat2_in,dvEdge,a,u0,nz1,nlat)
@@ -1116,7 +1116,7 @@ module init_atm_test_cases
    end subroutine init_atm_recompute_geostrophic_wind
 
 
-   subroutine init_atm_test_case_squall_line(dminfo, grid, state, diag, test_case)
+   subroutine init_atm_case_squall_line(dminfo, grid, state, diag, test_case)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    ! Setup squall line and supercell test case
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1352,11 +1352,11 @@ module init_atm_test_cases
 
 !         write(0,*) ' rgas, cp, gravity ',rgas,cp, gravity
 
-      if ( config_test_case == 4) then ! squall line parameters
+      if ( config_init_case == 4) then ! squall line parameters
          um = 12.
          us = 10.
          zts = 2500.
-      else if (config_test_case == 5) then !supercell parameters
+      else if (config_init_case == 5) then !supercell parameters
          um = 30.
          us = 15.
          zts = 5000.
@@ -1497,11 +1497,11 @@ module init_atm_test_cases
       radz  = 1500.
       zcent = 1500.
 
-      if (config_test_case == 4) then          ! squall line prameters
+      if (config_init_case == 4) then          ! squall line prameters
          call mpas_dmpar_max_real(dminfo, maxval(grid % xCell % array(:)), xmid)
          xmid = xmid * 0.5
          ymid = 0.0          ! Not used for squall line
-      else if (config_test_case == 5) then     ! supercell parameters
+      else if (config_init_case == 5) then     ! supercell parameters
          call mpas_dmpar_max_real(dminfo, maxval(grid % xCell % array(:)), xmid)
          call mpas_dmpar_max_real(dminfo, maxval(grid % yCell % array(:)), ymid)
          xmid = xmid * 0.5
@@ -1510,9 +1510,9 @@ module init_atm_test_cases
 
       do i=1, grid % nCells
         xloc = grid % xCell % array(i) - xmid
-        if (config_test_case == 4) then 
+        if (config_init_case == 4) then 
            yloc = 0.                            !squall line setting
-        else if (config_test_case == 5) then
+        else if (config_init_case == 5) then
            yloc = grid % yCell % array(i) - ymid !supercell setting
         end if
 
@@ -1645,13 +1645,13 @@ module init_atm_test_cases
          end do
       end do
 
-   end subroutine init_atm_test_case_squall_line
+   end subroutine init_atm_case_squall_line
 
 
 !----------------------------------------------------------------------------------------------------------
 
 
-   subroutine init_atm_test_case_mtn_wave(grid, state, diag, test_case)
+   subroutine init_atm_case_mtn_wave(grid, state, diag, init_case)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    ! Setup baroclinic wave test case from Jablonowski and Williamson 2008 (QJRMS)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1661,7 +1661,7 @@ module init_atm_test_cases
       type (mesh_type), intent(inout) :: grid
       type (state_type), intent(inout) :: state
       type (diag_type), intent(inout) :: diag
-      integer, intent(in) :: test_case
+      integer, intent(in) :: init_case
 
       real (kind=RKIND), parameter :: t0=288., hm=250.
 
@@ -2252,10 +2252,10 @@ module init_atm_test_cases
          end do
       end do
 
-   end subroutine init_atm_test_case_mtn_wave
+   end subroutine init_atm_case_mtn_wave
 
 
-   subroutine init_atm_test_case_gfs(grid, fg, state, diag, diag_physics, test_case)
+   subroutine init_atm_case_gfs(grid, fg, state, diag, diag_physics, init_case)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    ! Real-data test case using GFS data
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2272,7 +2272,7 @@ module init_atm_test_cases
       type (state_type), intent(inout) :: state
       type (diag_type), intent(inout) :: diag
       type (diag_physics_type), intent(inout):: diag_physics
-      integer, intent(in) :: test_case
+      integer, intent(in) :: init_case
 
       type (block_type), pointer :: block
       type (parallel_info), pointer :: parinfo
@@ -3804,13 +3804,13 @@ write(0,*) 'PROCESSING SEAICE'
 
       end if    ! config_met_interp
 
-   end subroutine init_atm_test_case_gfs
+   end subroutine init_atm_case_gfs
 
 
 !---------------------  TEST CASE 9 -----------------------------------------------
 
 
-   subroutine init_atm_test_case_reduced_radius(grid, state, diag, test_case)
+   subroutine init_atm_case_reduced_radius(grid, state, diag, init_case)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    ! Setup Schar-type mountain wave test case on reduced radius sphere
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3820,7 +3820,7 @@ write(0,*) 'PROCESSING SEAICE'
       type (mesh_type), intent(inout) :: grid
       type (state_type), intent(inout) :: state
       type (diag_type), intent(inout) :: diag
-      integer, intent(in) :: test_case
+      integer, intent(in) :: init_case
 
       real (kind=RKIND), parameter :: t0=300., hm=250., alpha=0.
 !      real (kind=RKIND), parameter :: t0=288., hm=0., alpha=0.
@@ -4632,13 +4632,13 @@ write(0,*) 'PROCESSING SEAICE'
 !     nso = 8
 !     2nd-order horiz mixing = 50.0
 
-   end subroutine init_atm_test_case_reduced_radius
+   end subroutine init_atm_case_reduced_radius
 
 
 !---------------------  TEST CASE 9 -----------------------------------------------
 
 
-   subroutine init_atm_test_case_resting_atmosphere(grid, state, diag, test_case)
+   subroutine init_atm_case_resting_atmosphere(grid, state, diag, init_case)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    ! Setup resting atmosphere test case with terrian
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -4648,7 +4648,7 @@ write(0,*) 'PROCESSING SEAICE'
       type (mesh_type), intent(inout) :: grid
       type (state_type), intent(inout) :: state
       type (diag_type), intent(inout) :: diag
-      integer, intent(in) :: test_case
+      integer, intent(in) :: init_case
 
       real (kind=RKIND), parameter :: t0=300., alpha=0.
       real (kind=RKIND) :: hm
@@ -5381,7 +5381,7 @@ write(0,*) 'PROCESSING SEAICE'
          end do
       end do
 
-   end subroutine init_atm_test_case_resting_atmosphere
+   end subroutine init_atm_case_resting_atmosphere
 
 
    integer function nearest_edge(target_lat, target_lon, &
@@ -5679,4 +5679,4 @@ write(0,*) 'PROCESSING SEAICE'
    end subroutine decouple_variables
 
 
-end module init_atm_test_cases
+end module init_atm_cases
