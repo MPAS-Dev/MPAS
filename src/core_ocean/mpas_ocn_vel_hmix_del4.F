@@ -43,11 +43,6 @@ module ocn_vel_hmix_del4
 
    logical :: hmixDel4On       !< local flag to determine whether del4 chosen
 
-   real (kind=RKIND) :: &
-      eddyVisc4,        &!< base eddy diffusivity for biharmonic
-      viscVortCoef
-
-
 !***********************************************************************
 
 contains
@@ -176,8 +171,8 @@ contains
 
          do k=1,maxLevelEdgeTop(iEdge)
             ! Compute \nabla^2 u = \nabla divergence + k \times \nabla relativeVorticity
-            delsq_u(k, iEdge) =          ( divergence(k,cell2)  - divergence(k,cell1) ) * invDcEdge  &
-                -viscVortCoef *( relativeVorticity(k,vertex2) - relativeVorticity(k,vertex1)) * invDcEdge * sqrt(3.0)   
+            delsq_u(k, iEdge) = ( divergence(k,cell2)  - divergence(k,cell1) ) * invDcEdge  &
+                               -( relativeVorticity(k,vertex2) - relativeVorticity(k,vertex1)) * invDcEdge * sqrt(3.0)   
          end do
       end do
 
@@ -213,11 +208,11 @@ contains
 
          invDcEdge = 1.0 / dcEdge(iEdge)
          invDvEdge = 1.0 / dvEdge(iEdge)
-         r_tmp = meshScalingDel4(iEdge) * eddyVisc4
+         r_tmp = config_mom_del4 * meshScalingDel4(iEdge)
 
          do k=1,maxLevelEdgeTop(iEdge)
             u_diffusion = (delsq_divergence(k,cell2) - delsq_divergence(k,cell1)) * invDcEdge  &
-                -viscVortCoef * (delsq_relativeVorticity(k,vertex2) - delsq_relativeVorticity(k,vertex1) ) * invDcEdge * sqrt(3.0) 
+                        - (delsq_relativeVorticity(k,vertex2) - delsq_relativeVorticity(k,vertex1) ) * invDcEdge * sqrt(3.0) 
 
             tend(k,iEdge) = tend(k,iEdge) - edgeMask(k, iEdge) * u_diffusion * r_tmp
          end do
@@ -260,13 +255,6 @@ contains
 
    if ( config_mom_del4 > 0.0 ) then
       hmixDel4On = .true.
-      eddyVisc4 = config_mom_del4
-      if (config_visc_vorticity_term) then
-         viscVortCoef = config_vorticity_del4_scale
-      else
-         viscVortCoef = 0.0
-      endif
-
    endif
 
    if(.not.config_use_mom_del4) hmixDel4On = .false.
