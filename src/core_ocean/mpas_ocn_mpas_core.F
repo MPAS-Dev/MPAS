@@ -1,3 +1,16 @@
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  mpas_core
+!
+!> \brief Main driver for MPAS ocean core
+!> \author Doug Jacobsen, Mark Petersen, Todd Ringler
+!> \date   September 2011
+!> \details
+!>  This module contains initialization and timestep drivers for 
+!>  the MPAS ocean core.
+!
+!-----------------------------------------------------------------------
+
 module mpas_core
 
    use mpas_configure
@@ -46,6 +59,19 @@ module mpas_core
    type (timer_node), pointer :: initDiagSolveTimer
 
    contains
+
+!***********************************************************************
+!
+!  routine mpas_core_init
+!
+!> \brief   Initialize MPAS-Ocean core
+!> \author  Doug Jacobsen, Mark Petersen, Todd Ringler
+!> \date    September 2011
+!> \details 
+!>  This routine calls all initializations required to begin a
+!>  simulation with MPAS-Ocean
+!
+!-----------------------------------------------------------------------
 
    subroutine mpas_core_init(domain, startTimeStamp)!{{{
 
@@ -191,6 +217,18 @@ module mpas_core
 
    end subroutine mpas_core_init!}}}
 
+!***********************************************************************
+!
+!  routine mpas_simulation_clock_init
+!
+!> \brief   Initialize timer variables
+!> \author  Doug Jacobsen, Mark Petersen, Todd Ringler
+!> \date    September 2011
+!> \details 
+!>  This routine initializes all timer variables
+!
+!-----------------------------------------------------------------------
+
    subroutine ocn_simulation_clock_init(domain, dt, startTimeStamp)!{{{
 
       implicit none
@@ -256,6 +294,19 @@ module mpas_core
       call mpas_get_time(curr_time=startTime, dateTimeString=startTimeStamp, ierr=ierr)
 
    end subroutine ocn_simulation_clock_init!}}}
+
+!***********************************************************************
+!
+!  routine mpas_init_block
+!
+!> \brief   Initialize blocks within MPAS-Ocean core
+!> \author  Doug Jacobsen, Mark Petersen, Todd Ringler
+!> \date    September 2011
+!> \details 
+!>  This routine calls all block-level initializations required to begin a
+!>  simulation with MPAS-Ocean
+!
+!-----------------------------------------------------------------------
 
    subroutine mpas_init_block(block, mesh, dt, err)!{{{
    
@@ -328,6 +379,19 @@ module mpas_core
 
    end subroutine mpas_init_block!}}}
    
+!***********************************************************************
+!
+!  routine mpas_core_run
+!
+!> \brief   Main driver for MPAS-Ocean time-stepping
+!> \author  Doug Jacobsen, Mark Petersen, Todd Ringler
+!> \date    September 2011
+!> \details 
+!>  This routine includes the time-stepping loop, and calls timer
+!>  routines to write output and restart files.
+!
+!-----------------------------------------------------------------------
+
    subroutine mpas_core_run(domain, output_obj, output_frame)!{{{
    
       use mpas_kind_types
@@ -519,6 +583,18 @@ module mpas_core
    
    end subroutine ocn_compute_output_diagnostics!}}}
    
+!***********************************************************************
+!
+!  routine mpas_core_run
+!
+!> \brief   Sub-driver for MPAS-Ocean time-stepping
+!> \author  Doug Jacobsen, Mark Petersen, Todd Ringler
+!> \date    September 2011
+!> \details 
+!>  This routine calls the time integration routine within a time-stepping loop.
+!
+!-----------------------------------------------------------------------
+
    subroutine mpas_timestep(domain, itimestep, dt, timeStamp)!{{{
    
       use mpas_kind_types

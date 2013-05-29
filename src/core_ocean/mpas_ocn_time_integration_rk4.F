@@ -3,8 +3,8 @@
 !  ocn_time_integration_rk4
 !
 !> \brief MPAS ocean RK4 Time integration scheme
-!> \author Doug Jacobsen
-!> \date   26 September 2011
+!> \author Mark Petersen, Doug Jacobsen, Todd Ringler
+!> \date   September 2011
 !> \details
 !>  This module contains the RK4 time integration routine.
 !
@@ -52,8 +52,8 @@ module ocn_time_integration_rk4
 !  ocn_time_integrator_rk4
 !
 !> \brief MPAS ocean RK4 Time integration scheme
-!> \author Doug Jacobsen
-!> \date   26 September 2011
+!> \author Mark Petersen, Doug Jacobsen, Todd Ringler
+!> \date   September 2011
 !> \details
 !>  This routine integrates one timestep (dt) using an RK4 time integrator.
 !

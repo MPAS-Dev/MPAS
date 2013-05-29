@@ -3,8 +3,8 @@
 !  ocn_vel_hmix
 !
 !> \brief MPAS ocean horizontal momentum mixing driver
-!> \author Phil Jones, Doug Jacobsen
-!> \date   15 September 2011
+!> \author Mark Petersen, Doug Jacobsen, Todd Ringler
+!> \date   September 2011
 !> \details
 !>  This module contains the main driver routine for computing 
 !>  horizontal mixing tendencies.  
@@ -60,8 +60,8 @@ contains
 !  routine ocn_vel_hmix_tend
 !
 !> \brief   Computes tendency term for horizontal momentum mixing
-!> \author  Phil Jones, Doug Jacobsen
-!> \date    15 September 2011
+!> \author  Mark Petersen, Doug Jacobsen, Todd Ringler
+!> \date    September 2011
 !> \details 
 !>  This routine computes the horizontal mixing tendency for momentum
 !>  based on current state and user choices of mixing parameterization.
@@ -152,8 +152,8 @@ contains
 !  routine ocn_vel_hmix_init
 !
 !> \brief   Initializes ocean momentum horizontal mixing quantities
-!> \author  Phil Jones, Doug Jacobsen
-!> \date    15 September 2011
+!> \author  Mark Petersen, Doug Jacobsen, Todd Ringler
+!> \date    September 2011
 !> \details 
 !>  This routine initializes a variety of quantities related to 
 !>  horizontal velocity mixing in the ocean. Since a variety of 

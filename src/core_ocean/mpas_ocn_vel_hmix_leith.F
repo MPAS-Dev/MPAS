@@ -43,9 +43,6 @@ module ocn_vel_hmix_leith
 
    logical ::  hmixLeithOn  !< integer flag to determine whether leith chosen
 
-   real (kind=RKIND) :: &
-      viscVortCoef
-
 !***********************************************************************
 
 contains
@@ -160,8 +157,7 @@ contains
             !    + k \times \nabla relativeVorticity pointing from cell1 to cell2.
 
             u_diffusion = ( divergence(k,cell2)  - divergence(k,cell1) ) * invLength1 &
-                          -viscVortCoef &
-                          *( relativeVorticity(k,vertex2) - relativeVorticity(k,vertex1) ) * invLength2
+                         -( relativeVorticity(k,vertex2) - relativeVorticity(k,vertex1) ) * invLength2
 
             ! Here the first line is (\delta x)^3
             ! the second line is |\nabla \omega|
@@ -211,13 +207,6 @@ contains
 
    if (config_use_leith_del2) then
       hmixLeithOn = .true.
-
-      if (config_visc_vorticity_term) then
-         viscVortCoef = config_vorticity_del2_scale
-      else
-         viscVortCoef = 0.0
-      endif
-
    endif
 
    !--------------------------------------------------------------------
