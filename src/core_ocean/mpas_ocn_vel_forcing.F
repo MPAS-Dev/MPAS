@@ -3,8 +3,8 @@
 !  ocn_vel_forcing
 !
 !> \brief MPAS ocean forcing driver
-!> \author Doug Jacobsen
-!> \date   16 September 2011
+!> \author Doug Jacobsen, Mark Petersen, Todd Ringler
+!> \date   September 2011
 !> \details
 !>  This module contains the main driver routine for computing 
 !>  tendencies from forcings.  
@@ -54,7 +54,7 @@ contains
 !  routine ocn_vel_forcing_tend
 !
 !> \brief   Computes tendency term from forcings
-!> \author  Doug Jacobsen
+!> \author  Doug Jacobsen, Mark Petersen, Todd Ringler
 !> \date    15 September 2011
 !> \details 
 !>  This routine computes the forcing tendency for momentum
@@ -133,8 +133,8 @@ contains
 !  routine ocn_vel_forcing_init
 !
 !> \brief   Initializes ocean forcings
-!> \author  Doug Jacobsen
-!> \date    16 September 2011
+!> \author  Doug Jacobsen, Mark Petersen, Todd Ringler
+!> \date    September 2011
 !> \details 
 !>  This routine initializes quantities related to forcings 
 !>  in the ocean. Since a multiple forcings are available, 

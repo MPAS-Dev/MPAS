@@ -3,8 +3,8 @@
 !  ocn_vel_vadv
 !
 !> \brief MPAS ocean vertical advection 
-!> \author Doug Jacobsen
-!> \date   15 September 2011
+!> \author Mark Petersen
+!> \date   September 2011
 !> \details
 !>  This module contains the routine for computing 
 !>  tendencies for vertical advection.
@@ -54,8 +54,8 @@ contains
 !  routine ocn_vel_vadv_tend
 !
 !> \brief   Computes tendency term for vertical advection
-!> \author  Doug Jacobsen
-!> \date    15 September 2011
+!> \author  Mark Petersen
+!> \date    September 2011
 !> \details 
 !>  This routine computes the vertical advection tendency for momentum
 !>  based on current state.
@@ -152,8 +152,8 @@ contains
 !  routine ocn_vel_vadv_init
 !
 !> \brief   Initializes ocean momentum vertical advection
-!> \author  Doug Jacobsen
-!> \date    15 September 2011
+!> \author  Mark Petersen
+!> \date    September 2011
 !> \details 
 !>  This routine initializes a variety of quantities related to 
 !>  vertical velocity advection in the ocean. 

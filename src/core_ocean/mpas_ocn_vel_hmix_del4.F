@@ -3,8 +3,8 @@
 !  ocn_vel_hmix_del4
 !
 !> \brief Ocean horizontal mixing - biharmonic parameterization
-!> \author Phil Jones, Doug Jacobsen
-!> \date   15 September 2011
+!> \author Mark Petersen, Doug Jacobsen, Todd Ringler
+!> \date   September 2011
 !> \details
 !>  This module contains routines and variables for computing 
 !>  horizontal mixing tendencies using a biharmonic formulation. 
@@ -52,8 +52,8 @@ contains
 !  routine ocn_vel_hmix_del4_tend
 !
 !> \brief   Computes tendency term for biharmonic horizontal momentum mixing
-!> \author  Phil Jones, Doug Jacobsen
-!> \date    15 September 2011
+!> \author  Mark Petersen, Doug Jacobsen, Todd Ringler
+!> \date    September 2011
 !> \details 
 !>  This routine computes the horizontal mixing tendency for momentum
 !>  based on a biharmonic form for the mixing.  This mixing tendency
@@ -231,8 +231,8 @@ contains
 !  routine ocn_vel_hmix_del4_init
 !
 !> \brief   Initializes ocean momentum biharmonic horizontal mixing
-!> \author  Phil Jones, Doug Jacobsen
-!> \date    15 September 2011
+!> \author  Mark Petersen, Doug Jacobsen, Todd Ringler
+!> \date    September 2011
 !> \details 
 !>  This routine initializes a variety of quantities related to 
 !>  biharmonic horizontal tracer mixing in the ocean.  
