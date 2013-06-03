@@ -108,7 +108,10 @@
 !open intermediate file:
  call read_met_init(trim(config_sfc_prefix),.false.,timeString,istatus)
  if(istatus /= 0) then
-    write(0,*) 'Error reading   ',trim(config_sfc_prefix)//':'//timeString(1:13)
+    write(0,*) '********************************************************************************'
+    write(0,*) 'Error opening surface file '//   &
+                trim(config_sfc_prefix)//':'//timeString(1:13)
+    write(0,*) '********************************************************************************'
     call mpas_dmpar_abort(dminfo)
  else
     write(0,*) 'Processing file ',trim(config_sfc_prefix)//':'//timeString(1:13)
@@ -136,7 +139,10 @@
 !read sea-surface temperatures and seaice data. open intermediate file:
  call read_met_init(trim(config_sfc_prefix),.false.,timeString(1:13),istatus)
  if(istatus /= 0) then
-    write(0,*) 'Error reading ',trim(config_sfc_prefix)//':'//timeString(1:13)
+    write(0,*) '********************************************************************************'
+    write(0,*) 'Error opening surface file '//   &
+                trim(config_sfc_prefix)//':'//timeString(1:13)
+    write(0,*) '********************************************************************************'
     call mpas_dmpar_abort(dminfo)
  endif
 

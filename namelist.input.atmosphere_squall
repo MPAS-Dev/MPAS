@@ -20,6 +20,7 @@
    config_smdiv = 0.1
    config_mix_full = .false.
    config_monotonic = .true.
+   config_h_ScaleWithMesh = .false.
 /
 
 &damping
