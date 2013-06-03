@@ -20,6 +20,7 @@
    config_epssm = 0.1
    config_smdiv = 0.1
    config_newpx = .false.
+   config_h_ScaleWithMesh = .false.
 /
 
 &damping

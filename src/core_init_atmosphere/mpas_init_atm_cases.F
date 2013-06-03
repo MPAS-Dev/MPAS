@@ -2444,8 +2444,11 @@ module init_atm_cases
       call read_met_init(trim(config_met_prefix), .false., config_start_time(1:13), istatus)
 
       if (istatus /= 0) then
-         write(0,*) 'Error reading initial met data'
-         return
+         write(0,*) '********************************************************************************'
+         write(0,*) 'Error opening initial meteorological data file '//   &
+                     trim(config_met_prefix)//':'//config_start_time(1:13)
+         write(0,*) '********************************************************************************'
+         call mpas_dmpar_abort(grid % block % domain % dminfo)
       end if
 
       call read_next_met_field(field, istatus)
@@ -2826,8 +2829,11 @@ module init_atm_cases
       call read_met_init(trim(config_met_prefix), .false., config_start_time(1:13), istatus)
 
       if (istatus /= 0) then
-         write(0,*) 'Error reading initial met data'
-         return
+         write(0,*) '********************************************************************************'
+         write(0,*) 'Error opening initial meteorological data file '//   &
+                     trim(config_met_prefix)//':'//config_start_time(1:13)
+         write(0,*) '********************************************************************************'
+         call mpas_dmpar_abort(grid % block % domain % dminfo)
       end if
 
       call read_next_met_field(field, istatus)
@@ -2865,8 +2871,11 @@ write(0,*) 'minval, maxval of LANDSEA = ', minval(maskslab), maxval(maskslab)
       call read_met_init(trim(config_met_prefix), .false., config_start_time(1:13), istatus)
 
       if (istatus /= 0) then
-         write(0,*) 'Error reading initial met data'
-         return
+         write(0,*) '********************************************************************************'
+         write(0,*) 'Error opening initial meteorological data file '//   &
+                     trim(config_met_prefix)//':'//config_start_time(1:13)
+         write(0,*) '********************************************************************************'
+         call mpas_dmpar_abort(grid % block % domain % dminfo)
       end if
 
       call read_next_met_field(field, istatus)
@@ -3372,7 +3381,7 @@ write(0,*) 'Done with soil consistency check'
       call read_met_init('SEAICE_FRACTIONAL', .true., config_start_time(1:13), istatus)
 
       if (istatus /= 0) then
-         write(0,*) 'Error reading SEAICE_FRACTIONAL data'
+         write(0,*) 'SEAICE_FRACTIONAL file not found...'
       end if
 
       if (istatus == 0) then
