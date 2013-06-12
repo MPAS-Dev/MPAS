@@ -1105,7 +1105,7 @@ module mpas_timekeeping
          else if (size(subStrings) /= 1) then
             deallocate(subStrings)
             if (present(ierr)) ierr = 1
-            write(0,*) 'ERROR: Invalid TimeInterval string', timeString
+            write(0,*) 'ERROR: Invalid TimeInterval string', trim(timeString)
             return
          end if
 
@@ -1123,7 +1123,7 @@ module mpas_timekeeping
          else
             deallocate(subStrings)
             if (present(ierr)) ierr = 1
-            write(0,*) 'ERROR: Invalid TimeInterval string', timeString
+            write(0,*) 'ERROR: Invalid TimeInterval string', trim(timeString)
             return
          end if
 
@@ -1137,7 +1137,7 @@ module mpas_timekeeping
          else
             deallocate(subStrings)
             if (present(ierr)) ierr = 1
-            write(0,*) 'ERROR: Invalid TimeInterval string (invalid time substring)', timeString
+            write(0,*) 'ERROR: Invalid TimeInterval string (invalid time substring)', trim(timeString)
             return
          end if
 
@@ -1158,7 +1158,7 @@ module mpas_timekeeping
 
       if (interval <= zeroInterval) then
          if (present(ierr)) ierr = 1   
-         write(0,*) 'ERROR: TimeInterval must be greater than 0', timeString !'ERROR: TimeInterval cannot be negative'
+         write(0,*) 'ERROR: TimeInterval must be greater than zero: ', trim(timeString) !'ERROR: TimeInterval cannot be negative'
       end if
       
 
