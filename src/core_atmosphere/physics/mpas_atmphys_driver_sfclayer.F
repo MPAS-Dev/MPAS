@@ -12,7 +12,7 @@
  use mpas_atmphys_constants
  use mpas_atmphys_vars
 
-!from wrf physics:
+!wrf physics:
  use module_sf_sfclay
 
  implicit none
@@ -29,6 +29,32 @@
                                                  !0=no 1=yes (WRF single column model option only).
 
  integer,private:: i,j
+
+
+!>\brief MPAS driver for parameterization of the surface layer.
+!>\author Laura D. Fowler (send comments to laura@ucar.edu).
+!>\date 2013-05-01.
+!>
+!>\details
+!>
+!> subroutines in mpas_atmphys_driver_sfclayer:
+!> --------------------------------------------
+!> allocate_sfclayer    : allocate local arrays for parameterization of surface layer.
+!> deallocate_sfclayer  : deallocate local arrays for parameterization of surface layer.
+!> init_sfclayer        : initialization of individual surface layer schemes.
+!> driver_sfclayer      : main driver (called from subroutine physics_driver).
+!> sfclayer_from_MPAS   : initialize local arrays.
+!> sfclayer_to_MPAS     : copy local arrays to MPAS arrays.
+!>
+!> WRF physics called from driver_sfclayer:
+!> ----------------------------------------
+!>    * module_sf_sfclay: Monin-Obukhov surface layer scheme.
+!>
+!> add-ons and modifications to sourcecode:
+!> ----------------------------------------
+!>    * removed the pre-processor option "do_hydrostatic_pressure" before call to the subroutine
+!>      sfclay.
+!>      Laura D. Fowler (birch.ucar.edu) / 2013-05-29.
 
  contains
 
@@ -274,8 +300,6 @@
 
     case("monin_obukhov")
        dx = sqrt(maxval(mesh % areaCell % array))
-#if defined(do_hydrostatic_pressure)
-!... REARRANGED CALL USING HYDROSTATIC PRESSURE:
        call sfclay( &
                    p3d      = pres_hyd_p , psfc     = psfc_p     , t3d      = t_p        , &
                    u3d      = u_p        , v3d      = v_p        , qv3d     = qv_p       , &
@@ -303,44 +327,13 @@
                    ids = ids , ide = ide , jds = jds , jde = jde , kds = kds , kde = kde , &
                    ims = ims , ime = ime , jms = jms , jme = jme , kms = kms , kme = kme , &
                    its = its , ite = ite , jts = jts , jte = jte , kts = kts , kte = kte   &
-                 )
-#else
-!... REARRANGED CALL:
-       call sfclay( &
-                   p3d      = pres_p     , psfc     = psfc_p     , t3d      = t_p        , &
-                   u3d      = u_p        , v3d      = v_p        , qv3d     = qv_p       , &
-                   dz8w     = dz_p       , cp       = cp         , g        = g          , &
-                   rovcp    = rcp        , R        = R_d        , xlv      = xlv        , & 
-                   chs      = chs_p      , chs2     = chs2_p     , cqs2     = cqs2_p     , &
-                   cpm      = cpm_p      , znt      = znt_p      , ust      = ust_p      , &
-                   pblh     = hpbl_p     , mavail   = mavail_p   , zol      = zol_p      , &
-                   mol      = mol_p      , regime   = regime_p   , psim     = psim_p     , &
-                   psih     = psih_p     , fm       = fm_p       , fh       = fh_p       , &
-                   xland    = xland_p    , hfx      = hfx_p      , qfx      = qfx_p      , &
-                   lh       = lh_p       , tsk      = tsk_p      , flhc     = flhc_p     , &
-                   flqc     = flqc_p     , qgh      = qgh_p      , qsfc     = qsfc_p     , &
-                   rmol     = rmol_p     , u10      = u10_p      , v10      = v10_p      , &
-                   th2      = th2m_p     , t2       = t2m_p      , q2       = q2_p       , &
-                   gz1oz0   = gz1oz0_p   , wspd     = wspd_p     , br       = br_p       , &
-                   isfflx   = isfflx     , dx       = dx         , svp1     = svp1       , &
-                   svp2     = svp2       , svp3     = svp3       , svpt0    = svpt0      , &
-                   ep1      = ep_1       , ep2      = ep_2       , karman   = karman     , &
-                   eomeg    = eomeg      , stbolt   = stbolt     , P1000mb  = P0         , &
-                   areaCell = area_p     , ustm     = ustm_p     , ck       = ck_p       , & 
-                   cka      = cka_p      , cd       = cd_p       , cda      = cda_p      , & 
-                   isftcflx = isftcflx   , iz0tlnd  = iz0tlnd    ,                         &
-                   scm_force_flux = scm_force_flux               ,                         & 
-                   ids = ids , ide = ide , jds = jds , jde = jde , kds = kds , kde = kde , &
-                   ims = ims , ime = ime , jms = jms , jme = jme , kms = kms , kme = kme , &
-                   its = its , ite = ite , jts = jts , jte = jte , kts = kts , kte = kte   &
-                 )
-#endif
+                  )
         
     case default
 
  end select sfclayer_select
 
-!copy all arrays back to the MPAS grid:
+!copy local arrays to MPAS grid:
  call sfclayer_to_MPAS(diag_physics)
 
  write(0,*) '--- end subroutine driver_sfclayer'

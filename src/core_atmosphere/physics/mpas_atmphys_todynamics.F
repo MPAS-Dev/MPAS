@@ -5,7 +5,7 @@
 ! Additional copyright and license information can be found in the LICENSE file
 ! distributed with this code, or at http://mpas-dev.github.com/license.html
 !
-!=============================================================================================
+!==================================================================================================
  module mpas_atmphys_todynamics
  use mpas_configure
  use mpas_grid_types
@@ -16,11 +16,24 @@
  private
  public:: physics_addtend
 
+
+!>\brief interface between the physics parameterizations and the non-hydrostatic dynamical core.
+!>\author Laura D. Fowler (send comments to laura@ucar.edu).
+!>\date 2013-05-01.
+!>
+!>\details
+!>
+!> subroutines in mpas_atmphys_todynamics:
+!> ---------------------------------------
+!> physics_addtend: add and mass-weigh tendencies before being added to dynamics tendencies.
+!> tend_toEdges   : interpolate wind-tendencies from centers to edges of grid-cells.
+
+
  contains
  
-!=============================================================================================
-subroutine physics_addtend(mesh, state, diag, tend, tend_physics, mass, mass_edge, rk_step)
-!=============================================================================================
+!==================================================================================================
+ subroutine physics_addtend(mesh, state, diag, tend, tend_physics, mass, mass_edge, rk_step)
+!==================================================================================================
 
 !input variables:
 !----------------
@@ -61,7 +74,7 @@ subroutine physics_addtend(mesh, state, diag, tend, tend_physics, mass, mass_edg
  real(kind=RKIND),dimension(:,:),allocatable:: theta,tend_th
 !ldf end.
 
-!=============================================================================================
+!==================================================================================================
  block => mesh % block
  
  nCells      = mesh % nCells
@@ -173,22 +186,14 @@ subroutine physics_addtend(mesh, state, diag, tend, tend_physics, mass, mass_edg
 
 !if non-hydrostatic core, convert the tendency for the potential temperature to a
 !tendency for the modified potential temperature:
-#ifdef non_hydrostatic_core
-    do i = 1, nCellsSolve
-    do k = 1, nVertLevels
-       theta(k,i) = theta_m(k,i) / (1. + R_v/R_d * qv(k,i))
-       tend_th(k,i) = (1. + R_v/R_d * qv(k,i)) * tend_th(k,i) &
-                       + R_v/R_d * theta(k,i) * tend_scalars(tend%index_qv,k,i)
-       tend_theta(k,i) = tend_theta(k,i) + tend_th(k,i)
-    enddo
-    enddo
-#elif hydrostatic_core
-    do i = 1, nCellsSolve
-    do k = 1, nVertLevels
-       tend_theta(k,i) = tend_theta(k,i) + tend_th(k,i)
-    enddo
-    enddo
-#endif
+ do i = 1, nCellsSolve
+ do k = 1, nVertLevels
+    theta(k,i) = theta_m(k,i) / (1. + R_v/R_d * qv(k,i))
+    tend_th(k,i) = (1. + R_v/R_d * qv(k,i)) * tend_th(k,i) &
+                    + R_v/R_d * theta(k,i) * tend_scalars(tend%index_qv,k,i)
+    tend_theta(k,i) = tend_theta(k,i) + tend_th(k,i)
+ enddo
+ enddo
  deallocate(theta)
  deallocate(tend_th)
 
@@ -213,9 +218,9 @@ subroutine physics_addtend(mesh, state, diag, tend, tend_physics, mass, mass_edg
 
  end subroutine  physics_addtend
 
-!=============================================================================================
+!==================================================================================================
  subroutine tend_toEdges(mesh,Ux_tend,Uy_tend,U_tend)
-!=============================================================================================
+!==================================================================================================
 
 !input arguments:
 !----------------
@@ -238,7 +243,7 @@ subroutine physics_addtend(mesh, state, diag, tend, tend_physics, mass, mass_edg
  real(kind=RKIND),dimension(:,:),pointer:: east,north,edge_normal
  real(kind=RKIND),dimension(:,:),allocatable,target:: Ux_tend_halo,Uy_tend_halo
  
-!---------------------------------------------------------------------------------------------
+!--------------------------------------------------------------------------------------------------
 
  block => mesh % block
  
@@ -301,6 +306,6 @@ subroutine physics_addtend(mesh, state, diag, tend, tend_physics, mass, mass_edg
  
  end subroutine tend_toEdges
 
-!=============================================================================================
+!==================================================================================================
  end module mpas_atmphys_todynamics
-!=============================================================================================
+!==================================================================================================
