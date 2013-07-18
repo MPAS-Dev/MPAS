@@ -148,16 +148,17 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tend_vel(tend, s, d, grid)!{{{
+   subroutine ocn_tend_vel(tend, s, d, grid, scratch)!{{{
       implicit none
 
       type (tend_type), intent(inout) :: tend !< Input/Output: Tendency structure
       type (state_type), intent(in) :: s !< Input: State information
       type (diagnostics_type), intent(in) :: d !< Input: Diagnostic information
       type (mesh_type), intent(in) :: grid !< Input: Grid information
+      type (scratch_type), intent(inout) :: scratch !< Input: Scratch structure
 
       real (kind=RKIND), dimension(:,:), pointer :: &
-        layerThicknessEdge, h, normalVelocity, density, zMid, pressure, &
+        layerThicknessEdge, h, normalVelocity, tangentialVelocity, density, zMid, pressure, &
         tend_normalVelocity, circulation, relativeVorticity, viscosity, kineticEnergyCell, &
         normalizedRelativeVorticityEdge, normalizedPlanetaryVorticityEdge, &
         montgomeryPotential, vertTransportVelocityTop, divergence, vertViscTopOfEdge
@@ -169,6 +170,7 @@ contains
       call mpas_timer_start("ocn_tend_vel")
 
       normalVelocity => s % normalVelocity % array
+      tangentialVelocity => s % tangentialVelocity % array
       density         => s % density % array
       vertTransportVelocityTop        => s % vertTransportVelocityTop % array
       zMid        => s % zMid % array
@@ -226,7 +228,8 @@ contains
       !   strictly only valid for config_mom_del2 == constant
       !
       call mpas_timer_start("hmix", .false., velHmixTimer)
-      call ocn_vel_hmix_tend(grid, divergence, relativeVorticity, viscosity, tend_normalVelocity, err)
+      call ocn_vel_hmix_tend(grid, divergence, relativeVorticity, normalVelocity, tangentialVelocity, &
+         viscosity, tend_normalVelocity, scratch, err)
       call mpas_timer_stop("hmix", velHmixTimer)
 
       !
