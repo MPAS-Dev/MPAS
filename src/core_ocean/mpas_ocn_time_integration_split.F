@@ -200,7 +200,7 @@ module ocn_time_integration_split
               block % state % time_levs(stage1_tend_time) % state % normalVelocity % array, &
               block % state % time_levs(stage1_tend_time) % state % vertTransportVelocityTop % array, err)
 
-            call ocn_tend_vel(block % tend, block % state % time_levs(stage1_tend_time) % state, block % diagnostics, block % mesh)
+            call ocn_tend_vel(block % tend, block % state % time_levs(stage1_tend_time) % state, block % diagnostics, block % mesh, block % scratch)
 
             block => block % next
          end do

@@ -158,7 +158,7 @@ module ocn_time_integration_rk4
            call ocn_vert_transport_velocity_top(block % mesh, block % provis_state % layerThickness % array, &
               block % provis_state % layerThicknessEdge % array, &
               block % provis_state % normalVelocity % array, block % provis_state % vertTransportVelocityTop % array, err)
-           call ocn_tend_vel(block % tend, block % provis_state, block % diagnostics, block % mesh)
+           call ocn_tend_vel(block % tend, block % provis_state, block % diagnostics, block % mesh, block % scratch)
 
            call ocn_vert_transport_velocity_top(block % mesh, block % provis_state % layerThickness % array, &
               block % provis_state % layerThicknessEdge % array, &
