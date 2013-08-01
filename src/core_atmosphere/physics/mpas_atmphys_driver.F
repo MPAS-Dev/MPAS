@@ -78,6 +78,9 @@
 !>    * removed the namelist option config_eddy_scheme and associated sourcecode.
 !>    * removed the namelist option config_conv_shallow_scheme and associated sourcecode.
 !>      Laura D. Fowler (birch.ucar.edu) / 2013-05-29.
+!>    * added block%atm_input in calls to subroutines driver_radiation_lw amd driver_radiation_lw.
+!>      Laura D. Fowler (birch.mmm.ucar.edu) / 2013-07-03.
+
 
  contains
 
@@ -123,16 +126,17 @@
     !call to short wave radiation scheme:
     if(l_radtsw) then
        call allocate_radiation_sw(xtime_s)
-       call driver_radiation_sw(itimestep,block%mesh,block%state%time_levs(1)%state,  &
-                               block%diag_physics,block%sfc_input,block%tend_physics, &
-                               xtime_s)
+       call driver_radiation_sw(itimestep,block%mesh,block%state%time_levs(1)%state, &
+                                block%diag_physics,block%atm_input,block%sfc_input,  &
+                                block%tend_physics,xtime_s)
     endif
 
     !call to long wave radiation scheme:
     if(l_radtlw) then
        call allocate_radiation_lw(xtime_s)
-       call driver_radiation_lw(xtime_s,block%mesh,block%state%time_levs(1)%state, &
-                              block%diag_physics,block%sfc_input,block%tend_physics)
+       call driver_radiation_lw(xtime_s,block%mesh,block%state%time_levs(1)%state,  &
+                                block%diag_physics,block%atm_input,block%sfc_input, &
+                                block%tend_physics)
     endif
 
     !call to accumulate long- and short-wave diagnostics if needed:

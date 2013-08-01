@@ -14,6 +14,7 @@
 
  use mpas_atmphys_constants
  use mpas_atmphys_vars
+ use mpas_atmphys_o3climatology
  use mpas_atmphys_update_surface
  use mpas_atmphys_utilities
 
@@ -87,6 +88,10 @@
 !>      Laura D. Fowler (birch.ucar.edu) / 2013-03-11.
 !>    * removed the namelist option config_conv_shallow_scheme and associated sourcecode.
 !>      Laura D. Fowler (birch.ucar.edu) / 2013-05-29.
+!>    * added call to subroutine o3climatology_from_MPAS to interpolate the climatological ozone
+!>      mixing ratios to the current julian day.
+!>      Laura F. Fowler (birch.ucar.edu) / 2013-07-03
+
 
  contains
 
@@ -212,6 +217,21 @@
        l_conv = .true.
     endif
     write(0,*) '--- time to run the convection scheme L_CONV    =',l_conv
+ endif
+
+!check to see if it is time to update ozone to the current julian day in the RRTMG radiation codes:
+ if(config_o3climatology) then
+    block => domain % blocklist
+    do while(associated(block))
+
+       if((l_radtlw .and. trim(config_radt_lw_scheme) .eq. "rrtmg_lw") .or. &
+           l_radtsw .and. trim(config_radt_sw_scheme) .eq. "rrtmg_sw" ) then
+          call o3climatology_from_MPAS(curr_julday,block%mesh,block%atm_input,block%diag_physics)
+          write(0,*) '--- time to update the ozone climatology for RRTMG radiation codes'
+       endif
+    
+       block => block % next
+    end do 
  endif
 
 !check to see if it is time to update the ozone trace gas path lengths,the total emissivity,
@@ -540,9 +560,11 @@
     !aerosols and ozone mixing ratios:
     num_aerosols  = state % num_aerosols
     num_aerLevels = mesh % naerLevels
-    num_oznLevels = mesh % noznLevels
 
  endif 
+
+!initialization of number of ozone levels:
+ num_oznlevels = mesh % noznLevels
 
 !initialization of sea-ice threshold:
  if(.not. config_frac_seaice) then
