@@ -78,12 +78,12 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_diagnostic_solve(dt, s, grid, diagnostics, scratch)!{{{
+   subroutine ocn_diagnostic_solve(dt, state, grid, diagnostics, scratch)!{{{
 
       implicit none
 
       real (kind=RKIND), intent(in) :: dt !< Input: Time step
-      type (state_type), intent(inout) :: s !< Input/Output: State information
+      type (state_type), intent(inout) :: state !< Input/Output: State information
       type (mesh_type), intent(in) :: grid !< Input: Grid information
       type (diagnostics_type), intent(inout) :: diagnostics  !< Input/Output: diagnostic fields derived from State
       type (scratch_type), intent(inout) :: scratch !< Input: scratch variables
@@ -107,7 +107,7 @@ contains
         bottomDepth, fVertex, dvEdge, dcEdge, areaCell, areaTriangle, ssh, seaSurfacePressure
       real (kind=RKIND), dimension(:,:), pointer :: &
         weightsOnEdge, kiteAreasOnVertex, layerThicknessEdge, layerThickness, normalVelocity, tangentialVelocity, pressure,&
-        circulation, kineticEnergyCell, montgomeryPotential, vertTransportVelocityTop, zMid, divergence, &
+        circulation, kineticEnergyCell, montgomeryPotential, vertTransportVelocityTop, zMid, zTop, divergence, &
         relativeVorticity, relativeVorticityCell, &
         normalizedPlanetaryVorticityEdge, normalizedPlanetaryVorticityVertex, &
         normalizedRelativeVorticityEdge, normalizedRelativeVorticityVertex, normalizedRelativeVorticityCell, &
@@ -119,30 +119,31 @@ contains
 
       real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue ! => diagnostics % tracersSurfaceValue % array
 
-      layerThickness => s % layerThickness % array
-      normalVelocity => s % normalVelocity % array
-      uTransport  => s % uTransport % array
-      uBolusGM    => s % uBolusGM % array
-      tangentialVelocity => s % tangentialVelocity % array
-      layerThicknessEdge => s % layerThicknessEdge % array
-      circulation => s % circulation % array
-      divergence  => s % divergence % array
-      kineticEnergyCell      => s % kineticEnergyCell % array
-      relativeVorticity      => s % relativeVorticity % array
-      relativeVorticityCell  => s % relativeVorticityCell % array
-      normalizedPlanetaryVorticityEdge   => s % normalizedPlanetaryVorticityEdge % array
-      normalizedRelativeVorticityEdge    => s % normalizedRelativeVorticityEdge % array
-      normalizedRelativeVorticityCell    => s % normalizedRelativeVorticityCell % array
-      density         => s % density % array
-      displacedDensity=> s % displacedDensity % array
-      potentialDensity=> s % potentialDensity % array
-      montgomeryPotential     => s % montgomeryPotential % array
-      pressure    => s % pressure % array
-      zMid        => s % zMid % array
-      ssh         => s % ssh % array
-      tracers     => s % tracers % array
-      vertVelocityTop => s % vertVelocityTop % array
-      BruntVaisalaFreqTop => s % BruntVaisalaFreqTop % array
+      layerThickness => state % layerThickness % array
+      normalVelocity => state % normalVelocity % array
+      uTransport  => state % uTransport % array
+      uBolusGM    => state % uBolusGM % array
+      tangentialVelocity => state % tangentialVelocity % array
+      layerThicknessEdge => state % layerThicknessEdge % array
+      circulation => state % circulation % array
+      divergence  => state % divergence % array
+      kineticEnergyCell      => state % kineticEnergyCell % array
+      relativeVorticity      => state % relativeVorticity % array
+      relativeVorticityCell  => state % relativeVorticityCell % array
+      normalizedPlanetaryVorticityEdge   => state % normalizedPlanetaryVorticityEdge % array
+      normalizedRelativeVorticityEdge    => state % normalizedRelativeVorticityEdge % array
+      normalizedRelativeVorticityCell    => state % normalizedRelativeVorticityCell % array
+      density         => state % density % array
+      displacedDensity=> state % displacedDensity % array
+      potentialDensity=> state % potentialDensity % array
+      montgomeryPotential     => state % montgomeryPotential % array
+      pressure    => state % pressure % array
+      zMid        => state % zMid % array
+      zTop        => state % zTop % array
+      ssh         => state % ssh % array
+      tracers     => state % tracers % array
+      vertVelocityTop => state % vertVelocityTop % array
+      BruntVaisalaFreqTop => state % BruntVaisalaFreqTop % array
 
       weightsOnEdge     => grid % weightsOnEdge % array
       kiteAreasOnVertex => grid % kiteAreasOnVertex % array
@@ -206,14 +207,8 @@ contains
       !
       normalVelocity(:,nEdges+1) = -1e34
       layerThickness(:,nCells+1) = -1e34
-      tracers(s % index_temperature,:,nCells+1) = -1e34
-      tracers(s % index_salinity,:,nCells+1) = -1e34
-
-      !
-      ! extrapolate tracer values to ocean surface
-      ! this eventually be a modelled process
-      ! at present, just copy k=1 tracer values onto surface values
-      tracersSurfaceValue(:,:) = tracers(:,1,:)
+      tracers(state % index_temperature,:,nCells+1) = -1e34
+      tracers(state % index_salinity,:,nCells+1) = -1e34
 
       circulation(:,:) = 0.0
       relativeVorticity(:,:) = 0.0
@@ -425,14 +420,14 @@ contains
          call mpas_timer_start("equation of state", .false., diagEOSTimer)
 
          ! compute in-place density
-         call ocn_equation_of_state_density(s, grid, 0, 'relative', density, err)
+         call ocn_equation_of_state_density(state, diagnostics, grid, 0, 'relative', density, err)
 
          ! compute potentialDensity, the density displaced adiabatically to the mid-depth of top layer.
-         call ocn_equation_of_state_density(s, grid, 1, 'absolute', potentialDensity, err)
+         call ocn_equation_of_state_density(state, diagnostics, grid, 1, 'absolute', potentialDensity, err)
 
          ! compute displacedDensity, density displaced adiabatically to the mid-depth one layer deeper.  
          ! That is, layer k has been displaced to the depth of layer k+1.
-         call ocn_equation_of_state_density(s, grid, 1, 'relative', displacedDensity, err)
+         call ocn_equation_of_state_density(state, diagnostics, grid, 1, 'relative', displacedDensity, err)
 
          call mpas_timer_stop("equation of state", diagEOSTimer)
       endif
@@ -484,17 +479,23 @@ contains
            end do
 
            ! Compute zMid, the z-coordinate of the middle of the layer.
-           ! This is used for the density g grad z momentum term.
+           ! Compute zTop, the z-coordinate of the top of the layer.
            ! Note the negative sign, since bottomDepth is positive
            ! and z-coordinates are negative below the surface.
            k = maxLevelCell(iCell)
            zMid(k:nVertLevels,iCell) = -bottomDepth(iCell) + 0.5*layerThickness(k,iCell)
+           zTop(k:nVertLevels,iCell) = -bottomDepth(iCell) +     layerThickness(k,iCell)
 
            do k=maxLevelCell(iCell)-1, 1, -1
               zMid(k,iCell) = zMid(k+1,iCell)  &
                 + 0.5*(  layerThickness(k+1,iCell) &
                        + layerThickness(k  ,iCell))
+              zTop(k,iCell) = zTop(k+1,iCell)  &
+                       + layerThickness(k  ,iCell)
            end do
+
+           ! copy zTop(1,iCell) into sea-surface height array
+           ssh(iCell) = zTop(1,iCell)
 
         end do
 
@@ -513,23 +514,22 @@ contains
       end do
 
       !
-      ! Sea Surface Height
+      ! extrapolate tracer values to ocean surface
+      ! this eventually be a modelled process
+      ! at present, just copy k=1 tracer values onto surface values
+      tracersSurfaceValue(:,:) = tracers(:,1,:)
+
       !
-      do iCell=1,nCells
-         ! Start at the bottom where we know the depth, and go up.
-         ! The bottom depth for this cell is bottomDepth(iCell).
-         ! Note the negative sign, since bottomDepth is positive
-         ! and z-coordinates are negative below the surface.
-
-         ssh(iCell) = - bottomDepth(iCell) + sum(layerThickness(1:maxLevelCell(iCell),iCell))
-
-      end do
+      ! Compute bulk Richardson number
+      !   (note: this is a proposed new template for this subroutine
+      !     where we push the computation one level down)
+      call computeBulkRichardsonNumber(state, grid, diagnostics, scratch)
 
       !
       ! Apply the GM closure as a bolus velocity
       !
       if (config_h_kappa .GE. epsilon(0D0)) then
-         call ocn_gm_compute_uBolus(s,grid)
+         call ocn_gm_compute_uBolus(state, grid)
       else
          uBolusGM = 0.0
       end if
@@ -682,10 +682,10 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_fuperp(s, grid)!{{{
+   subroutine ocn_fuperp(state, grid)!{{{
       implicit none
 
-      type (state_type), intent(inout) :: s !< Input/Output: State information
+      type (state_type), intent(inout) :: state !< Input/Output: State information
       type (mesh_type), intent(in) :: grid !< Input: Grid information
 
       integer :: iEdge, cell1, cell2, eoe, i, j, k
@@ -699,8 +699,8 @@ contains
 
       call mpas_timer_start("ocn_fuperp")
 
-      normalVelocity           => s % normalVelocity % array
-      normalBaroclinicVelocity        => s % normalBaroclinicVelocity % array
+      normalVelocity           => state % normalVelocity % array
+      normalBaroclinicVelocity        => state % normalBaroclinicVelocity % array
       weightsOnEdge     => grid % weightsOnEdge % array
       fEdge             => grid % fEdge % array
       maxLevelEdgeTop      => grid % maxLevelEdgeTop % array
@@ -744,10 +744,10 @@ contains
 !>  This routine filters barotropic mode out of the velocity variable.
 !
 !-----------------------------------------------------------------------
-   subroutine ocn_filter_btr_mode_vel(s, grid)!{{{
+   subroutine ocn_filter_btr_mode_vel(state, grid)!{{{
       implicit none
 
-      type (state_type), intent(inout) :: s
+      type (state_type), intent(inout) :: state
       type (mesh_type), intent(in) :: grid
 
       integer :: iEdge, k, nEdges
@@ -757,8 +757,8 @@ contains
 
       call mpas_timer_start("ocn_filter_btr_mode_vel")
 
-      normalVelocity => s % normalVelocity % array
-      layerThicknessEdge => s % layerThicknessEdge % array
+      normalVelocity => state % normalVelocity % array
+      layerThicknessEdge => state % layerThicknessEdge % array
       maxLevelEdgeTop => grid % maxLevelEdgeTop % array
       nEdges      = grid % nEdges
 
@@ -796,11 +796,11 @@ contains
 !>  This routine filters barotropic mode out of the velocity tendency.
 !
 !-----------------------------------------------------------------------
-   subroutine ocn_filter_btr_mode_tend_vel(tend, s, grid)!{{{
+   subroutine ocn_filter_btr_mode_tend_vel(tend, state, grid)!{{{
       implicit none
 
       type (tend_type), intent(inout) :: tend
-      type (state_type), intent(in) :: s
+      type (state_type), intent(in) :: state
       type (mesh_type), intent(in) :: grid
 
       integer :: iEdge, k, nEdges
@@ -812,7 +812,7 @@ contains
       call mpas_timer_start("ocn_filter_btr_mode_tend_vel")
 
       tend_normalVelocity      => tend % normalVelocity % array
-      layerThicknessEdge      => s % layerThicknessEdge % array
+      layerThicknessEdge      => state % layerThicknessEdge % array
       maxLevelEdgeTop => grid % maxLevelEdgeTop % array
       nEdges      = grid % nEdges
 
@@ -877,6 +877,102 @@ contains
     end subroutine ocn_diagnostics_init!}}}
 
 !***********************************************************************
+!
+!  routine computeBulkRichardsonNumber
+!
+!> \brief   
+!>    Computes the bulk Richardson number used to diagnose 
+!>      ocean boundary layer depth.
+!> \author  Todd Ringler
+!> \date    20 August 2013
+!> \details
+!>    Adiabatically displace SST/SSS to every vertical layer in order to
+!>      to determine tendency of buoyancy to suppress mixing. 
+!>      The buoyancy restoring is compared to (i.e. divided by) the tendency
+!>      of vertical shear to enhance mixing.
+!
+!-----------------------------------------------------------------------
+
+    subroutine computeBulkRichardsonNumber(state, grid, diagnostics, scratch)!{{{
+
+      type (state_type), intent(inout) :: state !< Input/Output: State information
+      type (mesh_type), intent(in) :: grid !< Input: Grid information
+      type (diagnostics_type), intent(inout) :: diagnostics !< Diagnostics information derived from State
+      type (scratch_type), intent(inout) :: scratch !< Input: scratch variables
+
+      ! scalars
+      integer :: nCells, nVertLevels
+
+      ! integer pointers
+      integer, dimension(:), pointer :: maxLevelCell, nEdgesOnCell
+      integer, dimension(:,:), pointer :: edgesOnCell
+
+      ! real pointers
+      real (kind=RKIND), dimension(:), pointer :: dcEdge, dvEdge, areaCell
+      real (kind=RKIND), dimension(:,:), pointer ::  &
+           zMid, zTop, bulkRichardsonNumber, tracersSurfaceValues, densitySurfaceDisplaced, density, &
+           normalVelocity
+
+      ! local
+      integer :: iCell, iEdge, i, k, err
+      real (kind=RKIND) :: numerator, denominator, factor, deltaVelocitySquared, turbulentVelocitySquared, delU2, invAreaCell
+
+      ! set the parameter turbulentVelocitySquared
+      turbulentVelocitySquared = 0.001
+
+      ! set scalar values
+      nCells      = grid % nCells
+      nVertLevels = grid % nVertLevels
+
+      ! set pointers into state, grid, diagnostics and scratch
+      normalVelocity => state % normalVelocity % array
+      zMid => state % zMid % array
+      zTop => state % zTop % array
+      maxLevelCell => grid % maxLevelCell % array 
+      nEdgesOnCell => grid % nEdgesOnCell % array
+      edgesOnCell => grid % edgesOnCell % array
+      areaCell => grid % areaCell % array
+      dcEdge => grid % dcEdge % array
+      dvEdge => grid % dvEdge % array
+      density => state % density % array
+      bulkRichardsonNumber => diagnostics % bulkRichardsonNumber % array
+      tracersSurfaceValues => diagnostics % tracersSurfaceValue  % array
+
+      ! compute EOS by displacing SST/SSS to every vertical layer in column
+      call mpas_allocate_scratch_field(scratch % densitySurfaceDisplaced, .true.)
+      densitySurfaceDisplaced => scratch % densitySurfaceDisplaced % array
+      call ocn_equation_of_state_density(state, diagnostics, grid, 0, 'surfaceDisplaced', densitySurfaceDisplaced, err)
+
+      ! set value to out-of-bounds
+      bulkRichardsonNumber(:,:) = -1.0e34
+
+      do iCell=1,nCells
+
+       invAreaCell = 1.0 / areaCell(iCell)
+       do k=1,maxLevelCell(iCell)
+
+        ! find deltaVelocitySquared defined at cell centers
+        deltaVelocitySquared = 0.0
+        do i = 1, nEdgesOnCell(iCell)
+          iEdge = edgesOnCell(i, iCell)
+          factor = 0.5 * dcEdge(iEdge) * dvEdge(iEdge) * invAreaCell
+          delU2 = (normalVelocity(1,iEdge) - normalVelocity(k,iEdge))**2 
+          deltaVelocitySquared = deltaVelocitySquared + factor * delU2
+        enddo
+
+        numerator = gravity * (zTop(1,iCell) - zMid(k,iCell)) * (density(k,iCell) - densitySurfaceDisplaced(k,iCell))
+        denominator = config_density0 * (deltaVelocitySquared + turbulentVelocitySquared)
+
+        bulkRichardsonNumber(k,iCell) = numerator / denominator
+
+       enddo
+      enddo
+
+      ! deallocate scratch space
+      call mpas_deallocate_scratch_field(scratch % densitySurfaceDisplaced, .true.)
+
+    end subroutine computeBulkRichardsonNumber!}}}
+
 
 end module ocn_diagnostics
 
