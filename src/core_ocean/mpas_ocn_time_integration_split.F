@@ -157,6 +157,16 @@ module ocn_time_integration_split
             end do
          end do
 
+         if (config_use_freq_filtered_thickness) then
+
+              block % state % time_levs(2) % state % highFreqThickness % array(:,:) &
+            = block % state % time_levs(1) % state % highFreqThickness % array(:,:)
+
+              block % state % time_levs(2) % state % lowFreqDivergence % array(:,:) &
+            = block % state % time_levs(1) % state % lowFreqDivergence % array(:,:)
+
+         endif
+
          block => block % next
       end do
 
@@ -169,8 +179,9 @@ module ocn_time_integration_split
       n_bcl_iter(config_n_ts_iter) = config_n_bcl_iter_end
 
       do split_explicit_step = 1, config_n_ts_iter
-         ! ---  update halos for diagnostic variables
+         stage1_tend_time = min(split_explicit_step,2)
 
+         ! ---  update halos for diagnostic variables
          call mpas_timer_start("se halo diag", .false., timer_halo_diagnostic)
          call mpas_dmpar_exch_halo_field(domain % blocklist % state % time_levs(2) % state % normalizedRelativeVorticityEdge)
          if (config_mom_del4 > 0.0) then
@@ -185,19 +196,51 @@ module ocn_time_integration_split
          !
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+         if (config_use_freq_filtered_thickness) then
+            call mpas_timer_start("se freq-filtered-thick computations")
+            block => domain % blocklist
+            do while (associated(block))
+               call ocn_tend_freq_filtered_thickness(block % tend, &
+                  block % state % time_levs(stage1_tend_time) % state, block % mesh)
+               block => block % next
+            end do
+            call mpas_timer_stop("se freq-filtered-thick computations")
+
+            call mpas_timer_start("se freq-filtered-thick halo update")
+            call mpas_dmpar_exch_halo_field(domain % blocklist % tend % highFreqThickness)
+            call mpas_dmpar_exch_halo_field(domain % blocklist % tend % lowFreqDivergence)
+            call mpas_timer_stop("se freq-filtered-thick halo update")
+
+            block => domain % blocklist
+            do while (associated(block))
+               do iCell=1,block % mesh % nCells
+                  do k=1,block % mesh % maxLevelCell % array(iCell)
+                     ! this is h^{hf}_{n+1}
+                        block % state % time_levs(2) % state % highFreqThickness % array(k,iCell) &
+                      = block % state % time_levs(1) % state % highFreqThickness % array(k,iCell) &
+                      + dt* block % tend % highFreqThickness % array(k,iCell) 
+                  end do
+               end do
+               block => block % next
+            end do
+
+         endif
+
+
          ! compute velocity tendencies, T(u*,w*,p*)
          call mpas_timer_start("se bcl vel", .false., timer_bcl_vel)
 
          block => domain % blocklist
          do while (associated(block))
 
-            stage1_tend_time = min(split_explicit_step,2)
-
            ! compute vertTransportVelocityTop.  Use u (rather than uTransport) for momentum advection.
            ! Use the most recent time level available.
-           call ocn_vert_transport_velocity_top(block % mesh, block % state % time_levs(stage1_tend_time) % state % layerThickness % array, &
+           call ocn_vert_transport_velocity_top(block % mesh, block % verticalMesh, &
+              block % state % time_levs(1) % state % layerThickness % array, &
               block % state % time_levs(stage1_tend_time) % state % layerThicknessEdge % array, &
               block % state % time_levs(stage1_tend_time) % state % normalVelocity % array, &
+              block % state % time_levs(1) % state % ssh % array, &
+              block % state % time_levs(2) % state % highFreqThickness % array, dt, &
               block % state % time_levs(stage1_tend_time) % state % vertTransportVelocityTop % array, err)
 
             call ocn_tend_vel(block % tend, block % state % time_levs(stage1_tend_time) % state, block % diagnostics, block % mesh)
@@ -780,17 +823,22 @@ module ocn_time_integration_split
          do while (associated(block))
 
             ! compute vertTransportVelocityTop.  Use uTransport for advection of layerThickness and tracers.
-            ! Use time level 1 values of layerThickness and layerThicknessEdge because layerThickness has not yet been computed for time level 2.
-            call ocn_vert_transport_velocity_top(block % mesh, block % state % time_levs(1) % state % layerThickness % array, &
-               block % state % time_levs(1) % state % layerThicknessEdge % array, &
+            ! Use time level 1 values of layerThickness and layerThicknessEdge because 
+            ! layerThickness has not yet been computed for time level 2.
+            call ocn_vert_transport_velocity_top(block % mesh, block % verticalMesh, &
+               block % state % time_levs(1) % state % layerThickness % array, &
+               block % state % time_levs(2) % state % layerThicknessEdge % array, &
                block % state % time_levs(2) % state % uTransport % array, &
+               block % state % time_levs(1) % state % ssh % array, &
+               block % state % time_levs(2) % state % highFreqThickness % array, dt, &
                block % state % time_levs(2) % state % vertTransportVelocityTop % array, err)
 
             call ocn_tend_thick(block % tend, block % state % time_levs(2) % state, block % mesh)
+
             block => block % next
          end do
 
-         ! update halo for thickness and tracer tendencies
+         ! update halo for thickness tendencies
          call mpas_timer_start("se halo thickness", .false., timer_halo_thickness)
          call mpas_dmpar_exch_halo_field(domain % blocklist % tend % layerThickness)
          call mpas_timer_stop("se halo thickness", timer_halo_thickness)
@@ -802,7 +850,7 @@ module ocn_time_integration_split
             block => block % next
          end do
 
-         ! update halo for thickness and tracer tendencies
+         ! update halo for tracer tendencies
          call mpas_timer_start("se halo tracers", .false., timer_halo_tracers)
          call mpas_dmpar_exch_halo_field(domain % blocklist % tend % tracers)
          call mpas_timer_stop("se halo tracers", timer_halo_tracers)
@@ -855,6 +903,29 @@ module ocn_time_integration_split
                   end do
                end do ! iCell
 
+               if (config_use_freq_filtered_thickness) then
+                  do iCell=1,block % mesh % nCells
+                     do k=1,block % mesh % maxLevelCell % array(iCell)
+
+                        ! h^{hf}_{n+1} was computed in Stage 1
+
+                        ! this is h^{hf}_{n+1/2}
+                        block % state % time_levs(2) % state % highFreqThickness % array(k,iCell) &
+                           = 0.5*(block % state % time_levs(1) % state % highFreqThickness % array(k,iCell) &
+                                + block % state % time_levs(2) % state % highFreqThickness % array(k,iCell))
+
+                        ! this is D^{lf}_{n+1}
+                        temp = block % state % time_levs(1) % state % lowFreqDivergence % array(k,iCell) &
+                         + dt* block % tend % lowFreqDivergence % array(k,iCell) 
+
+                        ! this is D^{lf}_{n+1/2}
+                        block % state % time_levs(2) % state % lowFreqDivergence % array(k,iCell) &
+                           = 0.5*(block % state % time_levs(1) % state % lowFreqDivergence % array(k,iCell) + temp)
+
+                     end do
+                  end do
+               end if
+
                do iEdge=1,block % mesh % nEdges
 
                   do k=1,block % mesh % nVertLevels
@@ -901,6 +972,21 @@ module ocn_time_integration_split
                      enddo
                   end do
                end do
+
+               if (config_use_freq_filtered_thickness) then
+                  do iCell=1,block % mesh % nCells
+                     do k=1,block % mesh % maxLevelCell % array(iCell)
+
+                        ! h^{hf}_{n+1} was computed in Stage 1
+
+                        ! this is D^{lf}_{n+1}
+                           block % state % time_levs(2) % state % lowFreqDivergence % array(k,iCell) &
+                         = block % state % time_levs(1) % state % lowFreqDivergence % array(k,iCell) &
+                         + dt* block % tend % lowFreqDivergence % array(k,iCell) 
+
+                     end do
+                  end do
+               end if
 
                ! Recompute final u to go on to next step.
                ! u_{n+1} = normalBarotropicVelocity_{n+1} + normalBaroclinicVelocity_{n+1} 

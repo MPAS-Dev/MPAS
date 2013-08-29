@@ -35,6 +35,7 @@ module mpas_core
 
    use ocn_thick_hadv
    use ocn_thick_vadv
+   use ocn_thick_ale
 
    use ocn_vel_pressure_grad
    use ocn_vel_vadv
@@ -134,6 +135,8 @@ module mpas_core
       err = ior(err,err_tmp)
       call ocn_diagnostics_init(err_tmp)
       err = ior(err,err_tmp)
+      call ocn_thick_ale_init(err_tmp)
+      err = ior(err,err_tmp)
 
       call ocn_tracer_advection_init(err_tmp)
       err = ior(err,err_tmp)
@@ -150,7 +153,7 @@ module mpas_core
           call mpas_dmpar_abort(dminfo)
       endif
 
-      if (config_vert_coord_movement.ne.'isopycnal') call ocn_init_vert_coord(domain)
+      call ocn_init_vert_coord(domain)
 
       call ocn_compute_max_level(domain)
 
@@ -158,9 +161,9 @@ module mpas_core
 
       write (0,'(a,a)') ' Vertical coordinate movement is: ',trim(config_vert_coord_movement)
 
-      if (config_vert_coord_movement.ne.'isopycnal'.and. &
-          config_vert_coord_movement.ne.'fixed'.and. &
+      if (config_vert_coord_movement.ne.'fixed'.and. &
           config_vert_coord_movement.ne.'uniform_stretching'.and. &
+          config_vert_coord_movement.ne.'impermeable_interfaces'.and. &
           config_vert_coord_movement.ne.'user_specified') then
          write (0,*) ' Incorrect choice of config_vert_coord_movement.'
          call mpas_dmpar_abort(dminfo)
@@ -173,7 +176,7 @@ module mpas_core
          call mpas_dmpar_abort(dminfo)
       endif
 
-      if(config_vert_coord_movement .ne. 'isopycnal' .and. config_pressure_gradient_type .eq. 'MontgomeryPotential') then
+      if(config_vert_coord_movement .ne. 'impermeable_interfaces' .and. config_pressure_gradient_type .eq. 'MontgomeryPotential') then
          write (0,*) ' Incorrect combination of config_vert_coord_movement and config_pressure_gradient_type'
          call mpas_dmpar_abort(dminfo)
       end if
@@ -366,6 +369,8 @@ module mpas_core
       ! initialize velocities and tracers on land to be zero.
 
       block % mesh % areaCell % array(block % mesh % nCells+1) = -1.0e34
+
+      block % state % time_levs(1) % state % layerThickness % array(:,block % mesh % nCells+1) = 0.0
 
       do iEdge=1,block % mesh % nEdges
          block % state % time_levs(1) % state % normalVelocity % array( &
@@ -670,10 +675,10 @@ module mpas_core
 
       integer, dimension(:), pointer :: maxLevelCell
       real (kind=RKIND), dimension(:), pointer :: refBottomDepth, &
-         refBottomDepthTopOfCell, vertCoordMovementWeights, bottomDepth
+         refBottomDepthTopOfCell, vertCoordMovementWeights, bottomDepth, refZMid, refLayerThickness
       real (kind=RKIND), dimension(:), allocatable :: minBottomDepth, minBottomDepthMid, zMidZLevel
          
-      real (kind=RKIND), dimension(:,:), pointer :: layerThickness
+      real (kind=RKIND), dimension(:,:), pointer :: layerThickness, restingThickness
       real (kind=RKIND), dimension(:,:,:), pointer :: tracers
       integer :: nVertLevels
       logical :: consistentSSH
@@ -690,6 +695,10 @@ module mpas_core
          vertCoordMovementWeights => block % mesh % vertCoordMovementWeights % array
          maxLevelCell => block % mesh % maxLevelCell % array
 
+         restingThickness => block % verticalMesh % restingThickness % array
+         refZMid => block % verticalMesh % refZMid % array
+         refLayerThickness => block % verticalMesh % refLayerThickness % array
+
          nCells      = block % mesh % nCells
          nVertLevels = block % mesh % nVertLevels
          num_tracers = size(tracers, dim=1)
@@ -698,6 +707,8 @@ module mpas_core
          refBottomDepthTopOfCell(1) = 0.0
          do k = 1,nVertLevels
             refBottomDepthTopOfCell(k+1) = refBottomDepth(k)
+            refLayerThickness(k) = refBottomDepth(k) - refBottomDepthTopOfCell(k)
+            refZMid(k) = - refBottomDepthTopOfCell(1) - refLayerThickness(k)/2.0
          end do
 
          ! Initialization of vertCoordMovementWeights. This determines how SSH perturbations
@@ -722,78 +733,84 @@ module mpas_core
          !    If your input file does not include bottomDepth, the false option will
          !    initialize bottomDepth correctly for a non-pbc run.
 
+         if (.not.config_do_restart.and.config_alter_ICs_for_pbcs) then
+
+            if (config_pbc_alteration_type.eq.'partial_cell') then
+
+               write (0,'(a)') ' Altering bottomDepth to avoid very thin cells.'
+               write (0,'(a)') ' Altering layerThickness and tracer initial conditions to conform with partial bottom cells.'
+
+               allocate(minBottomDepth(nVertLevels),minBottomDepthMid(nVertLevels),zMidZLevel(nVertLevels))
+
+               ! min_pbc_fraction restricts pbcs from being too small.
+               ! A typical value is 10%, so pbcs must occupy at least 10% of the cell thickness.
+               ! If min_pbc_fraction = 0.0, bottomDepth gives the actual depth for that cell.
+               ! If min_pbc_fraction = 1.0, bottomDepth reverts to discrete z-level depths, same 
+               !    as partial_bottom_cells = .false.
+
+               minBottomDepth(1) = (1.0-config_min_pbc_fraction)*refBottomDepth(1)
+               minBottomDepthMid(1) = 0.5*(minBottomDepth(1) + refBottomDepthTopOfCell(1))
+               zMidZLevel(1) = - 0.5*(refBottomDepth(1) + refBottomDepthTopOfCell(1))
+               do k=2,nVertLevels
+                  minBottomDepth(k) = refBottomDepth(k) - (1.0-config_min_pbc_fraction)*(refBottomDepth(k) - refBottomDepth(k-1))
+                  minBottomDepthMid(k) = 0.5*(minBottomDepth(k) + refBottomDepthTopOfCell(k))
+                  zMidZLevel(k) = - 0.5*(refBottomDepth(k) + refBottomDepthTopOfCell(k))
+               enddo
+
+               do iCell=1,nCells
+                  k = maxLevelCell(iCell)
+
+                   if (bottomDepth(iCell).lt.minBottomDepthMid(k)) then
+                      ! Round up to cell above
+                      maxLevelCell(iCell) = maxLevelCell(iCell) - 1
+                      bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
+                   elseif (bottomDepth(iCell).lt.minBottomDepth(k)) then
+                      ! Round down cell to the min_pbc_fraction.
+                      bottomDepth(iCell) = minBottomDepth(k)
+                   endif
+                   k = maxLevelCell(iCell)
+
+                  ! Alter thickness of bottom level to account for PBC
+                  layerThickness(k,iCell) = bottomDepth(iCell) - refBottomDepthTopOfCell(k) 
+
+                  ! Linearly interpolate the initial T&S for new location of bottom cell for PBCs
+                  zMidPBC = -0.5*(bottomDepth(iCell) + refBottomDepthTopOfCell(k))
+
+                  do iTracer=1,num_tracers
+                     tracers(iTracer,k,iCell) = tracers(iTracer,k,iCell) &
+                        + (tracers(iTracer,k-1,iCell) - tracers(iTracer,k,iCell)) &
+                         /(zMidZLevel(k-1)-zMidZLevel(k)) &
+                         *(zMidPBC - zMidZLevel(k))
+                  enddo
+
+               enddo  
+
+               deallocate(minBottomDepth,zMidZLevel)
+
+            elseif (config_pbc_alteration_type.eq.'full_cell') then
+
+               do iCell = 1,nCells
+                  bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
+               enddo
+
+            else
+
+                write (0,*) ' Incorrect choice of config_pbc_alteration_type.'
+                call mpas_dmpar_abort(dminfo)
+
+            endif
+
+         endif ! .not.config_do_restart
 
          if (.not.config_do_restart) then
 
-          if (config_alter_ICs_for_pbcs.eq.'zlevel_pbcs_on') then
+            ! Layer thickness when the ocean is at rest, i.e. without SSH or internal perturbations.
+            ! This is applied only from the initial condition
+            if (config_set_restingThickness_to_IC) then
+                restingThickness = layerThickness
+            endif
 
-            write (0,'(a)') ' Altering bottomDepth to avoid very thin cells.'
-            write (0,'(a)') ' Altering layerThickness and tracer initial conditions to conform with partial bottom cells.'
-
-            allocate(minBottomDepth(nVertLevels),minBottomDepthMid(nVertLevels),zMidZLevel(nVertLevels))
-
-            ! min_pbc_fraction restricts pbcs from being too small.
-            ! A typical value is 10%, so pbcs must occupy at least 10% of the cell thickness.
-            ! If min_pbc_fraction = 0.0, bottomDepth gives the actual depth for that cell.
-            ! If min_pbc_fraction = 1.0, bottomDepth reverts to discrete z-level depths, same 
-            !    as partial_bottom_cells = .false.
-
-            minBottomDepth(1) = (1.0-config_min_pbc_fraction)*refBottomDepth(1)
-            minBottomDepthMid(1) = 0.5*(minBottomDepth(1) + refBottomDepthTopOfCell(1))
-            zMidZLevel(1) = - 0.5*(refBottomDepth(1) + refBottomDepthTopOfCell(1))
-            do k=2,nVertLevels
-               minBottomDepth(k) = refBottomDepth(k) - (1.0-config_min_pbc_fraction)*(refBottomDepth(k) - refBottomDepth(k-1))
-               minBottomDepthMid(k) = 0.5*(minBottomDepth(k) + refBottomDepthTopOfCell(k))
-               zMidZLevel(k) = - 0.5*(refBottomDepth(k) + refBottomDepthTopOfCell(k))
-            enddo
-
-            do iCell=1,nCells
-               k = maxLevelCell(iCell)
-
-                if (bottomDepth(iCell).lt.minBottomDepthMid(k)) then
-                   ! Round up to cell above
-                   maxLevelCell(iCell) = maxLevelCell(iCell) - 1
-                   bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
-                elseif (bottomDepth(iCell).lt.minBottomDepth(k)) then
-                   ! Round down cell to the min_pbc_fraction.
-                   bottomDepth(iCell) = minBottomDepth(k)
-                endif
-                k = maxLevelCell(iCell)
-
-               ! Alter thickness of bottom level to account for PBC
-               layerThickness(k,iCell) = bottomDepth(iCell) - refBottomDepthTopOfCell(k) 
-
-               ! Linearly interpolate the initial T&S for new location of bottom cell for PBCs
-               zMidPBC = -0.5*(bottomDepth(iCell) + refBottomDepthTopOfCell(k))
-
-               do iTracer=1,num_tracers
-                  tracers(iTracer,k,iCell) = tracers(iTracer,k,iCell) &
-                     + (tracers(iTracer,k-1,iCell) - tracers(iTracer,k,iCell)) &
-                      /(zMidZLevel(k-1)-zMidZLevel(k)) &
-                      *(zMidPBC - zMidZLevel(k))
-               enddo
-
-            enddo  
-
-            deallocate(minBottomDepth,zMidZLevel)
-
-          elseif (config_alter_ICs_for_pbcs.eq.'zlevel_pbcs_off') then
-
-            do iCell = 1,nCells
-               bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
-            enddo
-
-          elseif (config_alter_ICs_for_pbcs.eq.'off') then
-            ! No action taken.  This is for isopycnal or sigma coordinates,
-            !  or if ICs were already altered upon start-up.
-
-          else
-
-             write (0,*) ' Incorrect choice of config_alter_ICs_for_pbcs.'
-             call mpas_dmpar_abort(dminfo)
-
-          endif
-         endif
+         endif ! .not.config_do_restart.and.config_alter_ICs_for_pbcs
 
          if (config_check_ssh_consistency) then
             consistentSSH = .true.
@@ -813,7 +830,8 @@ module mpas_core
             if (.not. consistentSSH) then
                write(0,*) 'Warning: SSH is not consistent. Most likely, initial layerThickness does not match bottomDepth.'
             end if
-         endif
+
+         endif ! config_check_ssh_consistency
 
          if (config_check_zlevel_consistency) then
             do iCell = 1,nCells
@@ -988,13 +1006,6 @@ subroutine ocn_compute_max_level(domain)!{{{
       nVertices   = block % mesh % nVertices
       nVertLevels = block % mesh % nVertLevels
       vertexDegree = block % mesh % vertexDegree
-
-      ! for z-grids, maxLevelCell should be in input state
-      ! Isopycnal grid uses all vertical cells
-      if (config_vert_coord_movement.eq.'isopycnal') then
-         maxLevelCell(1:nCells) = nVertLevels
-      endif
-      maxLevelCell(nCells+1) = 0
 
       ! maxLevelEdgeTop is the minimum (shallowest) of the surrounding cells
       do iEdge=1,nEdges

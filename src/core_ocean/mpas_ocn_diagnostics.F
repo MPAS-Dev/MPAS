@@ -27,6 +27,7 @@ module ocn_diagnostics
 
    use ocn_gm
    use ocn_equation_of_state
+   use ocn_thick_ale
 
    implicit none
    private
@@ -79,8 +80,6 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_diagnostic_solve(dt, state, grid, diagnostics, scratch)!{{{
-
-      implicit none
 
       real (kind=RKIND), intent(in) :: dt !< Input: Time step
       type (state_type), intent(inout) :: state !< Input/Output: State information
@@ -414,23 +413,19 @@ contains
       !
       ! equation of state
       !
-      ! For an isopycnal model, density should remain constant.
-      ! For zlevel, calculate in-situ density
-      if (config_vert_coord_movement.ne.'isopycnal') then
-         call mpas_timer_start("equation of state", .false., diagEOSTimer)
+      call mpas_timer_start("equation of state", .false., diagEOSTimer)
 
-         ! compute in-place density
-         call ocn_equation_of_state_density(state, diagnostics, grid, 0, 'relative', density, err)
+      ! compute in-place density
+      call ocn_equation_of_state_density(state, diagnostics, grid, 0, 'relative', density, err)
 
-         ! compute potentialDensity, the density displaced adiabatically to the mid-depth of top layer.
-         call ocn_equation_of_state_density(state, diagnostics, grid, 1, 'absolute', potentialDensity, err)
+      ! compute potentialDensity, the density displaced adiabatically to the mid-depth of top layer.
+      call ocn_equation_of_state_density(state, diagnostics, grid, 1, 'absolute', potentialDensity, err)
 
-         ! compute displacedDensity, density displaced adiabatically to the mid-depth one layer deeper.  
-         ! That is, layer k has been displaced to the depth of layer k+1.
-         call ocn_equation_of_state_density(state, diagnostics, grid, 1, 'relative', displacedDensity, err)
+      ! compute displacedDensity, density displaced adiabatically to the mid-depth one layer deeper.  
+      ! That is, layer k has been displaced to the depth of layer k+1.
+      call ocn_equation_of_state_density(state, diagnostics, grid, 1, 'relative', displacedDensity, err)
 
-         call mpas_timer_stop("equation of state", diagEOSTimer)
-      endif
+      call mpas_timer_stop("equation of state", diagEOSTimer)
 
       !
       ! Pressure
@@ -438,15 +433,14 @@ contains
       !
       if (config_pressure_gradient_type.eq.'MontgomeryPotential') then
 
-        ! For Isopycnal model.
-        ! Compute pressure at top of each layer, and then
-        ! Montgomery Potential.
+        ! use Montgomery Potential when layers are isopycnal.
+        ! However, one may use 'pressure_and_zmid' when layers are isopycnal as well.
+        ! Compute pressure at top of each layer, and then Montgomery Potential.
         allocate(pTop(nVertLevels))
         do iCell=1,nCells
 
            ! assume atmospheric pressure at the surface is zero for now.
            pTop(1) = 0.0
-           ! For isopycnal mode, p is the Montgomery Potential.
            ! At top layer it is g*SSH, where SSH may be off by a 
            ! constant (ie, bottomDepth can be relative to top or bottom)
            montgomeryPotential(1,iCell) = gravity &
@@ -463,7 +457,7 @@ contains
         end do
         deallocate(pTop)
 
-      else
+      elseif (config_pressure_gradient_type.eq.'pressure_and_zmid') then
 
         do iCell=1,nCells
            ! Pressure for generalized coordinates.
@@ -542,13 +536,14 @@ contains
 !
 !> \brief   Computes vertical transport
 !> \author  Mark Petersen
-!> \date    23 September 2011
+!> \date    August 2013
 !> \details 
 !>  This routine computes the vertical transport through the top of each 
-!>  cell.
+!>  cell.  
 !
 !-----------------------------------------------------------------------
-   subroutine ocn_vert_transport_velocity_top(grid,layerThickness,layerThicknessEdge,normalVelocity,vertTransportVelocityTop, err)!{{{
+   subroutine ocn_vert_transport_velocity_top(mesh, verticalMesh, oldLayerThickness, layerThicknessEdge, &
+     normalVelocity, oldSSH, newHighFreqThickness, dt, vertTransportVelocityTop, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -557,16 +552,28 @@ contains
       !-----------------------------------------------------------------
 
       type (mesh_type), intent(in) :: &
-         grid          !< Input: grid information
+         mesh           !< Input: horizonal mesh information
+
+      type (verticalMesh_type), intent(in) :: &
+         verticalMesh   !< Input: vertical mesh information
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
-         layerThickness    !< Input: thickness
+         oldLayerThickness    !< Input: layer thickness at old time
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          layerThicknessEdge     !< Input: layerThickness interpolated to an edge
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          normalVelocity     !< Input: transport
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         oldSSH     !< Input: sea surface height at old time
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         newHighFreqThickness   !< Input: high frequency thickness.  Alters ALE thickness.
+
+      real (kind=RKIND), intent(in) :: &
+         dt     !< Input: time step
 
       !-----------------------------------------------------------------
       !
@@ -585,88 +592,81 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, iCell, iVertex, k, cell1, cell2, vertex1, vertex2, eoe, i, j, cov
-      real (kind=RKIND) :: flux, layerThicknessVertex, workpv, density0Inv, thicknessSum, invAreaCell
-
-      integer :: nCells, nEdges, nVertices, nVertLevels, vertexDegree
-
-
-      real (kind=RKIND), dimension(:), pointer :: &
-        dvEdge, areaCell, vertCoordMovementWeights
-      real (kind=RKIND), dimension(:), allocatable:: div_hu, h_tend_col
-      real (kind=RKIND) :: div_hu_btr
-
-      integer, dimension(:,:), pointer :: cellsOnEdge, cellsOnVertex, &
-        verticesOnEdge, edgesOnCell, edgesOnEdge, edgesOnVertex, &
-        boundaryEdge, boundaryCell, edgeSignOnCell
+      integer :: iEdge, iCell, k, i, nCells, nVertLevels
       integer, dimension(:), pointer :: nEdgesOnCell, nEdgesOnEdge, &
-        maxLevelCell, maxLevelEdgeTop, maxLevelEdgeBot, &
-        maxLevelVertexBot,  maxLevelVertexTop
+        maxLevelCell, maxLevelEdgeBot
+      integer, dimension(:,:), pointer :: edgesOnCell, edgeSignOnCell
+
+      real (kind=RKIND) :: flux, invAreaCell
+      real (kind=RKIND), dimension(:), pointer :: dvEdge, areaCell
+      real (kind=RKIND), dimension(:), allocatable :: &
+         div_hu_btr       !> barotropic divergence of (thickness*velocity)
+      real (kind=RKIND), dimension(:,:), allocatable :: &
+         ALE_Thickness, & !> ALE thickness at new time
+         div_hu           !> divergence of (thickness*velocity)
 
       err = 0
 
-      nEdgesOnCell      => grid % nEdgesOnCell % array
-      areaCell          => grid % areaCell % array
-      cellsOnEdge       => grid % cellsOnEdge % array
-      edgesOnCell       => grid % edgesOnCell % array
-      edgeSignOnCell    => grid % edgeSignOnCell % array
-      maxLevelCell      => grid % maxLevelCell % array
-      maxLevelEdgeBot   => grid % maxLevelEdgeBot % array
-      dvEdge            => grid % dvEdge % array
-      vertCoordMovementWeights => grid % vertCoordMovementWeights % array
+      nEdgesOnCell      => mesh % nEdgesOnCell % array
+      areaCell          => mesh % areaCell % array
+      edgesOnCell       => mesh % edgesOnCell % array
+      edgeSignOnCell    => mesh % edgeSignOnCell % array
+      maxLevelCell      => mesh % maxLevelCell % array
+      maxLevelEdgeBot   => mesh % maxLevelEdgeBot % array
+      dvEdge            => mesh % dvEdge % array
 
-      nCells      = grid % nCells
-      nEdges      = grid % nEdges
-      nVertLevels = grid % nVertLevels
+      nCells      = mesh % nCells
+      nVertLevels = mesh % nVertLevels
 
-
-      if (config_vert_coord_movement.eq.'isopycnal') then
-        ! set vertical transport to zero in isopycnal case
+      if (config_vert_coord_movement.eq.'impermeable_interfaces') then
         vertTransportVelocityTop=0.0
         return
       end if
 
-      allocate(div_hu(nVertLevels), h_tend_col(nVertLevels))
+      allocate(div_hu(nVertLevels,nCells), div_hu_btr(nCells), ALE_Thickness(nVertLevels,nCells))
 
       !
-      ! Compute div(h^{edge} u) for each cell
-      ! See Ringler et al. (2010) jcp paper, eqn 19, 21, and fig. 3.
+      ! thickness-weighted divergence and barotropic divergence
       !
+      ! See Ringler et al. (2010) jcp paper, eqn 19, 21, and fig. 3.
+      do iCell=1,nCells
+         div_hu(:,iCell) = 0.0
+         div_hu_btr(iCell) = 0.0
+         invAreaCell = 1.0 / areaCell(iCell)
+         do i = 1, nEdgesOnCell(iCell)
+            iEdge = edgesOnCell(i, iCell)
+
+            do k = 1, maxLevelEdgeBot(iEdge)
+               flux = layerThicknessEdge(k, iEdge) * normalVelocity(k, iEdge) * dvEdge(iEdge) * edgeSignOnCell(i, iCell) * invAreaCell
+               div_hu(k,iCell) = div_hu(k,iCell) - flux
+               div_hu_btr(iCell) = div_hu_btr(iCell) - flux
+            end do
+         end do
+
+      enddo
+
+      !
+      ! Compute desired thickness at new time
+      !
+      call ocn_ALE_thickness(mesh, verticalMesh, oldSSH, div_hu_btr, newHighFreqThickness, dt, ALE_thickness, err)
+
+      !
+      ! Vertical transport through layer interfaces
+      !
+      ! Vertical transport through layer interface at top and bottom is zero.
+      ! Here we are using solving the continuity equation for vertTransportVelocityTop ($w^t$),
+      ! and using ALE_Thickness for thickness at the new time.
 
       do iCell=1,nCells
-        div_hu(:) = 0.0
-        div_hu_btr = 0.0
-        thicknessSum = 0.0
-        invAreaCell = 1.0 / areaCell(iCell)
-
-        do i = 1, nEdgesOnCell(iCell)
-          iEdge = edgesOnCell(i, iCell)
-
-          do k = 1, maxLevelEdgeBot(iEdge)
-            flux = layerThicknessEdge(k, iEdge) * normalVelocity(k, iEdge) * dvEdge(iEdge) * edgeSignOnCell(i, iCell) * invAreaCell
-            div_hu(k) = div_hu(k) - flux
-            div_hu_btr = div_hu_btr - flux
-          end do
-        end do
-
-        do k = 1, maxLevelCell(iCell)
-           h_tend_col(k) = - vertCoordMovementWeights(k) * layerThickness(k, iCell) * div_hu_btr
-           thicknessSum = thicknessSum + vertCoordMovementWeights(k) * layerThickness(k, iCell)
-        end do
-
-        if(thicknessSum > 0.0) then
-           h_tend_col = h_tend_col / thicknessSum
-        end if
-
-        ! Vertical transport through layer interface at top and bottom is zero.
-        vertTransportVelocityTop(1,iCell) = 0.0
-        vertTransportVelocityTop(maxLevelCell(iCell)+1,iCell) = 0.0
-        do k=maxLevelCell(iCell),2,-1
-           vertTransportVelocityTop(k,iCell) = vertTransportVelocityTop(k+1,iCell) - div_hu(k) - h_tend_col(k)
-        end do
+         vertTransportVelocityTop(1,iCell) = 0.0
+         vertTransportVelocityTop(maxLevelCell(iCell)+1,iCell) = 0.0
+         do k=maxLevelCell(iCell),2,-1
+            vertTransportVelocityTop(k,iCell) = vertTransportVelocityTop(k+1,iCell) - div_hu(k,iCell) &
+              - (ALE_Thickness(k,iCell) - oldLayerThickness(k,iCell))/dt
+         end do
       end do
 
-      deallocate(div_hu, h_tend_col)
+      deallocate(div_hu, div_hu_btr, ALE_Thickness)
 
    end subroutine ocn_vert_transport_velocity_top!}}}
 
@@ -683,7 +683,6 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_fuperp(state, grid)!{{{
-      implicit none
 
       type (state_type), intent(inout) :: state !< Input/Output: State information
       type (mesh_type), intent(in) :: grid !< Input: Grid information
@@ -745,7 +744,6 @@ contains
 !
 !-----------------------------------------------------------------------
    subroutine ocn_filter_btr_mode_vel(state, grid)!{{{
-      implicit none
 
       type (state_type), intent(inout) :: state
       type (mesh_type), intent(in) :: grid
@@ -797,7 +795,6 @@ contains
 !
 !-----------------------------------------------------------------------
    subroutine ocn_filter_btr_mode_tend_vel(tend, state, grid)!{{{
-      implicit none
 
       type (tend_type), intent(inout) :: tend
       type (state_type), intent(in) :: state
@@ -851,28 +848,28 @@ contains
 !>  other diagnostics routines.
 !
 !-----------------------------------------------------------------------
-    subroutine ocn_diagnostics_init(err)!{{{
-        integer, intent(out) :: err !< Output: Error flag
+   subroutine ocn_diagnostics_init(err)!{{{
+      integer, intent(out) :: err !< Output: Error flag
 
-        err = 0
+      err = 0
 
-        if(config_include_KE_vertex) then
-            ke_vertex_flag = 1
-            ke_cell_flag = 0
-        else
-            ke_vertex_flag = 0
-            ke_cell_flag = 1
-        endif
+      if(config_include_KE_vertex) then
+         ke_vertex_flag = 1
+         ke_cell_flag = 0
+      else
+         ke_vertex_flag = 0
+         ke_cell_flag = 1
+      endif
 
-        if (trim(config_time_integrator) == 'RK4') then
-            ! For RK4, PV includes f: PV = (eta+f)/h.
-            fCoef = 1
-        elseif (trim(config_time_integrator) == 'split_explicit' &
-          .or.trim(config_time_integrator) == 'unsplit_explicit') then
-            ! For split explicit, PV is eta/h because the Coriolis term 
-            ! is added separately to the momentum tendencies.
-            fCoef = 0
-        end if
+      if (trim(config_time_integrator) == 'RK4') then
+         ! For RK4, PV includes f: PV = (eta+f)/h.
+         fCoef = 1
+      elseif (trim(config_time_integrator) == 'split_explicit' &
+        .or.trim(config_time_integrator) == 'unsplit_explicit') then
+          ! For split explicit, PV is eta/h because the Coriolis term 
+          ! is added separately to the momentum tendencies.
+          fCoef = 0
+      end if
 
     end subroutine ocn_diagnostics_init!}}}
 

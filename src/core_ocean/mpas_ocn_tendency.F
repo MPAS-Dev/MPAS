@@ -38,6 +38,7 @@ module ocn_tendency
    use ocn_vmix
 
    use ocn_tracer_hmix
+   use ocn_high_freq_thickness_hmix_del2
    use ocn_restoring
 
    implicit none
@@ -63,6 +64,7 @@ module ocn_tendency
    public :: ocn_tend_thick, &
              ocn_tend_vel, &
              ocn_tend_tracer, &
+             ocn_tend_freq_filtered_thickness, &
              ocn_tendency_init
 
    !--------------------------------------------------------------------
@@ -70,6 +72,8 @@ module ocn_tendency
    ! Private module variables
    !
    !--------------------------------------------------------------------
+
+   integer :: apply_Dhf_to_hhf, use_highFreqThick_restore
 
 !***********************************************************************
 
@@ -333,6 +337,116 @@ contains
 
 !***********************************************************************
 !
+!  routine ocn_tend_freq_filtered_thickness
+!
+!> \brief   Compute tendencies needed for frequency filtered thickness
+!> \author  Mark Petersen
+!> \date    July 2013
+!> \details 
+!>  This routine compute high frequency thickness tendency and the 
+!>  low freqency divergence.  It is only called when
+!>  config_freq_filtered_thickness is true (z-tilde)
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_tend_freq_filtered_thickness(tend, s, grid)!{{{
+
+      type (tend_type), intent(inout) :: tend
+      type (state_type), intent(in) :: s
+      type (mesh_type), intent(in) :: grid
+
+      integer :: err, nCells, nVertLevels, iCell, i, k, iEdge
+      integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeBot, nEdgesOnCell
+      integer, dimension(:,:), pointer :: edgesOnCell, edgeSignOnCell
+
+      real (kind=RKIND) :: flux, invAreaCell, div_hu_btr, thickness_filter_timescale_sec, highFreqThick_restore_time_sec, &
+         totalThickness
+      real (kind=RKIND), dimension(:), pointer :: dvEdge, areaCell
+      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, layerThicknessEdge, &
+         layerThickness, &
+         lowFreqDivergence, highFreqThickness, &
+         tend_lowFreqDivergence, tend_highFreqThickness
+      real (kind=RKIND), dimension(:), allocatable:: div_hu
+
+      call mpas_timer_start("ocn_tend_freq_filtered_thickness")
+      err = 0
+
+      nCells      = grid % nCells
+      nVertLevels = grid % nVertLevels
+
+      nEdgesOnCell      => grid % nEdgesOnCell % array
+      areaCell          => grid % areaCell % array
+      edgesOnCell       => grid % edgesOnCell % array
+      edgeSignOnCell    => grid % edgeSignOnCell % array
+      maxLevelCell      => grid % maxLevelCell % array
+      maxLevelEdgeBot   => grid % maxLevelEdgeBot % array
+      dvEdge            => grid % dvEdge % array
+
+      normalVelocity => s % normalVelocity % array
+      layerThickness => s % layerThickness % array
+      layerThicknessEdge => s % layerThicknessEdge % array
+      lowFreqDivergence => s % lowFreqDivergence % array
+      highFreqThickness => s % highFreqThickness % array
+      tend_lowFreqDivergence => tend % lowFreqDivergence % array
+      tend_highFreqThickness => tend % highFreqThickness % array
+
+      allocate(div_hu(nVertLevels))
+
+      !
+      ! Low Frequency Divergence and high frequency thickness Tendency
+      !
+      tend_lowFreqDivergence = 0.0
+      tend_highFreqThickness = 0.0
+
+      ! Convert restore time from days to seconds
+      thickness_filter_timescale_sec = config_thickness_filter_timescale*86400.0
+      highFreqThick_restore_time_sec = config_highFreqThick_restore_time*86400.0
+      do iCell=1,nCells
+        div_hu(:) = 0.0
+        div_hu_btr = 0.0
+        invAreaCell = 1.0 / areaCell(iCell)
+
+        do i = 1, nEdgesOnCell(iCell)
+          iEdge = edgesOnCell(i, iCell)
+
+          do k = 1, maxLevelEdgeBot(iEdge)
+            flux = layerThicknessEdge(k, iEdge) * normalVelocity(k, iEdge) * dvEdge(iEdge) * edgeSignOnCell(i, iCell) * invAreaCell
+            div_hu(k) = div_hu(k) - flux
+            div_hu_btr = div_hu_btr - flux
+          end do
+        end do
+
+        totalThickness = sum(layerThickness(1:maxLevelCell(iCell),iCell))
+        do k = 1, maxLevelCell(iCell)
+
+           tend_lowFreqDivergence(k,iCell) = &
+              -2.0*pii/thickness_filter_timescale_sec &
+              *(lowFreqDivergence(k,iCell)  - div_hu(k) &
+                + div_hu_btr*layerThickness(k,iCell)/totalThickness)
+
+           tend_highFreqThickness(k,iCell) = &
+              - div_hu(k) + div_hu_btr*layerThickness(k,iCell)/totalThickness + lowFreqDivergence(k,iCell) &
+              + use_highFreqThick_restore*( -2.0*pii/highFreqThick_restore_time_sec * highFreqThickness(k,iCell) )
+
+        end do
+
+      end do
+
+      deallocate(div_hu)
+
+      !
+      !  high frequency thickness tendency: del2 horizontal hhf diffusion, div(\kappa_{hf} \nabla h^{hf})
+      !
+      call mpas_timer_start("hmix", .false., tracerHmixTimer)
+      call ocn_high_freq_thickness_hmix_del2_tend(grid, highFreqThickness, tend_highFreqThickness, err)
+      call mpas_timer_stop("hmix", tracerHmixTimer)
+
+      call mpas_timer_stop("ocn_tend_freq_filtered_thickness")
+
+   end subroutine ocn_tend_freq_filtered_thickness!}}}
+
+!***********************************************************************
+!
 !  routine ocn_tendency_init
 !
 !> \brief   Initializes flags used within tendency routines.
@@ -347,6 +461,11 @@ contains
         integer, intent(out) :: err !< Output: Error flag
 
         err = 0
+	if (config_use_highFreqThick_restore) then
+           use_highFreqThick_restore = 1
+        else
+           use_highFreqThick_restore = 0
+        endif
 
     end subroutine ocn_tendency_init!}}}
 
