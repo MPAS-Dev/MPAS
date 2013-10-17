@@ -22,6 +22,9 @@ module ocn_vel_hmix_del2
 
    use mpas_grid_types
    use mpas_configure
+   use mpas_vector_operations
+   use mpas_matrix_operations
+   use mpas_tensor_operations
 
    implicit none
    private
@@ -40,6 +43,7 @@ module ocn_vel_hmix_del2
    !--------------------------------------------------------------------
 
    public :: ocn_vel_hmix_del2_tend, &
+             ocn_vel_hmix_del2_tensor_tend, &
              ocn_vel_hmix_del2_init
 
    !-------------------------------------------------------------------
@@ -95,10 +99,10 @@ contains
       !-----------------------------------------------------------------
 
       real (kind=RKIND), dimension(:,:), intent(inout) :: &
-         tend             !< Input/Output: velocity tendency
+         viscosity       !< Input: viscosity
 
       real (kind=RKIND), dimension(:,:), intent(inout) :: &
-         viscosity       !< Input: viscosity
+         tend             !< Input/Output: velocity tendency
 
       !-----------------------------------------------------------------
       !
@@ -171,6 +175,149 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_vel_hmix_del2_tend!}}}
+
+!***********************************************************************
+!
+!  routine ocn_vel_hmix_del2_tensor_tend
+!
+!> \brief   Computes tendency term for Laplacian horizontal momentum mixing
+!> \author  Mark Petersen
+!> \date    July 2013
+!> \details 
+!>  This routine computes the horizontal mixing tendency for momentum
+!>  using tensor operations, 
+!>  based on a Laplacian form for the mixing, \f$\nabla\cdot( \nu_2 \nabla(u))\f$
+!>  where \f$\nu_2\f$ is a viscosity.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_vel_hmix_del2_tensor_tend(mesh, normalVelocity, tangentialVelocity, viscosity, scratch, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         normalVelocity     !< Input: velocity normal to an edge
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         tangentialVelocity     !< Input: velocity, tangent to an edge
+
+      type (mesh_type), intent(in) :: &
+         mesh            !< Input: mesh information
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         viscosity       !< Input/Output: viscosity
+
+      type (scratch_type), intent(inout) :: &
+         scratch !< Input/Output: Scratch structure
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend             !< Input/Output: velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iEdge, nEdgesSolve, nEdges, k, nVertLevels
+      integer, dimension(:), pointer :: maxLevelEdgeTop
+      integer, dimension(:,:), pointer :: edgeMask, edgeSignOnCell
+
+      real (kind=RKIND) :: visc2
+      real (kind=RKIND), dimension(:), pointer :: meshScalingDel2
+      real (kind=RKIND), dimension(:,:), pointer :: normalVectorEdge, edgeTangentVectors
+      real (kind=RKIND), dimension(:,:,:), pointer :: &
+         strainRateR3Cell, strainRateR3Edge, divTensorR3Cell, outerProductEdge
+
+      !-----------------------------------------------------------------
+      !
+      ! exit if this mixing is not selected
+      !
+      !-----------------------------------------------------------------
+
+      err = 0
+
+      if (.not.config_use_mom_del2_tensor) return
+
+      nEdges = mesh % nEdges
+      nVertLevels = mesh % nVertLevels
+      nEdgesSolve = mesh % nEdgesSolve
+      maxLevelEdgeTop => mesh % maxLevelEdgeTop % array
+      meshScalingDel2 => mesh % meshScalingDel2 % array
+      edgeMask => mesh % edgeMask % array
+      edgeSignOnCell => mesh % edgeSignOnCell % array
+      edgeTangentVectors => mesh % edgeTangentVectors % array
+
+      call mpas_allocate_scratch_field(scratch % strainRateR3Cell, .true.)
+      call mpas_allocate_scratch_field(scratch % strainRateR3Edge, .true.)
+      call mpas_allocate_scratch_field(scratch % divTensorR3Cell, .true.)
+      call mpas_allocate_scratch_field(scratch % outerProductEdge, .true.)
+      call mpas_allocate_scratch_field(scratch % normalVectorEdge, .true.)
+
+      strainRateR3Cell => scratch % strainRateR3Cell % array
+      strainRateR3Edge => scratch % strainRateR3Edge % array
+      divTensorR3Cell  => scratch % divTensorR3Cell % array
+      outerProductEdge => scratch % outerProductEdge % array
+      normalVectorEdge => scratch % normalVectorEdge % array
+
+      call mpas_strain_rate_R3Cell(normalVelocity, tangentialVelocity, &
+         mesh, edgeSignOnCell, edgeTangentVectors, .true., &
+         outerProductEdge, strainRateR3Cell)
+
+      call mpas_matrix_cell_to_edge(strainRateR3Cell, mesh, .true., strainRateR3Edge)
+
+      ! The following loop could possibly be reduced to nEdgesSolve
+      do iEdge=1,nEdges  
+         visc2 = config_mom_del2_tensor * meshScalingDel2(iEdge)
+         do k=1,maxLevelEdgeTop(iEdge)
+            strainRateR3Edge(:,k,iEdge) = visc2 * strainRateR3Edge(:,k,iEdge) 
+            viscosity(k,iEdge) = viscosity(k,iEdge) + visc2
+         end do
+         ! Impose zero strain rate at land boundaries
+         do k=maxLevelEdgeTop(iEdge)+1,nVertLevels
+            strainRateR3Edge(:,k,iEdge) = 0.0
+         end do
+      end do
+
+      ! may change boundaries to false later
+      call mpas_divergence_of_tensor_R3Cell(strainRateR3Edge, mesh, edgeSignOnCell, .true., divTensorR3Cell)
+
+      call mpas_vector_R3Cell_to_normalVectorEdge(divTensorR3Cell, mesh, .true., normalVectorEdge)
+
+      ! The following loop could possibly be reduced to nEdgesSolve
+      do iEdge=1,nEdges 
+         do k=1,maxLevelEdgeTop(iEdge)
+            tend(k,iEdge) = tend(k,iEdge) + edgeMask(k, iEdge) * normalVectorEdge(k,iEdge)
+         end do
+      end do
+
+      call mpas_deallocate_scratch_field(scratch % strainRateR3Cell, .true.)
+      call mpas_deallocate_scratch_field(scratch % strainRateR3Edge, .true.)
+      call mpas_deallocate_scratch_field(scratch % divTensorR3Cell, .true.)
+      call mpas_deallocate_scratch_field(scratch % outerProductEdge, .true.)
+      call mpas_deallocate_scratch_field(scratch % normalVectorEdge, .true.)
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_vel_hmix_del2_tensor_tend!}}}
 
 !***********************************************************************
 !
