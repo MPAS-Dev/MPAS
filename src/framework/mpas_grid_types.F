@@ -22,9 +22,9 @@ module mpas_grid_types
    use mpas_kind_types
    use mpas_dmpar_types
    use mpas_attlist
+   use mpas_packages
 
    integer, parameter :: nTimeLevs = 2
-
 
    ! Derived type describing info for doing I/O specific to a field
    type io_info
@@ -55,7 +55,8 @@ module mpas_grid_types
       character (len=StrKIND), dimension(5) :: dimNames
       integer, dimension(5) :: dimSizes
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       logical :: isPersistent
       type (att_list_type), pointer :: attList => null()     
 
@@ -85,7 +86,8 @@ module mpas_grid_types
       character (len=StrKIND), dimension(4) :: dimNames
       integer, dimension(4) :: dimSizes
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       logical :: isPersistent
       type (att_list_type), pointer :: attList => null()     
 
@@ -116,7 +118,8 @@ module mpas_grid_types
       character (len=StrKIND), dimension(3) :: dimNames
       integer, dimension(3) :: dimSizes
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       logical :: isPersistent
       type (att_list_type), pointer :: attList => null()     
 
@@ -146,7 +149,8 @@ module mpas_grid_types
       character (len=StrKIND), dimension(2) :: dimNames
       integer, dimension(2) :: dimSizes
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       logical :: isPersistent
       type (att_list_type), pointer :: attList => null()     
 
@@ -176,7 +180,8 @@ module mpas_grid_types
       character (len=StrKIND), dimension(1) :: dimNames
       integer, dimension(1) :: dimSizes
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       logical :: isPersistent
       type (att_list_type), pointer :: attList => null()     
 
@@ -204,7 +209,8 @@ module mpas_grid_types
       character (len=StrKIND) :: fieldName
       character (len=StrKIND), dimension(:), pointer :: constituentNames => null()
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       type (att_list_type), pointer :: attList => null()     
 
       ! Pointers to the prev and next blocks for this field on this task
@@ -233,7 +239,8 @@ module mpas_grid_types
       character (len=StrKIND), dimension(3) :: dimNames
       integer, dimension(3) :: dimSizes
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       logical :: isPersistent
       type (att_list_type), pointer :: attList => null()     
 
@@ -263,7 +270,8 @@ module mpas_grid_types
       character (len=StrKIND), dimension(2) :: dimNames
       integer, dimension(2) :: dimSizes
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       logical :: isPersistent
       type (att_list_type), pointer :: attList => null()     
 
@@ -293,7 +301,8 @@ module mpas_grid_types
       character (len=StrKIND), dimension(1) :: dimNames
       integer, dimension(1) :: dimSizes
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       logical :: isPersistent
       type (att_list_type), pointer :: attList => null()     
 
@@ -321,7 +330,8 @@ module mpas_grid_types
       character (len=StrKIND) :: fieldName
       character (len=StrKIND), dimension(:), pointer :: constituentNames => null()
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       type (att_list_type), pointer :: attList => null()     
 
       ! Pointers to the prev and next blocks for this field on this task
@@ -350,7 +360,8 @@ module mpas_grid_types
       character (len=StrKIND), dimension(1) :: dimNames
       integer, dimension(1) :: dimSizes
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       logical :: isPersistent
       type (att_list_type), pointer :: attList => null()     
 
@@ -378,7 +389,8 @@ module mpas_grid_types
       character (len=StrKIND) :: fieldName
       character (len=StrKIND), dimension(:), pointer :: constituentNames => null()
       logical :: hasTimeDimension
-      logical :: isSuperArray
+      logical :: isActive
+      logical :: isVarArray
       type (att_list_type), pointer :: attList => null()     
 
       ! Pointers to the prev and next blocks for this field on this task

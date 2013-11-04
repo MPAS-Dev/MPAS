@@ -7,6 +7,7 @@ OBJS = mpas_kind_types.o \
        mpas_timer.o \
        mpas_timekeeping.o \
        mpas_configure.o \
+       mpas_packages.o \
        mpas_constants.o \
        mpas_dmpar_types.o \
        mpas_attlist.o \
@@ -28,9 +29,20 @@ all: framework $(DEPS)
 framework: $(OBJS)
 	ar -ru libframework.a $(OBJS)
 
-mpas_framework.o: mpas_dmpar.o mpas_io_input.o mpas_io_output.o mpas_io.o mpas_grid_types.o mpas_configure.o mpas_timer.o mpas_io_units.o
-
 mpas_configure.o: mpas_dmpar.o mpas_io_units.o $(DEPS)
+
+mpas_packages.o: $(DEPS)
+
+mpas_framework.o: mpas_dmpar.o \
+                  mpas_io_input.o \
+                  mpas_io_output.o \
+                  mpas_io.o \
+                  mpas_grid_types.o \
+                  mpas_configure.o \
+                  mpas_timer.o \
+                  mpas_sort.o \
+                  mpas_io_units.o \
+                  mpas_packages.o
 
 mpas_constants.o: mpas_kind_types.o mpas_io_units.o
 
@@ -38,7 +50,7 @@ mpas_dmpar_types.o : mpas_kind_types.o mpas_io_units.o
 
 mpas_attlist.o: mpas_kind_types.o mpas_io_units.o
 
-mpas_grid_types.o: mpas_kind_types.o mpas_dmpar_types.o mpas_attlist.o mpas_io_units.o $(DEPS)
+mpas_grid_types.o: mpas_kind_types.o mpas_dmpar_types.o mpas_attlist.o mpas_io_units.o mpas_packages.o $(DEPS)
 
 mpas_dmpar.o: mpas_sort.o streams.o mpas_kind_types.o mpas_grid_types.o mpas_hash.o mpas_io_units.o
 
