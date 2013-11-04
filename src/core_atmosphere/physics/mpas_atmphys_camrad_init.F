@@ -5,7 +5,11 @@
 ! Additional copyright and license information can be found in the LICENSE file
 ! distributed with this code, or at http://mpas-dev.github.com/license.html
 !
+#ifdef SINGLE_PRECISION
+#define DM_BCAST_MACRO(A) call mpas_dmpar_bcast_doubles(dminfo,size(A),A)
+#else
 #define DM_BCAST_MACRO(A) call mpas_dmpar_bcast_reals(dminfo,size(A),A)
+#endif
 
 !==================================================================================================
  module mpas_atmphys_camrad_init
