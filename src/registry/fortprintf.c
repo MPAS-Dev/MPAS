@@ -73,6 +73,7 @@ int fortprintf(FILE * fd, char * str, ...)
       if (i == MAX_LINE_LEN-1) {
          if (fbuffer[i] == '\n') nl = i;
          if (fbuffer[i] == ' ' && sp < 0)  sp = i-1;   /* Insert & before the space so it will fit within column limit */
+         if (inquotes && fbuffer[i] == '\'') inquotes = (inquotes + 1) % 2; /* If the last char is the start of a string, don't start the string until the next line. */
       }
 
 #ifdef FORTPRINTF_DEBUG
