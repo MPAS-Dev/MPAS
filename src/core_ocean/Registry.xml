@@ -665,6 +665,10 @@
 					description="Disables tendencies on the thickness field from vertical advection."
 					possible_values=".true. or .false."
 		/>
+		<nml_option name="config_disable_thick_sflux" type="logical" default_value=".false." units="unitless"
+					description="Disables tendencies on the thickness field from surface fluxes."
+					possible_values=".true. or .false."
+		/>
 		<nml_option name="config_disable_vel_all_tend" type="logical" default_value=".false." units="unitless"
 					description="Disables all tendencies on the velocity field."
 					possible_values=".true. or .false."
@@ -707,6 +711,10 @@
 		/>
 		<nml_option name="config_disable_tr_vmix" type="logical" default_value=".false." units="unitless"
 					description="Disables tendencies on tracer fields from vertical mixing."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_disable_tr_sflux" type="logical" default_value=".false." units="unitless"
+					description="Disables tendencies on tracer fields from surface fluxes."
 					possible_values=".true. or .false."
 		/>
 	</nml_record>
@@ -958,9 +966,6 @@
 		/>
 		<var name="cellMask" type="integer" dimensions="nVertLevels nCells" streams="o" units="unitless"
 			 description="Mask on cells that determines if computations should be done on cell."
-		/>
-		<var name="normalVelocityForcing" type="real" dimensions="nVertLevels nEdges" streams="ir" units="N m^{-2}"
-			 description="Velocity forcing field. Defines a forcing at an edge."
 		/>
 		<var name="temperatureRestore" type="real" dimensions="nCells" streams="ir" units="^\circ C"
 			 description="Temperature restoring field, for restoring temperature at the surface."
@@ -1431,21 +1436,6 @@
 		/>
 	</var_struct>
     <var_struct name="scratch" time_levs="0">
-        <var name="normalVelocityForcingX" persistence="scratch" type="real" dimensions="nVertLevels nCells Time" units="N m^{-2}"
-		     description="reconstructed wind stress in the x-direction (cartesian)"
-		/>
-		<var name="normalVelocityForcingY" persistence="scratch" type="real" dimensions="nVertLevels nCells Time" units="N m^{-2}"
-			 description="reconstructed wind stress in the y-direction (cartesian)"
-		/>
-		<var name="normalVelocityForcingZ" persistence="scratch" type="real" dimensions="nVertLevels nCells Time" units="N m^{-2}"
-			 description="reconstructed wind stress in the z-direction (cartesian)"
-		/>
-		<var name="normalVelocityForcingZonal" persistence="scratch" type="real" dimensions="nVertLevels nCells Time" units="N m^{-2}"
-			 description="reconstructed wind stress in the eastward direction"
-		/>
-		<var name="normalVelocityForcingMeridional" persistence="scratch" type="real" dimensions="nVertLevels nCells Time" units="N m^{-2}"
-			 description="reconstructed wind stress in the northward direction"
-		/>
 		<var name="vorticityGradientTangentialComponent" 
 			persistence="scratch" 
 			type="real" dimensions="nVertLevels nEdges Time" 
