@@ -51,7 +51,7 @@ module mpas_tracer_advection_std
 !
 !-----------------------------------------------------------------------
    subroutine mpas_tracer_advection_std_tend(tracers, adv_coefs, adv_coefs_3rd, nAdvCellsForEdge, advCellsForEdge, normalThicknessFlux, &!{{{
-                                             w, layerThickness, verticalCellSize, dt, grid, tend_layerThickness, tend, maxLevelCell_in, &
+                                             w, layerThickness, verticalCellSize, dt, mesh, tend_layerThickness, tend, maxLevelCell_in, &
                                              maxLevelEdgeTop_in, highOrderAdvectionMask_in, verticalDivergenceFactor_in, edgeSignOnCell_in)
 
       real (kind=RKIND), dimension(:,:,:), intent(in) :: tracers !< Input: current tracer values
@@ -59,13 +59,13 @@ module mpas_tracer_advection_std
       real (kind=RKIND), dimension(:,:), intent(in) :: adv_coefs_3rd !< Input: Advection coefficients for blending in 3rd or 4th order advection
       integer, dimension(:), intent(in) :: nAdvCellsForEdge !< Input: Number of advection cells for each edge
       integer, dimension(:,:), intent(in) :: advCellsForEdge !< Input: List of advection cells for each edge
-      real (kind=RKIND), dimension(:,:), intent(in) :: normalThicknessFlux !< Input: Thichness weighted velocitiy
-      real (kind=RKIND), dimension(:,:), intent(in) :: w !< Input: Vertical velocitiy
-      real (kind=RKIND), dimension(:,:), intent(in) :: layerThickness !< Input: Thickness
-      real (kind=RKIND), dimension(:,:), intent(in) :: verticalCellSize !< Input: Distance between vertical interfaces of a cell
-      real (kind=RKIND), dimension(:,:), intent(in) :: tend_layerThickness !< Input: Tendency for thickness field
+      real (kind=RKIND), dimension(:,:), intent(in) :: normalThicknessFlux !< Input: Thichness weighted velocitiy - (nVertLevels, nEdge)
+      real (kind=RKIND), dimension(:,:), intent(in) :: w !< Input: Vertical velocitiy - (nVertLevels+1, nEdges)
+      real (kind=RKIND), dimension(:,:), intent(in) :: layerThickness !< Input: Thickness - (nVertLevels, nCells)
+      real (kind=RKIND), dimension(:,:), intent(in) :: verticalCellSize !< Input: Distance between vertical interfaces of a cell - (nVertLevels, nCells)
+      real (kind=RKIND), dimension(:,:), intent(in) :: tend_layerThickness !< Input: Tendency for thickness field - (nVertLevels, nCells)
       real (kind=RKIND), intent(in) :: dt !< Input: Timestep
-      type (mesh_type), intent(in) :: grid !< Input: Grid information
+      type (mesh_type), intent(in) :: mesh !< Input: Mesh information
       real (kind=RKIND), dimension(:,:,:), intent(inout) :: tend !< Input/Output: Tracer tendency
       integer, dimension(:), pointer, optional :: maxLevelCell_in !< Input - optional: Index to max level at cell center
       integer, dimension(:), pointer, optional :: maxLevelEdgeTop_in !< Input - optional: Index to max level at edge with non-land cells on both sides
@@ -85,20 +85,20 @@ module mpas_tracer_advection_std
       real (kind=RKIND), parameter :: eps = 1.e-10_RKIND
 
       ! Get dimensions
-      nCells = grid % nCells
-      nCellsSolve = grid % nCellsSolve
-      nEdges = grid % nEdges
-      maxEdges = grid % maxEdges
-      nVertLevels = grid % nVertLevels
+      nCells = mesh % nCells
+      nCellsSolve = mesh % nCellsSolve
+      nEdges = mesh % nEdges
+      maxEdges = mesh % maxEdges
+      nVertLevels = size(tracers,dim=2)
       num_tracers = size(tracers,dim=1)
 
       ! Initialize pointers
-      dvEdge      => grid % dvEdge % array
-      cellsOnEdge => grid % cellsOnEdge % array
-      edgesOnCell => grid % edgesOnCell % array
-      cellsOnCell => grid % cellsOnCell % array
-      areaCell    => grid % areaCell % array
-      nEdgesOnCell => grid % nEdgesOnCell % array
+      dvEdge      => mesh % dvEdge % array
+      cellsOnEdge => mesh % cellsOnEdge % array
+      edgesOnCell => mesh % edgesOnCell % array
+      cellsOnCell => mesh % cellsOnCell % array
+      areaCell    => mesh % areaCell % array
+      nEdgesOnCell => mesh % nEdgesOnCell % array
       
       ! Setup arrays from optional arguments
       if(present(maxLevelCell_in)) then
