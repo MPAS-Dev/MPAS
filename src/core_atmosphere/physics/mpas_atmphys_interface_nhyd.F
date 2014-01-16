@@ -477,14 +477,10 @@
  type(diag_type),intent(inout):: diag
  type(tend_type),intent(inout):: tend
 
- real(kind=RKIND):: min_theta,min_thp,min_tp
- real(kind=RKIND):: max_theta,max_thp,max_tp
- real(kind=RKIND):: min_qv,min_qc,min_qr,min_qi,min_qs,min_qg
- real(kind=RKIND):: max_qv,max_qc,max_qr,max_qi,max_qs,max_qg
-
 !local variables:
  integer:: icount
  integer:: i,k,j
+ real(kind=RKIND):: acoef
  real(kind=RKIND),dimension(:,:),pointer:: zz,exner,exner_b,pressure_b,rtheta_p,rtheta_b
  real(kind=RKIND),dimension(:,:),pointer:: rho_zz,theta_m,pressure_p
  real(kind=RKIND),dimension(:,:),pointer:: rt_diabatic_tend
@@ -521,36 +517,39 @@
  sfc_pressure => diag % surface_pressure % array
 !ldf end.
 
-!variables common to all cloud microphysics schemes:
-
- do j = jts, jte
- do k = kts, kte
- do i = its, ite
-
-    !potential temperature and diabatic forcing:
-    rt_diabatic_tend(k,i) = theta_m(k,i)
-    theta_m(k,i) = th_p(i,k,j) * (1. + R_v/R_d * qv_p(i,k,j))
-    rt_diabatic_tend(k,i) = (theta_m(k,i) - rt_diabatic_tend(k,i)) / dt_dyn
-!   rt_diabatic_tend(k,i) = 0.
-
-    !density-weigthed perturbation potential temperature:
-    rtheta_p(k,i) = rho_zz(k,i) * theta_m(k,i) - rtheta_b(k,i)
-
-    !exner function:
-    exner(k,i) = (zz(k,i)*(R_d/P0)*(rtheta_p(k,i)+rtheta_b(k,i)))**rcv
-
-    !pertubation pressure:
-    pressure_p(k,i) = zz(k,i)*R_d*(exner(k,i)*rtheta_p(k,i) &
-                  + (exner(k,i)-exner_b(k,i))*rtheta_b(k,i))
-
-    !mass mixing ratios:
+!update variables needed in the dynamical core:
+ if(.not.allocated(t_p)) allocate(t_p(ims:ime,kms:kme,jms:jme))
+ acoef = (cp-R_d)/cp
+ do j = jts,jte
+ do k = kts,kte
+ do i = its,ite
     state % scalars % array(state%index_qv,k,i) = qv_p(i,k,j)
     state % scalars % array(state%index_qc,k,i) = qc_p(i,k,j)
     state % scalars % array(state%index_qr,k,i) = qr_p(i,k,j)
 
+    !perturbation pressure and exner function using the equation of state:
+    t_p(i,k,j)    = th_p(i,k,j)*pi_p(i,k,j)
+    rho_p(i,k,j)  = zz(k,i)*rho_zz(k,i)*(1._RKIND+R_v/R_d*qv_p(i,k,j))
+
+    pres_p(i,k,j) = R_d*rho_p(i,k,j)*t_p(i,k,j)
+    pressure_p(k,i) = pres_p(i,k,j)-pressure_b(k,i)
+    exner(k,i) = (pres_p(i,k,j)/P0)**rcp
+
+    !perturbation modified potential temperature and tendency of modified
+    !potential temperature due to cloud microphysics processes:
+    rt_diabatic_tend(k,i) = theta_m(k,i)
+    theta_m(k,i) = (pres_p(i,k,j)/P0)**acoef
+    theta_m(k,i) = theta_m(k,i)*P0/(R_d*zz(k,i)*rho_zz(k,i))
+    rt_diabatic_tend(k,i) = (theta_m(k,i)-rt_diabatic_tend(k,i)) / dt_dyn
+    rtheta_p(k,i) = rho_zz(k,i)*theta_m(k,i)-rtheta_b(k,i)
+
+    !updated potential temperature and recalculate the dry air density:
+    th_p(i,k,j)  = t_p(i,k,j)/exner(k,i)
+    rho_p(i,k,j) = zz(k,i)*rho_zz(k,i) 
  enddo
  enddo
  enddo
+ if(allocated(t_p)) deallocate(t_p)
 
 !updates the surface pressure.
  do j = jts,jte
@@ -558,16 +557,14 @@
     tem1 = zgrid(2,i)-zgrid(1,i)
     tem2 = zgrid(3,i)-zgrid(2,i)
     rho1 = rho_zz(1,i) * zz(1,i) * (1. + qv_p(i,1,j))
-    rho2 = rho_zz(2,i) * zz(2,i) * (1. + qv_P(i,2,j))
+    rho2 = rho_zz(2,i) * zz(2,i) * (1. + qv_p(i,2,j))
     sfc_pressure(i) = 0.5*g*(zgrid(2,i)-zgrid(1,i)) &
                     * (rho1 + 0.5*(rho2-rho1)*tem1/(tem1+tem2))
     sfc_pressure(i) = sfc_pressure(i) + pressure_p(1,i) + pressure_b(1,i)
  enddo
  enddo
-!ldf end.
 
 !variables specific to different cloud microphysics schemes:
-
  microp_select_init: select case(microp_scheme)
 
     case ("wsm6")
@@ -575,12 +572,10 @@
        do j = jts, jte
        do k = kts, kte
        do i = its, ite
-
           !mass mixing ratios:
           state % scalars % array(state%index_qi,k,i) = qi_p(i,k,j)
           state % scalars % array(state%index_qs,k,i) = qs_p(i,k,j)
           state % scalars % array(state%index_qg,k,i) = qg_p(i,k,j)
-
        enddo
        enddo
        enddo
@@ -590,7 +585,9 @@
  end select microp_select_init
 
 !formats:
- 201 format(3i6,10(1x,e15.8))
+ 201 format(2i6,10(1x,e15.8))
+
+ write(0,*) '--- end subroutine microphysics_to_MPAS'
 
  end subroutine microphysics_to_MPAS
 

@@ -269,11 +269,20 @@
                 <var name="v"                       type="real"     dimensions="nVertLevels nEdges Time"     streams="o"/>
                 <var name="divergence"              type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
                 <var name="vorticity"               type="real"     dimensions="nVertLevels nVertices Time"  streams="o"/>
-                <var name="pv_edge"                 type="real"     dimensions="nVertLevels nEdges Time"     streams="o"/>
-                <var name="rho_edge"                type="real"     dimensions="nVertLevels nEdges Time"     streams="o"/>
+                <var name="pv_edge"                 type="real"     dimensions="nVertLevels nEdges Time"/>
+                <var name="rho_edge"                type="real"     dimensions="nVertLevels nEdges Time"/>
                 <var name="ke"                      type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
-                <var name="pv_vertex"               type="real"     dimensions="nVertLevels nVertices Time"  streams="o"/>
-                <var name="pv_cell"                 type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
+                <var name="pv_vertex"               type="real"     dimensions="nVertLevels nVertices Time"/>
+                <var name="pv_cell"                 type="real"     dimensions="nVertLevels nCells Time"/>
+                <var name="ertel_pv"                type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
+                <var name="theta_pv"                type="real"     dimensions="nCells Time"                 streams="o"/>
+                <var name="depv_dt_lw"              type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
+                <var name="depv_dt_sw"              type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
+                <var name="depv_dt_bl"              type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
+                <var name="depv_dt_cu"              type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
+                <var name="dtheta_dt_mp"            type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
+                <var name="depv_dt_mp"              type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
+                <var name="depv_dt_mix"             type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
 
                 <!-- reconstructed horizontal velocity vectors at cell centers -->
                 <var name="uReconstructX"           type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>

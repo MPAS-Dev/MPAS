@@ -188,7 +188,10 @@
 !---------------------------
  logical:: log_microphysics
  integer:: i,icell,icount,istep,j,k,kk
-
+ integer :: nCellsSolve, nVertLevels, nCells
+ real(kind=RKIND) :: rvord
+ real(kind=RKIND), dimension(:,:), pointer :: dtheta_dt_mp, theta_m, qv
+ 
 !==================================================================================================
  write(0,*)
  write(0,*) '--- enter subroutine microphysics_driver: itimestep=', itimestep
@@ -207,6 +210,23 @@
  write(0,*) '    its= ',its,' ite=',ite
  write(0,*) '    jts= ',jts,' jte=',jte
  write(0,*) '    kts= ',kts,' kte=',kte
+
+!nick szapiro 22-11-13: get dtheta/dt contribution from microphysics scheme
+ nCellsSolve = mesh % nCellsSolve 
+ nVertLevels = mesh % nVertLevels
+ nCells = mesh % nCells
+ theta_m    => state % theta_m % array
+ qv => state % scalars % array(state%index_qv,:,:)
+ dtheta_dt_mp => diag % dtheta_dt_mp % array
+ 
+ rvord = R_v/R_d
+  
+ !initialize to theta before mp
+ do icell=1,nCellsSolve
+  do k=1,nVertLevels
+    dtheta_dt_mp(k,icell) = theta_m(k,icell) / ( 1.+rvord*qv(k,icell) )
+  end do
+ end do
 
 !... allocation of microphysics arrays:
  call allocate_microphysics
@@ -297,6 +317,14 @@
 !... copy updated cloud microphysics variables from the wrf-physics grid back to the geodesic-
 !    dynamics grid:
  call microphysics_to_MPAS(mesh,state,diag,tend,itimestep)
+
+!nick szapiro: 22-11-13
+!store dtheta_dt_mp
+ do icell=1,nCellsSolve
+  do k=1,nVertLevels
+    dtheta_dt_mp(k,icell) = ( theta_m(k,icell)/( 1.+rvord*qv(k,icell) ) - dtheta_dt_mp(k,icell) )/dt_dyn
+  end do
+ end do
 
 !... deallocation of all microphysics arrays:
  call deallocate_microphysics
