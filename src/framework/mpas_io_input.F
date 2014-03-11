@@ -18,6 +18,7 @@ module mpas_io_input
    use mpas_io_units
 
    integer, parameter :: STREAM_INPUT=1, STREAM_SFC=2, STREAM_RESTART=3
+   integer, parameter :: idLength = 10
 
    type io_input_object
       character (len=StrKIND) :: filename
@@ -260,7 +261,7 @@ module mpas_io_input
           if(iachar(domain % history(i:i)) == 0) then
             domain % history(i:i) = " "
           else if(iachar(domain % history(i:i)) == 10) then
-            domain % history(i:i) = ";"
+            domain % history(i:i) = new_line('A')
           end if
         end do
       end if
@@ -268,12 +269,27 @@ module mpas_io_input
       domain % history = "cesm_run"
 #endif
 
+      call MPAS_readStreamAtt(input_obj % io_stream, 'parent_id', domain % parent_id, ierr)
+      if (ierr /= MPAS_STREAM_NOERR) then
+         domain % parent_id = 'Unknown'
+      end if
+
       call MPAS_readStreamAtt(input_obj % io_stream, 'mesh_id', domain % mesh_id, ierr)
       if (ierr /= MPAS_STREAM_NOERR) then
-        write(stderrUnit,*) 'Warning: Attribute mesh_id not found in '//trim(input_obj % filename)
-        write(stderrUnit,*) '   Setting mesh_id to ''Unknown'''
-        domain % mesh_id = "Unknown"
+         domain % mesh_id = 'Unknown'
       end if
+
+      if ( trim(domain % mesh_id) /= 'Unknown') then
+         if ( trim(domain % parent_id) /= 'Unknown' ) then
+            domain % parent_id = trim(domain % mesh_id) // new_line('A') // trim(domain % parent_id)
+         else
+            domain % parent_id = trim(domain % mesh_id)
+         end if
+      else
+         domain % parent_id = 'Unknown'
+      end if
+
+      call gen_random(idLength, domain % mesh_id)
 
       call MPAS_readStreamAtt(input_obj % io_stream, 'Conventions', domain % Conventions, ierr)
       if (ierr /= MPAS_STREAM_NOERR) then
