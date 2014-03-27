@@ -403,6 +403,105 @@ module mpas_grid_types
    end type field0DChar
 
 
+   ! Derived type for storing fields
+   type field0DLogical
+  
+      ! Back-pointer to the containing block
+      type (block_type), pointer :: block
+
+      ! Raw array holding field data on this block
+      logical :: scalar
+
+      ! Information used by the I/O layer
+      type (io_info), pointer :: ioinfo       ! to be removed later
+      character (len=StrKIND) :: fieldName
+      character (len=StrKIND), dimension(:), pointer :: constituentNames => null()
+      logical :: hasTimeDimension
+      logical :: isActive
+      logical :: isVarArray
+      type (att_list_type), pointer :: attList => null()     
+
+      ! Pointers to the prev and next blocks for this field on this task
+      type (field0DLogical), pointer :: prev, next
+
+      ! Halo communication lists
+      type (mpas_multihalo_exchange_list), pointer :: sendList
+      type (mpas_multihalo_exchange_list), pointer :: recvList
+      type (mpas_multihalo_exchange_list), pointer :: copyList
+   end type field0DLogical
+
+   !!! TYPES FOR MPAS_POOL
+   integer, parameter :: MPAS_POOL_SILENT = 1, &
+                         MPAS_POOL_WARN = 2, &
+                         MPAS_POOL_FATAL = 3
+
+   integer, parameter :: MPAS_POOL_FIELD = 1, &
+                         MPAS_POOL_CONFIG = 2, &
+                         MPAS_POOL_DIMENSION = 3, &
+                         MPAS_POOL_SUBPOOL = 4, &
+                         MPAS_POOL_PACKAGE = 5
+
+   integer, parameter :: MPAS_POOL_REAL = 1, &
+                         MPAS_POOL_INTEGER = 2, &
+                         MPAS_POOL_LOGICAL = 3, &
+                         MPAS_POOL_CHARACTER = 4
+
+   type mpas_pool_data_type
+      integer :: contentsType
+      integer :: contentsDims
+      integer :: contentsTimeLevs
+      type (field0DReal), dimension(:), pointer :: r0 => null()
+      type (field1DReal), dimension(:), pointer :: r1 => null()
+      type (field2DReal), dimension(:), pointer :: r2 => null()
+      type (field3DReal), dimension(:), pointer :: r3 => null()
+      type (field4DReal), dimension(:), pointer :: r4 => null()
+      type (field5DReal), dimension(:), pointer :: r5 => null()
+      type (field0DInteger), dimension(:), pointer :: i0 => null()
+      type (field1DInteger), dimension(:), pointer :: i1 => null()
+      type (field2DInteger), dimension(:), pointer :: i2 => null()
+      type (field3DInteger), dimension(:), pointer :: i3 => null()
+      type (field0DChar), dimension(:), pointer :: c0 => null()
+      type (field1DChar), dimension(:), pointer :: c1 => null()
+      type (field0DLogical), dimension(:), pointer :: l0 => null()
+   end type mpas_pool_data_type
+
+   type mpas_pool_member_type
+      character (len=StrKIND) :: key
+      integer :: keyLen
+      integer contentsType
+      type (mpas_pool_data_type), pointer :: data => null()
+      type (mpas_pool_type), pointer :: pool => null()
+      type (mpas_pool_member_type), pointer :: next => null()
+   end type mpas_pool_member_type
+
+   type mpas_pool_head_type
+      type (mpas_pool_member_type), pointer :: head => null()
+   end type mpas_pool_head_type
+
+   type mpas_pool_type
+      integer :: size
+      integer :: iteratorIndex
+      type (mpas_pool_head_type), pointer :: head => null()
+      type (mpas_pool_member_type), pointer :: iterator => null()
+   end type mpas_pool_type
+
+   type mpas_pool_iterator_type
+      character (len=StrKIND) :: memberName
+      integer :: memberType
+      integer :: dataType
+      integer :: nDims
+      integer :: nTimeLevels
+   end type mpas_pool_iterator_type
+
+   type mpas_pool_field_info_type
+      integer :: fieldType
+      integer :: nDims
+      integer :: nTimeLevels
+   end type mpas_pool_field_info_type
+   !!! END TYPES FOR MPAS POOL
+
+
+
    ! Derived type for storing grid meta-data
    type mesh_type
 
@@ -450,12 +549,15 @@ module mpas_grid_types
       type (parallel_info), pointer :: parinfo
 
       type (block_type), pointer :: prev, next
+
+      type (mpas_pool_type), pointer :: structs, dimensions, configs, packages
    end type block_type
 
 
    ! Derived type for storing list of blocks from a domain to be handled by a process
    type domain_type
       type (block_type), pointer :: blocklist
+      type (mpas_pool_type), pointer :: configs, packages
    
       ! Also store parallelization info here
       type (dm_info), pointer :: dminfo
@@ -507,6 +609,90 @@ module mpas_grid_types
      module procedure mpas_deallocate_field1d_char
    end interface
 
+   interface mpas_pool_add_field
+      module procedure mpas_pool_add_field_0d_real
+      module procedure mpas_pool_add_field_1d_real
+      module procedure mpas_pool_add_field_2d_real
+      module procedure mpas_pool_add_field_3d_real
+      module procedure mpas_pool_add_field_4d_real
+      module procedure mpas_pool_add_field_5d_real
+      module procedure mpas_pool_add_field_0d_int
+      module procedure mpas_pool_add_field_1d_int
+      module procedure mpas_pool_add_field_2d_int
+      module procedure mpas_pool_add_field_3d_int
+      module procedure mpas_pool_add_field_0d_char
+      module procedure mpas_pool_add_field_1d_char
+      module procedure mpas_pool_add_field_0d_reals
+      module procedure mpas_pool_add_field_1d_reals
+      module procedure mpas_pool_add_field_2d_reals
+      module procedure mpas_pool_add_field_3d_reals
+      module procedure mpas_pool_add_field_4d_reals
+      module procedure mpas_pool_add_field_5d_reals
+      module procedure mpas_pool_add_field_0d_ints
+      module procedure mpas_pool_add_field_1d_ints
+      module procedure mpas_pool_add_field_2d_ints
+      module procedure mpas_pool_add_field_3d_ints
+      module procedure mpas_pool_add_field_0d_chars
+      module procedure mpas_pool_add_field_1d_chars
+   end interface
+
+   interface mpas_pool_get_field
+      module procedure mpas_pool_get_field_0d_real
+      module procedure mpas_pool_get_field_1d_real
+      module procedure mpas_pool_get_field_2d_real
+      module procedure mpas_pool_get_field_3d_real
+      module procedure mpas_pool_get_field_4d_real
+      module procedure mpas_pool_get_field_5d_real
+      module procedure mpas_pool_get_field_0d_int
+      module procedure mpas_pool_get_field_1d_int
+      module procedure mpas_pool_get_field_2d_int
+      module procedure mpas_pool_get_field_3d_int
+      module procedure mpas_pool_get_field_0d_char
+      module procedure mpas_pool_get_field_1d_char
+   end interface
+
+   interface mpas_pool_get_array
+      module procedure mpas_pool_get_array_0d_real
+      module procedure mpas_pool_get_array_1d_real
+      module procedure mpas_pool_get_array_2d_real
+      module procedure mpas_pool_get_array_3d_real
+      module procedure mpas_pool_get_array_4d_real
+      module procedure mpas_pool_get_array_5d_real
+      module procedure mpas_pool_get_array_0d_int
+      module procedure mpas_pool_get_array_1d_int
+      module procedure mpas_pool_get_array_2d_int
+      module procedure mpas_pool_get_array_3d_int
+      module procedure mpas_pool_get_array_0d_char
+      module procedure mpas_pool_get_array_1d_char
+   end interface
+
+   interface mpas_pool_add_config
+      module procedure mpas_pool_add_config_real
+      module procedure mpas_pool_add_config_int
+      module procedure mpas_pool_add_config_char
+      module procedure mpas_pool_add_config_logical
+   end interface
+
+   interface mpas_pool_get_config
+      module procedure mpas_pool_get_config_real
+      module procedure mpas_pool_get_config_int
+      module procedure mpas_pool_get_config_char
+      module procedure mpas_pool_get_config_logical
+   end interface
+
+   interface mpas_pool_add_dimension
+      module procedure mpas_pool_add_dimension_0d
+      module procedure mpas_pool_add_dimension_1d
+   end interface
+
+   interface mpas_pool_get_dimension
+      module procedure mpas_pool_get_dimension_0d
+      module procedure mpas_pool_get_dimension_1d
+   end interface
+
+   integer :: currentErrorLevel = MPAS_POOL_SILENT
+
+
 
    contains
 
@@ -530,6 +716,12 @@ module mpas_grid_types
 
       nullify(dom % blocklist)
       dom % dminfo => dminfo
+
+      allocate(dom % configs)
+      allocate(dom % packages)
+
+      call mpas_pool_create_pool(dom % configs)
+      call mpas_pool_create_pool(dom % packages)
 
    end subroutine mpas_allocate_domain!}}}
 
@@ -557,8 +749,6 @@ module mpas_grid_types
       integer, intent(in) :: blockID !< Input: Global ID of block
 #include "dim_dummy_decls.inc"
 
-
-
       integer :: i
 
       b % blockID = blockID
@@ -566,6 +756,15 @@ module mpas_grid_types
       allocate(b % parinfo)
 
       b % domain => dom
+
+      allocate(b % structs)
+      allocate(b % dimensions)
+      call mpas_pool_create_pool(b % structs)
+      call mpas_pool_create_pool(b % dimensions)
+
+      b % configs => dom % configs
+      b % packages => dom % packages
+
 
 #include "block_allocs.inc"
 
@@ -1871,6 +2070,1298 @@ module mpas_grid_types
 #include "block_deallocs.inc"
 
    end subroutine mpas_deallocate_block!}}}
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!           POOL SUBROUTINES
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!-----------------------------------------------------------------------
+!  routine mpas_pool_set_error_level
+!
+!> \brief MPAS Pool Error level set routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!>  This routine sets the internal error level for pools.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_set_error_level(newErrorLevel)!{{{
+      integer, intent(in) :: newErrorLevel
+
+      currentErrorLevel = newErrorLevel
+   end subroutine!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_create_pool
+!
+!> \brief MPAS Pool creation routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!>  This routine will create a new empty pool and associate newPool to this new
+!>  pool location.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_create_pool(newPool)!{{{
+      type (mpas_pool_type), pointer :: newPool
+   end subroutine mpas_pool_create_pool!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_destroy_pool
+!
+!> \brief MPAS Pool deallocation routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!>  This routine will destroy a pool associated with inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_destroy_pool(inPool)!{{{
+      type (mpas_pool_type), pointer :: inPool
+   end subroutine mpas_pool_destroy_pool!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_empty_pool
+!
+!> \brief MPAS Pool empty routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!>  This routine will remove all memebers from within a pool associated with inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_empty_pool(inPool)!{{{
+      type (mpas_pool_type), pointer :: inPool
+   end subroutine mpas_pool_empty_pool!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_clone_pool
+!
+!> \brief MPAS Pool clone routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine assumes destPool is an empty pool. It will clone all of the members
+!> from srcPool into destPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_clone_pool(srcPool, destPool)!{{{
+      type (mpas_pool_type), pointer :: srcPool
+      type (mpas_pool_type), pointer :: destPool
+   end subroutine mpas_pool_clone_pool!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_copy_pool
+!
+!> \brief MPAS Pool copy routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine assumes srcPool and destPool have identical members. It will
+!> copy the data from the members of srcPool into the members of destPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_copy_pool(srcPool, destPool)!{{{
+      type (mpas_pool_type), pointer :: srcPool
+      type (mpas_pool_type), pointer :: destPool
+   end subroutine mpas_pool_copy_pool!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_0d_real
+!
+!> \brief MPAS Pool 0D Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 0D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_0d_real(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field0DReal), pointer :: field
+   end subroutine mpas_pool_add_field_0d_real!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_1d_real
+!
+!> \brief MPAS Pool 1D Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 1D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_1d_real(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field1DReal), pointer :: field
+   end subroutine mpas_pool_add_field_1d_real!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_2d_real
+!
+!> \brief MPAS Pool 2D Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 2D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_2d_real(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field2DReal), pointer :: field
+   end subroutine mpas_pool_add_field_2d_real!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_3d_real
+!
+!> \brief MPAS Pool 3D Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 3D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_3d_real(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field3DReal), pointer :: field
+   end subroutine mpas_pool_add_field_3d_real!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_3d_real
+!
+!> \brief MPAS Pool 3D Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 3D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_4d_real(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field4DReal), pointer :: field
+   end subroutine mpas_pool_add_field_4d_real!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_3d_real
+!
+!> \brief MPAS Pool 3D Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 3D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_5d_real(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field5DReal), pointer :: field
+   end subroutine mpas_pool_add_field_5d_real!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_0d_int
+!
+!> \brief MPAS Pool 0D Integer field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 0D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_0d_int(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field0DInteger), pointer :: field
+   end subroutine mpas_pool_add_field_0d_int!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_1d_int
+!
+!> \brief MPAS Pool 1D Integer field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 1D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_1d_int(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field1DInteger), pointer :: field
+   end subroutine mpas_pool_add_field_1d_int!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_2d_int
+!
+!> \brief MPAS Pool 2D Integer field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 2D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_2d_int(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field2DInteger), pointer :: field
+   end subroutine mpas_pool_add_field_2d_int!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_3d_int
+!
+!> \brief MPAS Pool 3D Integer field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 3D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_3d_int(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field3DInteger), pointer :: field
+   end subroutine mpas_pool_add_field_3d_int!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_0d_char
+!
+!> \brief MPAS Pool 0D Character field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 0D character field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_0d_char(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field0DChar), pointer :: field
+   end subroutine mpas_pool_add_field_0d_char!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_1d_char
+!
+!> \brief MPAS Pool 1D Character field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts field into inPool when field is a 1D character field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_1d_char(inPool, key, field)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field1DChar), pointer :: field
+   end subroutine mpas_pool_add_field_1d_char!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_0d_reals
+!
+!> \brief MPAS Pool 0D Multi-level Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level  0D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_0d_reals(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field0DReal), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_0d_reals!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_1d_reals
+!
+!> \brief MPAS Pool 1D Multi-level Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level 1D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_1d_reals(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field1DReal), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_1d_reals!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_2d_reals
+!
+!> \brief MPAS Pool 2D Multi-level Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level 2D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_2d_reals(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field2DReal), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_2d_reals!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_3d_reals
+!
+!> \brief MPAS Pool 3D Multi-level Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level 3D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_3d_reals(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field3DReal), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_3d_reals!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_4d_reals
+!
+!> \brief MPAS Pool 4D Multi-level Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level 4D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_4d_reals(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field4DReal), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_4d_reals!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_5d_reals
+!
+!> \brief MPAS Pool 5D Multi-level Real field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level 5D real field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_5d_reals(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field5DReal), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_5d_reals!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_0d_ints
+!
+!> \brief MPAS Pool 0D Multi-level Integer field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level 0D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_0d_ints(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field0DInteger), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_0d_ints!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_1d_ints
+!
+!> \brief MPAS Pool 1D Multi-level Integer field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level 1D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_1d_ints(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field1DInteger), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_1d_ints!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_2d_ints
+!
+!> \brief MPAS Pool 2D Multi-level integer field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level 2D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_2d_ints(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field2DInteger), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_2d_ints!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_3d_ints
+!
+!> \brief MPAS Pool 3D Multi-level Integer field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level 3D integer field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_3d_ints(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field3DInteger), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_3d_ints!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_0d_chars
+!
+!> \brief MPAS Pool 0D Multi-level Character field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level 0D character field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_0d_chars(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field0DChar), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_0d_chars!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_field_1d_chars
+!
+!> \brief MPAS Pool 1D Multi-level Character field add routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts fields into inPool when fields is a multi-level 1D character field
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_field_1d_chars(inPool, key, fields)!{{{
+      type (mpas_pool_type), pointer, intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (field1DChar), dimension(:), pointer :: fields
+   end subroutine mpas_pool_add_field_1d_chars!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_info
+!
+!> \brief MPAS Pool Field Information Query subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a data structure containing information related to the
+!>  field in inPool with the name key
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_info(inPool, key, info)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (mpas_pool_field_info_type), intent(out) :: info
+   end subroutine mpas_pool_get_field_info!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_0d_real
+!
+!> \brief MPAS Pool 0D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_0d_real(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field0DReal), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_0d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_1d_real
+!
+!> \brief MPAS Pool 1D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_1d_real(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field1DReal), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_1d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_2d_real
+!
+!> \brief MPAS Pool 2D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_2d_real(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field2DReal), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_2d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_3d_real
+!
+!> \brief MPAS Pool 3D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_3d_real(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field3DReal), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_3d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_4d_real
+!
+!> \brief MPAS Pool 4D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_4d_real(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field4DReal), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_4d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_5d_real
+!
+!> \brief MPAS Pool 5D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_5d_real(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field5DReal), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_5d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_0d_int
+!
+!> \brief MPAS Pool 0D Integer field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_0d_int(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field0DInteger), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_0d_int!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_1d_int
+!
+!> \brief MPAS Pool 1D Integer field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_1d_int(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field1DInteger), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_1d_int!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_2d_int
+!
+!> \brief MPAS Pool 2D Integer field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_2d_int(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field2DInteger), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_2d_int!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_3d_int
+!
+!> \brief MPAS Pool 3D Integer field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_3d_int(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field3DInteger), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_3d_int!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_0d_char
+!
+!> \brief MPAS Pool 0D Character field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_0d_char(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field0DChar), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_0d_char!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_field_1d_char
+!
+!> \brief MPAS Pool 1D Character field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the field associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_field_1d_char(inPool, key, field, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      type (field1DChar), intent(out), pointer :: field
+   end subroutine mpas_pool_get_field_1d_char!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_0d_real
+!
+!> \brief MPAS Pool 0D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_0d_real(inPool, key, scalar, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      real (kind=RKIND), intent(out), pointer :: scalar
+   end subroutine mpas_pool_get_array_0d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_1d_real
+!
+!> \brief MPAS Pool 1D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_1d_real(inPool, key, array, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      real (kind=RKIND), intent(out), dimension(:), pointer :: array
+   end subroutine mpas_pool_get_array_1d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_2d_real
+!
+!> \brief MPAS Pool 2D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_2d_real(inPool, key, array, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      real (kind=RKIND), intent(out), dimension(:,:), pointer :: array
+   end subroutine mpas_pool_get_array_2d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_3d_real
+!
+!> \brief MPAS Pool 3D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_3d_real(inPool, key, array, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      real (kind=RKIND), intent(out), dimension(:,:,:), pointer :: array
+   end subroutine mpas_pool_get_array_3d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_4d_real
+!
+!> \brief MPAS Pool 4D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_4d_real(inPool, key, array, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      real (kind=RKIND), intent(out), dimension(:,:,:,:), pointer :: array
+   end subroutine mpas_pool_get_array_4d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_5d_real
+!
+!> \brief MPAS Pool 5D Real field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_5d_real(inPool, key, array, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      real (kind=RKIND), intent(out), dimension(:,:,:,:,:), pointer :: array
+   end subroutine mpas_pool_get_array_5d_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_0d_int
+!
+!> \brief MPAS Pool 0D Integer field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_0d_int(inPool, key, scalar, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      integer, intent(out), pointer :: scalar
+   end subroutine mpas_pool_get_array_0d_int!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_1d_int
+!
+!> \brief MPAS Pool 1D Integer field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_1d_int(inPool, key, array, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      integer, intent(out), dimension(:), pointer :: array
+   end subroutine mpas_pool_get_array_1d_int!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_2d_int
+!
+!> \brief MPAS Pool 2D Integer field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_2d_int(inPool, key, array, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      integer, intent(out), dimension(:,:), pointer :: array
+   end subroutine mpas_pool_get_array_2d_int!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_3d_int
+!
+!> \brief MPAS Pool 3D Integer field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_3d_int(inPool, key, array, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      integer, intent(out), dimension(:,:,:), pointer :: array
+   end subroutine mpas_pool_get_array_3d_int!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_0d_char
+!
+!> \brief MPAS Pool 0D Character field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_0d_char(inPool, key, string, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      character (len=StrKIND), intent(out), pointer :: string
+   end subroutine mpas_pool_get_array_0d_char!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_array_1d_char
+!
+!> \brief MPAS Pool 1D Character field get subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the array associted with key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_array_1d_char(inPool, key, array, timeLevel)!{{{
+      type (mpas_pool_type), intent(in), pointer :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in), optional :: timeLevel
+      character (len=StrKIND), intent(out), dimension(:), pointer :: array
+   end subroutine mpas_pool_get_array_1d_char!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_config_real
+!
+!> \brief MPAS Pool Real Config Insertion Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts a real value as a config option into inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_config_real(inPool, key, value)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      real (kind=RKIND), intent(in) :: value
+   end subroutine mpas_pool_add_config_real!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_config_int
+!
+!> \brief MPAS Pool Integer Config Insertion Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts a integer value as a config option into inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_config_int(inPool, key, value)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in) :: value
+   end subroutine mpas_pool_add_config_int!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_config_char
+!
+!> \brief MPAS Pool Character Config Insertion Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts a character string as a config option into inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_config_char(inPool, key, value)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      character (len=*), intent(in) :: value
+   end subroutine mpas_pool_add_config_char!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_config_logical
+!
+!> \brief MPAS Pool Logical Config Insertion Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts a logical flag as a config option into inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_config_logical(inPool, key, value)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      logical, intent(in) :: value
+   end subroutine mpas_pool_add_config_logical!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_config_real
+!
+!> \brief MPAS Pool Real Config Access Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns the value associated with a config option with the
+!> name key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_config_real(inPool, key, value)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      real (kind=RKIND), pointer, intent(out) :: value
+   end subroutine mpas_pool_get_config_real!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_config_int
+!
+!> \brief MPAS Pool Integer Config Access Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns the value associated with a config option with the
+!> name key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_config_int(inPool, key, value)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      integer, pointer, intent(out) :: value
+   end subroutine mpas_pool_get_config_int!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_config_char
+!
+!> \brief MPAS Pool Character Config Access Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns the value associated with a config option with the
+!> name key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_config_char(inPool, key, value)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      character (len=StrKIND), pointer, intent(out) :: value
+   end subroutine mpas_pool_get_config_char!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_config_logical
+!
+!> \brief MPAS Pool Logical Config Access Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns the value associated with a config option with the
+!> name key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_config_logical(inPool, key, value)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      logical, pointer, intent(out) :: value
+   end subroutine mpas_pool_get_config_logical!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_dimension_0d
+!
+!> \brief MPAS Pool 0D Dimension Insertion routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts a 0D dimension into inPool, and associated it with key.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_dimension_0d(inPool, key, dim)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(in) :: dim
+   end subroutine mpas_pool_add_dimension_0d!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_dimension_1d
+!
+!> \brief MPAS Pool 1D Dimension Insertion routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts a 1D dimension into inPool, and associated it with key.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_dimension_1d(inPool, key, dims)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      integer, dimension(:), intent(in) :: dims
+   end subroutine mpas_pool_add_dimension_1d!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_dimension_0d
+!
+!> \brief MPAS Pool 0D Dimension Access subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns the value of the 0D dimension associated with key in
+!>  inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_dimension_0d(inPool, key, dim)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(out) :: dim
+   end subroutine mpas_pool_get_dimension_0d!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_dimension_1d
+!
+!> \brief MPAS Pool 1D Dimension Access subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns the value of the 1D dimension associated with key in
+!>  inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_dimension_1d(inPool, key, dims)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      integer, intent(out), dimension(:) :: dims
+   end subroutine mpas_pool_get_dimension_1d!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_add_subpool
+!
+!> \brief MPAS Pool Subpool insertion routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts a subpool (subPool) into inPool and associated it with
+!>  the name key.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_subpool(inPool, key, subPool)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (mpas_pool_type), intent(in) :: subPool
+   end subroutine mpas_pool_add_subpool!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_subpool
+!
+!> \brief MPAS Pool Subpool access subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns a pointer to the subpool named key within inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_subpool(inPool, key, subPool)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      type (mpas_pool_type), intent(out), pointer :: subPool
+   end subroutine mpas_pool_get_subpool!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_add_package
+!
+!> \brief MPAS Pool Package insertion subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine inserts a package into a inPool and associates it with the
+!>  name key.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_package(inPool, key, value)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      logical, intent(in) :: value
+   end subroutine mpas_pool_add_package!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_package
+!
+!> \brief MPAS Pool Package access subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine sets the package pointer to point to the logical associated
+!>  with the package in inPool with name key.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_package(inPool, key, package)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      logical, pointer, intent(out) :: package
+   end subroutine mpas_pool_get_package!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_remove_field
+!
+!> \brief MPAS Pool Field Removal Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine removes a field with the name key from inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_remove_field(inPool, key)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+   end subroutine mpas_pool_remove_field!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_remove_config
+!
+!> \brief MPAS Pool Config Removal Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine removes a config with the name key from inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_remove_config(inPool, key)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+   end subroutine mpas_pool_remove_config!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_remove_dimension
+!
+!> \brief MPAS Pool Dimension Removal Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine removes a dimension with the name key from inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_remove_dimension(inPool, key)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+   end subroutine mpas_pool_remove_dimension!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_remove_subpool
+!
+!> \brief MPAS Pool Subpool Removal Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine removes a subpool with the name key from inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_remove_subpool(inPool, key)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+   end subroutine mpas_pool_remove_subpool!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_remove_package
+!
+!> \brief MPAS Pool Package Removal Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine removes a package with the name key from inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_remove_package(inPool, key)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+   end subroutine mpas_pool_remove_package!}}}
+
+!-----------------------------------------------------------------------
+!  routine mpas_pool_begin_iteration
+!
+!> \brief MPAS Pool Begin Iteration Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine sets up the pools internal iteartor to iterate over fields.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_begin_iteration(inPool)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+   end subroutine mpas_pool_begin_iteration!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_next_member
+!
+!> \brief MPAS Pool Iterate To Next Member subroutine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine advances the internal iterator to the next member in the pool,
+!>  and returns an iterator type for the current member.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_next_member(inPool, iterator)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+      type (mpas_pool_iterator_type), intent(out), pointer :: iterator
+   end subroutine mpas_pool_get_next_member!}}}
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_shift_time_levels
+!
+!> \brief MPAS Pool Time level shift routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine shifts the time levels of all multi-level fields contained within.
+!>   When shifting, time level 1 becomes time level n, and time level i becomes time level i-1.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_shift_time_levels(inPool)!{{{
+      type (mpas_pool_type), intent(in) :: inPool
+   end subroutine mpas_pool_shift_time_levels!}}}
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!           END POOL SUBROUTINES
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 #include "group_dealloc_routines.inc"
