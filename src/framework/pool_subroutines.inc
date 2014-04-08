@@ -111,31 +111,119 @@
 
                ! Do this through brute force...
                if (associated(dptr % r0)) then
-                  call mpas_deallocate_field(dptr % r0)
+                  if (associated(dptr % r0 % ioinfo)) then
+                     deallocate(dptr % r0 % ioinfo)
+                  end if
+
+                  deallocate(dptr % r0)
                else if (associated(dptr % r1)) then
-                  call mpas_deallocate_field(dptr % r1)
+                  if (associated(dptr % r1 % ioinfo)) then
+                     deallocate(dptr % r1 % ioinfo)
+                  end if
+
+                  if (associated(dptr % r1 % array)) then
+                     deallocate(dptr % r1 % array)
+                  end if
+
+                  deallocate(dptr % r1)
                else if (associated(dptr % r2)) then
-                  call mpas_deallocate_field(dptr % r2)
+                  if (associated(dptr % r2 % ioinfo)) then
+                     deallocate(dptr % r2 % ioinfo)
+                  end if
+
+                  if (associated(dptr % r2 % array)) then
+                     deallocate(dptr % r2 % array)
+                  end if
+
+                  deallocate(dptr % r2)
                else if (associated(dptr % r3)) then
-                  call mpas_deallocate_field(dptr % r3)
+                  if (associated(dptr % r3 % ioinfo)) then
+                     deallocate(dptr % r3 % ioinfo)
+                  end if
+
+                  if (associated(dptr % r3 % array)) then
+                     deallocate(dptr % r3 % array)
+                  end if
+
+                  deallocate(dptr % r3)
                else if (associated(dptr % r4)) then
-                  call mpas_deallocate_field(dptr % r4)
+                  if (associated(dptr % r4 % ioinfo)) then
+                     deallocate(dptr % r4 % ioinfo)
+                  end if
+
+                  if (associated(dptr % r4 % array)) then
+                     deallocate(dptr % r4 % array)
+                  end if
+
+                  deallocate(dptr % r4)
                else if (associated(dptr % r5)) then
-                  call mpas_deallocate_field(dptr % r5)
+                  if (associated(dptr % r5 % ioinfo)) then
+                     deallocate(dptr % r5 % ioinfo)
+                  end if
+
+                  if (associated(dptr % r5 % array)) then
+                     deallocate(dptr % r5 % array)
+                  end if
+
+                  deallocate(dptr % r5)
                else if (associated(dptr % i0)) then
-                  call mpas_deallocate_field(dptr % i0)
+                  if (associated(dptr % i0 % ioinfo)) then
+                     deallocate(dptr % i0 % ioinfo)
+                  end if
+
+                  deallocate(dptr % i0)
                else if (associated(dptr % i1)) then
-                  call mpas_deallocate_field(dptr % i1)
+                  if (associated(dptr % i1 % ioinfo)) then
+                     deallocate(dptr % i1 % ioinfo)
+                  end if
+
+                  if (associated(dptr % i1 % array)) then
+                     deallocate(dptr % i1 % array)
+                  end if
+
+                  deallocate(dptr % i1)
                else if (associated(dptr % i2)) then
-                  call mpas_deallocate_field(dptr % i2)
+                  if (associated(dptr % i2 % ioinfo)) then
+                     deallocate(dptr % i2 % ioinfo)
+                  end if
+
+                  if (associated(dptr % i2 % array)) then
+                     deallocate(dptr % i2 % array)
+                  end if
+
+                  deallocate(dptr % i2)
                else if (associated(dptr % i3)) then
-                  call mpas_deallocate_field(dptr % i3)
+                  if (associated(dptr % i3 % ioinfo)) then
+                     deallocate(dptr % i3 % ioinfo)
+                  end if
+
+                  if (associated(dptr % i3 % array)) then
+                     deallocate(dptr % i3 % array)
+                  end if
+
+                  deallocate(dptr % i3)
                else if (associated(dptr % c0)) then
-                  call mpas_deallocate_field(dptr % c0)
+                  if (associated(dptr % c0 % ioinfo)) then
+                     deallocate(dptr % c0 % ioinfo)
+                  end if
+
+                  deallocate(dptr % c0)
                else if (associated(dptr % c1)) then
-                  call mpas_deallocate_field(dptr % c1)
+                  if (associated(dptr % c1 % ioinfo)) then
+                     deallocate(dptr % c1 % ioinfo)
+                  end if
+
+                  if (associated(dptr % c1 % array)) then
+                     deallocate(dptr % c1 % array)
+                  end if
+
+                  deallocate(dptr % c1)
                else if (associated(dptr % l0)) then
-                  call mpas_deallocate_field(dptr % l0)
+                  if (associated(dptr % l0 % ioinfo)) then
+                     deallocate(dptr % l0 % ioinfo)
+                  end if
+
+                  deallocate(dptr % l0)
                else if (associated(dptr % r0a)) then
                   do j=1,dptr % contentsTimeLevs
                      dptr % r0 => dptr % r0a(j)
@@ -5255,7 +5343,7 @@
          write(stderrUnit,*) trim(mesg)
       else if (currentErrorLevel == MPAS_POOL_FATAL) then
          write(stderrUnit,*) trim(mesg)
-!        call mpas_dmpar_global_abort(trim(mesg))
+         call mpas_dmpar_global_abort(trim(mesg))
       end if
 
    end subroutine pool_mesg

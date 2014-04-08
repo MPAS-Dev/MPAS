@@ -449,6 +449,11 @@ module mpas_grid_types
                          MPAS_POOL_LOGICAL   = 1011, &
                          MPAS_POOL_CHARACTER = 1012
 
+   integer, parameter :: MPAS_DECOMP_NONDECOMP = 1013, &
+                         MPAS_DECOMP_CELLS     = 1014, &
+                         MPAS_DECOMP_EDGES     = 1015, &
+                         MPAS_DECOMP_VERTICES  = 1016
+
    type mpas_pool_data_type
       integer :: contentsType
       integer :: contentsDims
@@ -526,25 +531,6 @@ module mpas_grid_types
    !!! END TYPES FOR MPAS POOL
 
 
-
-   ! Derived type for storing grid meta-data
-   type mesh_type
-
-      type (block_type), pointer :: block
-
-#include "field_dimensions.inc"
-
-      logical :: on_a_sphere
-      real (kind=RKIND) :: sphere_radius
-
-#include "time_invariant_fields.inc"
-
-   end type mesh_type
-
-
-#include "variable_groups.inc"
-
-
    ! Type for storing (possibly architecture specific) information concerning to parallelism
    type parallel_info
       type (mpas_multihalo_exchange_list), pointer :: cellsToSend            ! List of types describing which cells to send to other blocks
@@ -564,8 +550,6 @@ module mpas_grid_types
    ! Derived type for storing part of a domain; used as a basic unit of work for a process
    type block_type
 
-#include "block_group_members.inc"
-
       integer :: blockID   ! Unique global ID number for this block
       integer :: localBlockID  ! Unique local ID number for this block
 
@@ -573,9 +557,11 @@ module mpas_grid_types
 
       type (parallel_info), pointer :: parinfo
 
-      type (block_type), pointer :: prev, next
+      type (block_type), pointer :: prev => null()
+      type (block_type), pointer :: next => null()
 
       type (mpas_pool_type), pointer :: structs, dimensions, configs, packages
+      type (mpas_pool_type), pointer :: allFields
    end type block_type
 
 
@@ -587,6 +573,8 @@ module mpas_grid_types
       ! Also store parallelization info here
       type (dm_info), pointer :: dminfo
 #include "model_variables.inc"
+      logical :: on_a_sphere
+      real (kind=RKIND) :: sphere_radius
       character (len=StrKIND*2) :: history !< History attribute, read in from input file.
       character (len=StrKIND) :: mesh_id !< mesh_id attribute, randomly generated
       character (len=StrKIND) :: Conventions !< Conventions attribute, read in from input file.
@@ -817,7 +805,7 @@ module mpas_grid_types
       type (block_type), pointer :: b !< Input/Output: Block structure
       type (domain_type), pointer :: dom !< Input: Domain structure
       integer, intent(in) :: blockID !< Input: Global ID of block
-#include "dim_dummy_decls.inc"
+#include "dim_dummy_defines_input.inc"
 
       integer :: i
 
@@ -829,21 +817,16 @@ module mpas_grid_types
 
       allocate(b % structs)
       allocate(b % dimensions)
+      allocate(b % allFields)
       call mpas_pool_create_pool(b % structs)
       call mpas_pool_create_pool(b % dimensions)
+      call mpas_pool_create_pool(b % allFields)
 
       b % configs => dom % configs
       b % packages => dom % packages
 
-
-#include "block_allocs.inc"
-
    end subroutine mpas_allocate_block!}}}
 
-
-#include "group_alloc_routines.inc"
-
-#include "provis_alloc_routines.inc"
 
 !***********************************************************************
 !
@@ -869,6 +852,9 @@ module mpas_grid_types
          call mpas_deallocate_block(block_ptr)
          block_ptr => block_ptr % next
       end do
+
+      call mpas_pool_destroy_pool(dom % configs)
+      call mpas_pool_destroy_pool(dom % packages)
 
    end subroutine mpas_deallocate_domain!}}}
 
@@ -2157,6 +2143,9 @@ module mpas_grid_types
       !      deallocate the array of head pointers and the parinfo type...
       !      It also seems like these deallocations should happen with mpas_dmpar_destroy_multihalo_exchange_list
 
+      call mpas_pool_destroy_pool(b % structs)
+      call mpas_pool_destroy_pool(b % dimensions)
+
       deallocate(b % parinfo % cellsToSend)
       deallocate(b % parinfo % cellsToRecv)
       deallocate(b % parinfo % cellsToCopy)
@@ -2170,8 +2159,6 @@ module mpas_grid_types
       deallocate(b % parinfo % verticesToCopy)
 
       deallocate(b % parinfo)
-
-#include "block_deallocs.inc"
 
    end subroutine mpas_deallocate_block!}}}
 
@@ -3161,20 +3148,67 @@ module mpas_grid_types
 
    end subroutine mpas_shift_time_levs_0dlogical
 
+!***********************************************************************
+!
+!  routine mpas_link_fields
+!
+!> \brief   MPAS Link Fields routine
+!> \author  Doug Jacobsen
+!> \date    04/24/2014
+!> \details 
+!> Sets up field links across blocks. This routine should be called prior to
+!> any halo exchanges. Also links parinfo into each field.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_link_fields(domain)!{{{
+      type (domain_type), intent(in) :: domain
+
+      type (block_type), pointer :: blockPtr
+      type (block_type), pointer :: prevBlock
+      type (block_type), pointer :: nextBlock
+
+      blockPtr => domain % blocklist
+      do while(associated(blockPtr))
+         if (associated(blockPtr % prev)) then
+            prevBlock => blockPtr % prev
+         else
+            nullify(prevBlock)
+         end if
+
+         if (associated(blockPtr % next)) then
+            nextBlock => blockPtr % next
+         else
+            nullify(nextBlock)
+         end if
+
+         if (associated(prevBlock) .and. associated(nextBlock)) then
+            call mpas_pool_link_pools(blockPtr % structs, prevBlock % structs, nextBlock % structs)
+         else if (associated(prevBlock)) then
+            call mpas_pool_link_pools(blockPtr % structs, prevBlock % structs)
+         else if (associated(nextBlock)) then
+            call mpas_pool_link_pools(blockPtr % structs, nextPool=nextBlock % structs)
+         else
+            call mpas_pool_link_pools(blockPtr % structs)
+         end if
+
+         call mpas_pool_link_parinfo(blockPtr, blockPtr % structs)
+
+         blockPtr => blockPtr % next
+      end do
+
+   end subroutine mpas_link_fields!}}}
+
+
+
+
 
 #include "pool_subroutines.inc"
 
 
-#include "group_dealloc_routines.inc"
-
-
-#include "group_copy_routines.inc"
-
-
-#include "group_shift_level_routines.inc"
-
-
-#include "field_links.inc"
+#include "define_dimensions.inc"
+#include "define_packages.inc"
+!#include "link_fields.inc"
+#include "structs_and_variables.inc"
 
 
 end module mpas_grid_types

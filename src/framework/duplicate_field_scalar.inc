@@ -12,7 +12,7 @@
          dst_cursor => dst
       end if
 
-      do while (associated(src_cursor))
+!     do while (associated(src_cursor))
 
          if (.not. local_copy_only) then
             if (associated(dst_cursor)) then
@@ -45,9 +45,9 @@
          end if
          dst_cursor % scalar = src_cursor % scalar
 
-         src_cursor => src_cursor % next
-         if (.not. local_copy_only) then
-            dst_cursor => dst_cursor % next
-         end if
+!        src_cursor => src_cursor % next
+!        if (.not. local_copy_only) then
+!           dst_cursor => dst_cursor % next
+!        end if
 
-      end do
+!     end do
