@@ -52,7 +52,7 @@ module mpas_tracer_advection_mono
 !-----------------------------------------------------------------------
    subroutine mpas_tracer_advection_mono_tend(tracers, adv_coefs, adv_coefs_3rd, nAdvCellsForEdge, advCellsForEdge, normalThicknessFlux, &!{{{
                                               w, layerThickness, verticalCellSize, dt, mesh, tend_layerThickness, tend, maxLevelCell_in, & 
-                                              maxLevelEdgeTop_in, highOrderAdvectionMask_in, verticalDivergenceFactor_in, edgeSignOnCell_in)
+                                              maxLevelEdgeTop_in, highOrderAdvectionMask_in, verticalDivergenceFactor_in, edgeSignOnCell_in, lvertical_in)
 
       real (kind=RKIND), dimension(:,:,:), intent(in) :: tracers !< Input: current tracer values
       real (kind=RKIND), dimension(:,:), intent(in) :: adv_coefs !< Input: Advection coefficients for 2nd order advection
@@ -72,11 +72,13 @@ module mpas_tracer_advection_mono
       integer, dimension(:,:), pointer, optional :: highOrderAdvectionMask_in !< Input - optional: Mask for high order advection
       real (kind=RKIND), dimension(:), pointer, optional :: verticalDivergenceFactor_in !< Input - optional: Denominator for vertical divergence. Given as an inverse which can be multiplied.
       integer, dimension(:, :), pointer, optional :: edgeSignOnCell_in !< Input - optional: Sign for flux from edge on each cell. Used for bit-reproducibility
+      logical, optional, intent(in) :: lvertical_in
 
       integer :: i, iCell, iEdge, k, iTracer, cell1, cell2
       integer :: nVertLevels, num_tracers, nCells, nEdges, nCellsSolve, maxEdges
       integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeTop, nEdgesOnCell
       integer, dimension(:,:), pointer :: cellsOnEdge, cellsOnCell, highOrderAdvectionMask, edgeSignOnCell, edgesOnCell
+      logical :: lvertical
 
       real (kind=RKIND) :: flux_upwind, tracer_min_new, tracer_max_new, tracer_upwind_new, scale_factor
       real (kind=RKIND) :: flux, tracer_weight, invAreaCell1, invAreaCell2
@@ -152,6 +154,10 @@ module mpas_tracer_advection_mono
         end do
       end if
 
+      ! do we want to do vertical advection?
+      lvertical = .true. ! by default, yes
+      if (present(lvertical_in)) lvertical = lvertical_in
+
       ! Setup high order horizontal flux field
       allocate(high_order_horiz_flux(nVertLevels, nEdges+1))
 
@@ -193,49 +199,61 @@ module mpas_tracer_advection_mono
         high_order_horiz_flux = 0.0_RKIND
 
         !  Compute the high order vertical flux. Also determine bounds on tracer_cur. 
-        do iCell = 1, nCells
-          k = 1
-          tracer_max(k,iCell) = max(tracer_cur(k,iCell),tracer_cur(k+1,iCell))
-          tracer_min(k,iCell) = min(tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+        if (lvertical) then
+          do iCell = 1, nCells
+            k = 1
+            tracer_max(k,iCell) = max(tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+            tracer_min(k,iCell) = min(tracer_cur(k,iCell),tracer_cur(k+1,iCell))
 
-          k = max(1, min(maxLevelCell(iCell), 2))
-          verticalWeightK = verticalCellSize(k-1, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
-          verticalWeightKm1 = verticalCellSize(k, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
-          high_order_vert_flux(k,iCell) = w(k,iCell)*(verticalWeightK*tracer_cur(k,iCell)+verticalWeightKm1*tracer_cur(k-1,iCell))
-          tracer_max(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
-          tracer_min(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
-             
-          do k=3,maxLevelCell(iCell)-1
-             if(vert4thOrder) then
-               high_order_vert_flux(k, iCell) = mpas_tracer_advection_vflux4( tracer_cur(k-2,iCell),tracer_cur(k-1,iCell),  &
-                                      tracer_cur(k  ,iCell),tracer_cur(k+1,iCell), w(k,iCell))
-             else if(vert3rdOrder) then
-               high_order_vert_flux(k, iCell) = mpas_tracer_advection_vflux3( tracer_cur(k-2,iCell),tracer_cur(k-1,iCell),  &
-                                      tracer_cur(k  ,iCell),tracer_cur(k+1,iCell), w(k,iCell), coef_3rd_order )
-             else if (vert2ndOrder) then
-               verticalWeightK = verticalCellSize(k-1, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
-               verticalWeightKm1 = verticalCellSize(k, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
-               high_order_vert_flux(k,iCell) = w(k,iCell)*(verticalWeightK*tracer_cur(k,iCell)+verticalWeightKm1*tracer_cur(k-1,iCell))
-             end if
-             tracer_max(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
-             tracer_min(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
-          end do 
+            k = max(1, min(maxLevelCell(iCell), 2))
+            verticalWeightK = verticalCellSize(k-1, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
+            verticalWeightKm1 = verticalCellSize(k, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
+            high_order_vert_flux(k,iCell) = w(k,iCell)*(verticalWeightK*tracer_cur(k,iCell)+verticalWeightKm1*tracer_cur(k-1,iCell))
+            tracer_max(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+            tracer_min(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+               
+            do k=3,maxLevelCell(iCell)-1
+               if(vert4thOrder) then
+                 high_order_vert_flux(k, iCell) = mpas_tracer_advection_vflux4( tracer_cur(k-2,iCell),tracer_cur(k-1,iCell),  &
+                                        tracer_cur(k  ,iCell),tracer_cur(k+1,iCell), w(k,iCell))
+               else if(vert3rdOrder) then
+                 high_order_vert_flux(k, iCell) = mpas_tracer_advection_vflux3( tracer_cur(k-2,iCell),tracer_cur(k-1,iCell),  &
+                                        tracer_cur(k  ,iCell),tracer_cur(k+1,iCell), w(k,iCell), coef_3rd_order )
+               else if (vert2ndOrder) then
+                 verticalWeightK = verticalCellSize(k-1, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
+                 verticalWeightKm1 = verticalCellSize(k, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
+                 high_order_vert_flux(k,iCell) = w(k,iCell)*(verticalWeightK*tracer_cur(k,iCell)+verticalWeightKm1*tracer_cur(k-1,iCell))
+               end if
+               tracer_max(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+               tracer_min(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+            end do 
  
-          k = max(1, maxLevelCell(iCell))
-          verticalWeightK = verticalCellSize(k-1, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
-          verticalWeightKm1 = verticalCellSize(k, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
-          high_order_vert_flux(k,iCell) = w(k,iCell)*(verticalWeightK*tracer_cur(k,iCell)+verticalWeightKm1*tracer_cur(k-1,iCell))
-          tracer_max(k,iCell) = max(tracer_cur(k,iCell),tracer_cur(k-1,iCell))
-          tracer_min(k,iCell) = min(tracer_cur(k,iCell),tracer_cur(k-1,iCell))
+            k = max(1, maxLevelCell(iCell))
+            verticalWeightK = verticalCellSize(k-1, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
+            verticalWeightKm1 = verticalCellSize(k, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
+            high_order_vert_flux(k,iCell) = w(k,iCell)*(verticalWeightK*tracer_cur(k,iCell)+verticalWeightKm1*tracer_cur(k-1,iCell))
+            tracer_max(k,iCell) = max(tracer_cur(k,iCell),tracer_cur(k-1,iCell))
+            tracer_min(k,iCell) = min(tracer_cur(k,iCell),tracer_cur(k-1,iCell))
 
-          ! pull tracer_min and tracer_max from the (horizontal) surrounding cells
-          do i = 1, nEdgesOnCell(iCell)
-            do k=1, min(maxLevelCell(iCell), maxLevelCell(cellsOnCell(i, iCell)))
-              tracer_max(k,iCell) = max(tracer_max(k,iCell),tracer_cur(k, cellsOnCell(i,iCell)))
-              tracer_min(k,iCell) = min(tracer_min(k,iCell),tracer_cur(k, cellsOnCell(i,iCell)))
-            end do ! k loop
-          end do ! i loop over nEdgesOnCell
-        end do ! iCell Loop
+            ! pull tracer_min and tracer_max from the (horizontal) surrounding cells
+            do i = 1, nEdgesOnCell(iCell)
+              do k=1, min(maxLevelCell(iCell), maxLevelCell(cellsOnCell(i, iCell)))
+                tracer_max(k,iCell) = max(tracer_max(k,iCell),tracer_cur(k, cellsOnCell(i,iCell)))
+                tracer_min(k,iCell) = min(tracer_min(k,iCell),tracer_cur(k, cellsOnCell(i,iCell)))
+              end do ! k loop
+            end do ! i loop over nEdgesOnCell
+          end do ! iCell Loop
+        else
+          do iCell = 1, nCells
+            ! pull tracer_min and tracer_max from the (horizontal) surrounding cells
+            do i = 1, nEdgesOnCell(iCell)
+              do k=1, min(maxLevelCell(iCell), maxLevelCell(cellsOnCell(i, iCell)))
+                tracer_max(k,iCell) = max(tracer_max(k,iCell),tracer_cur(k, cellsOnCell(i,iCell)))
+                tracer_min(k,iCell) = min(tracer_min(k,iCell),tracer_cur(k, cellsOnCell(i,iCell)))
+              end do ! k loop
+            end do ! i loop over nEdgesOnCell
+          end do
+        endif ! lvertical
 
         !  Compute the high order horizontal flux
         do iEdge = 1, nEdges
@@ -261,6 +279,7 @@ module mpas_tracer_advection_mono
           end do ! i loop over nAdvCellsForEdge
         end do ! iEdge loop
 
+        if (lvertical) then
         !  low order upwind vertical flux (monotonic and diffused)
         !  Remove low order flux from the high order flux.
         !  Store left over high order flux in high_order_vert_flux array.
@@ -293,6 +312,7 @@ module mpas_tracer_advection_mono
             end if
           end do ! k Loop
         end do ! iCell Loop
+        endif ! lvertical
 
         !  low order upwind horizontal flux (monotinc and diffused)
         !  Remove low order flux from the high order flux
@@ -358,6 +378,7 @@ module mpas_tracer_advection_mono
           end do ! k loop
         end do ! iEdge loop
 
+        if (lvertical) then
         ! rescale the high order vertical flux
         do iCell = 1, nCellsSolve
           do k = 2, maxLevelCell(iCell)
@@ -373,6 +394,7 @@ module mpas_tracer_advection_mono
             high_order_vert_flux(k,iCell) = flux
           end do ! k loop
         end do ! iCell loop
+        endif ! lvertical
 
         ! Accumulate the scaled high order horizontal tendencies
         do iCell = 1, nCells
@@ -389,20 +411,37 @@ module mpas_tracer_advection_mono
           end do
         end do
 
-        ! Accumulate the scaled high order vertical tendencies, and the upwind tendencies
-        do iCell = 1, nCellsSolve
-          do k = 1,maxLevelCell(iCell)
-            tend(iTracer, k, iCell) = tend(iTracer, k, iCell) + verticalDivergenceFactor(k) * (high_order_vert_flux(k+1, iCell) - high_order_vert_flux(k, iCell)) + upwind_tendency(k,iCell)
+        if (lvertical) then
+          ! Accumulate the scaled high order vertical tendencies, and the upwind tendencies
+          do iCell = 1, nCellsSolve
+            do k = 1,maxLevelCell(iCell)
+              tend(iTracer, k, iCell) = tend(iTracer, k, iCell) + verticalDivergenceFactor(k) * (high_order_vert_flux(k+1, iCell) - high_order_vert_flux(k, iCell)) + upwind_tendency(k,iCell)
 
-            if (monotonicityCheck) then
-              !tracer_new holds a tendency for now. Only for a check on monotonicity
-              tracer_new(k, iCell) = tracer_new(k, iCell) + verticalDivergenceFactor(k) * (high_order_vert_flux(k+1, iCell) - high_order_vert_flux(k, iCell)) + upwind_tendency(k,iCell)
+              if (monotonicityCheck) then
+                !tracer_new holds a tendency for now. Only for a check on monotonicity
+                tracer_new(k, iCell) = tracer_new(k, iCell) + verticalDivergenceFactor(k) * (high_order_vert_flux(k+1, iCell) - high_order_vert_flux(k, iCell)) + upwind_tendency(k,iCell)
 
-              !tracer_new is now the new state of the tracer. Only for a check on monotonicity
-              tracer_new(k, iCell) = (tracer_cur(k, iCell)*layerThickness(k, iCell) + dt * tracer_new(k, iCell)) * inv_h_new(k, iCell)
-            end if
-          end do ! k loop
-        end do ! iCell loop
+                !tracer_new is now the new state of the tracer. Only for a check on monotonicity
+                tracer_new(k, iCell) = (tracer_cur(k, iCell)*layerThickness(k, iCell) + dt * tracer_new(k, iCell)) * inv_h_new(k, iCell)
+              end if
+            end do ! k loop
+          end do ! iCell loop
+        else
+          ! Accumulate the scaled high order vertical tendencies, and the upwind tendencies
+          do iCell = 1, nCellsSolve
+            do k = 1,maxLevelCell(iCell)
+              tend(iTracer, k, iCell) = tend(iTracer, k, iCell) + upwind_tendency(k,iCell)
+
+              if (monotonicityCheck) then
+                !tracer_new holds a tendency for now. Only for a check on monotonicity
+                tracer_new(k, iCell) = tracer_new(k, iCell) + upwind_tendency(k,iCell)
+
+                !tracer_new is now the new state of the tracer. Only for a check on monotonicity
+                tracer_new(k, iCell) = (tracer_cur(k, iCell)*layerThickness(k, iCell) + dt * tracer_new(k, iCell)) * inv_h_new(k, iCell)
+              end if
+            end do ! k loop
+          end do ! iCell loop
+        endif ! lvertical
 
         if (monotonicityCheck) then
           !build min and max bounds on old and new tracer for check on monotonicity.
