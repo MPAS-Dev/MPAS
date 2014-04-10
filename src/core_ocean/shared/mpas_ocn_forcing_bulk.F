@@ -57,7 +57,7 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_build_forcing_arrays
+!  routine ocn_forcing_bulk_build_arrays
 !
 !> \brief   Determines the forcing array used for the bulk forcing.
 !> \author  Doug Jacobsen
