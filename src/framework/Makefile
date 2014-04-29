@@ -1,6 +1,7 @@
 .SUFFIXES: .F .o
 
 DEPS := $(shell find ../core_$(CORE)/ -type f -name "*.xml" ! -name "*processed.xml")
+VAR_DEPS := $(wildcard ../inc/model_variables.inc)
 
 OBJS = mpas_kind_types.o \
        mpas_framework.o \
@@ -27,7 +28,7 @@ OBJS = mpas_kind_types.o \
 
 all: framework $(DEPS)
 
-framework: $(OBJS)
+framework: $(OBJS) $(DEPS)
 	ar -ru libframework.a $(OBJS)
 
 mpas_configure.o: mpas_dmpar.o mpas_io_units.o $(DEPS)
@@ -51,7 +52,7 @@ mpas_dmpar_types.o : mpas_kind_types.o mpas_io_units.o
 
 mpas_attlist.o: mpas_kind_types.o mpas_io_units.o
 
-mpas_grid_types.o: mpas_kind_types.o mpas_dmpar_types.o mpas_attlist.o mpas_io_units.o mpas_packages.o $(DEPS)
+mpas_grid_types.o: mpas_kind_types.o mpas_dmpar_types.o mpas_attlist.o mpas_io_units.o mpas_packages.o $(DEPS) $(VAR_DEPS)
 
 mpas_dmpar.o: mpas_sort.o streams.o mpas_kind_types.o mpas_grid_types.o mpas_hash.o mpas_io_units.o
 
