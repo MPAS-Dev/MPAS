@@ -5,6 +5,19 @@
 ! Additional copyright and license information can be found in the LICENSE file
 ! distributed with this code, or at http://mpas-dev.github.com/license.html
 !
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  mpas_paraview_catalyst
+!
+!> \brief   Paraview catalyst in-situ adapter
+!> \author  Patricia Fasel, Mark Petersen
+!> \date    April 2014
+!> \details 
+!>  These routines set up and pass data structures to the 
+!>  paraview catalyst for in-situ visualization and analysis.
+!
+!-----------------------------------------------------------------------
+
 module mpas_paraview_catalyst
 
    use mpas_grid_types
@@ -15,17 +28,68 @@ module mpas_paraview_catalyst
    use mpas_io_streams
    use mpas_io_output
 
+   implicit none
+   private
+   save
+
+   !--------------------------------------------------------------------
+   !
+   ! Public parameters
+   !
+   !--------------------------------------------------------------------
+
+   !--------------------------------------------------------------------
+   !
+   ! Public member functions
+   !
+   !--------------------------------------------------------------------
+
+   public :: mpas_insitu_initialize, &
+             mpas_insitu_create_geometry, &
+             mpas_insitu_load_data, &
+             mpas_insitu_coprocess, &
+             mpas_insitu_finalize
+
+   !--------------------------------------------------------------------
+   !
+   ! Private module variables
+   !
+   !--------------------------------------------------------------------
+
+!***********************************************************************
+
    contains
 
+!***********************************************************************
+!
+!  routine mpas_insitu_initialize
+!
+!> \brief   Initialize paraview catalyst
+!> \author  Patricia Fasel, Mark Petersen
+!> \date    April 2014
+!> \details 
+!> Initialize paraview catalyst
+!
+!-----------------------------------------------------------------------
    subroutine mpas_insitu_initialize!{{{
 
       call mpas_initialize
 
    end subroutine mpas_insitu_initialize!}}}
 
+!***********************************************************************
+!
+!  routine mpas_insitu_create_geometry
+!
+!> \brief   Create mesh variables for paraview catalyst
+!> \author  Patricia Fasel, Mark Petersen
+!> \date    April 2014
+!> \details 
+!>  Create all the mesh information needed by the paraview catalyst
+!>  for in-situ visualization and analysis.
+!
+!-----------------------------------------------------------------------
    subroutine mpas_insitu_create_geometry(domain)!{{{
-   
-      implicit none
    
       type (domain_type), intent(inout) :: domain
       type (block_type), pointer :: block
@@ -174,10 +238,19 @@ module mpas_paraview_catalyst
 
    end subroutine mpas_insitu_create_geometry!}}}
 
+!***********************************************************************
+!
+!  routine mpas_insitu_load_data
+!
+!> \brief   Pass data to paraview catalyst
+!> \author  Patricia Fasel, Mark Petersen
+!> \date    April 2014
+!> \details 
+!>  Pass data to paraview catalyst
+!
+!-----------------------------------------------------------------------
    subroutine mpas_insitu_load_data(domain, itime)!{{{
 
-      implicit none
- 
       type (domain_type), intent(inout) :: domain
       type (block_type), pointer :: block
       integer, intent(inout) :: itime
@@ -239,9 +312,18 @@ module mpas_paraview_catalyst
 
    end subroutine mpas_insitu_load_data!}}}
 
+!***********************************************************************
+!
+!  routine mpas_insitu_coprocess
+!
+!> \brief   Deterimine if it is time to load data
+!> \author  Patricia Fasel, Mark Petersen
+!> \date    April 2014
+!> \details 
+!> Deterimine if it is time to load data
+!
+!-----------------------------------------------------------------------
    subroutine mpas_insitu_coprocess(domain, itime)!{{{
-
-      implicit none
 
       type (domain_type), intent(inout) :: domain
       integer, intent(inout) :: itime
@@ -261,10 +343,18 @@ module mpas_paraview_catalyst
 
    end subroutine mpas_insitu_coprocess!}}}
 
-
+!***********************************************************************
+!
+!  routine mpas_insitu_finalize
+!
+!> \brief   finalize paraview catalyst
+!> \author  Patricia Fasel, Mark Petersen
+!> \date    April 2014
+!> \details 
+!>  finalize paraview catalyst
+!
+!-----------------------------------------------------------------------
    subroutine mpas_insitu_finalize()!{{{
- 
-      implicit none
  
       print *,'COPROCESS finalize'
       call mpas_finalize
@@ -272,3 +362,5 @@ module mpas_paraview_catalyst
    end subroutine mpas_insitu_finalize!}}}
  
 end module mpas_paraview_catalyst
+
+! vim: foldmethod=marker
