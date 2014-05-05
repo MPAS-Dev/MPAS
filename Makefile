@@ -1,5 +1,8 @@
 #MODEL_FORMULATION = -DNCAR_FORMULATION
 MODEL_FORMULATION = -DLANL_FORMULATION
+ifeq "$(USE_PARAVIEW)" "true"
+MODEL_FORMULATION += -DUSE_PARAVIEW
+endif
 
 
 dummy:
@@ -414,6 +417,8 @@ endif
                  FCINCLUDES="$(FCINCLUDES)" \
                  CORE="$(CORE)"\
                  AUTOCLEAN="$(AUTOCLEAN)" \
+                 USE_PARAVIEW="$(USE_PARAVIEW)" \
+                 PARAVIEW="$(PARAVIEW)" \
                  GEN_F90="$(GEN_F90)" \
                  NAMELIST_SUFFIX="$(NAMELIST_SUFFIX)" \
                  EXE_NAME="$(EXE_NAME)"

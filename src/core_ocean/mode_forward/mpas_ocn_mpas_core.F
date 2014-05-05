@@ -97,6 +97,9 @@ module mpas_core
 
       use mpas_grid_types
       use ocn_tracer_advection
+#ifdef USE_PARAVIEW
+      use mpas_paraview_catalyst
+#endif
 
       implicit none
 
@@ -282,6 +285,13 @@ module mpas_core
       endif
 
       current_outfile_frames = 0
+
+      !
+      ! Initialize insitu coprocessing
+      !
+#ifdef USE_PARAVIEW
+      call mpas_insitu_initialize
+#endif
 
    end subroutine mpas_core_init!}}}
 
@@ -539,6 +549,9 @@ print *, 'output alarmTimeStep', alarmTimeStep, ierr
       use mpas_grid_types
       use mpas_io_output
       use mpas_timer
+#ifdef USE_PARAVIEW
+      use mpas_paraview_catalyst
+#endif
    
       implicit none
    
@@ -577,6 +590,10 @@ print *, 'output alarmTimeStep', alarmTimeStep, ierr
       if (config_write_output_on_startup) then
          call ocn_write_output_frame(output_obj, output_frame, domain)
       endif
+
+#ifdef USE_PARAVIEW
+      call mpas_insitu_create_geometry(domain)
+#endif
 
       block_ptr => domain % blocklist
       do while(associated(block_ptr))
@@ -620,6 +637,10 @@ print *, 'output alarmTimeStep', alarmTimeStep, ierr
          end do
       
          call ocn_analysis_compute_w_alarms(clock, domain, err) 
+
+#ifdef USE_PARAVIEW
+         call mpas_insitu_coprocess(domain, itimestep)
+#endif
 
          if (mpas_is_alarm_ringing(clock, outputAlarmID, ierr=ierr)) then
             call mpas_reset_clock_alarm(clock, outputAlarmID, ierr=ierr)
@@ -965,7 +986,10 @@ print *, 'output alarmTimeStep', alarmTimeStep, ierr
    subroutine mpas_core_finalize(domain)!{{{
    
       use mpas_grid_types
-   
+#ifdef USE_PARAVIEW
+      use mpas_paraview_catalyst
+#endif
+
       implicit none
 
       type (domain_type), intent(inout) :: domain 
@@ -974,6 +998,13 @@ print *, 'output alarmTimeStep', alarmTimeStep, ierr
       call ocn_analysis_finalize(domain, ierr) 
 
       call mpas_destroy_clock(clock, ierr)
+
+      !
+      ! Finalize insitu coprocessing
+      !
+#ifdef USE_PARAVIEW
+      call mpas_insitu_finalize
+#endif
 
    end subroutine mpas_core_finalize!}}}
 

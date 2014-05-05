@@ -12,6 +12,10 @@ else
 	NAMELIST_SUFFIX=ocean*
 endif
 
+ifeq "$(USE_PARAVIEW)" "true"
+	LIBS += -lparaview -L$(PARAVIEW)/lib -Lparaview_catalyst/Adaptor-build -lMPASAdaptor 
+endif
+
 report_builds:
 	@echo "CORE=ocean MODE=analysis"
 	@echo "CORE=ocean MODE=forward"
