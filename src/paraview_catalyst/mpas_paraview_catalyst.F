@@ -91,147 +91,206 @@ module mpas_paraview_catalyst
 !-----------------------------------------------------------------------
    subroutine mpas_insitu_create_geometry(domain)!{{{
    
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+!mrp change inout to in when everything is working
       type (domain_type), intent(inout) :: domain
-      type (block_type), pointer :: block
-      type (mpas_exchange_list), pointer :: exchListPtr
-      real (kind=RKIND), dimension(:,:,:), pointer :: tracers
 
-      integer :: nCells, nEdges, nVertices, maxEdges, vertexDegree, nVertLevels
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      ! Config options
+      integer, pointer :: config_num_halos
+
+      ! Dimensions
+      integer, pointer :: nCells, nEdges, nVertices, maxEdges, vertexDegree, nVertLevels, &
+         indexTemperature, indexSalinity, num_tracers
+      integer :: timeLevel
       integer :: nGhostCell, nGhostVertex
-      integer :: nHaloLayers, iHalo, iCell, indx
-      integer :: indexT, indexS, numTracers
+      integer :: iHalo, iCell, indx
       integer, dimension(:), allocatable :: cellGhost, cellHalo
       integer, dimension(:), allocatable :: vertexGhost, vertexHalo
+      integer, dimension(:), pointer :: nEdgesOnCell
+      integer, dimension(:,:), pointer :: cellsOnVertex, vertexMask, verticesOnCell, cellMask
 
+      real (kind=RKIND), dimension(:), pointer ::  &
+         xCell, yCell, zCell, xVertex, yVertex, zVertex, lonCell, latCell, lonVertex, latVertex
 
-    block => domain % blocklist
-    do while (associated(block))
+      type (block_type), pointer :: block
+      type (field2DReal), pointer :: densityField, pressureField, circulationField, relativeVorticityField
+      type (field3DReal), pointer :: tracersField
 
-      nCells = block % mesh % nCells
-      nVertices = block % mesh % nVertices
-      nVertLevels = block % mesh % nVertLevels
-      nEdges = block % mesh % nEdges
-      maxEdges = block % mesh % maxEdges
-      vertexDegree = block % mesh % vertexDegree
+      type (mpas_pool_type), pointer :: meshPool
+      type (mpas_pool_type), pointer :: statePool
+      type (mpas_pool_type), pointer :: diagnosticsPool
 
-      ! Collect the number of halo cells in all levels
-      nHaloLayers = config_num_halos
-      nGhostCell = 0
-      do iHalo = 1, nHaloLayers
-        exchListPtr => block %parinfo % cellsToRecv % halos(iHalo) % exchList
-        do while(associated(exchListPtr))
-          nGhostCell = nGhostCell + exchListPtr % nList
-          exchListPtr => exchListPtr % next
-        end do
-      end do
+      type (mpas_exchange_list), pointer :: exchListPtr
 
-      nGhostVertex = 0
-      do iHalo = 1, nHaloLayers
-        exchListPtr => block %parinfo % verticesToRecv % halos(iHalo) % exchList
-        do while(associated(exchListPtr))
-          nGhostVertex = nGhostVertex + exchListPtr % nList
-          exchListPtr => exchListPtr % next
-        end do
-      end do
+      timeLevel=1  ! mrp change to input argument later
 
-      ! Allocate arrays to hold halo cell index and halo number
-      allocate(cellGhost(nGhostCell))
-      allocate(cellHalo(nGhostCell))
-      allocate(vertexGhost(nGhostVertex))
-      allocate(vertexHalo(nGhostVertex))
+      call mpas_pool_get_config(domain % configs,'config_num_halos',config_num_halos)
 
-      ! Fill in halo cells indices and halo number
-      indx = 1
-      do iHalo = 1, nHaloLayers
-        exchListPtr => block %parinfo % cellsToRecv % halos(iHalo) % exchList
-        do while(associated(exchListPtr))
-          do iCell = 1, exchListPtr % nList
-            cellGhost(indx) = exchListPtr % destList(iCell)
-            cellHalo(indx) = iHalo
-            indx = indx + 1
-          end do
-          exchListPtr => exchListPtr % next
-        end do
-      end do
+      block => domain % blocklist
+      do while (associated(block))
 
-      indx = 1
-      do iHalo = 1, nHaloLayers
-        exchListPtr => block %parinfo % verticesToRecv % halos(iHalo) % exchList
-        do while(associated(exchListPtr))
-          do iCell = 1, exchListPtr % nList
-            vertexGhost(indx) = exchListPtr % destList(iCell)
-            vertexHalo(indx) = iHalo
-            indx = indx + 1
-          end do
-          exchListPtr => exchListPtr % next
-        end do
-      end do
+         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+         call mpas_pool_get_subpool(block % structs, 'state', statePool)
+         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
+
+         ! Collect the number of halo cells in all levels
+         nGhostCell = 0
+         do iHalo = 1, config_num_halos
+            exchListPtr => block % parinfo % cellsToRecv % halos(iHalo) % exchList
+            do while(associated(exchListPtr))
+               nGhostCell = nGhostCell + exchListPtr % nList
+               exchListPtr => exchListPtr % next
+            end do
+         end do
+
+         nGhostVertex = 0
+         do iHalo = 1, config_num_halos
+            exchListPtr => block % parinfo % verticesToRecv % halos(iHalo) % exchList
+            do while(associated(exchListPtr))
+               nGhostVertex = nGhostVertex + exchListPtr % nList
+               exchListPtr => exchListPtr % next
+            end do
+         end do
+
+         ! Allocate arrays to hold halo cell index and halo number
+         allocate(cellGhost(nGhostCell))
+         allocate(cellHalo(nGhostCell))
+         allocate(vertexGhost(nGhostVertex))
+         allocate(vertexHalo(nGhostVertex))
+
+         ! Fill in halo cells indices and halo number
+         indx = 1
+         do iHalo = 1, config_num_halos
+            exchListPtr => block %parinfo % cellsToRecv % halos(iHalo) % exchList
+            do while(associated(exchListPtr))
+               do iCell = 1, exchListPtr % nList
+                  cellGhost(indx) = exchListPtr % destList(iCell)
+                  cellHalo(indx) = iHalo
+                  indx = indx + 1
+               end do
+               exchListPtr => exchListPtr % next
+            end do
+         end do
+
+         indx = 1
+         do iHalo = 1, config_num_halos
+            exchListPtr => block %parinfo % verticesToRecv % halos(iHalo) % exchList
+            do while(associated(exchListPtr))
+               do iCell = 1, exchListPtr % nList
+                  vertexGhost(indx) = exchListPtr % destList(iCell)
+                  vertexHalo(indx) = iHalo
+                  indx = indx + 1
+               end do
+               exchListPtr => exchListPtr % next
+            end do
+         end do
+
+         call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells)
+         call mpas_pool_get_dimension(block % dimensions, 'nEdges', nEdges)
+         call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', nVertLevels)
+         call mpas_pool_get_dimension(block % dimensions, 'nVertices', nVertices)
+         call mpas_pool_get_dimension(block % dimensions, 'maxEdges', maxEdges)
+         call mpas_pool_get_dimension(block % dimensions, 'vertexDegree', vertexDegree)
+
+         call mpas_pool_get_array(meshPool, 'xCell', xCell)
+         call mpas_pool_get_array(meshPool, 'yCell', yCell)
+         call mpas_pool_get_array(meshPool, 'zCell', zCell)
+         call mpas_pool_get_array(meshPool, 'xVertex', xVertex)
+         call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
+         call mpas_pool_get_array(meshPool, 'zVertex', zVertex)
+         call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
+         call mpas_pool_get_array(meshPool, 'latCell', latCell)
+         call mpas_pool_get_array(meshPool, 'lonVertex', lonVertex)
+         call mpas_pool_get_array(meshPool, 'latVertex', latVertex)
+         call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
+         call mpas_pool_get_array(meshPool, 'cellsOnVertex', cellsOnVertex)
+         call mpas_pool_get_array(meshPool, 'vertexMask', vertexMask)
+         call mpas_pool_get_array(meshPool, 'verticesOnCell', verticesOnCell)
+         call mpas_pool_get_array(meshPool, 'cellMask', cellMask)
 
       print *,'COPROCESS create geometry',nCells,nVertices,maxEdges,vertexDegree,nVertLevels
       call coprocessor_create_grid( \
                        nCells, maxEdges, nGhostCell, cellGhost, cellHalo, \
                        nVertices, vertexDegree, nGhostVertex, vertexGhost, vertexHalo, \
                        nVertLevels, \
-                       block % mesh % xCell % array, \
-                       block % mesh % yCell % array, \
-                       block % mesh % zCell % array, \
-                       block % mesh % xVertex % array, \
-                       block % mesh % yVertex % array, \
-                       block % mesh % zVertex % array, \
-                       block % mesh % lonCell % array, \
-                       block % mesh % latCell % array, \
-                       block % mesh % lonVertex % array, \
-                       block % mesh % latVertex % array, \
-                       block % mesh % nEdgesOnCell % array, \
-                       block % mesh % cellsOnVertex % array, \
-                       block % mesh % vertexMask % array, \
-                       block % mesh % verticesOnCell % array, \
-                       block % mesh % cellMask % array)
+                       xCell, \
+                       yCell, \
+                       zCell, \
+                       xVertex, \
+                       yVertex, \
+                       zVertex, \
+                       lonCell, \
+                       latCell, \
+                       lonVertex, \
+                       latVertex, \
+                       nEdgesOnCell, \
+                       cellsOnVertex, \
+                       vertexMask, \
+                       verticesOnCell, \
+                       cellMask)
 
-      tracers => block % state % time_levs(2) % state % tracers % array
-      numTracers = size(tracers, dim=1)
-      indexT = block % state % time_levs(1) % state % index_temperature
-      indexS = block % state % time_levs(1) % state % index_salinity
-      call coprocessor_register_tracer_data( \
-                       indexT, \
-                       block % state % time_levs(1) % state % tracers % constituentNames(indexT), \
-                       numTracers, \
-                       block % state % time_levs(1) % state % tracers % dimSizes(2), \
-                       block % state % time_levs(1) % state % tracers % dimSizes(3), \
-                       block % state % time_levs(1) % state % tracers % array)
-      call coprocessor_register_tracer_data( \
-                       indexS, \
-                       block % state % time_levs(1) % state % tracers % constituentNames(indexS), \
-                       numTracers, \
-                       block % state % time_levs(1) % state % tracers % dimSizes(2), \
-                       block % state % time_levs(1) % state % tracers % dimSizes(3), \
-                       block % state % time_levs(1) % state % tracers % array)
+         call mpas_pool_get_dimension(statePool, 'num_tracers', num_tracers)
+         call mpas_pool_get_field(statePool, 'tracers', tracersField, timeLevel)
+         call mpas_pool_get_dimension(statePool, 'index_temperature', indexTemperature)
+         call coprocessor_register_tracer_data( \
+                       indexTemperature, \
+                       tracersField % constituentNames(indexTemperature), \
+                       num_tracers, \
+                       tracersField % dimSizes(2), \
+                       tracersField % dimSizes(3)-1, &   !!!!!!!!!!mrp -1 is temp
+                       tracersField % array)
+         call mpas_pool_get_dimension(statePool, 'index_salinity', indexSalinity)
+         call coprocessor_register_tracer_data( \
+                       indexSalinity, \
+                       tracersField % constituentNames(indexSalinity), \
+                       num_tracers, \
+                       tracersField % dimSizes(2), \
+                       tracersField % dimSizes(3)-1, &   !!!!!!!!!!mrp -1 is temp
+                       tracersField % array)
 
-      call coprocessor_register_data( \
-                       block % diagnostics % density % fieldName, \
-                       block % diagnostics % density % dimSizes(1), \
-                       block % diagnostics % density % dimSizes(2), \
-                       block % diagnostics % density % array)
-      call coprocessor_register_data( \
-                       block % diagnostics % pressure % fieldName, \
-                       block % diagnostics % pressure % dimSizes(1), \
-                       block % diagnostics % pressure % dimSizes(2), \
-                       block % diagnostics % pressure % array)
-      call coprocessor_register_data( \
-                       block % diagnostics % circulation % fieldName, \
-                       block % diagnostics % circulation % dimSizes(1), \
-                       block % diagnostics % circulation % dimSizes(2), \
-                       block % diagnostics % circulation % array)
-      call coprocessor_register_data( \
-                       block % diagnostics % relativeVorticity % fieldName, \
-                       block % diagnostics % relativeVorticity % dimSizes(1), \
-                       block % diagnostics % relativeVorticity % dimSizes(2), \
-                       block % diagnostics % relativeVorticity % array)
+         call mpas_pool_get_field(diagnosticsPool, 'density', densityField)
+         call coprocessor_register_data( \
+                       densityField % fieldName, \
+                       densityField % dimSizes(1), \
+                       densityField % dimSizes(2)-1, &   !!!! mrp +1 is temp
+                       densityField % array)
 
-      deallocate(cellGhost)
-      deallocate(cellHalo)
-      deallocate(vertexGhost)
-      deallocate(vertexHalo)
+
+         call mpas_pool_get_field(diagnosticsPool, 'pressure', pressureField)
+         call coprocessor_register_data( \
+                       pressureField % fieldName, \
+                       pressureField % dimSizes(1), \
+                       pressureField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
+                       pressureField % array)
+
+         call mpas_pool_get_field(diagnosticsPool, 'circulation', circulationField)
+         call coprocessor_register_data( \
+                       circulationField % fieldName, \
+                       circulationField % dimSizes(1), \
+                       circulationField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
+                       circulationField % array)
+
+         call mpas_pool_get_field(diagnosticsPool, 'relativeVorticity', relativeVorticityField)
+         call coprocessor_register_data( \
+                       relativeVorticityField % fieldName, \
+                       relativeVorticityField % dimSizes(1), \
+                       relativeVorticityField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
+                       relativeVorticityField % array)
+
+         deallocate(cellGhost)
+         deallocate(cellHalo)
+         deallocate(vertexGhost)
+         deallocate(vertexHalo)
 
        block => block % next
     end do
@@ -251,61 +310,93 @@ module mpas_paraview_catalyst
 !-----------------------------------------------------------------------
    subroutine mpas_insitu_load_data(domain, itime)!{{{
 
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+!mrp change inout to in when everything is working
       type (domain_type), intent(inout) :: domain
-      type (block_type), pointer :: block
       integer, intent(inout) :: itime
-      integer :: indexT, indexS, numTracers
-      real (kind=RKIND), dimension(:,:,:), pointer :: tracers
+!      integer, intent(in) :: timeLevel  ! mrp add later
 
-    block => domain % blocklist
-    do while (associated(block))
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
 
-      tracers => block % state % time_levs(2) % state % tracers % array
-      numTracers = size(tracers, dim=1)
-      indexT = block % state % time_levs(1) % state % index_temperature
-      indexS = block % state % time_levs(1) % state % index_salinity
+      ! Dimensions
+      integer, pointer :: indexTemperature, indexSalinity, num_tracers
 
-      call coprocessor_add_tracer_data( \
-                       itime, \
-                       indexT, \
-                       block % state % time_levs(1) % state % tracers % constituentNames(indexT), \
-                       numTracers, \
-                       block % state % time_levs(1) % state % tracers % dimSizes(2), \
-                       block % state % time_levs(1) % state % tracers % dimSizes(3), \
-                       block % state % time_levs(1) % state % tracers % array)
-      call coprocessor_add_tracer_data( \
-                       itime, \
-                       indexS, \
-                       block % state % time_levs(1) % state % tracers % constituentNames(indexS), \
-                       numTracers, \
-                       block % state % time_levs(1) % state % tracers % dimSizes(2), \
-                       block % state % time_levs(1) % state % tracers % dimSizes(3), \
-                       block % state % time_levs(1) % state % tracers % array)
+      type (block_type), pointer :: block
+      integer :: timeLevel
+      type (field2DReal), pointer :: densityField, pressureField, circulationField, relativeVorticityField
+      type (field3DReal), pointer :: tracersField
 
-      call coprocessor_add_data( \
+      type (mpas_pool_type), pointer :: statePool
+      type (mpas_pool_type), pointer :: diagnosticsPool
+
+timeLevel=1  ! mrp change to input argument later
+
+      block => domain % blocklist
+      do while (associated(block))
+
+         call mpas_pool_get_subpool(block % structs, 'state', statePool)
+         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
+
+         call mpas_pool_get_dimension(statePool, 'num_tracers', num_tracers)
+         call mpas_pool_get_field(statePool, 'tracers', tracersField, timeLevel)
+         call mpas_pool_get_dimension(statePool, 'index_temperature', indexTemperature)
+         call coprocessor_add_tracer_data( \
                        itime, \
-                       block % diagnostics % density % fieldName, \
-                       block % diagnostics % density % dimSizes(1), \
-                       block % diagnostics % density % dimSizes(2), \
-                       block % diagnostics % density % array)
-      call coprocessor_add_data( \
+                       indexTemperature, \
+                       tracersField % constituentNames(indexTemperature), \
+                       num_tracers, \
+                       tracersField % dimSizes(2), \
+                       tracersField % dimSizes(3)-1, &   !!!!!!!!!!mrp -1 is temp
+                       tracersField % array)
+         call mpas_pool_get_dimension(statePool, 'index_salinity', indexSalinity)
+         call coprocessor_add_tracer_data( \
                        itime, \
-                       block % diagnostics % pressure % fieldName, \
-                       block % diagnostics % pressure % dimSizes(1), \
-                       block % diagnostics % pressure % dimSizes(2), \
-                       block % diagnostics % pressure % array)
-      call coprocessor_add_data( \
+                       indexSalinity, \
+                       tracersField % constituentNames(indexSalinity), \
+                       num_tracers, \
+                       tracersField % dimSizes(2), \
+                       tracersField % dimSizes(3)-1, &   !!!!!!!!!!mrp -1 is temp
+                       tracersField % array)
+
+         call mpas_pool_get_field(diagnosticsPool, 'density', densityField)
+         call coprocessor_add_data( \
                        itime, \
-                       block % diagnostics % circulation % fieldName, \
-                       block % diagnostics % circulation % dimSizes(1), \
-                       block % diagnostics % circulation % dimSizes(2), \
-                       block % diagnostics % circulation % array)
-      call coprocessor_add_data( \
+                       densityField % fieldName, \
+                       densityField % dimSizes(1), \
+                       densityField % dimSizes(2)-1, &  !!!!! mrp -1 is temp
+                       densityField % array)
+
+         call mpas_pool_get_field(diagnosticsPool, 'pressure', pressureField)
+         call coprocessor_add_data( \
                        itime, \
-                       block % diagnostics % relativeVorticity % fieldName, \
-                       block % diagnostics % relativeVorticity % dimSizes(1), \
-                       block % diagnostics % relativeVorticity % dimSizes(2), \
-                       block % diagnostics % relativeVorticity % array)
+                       pressureField % fieldName, \
+                       pressureField % dimSizes(1), \
+                       pressureField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
+                       pressureField % array)
+
+         call mpas_pool_get_field(diagnosticsPool, 'circulation', circulationField)
+         call coprocessor_add_data( \
+                       itime, \
+                       circulationField % fieldName, \
+                       circulationField % dimSizes(1), \
+                       circulationField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
+                       circulationField % array)
+
+         call mpas_pool_get_field(diagnosticsPool, 'relativeVorticity', relativeVorticityField)
+         call coprocessor_add_data( \
+                       itime, \
+                       relativeVorticityField % fieldName, \
+                       relativeVorticityField % dimSizes(1), \
+                       relativeVorticityField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
+                       relativeVorticityField % array)
 
      block => block % next
    end do

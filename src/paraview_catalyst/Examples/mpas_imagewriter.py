@@ -48,25 +48,26 @@ variable_action = [
                   ]
 
 # show axes or not
-display_axes = True
+display_axes = False
 
 # the zoom level of the image.
 # greater than 1.0 is zoom-in and less than 1.0 is zoom-out
-image_zoom = 2.0
+image_zoom = 2.3
 
 # how often to do in-situ
 frequency = 1
 
 # annotation flags
 annotationShowHeading = True
-annotationShowUser = True
-annotationShowVersion = True
+annotationShowRightSide = True
+annotationShowLeftSide = True
 annotationShowSimulationTime = True
 annotationShowDate = True
 
 # strings for annotations
-annotationHeading = 'baroclinic_channel_10000m_20levs'
-annotationUser = 'setup by: MPAS example problem'
+annotationHeading = 'Title goes here'
+annotationRightSide = 'Right side annotation'
+annotationLeftSide = 'Left side annotation'
 annotationColor = [1.0, 1.0, 1.0]
 
 # the format of how the date annotation is shown
@@ -98,8 +99,8 @@ ThresholdRep = None
 
 # Annotation representations
 HeadingRep = None
-UserRep = None
-VersionRep = None
+RightSideRep = None
+LeftSideRep = None
 TimeRep = None
 DateRep = None
 
@@ -195,7 +196,7 @@ def DoCoProcessing(datadescription):
 def WriteMPASImages(datadescription, timestep):
   global LookupTable1, ScalarBar1, RenderView1
   global BasicRep
-  global HeadingRep, UserRep, VersionRep, TimeRep, DateRep
+  global HeadingRep, RightSideRep, LeftSideRep, TimeRep, DateRep
   global Calculator1, Threshold1, ThresholdRep
 
   grid = datadescription.GetInputDescriptionByName(gridname).GetGrid()
@@ -212,8 +213,8 @@ def WriteMPASImages(datadescription, timestep):
           layer = varTuple[2]
 
         HeadingRep.Visibility = 0
-        UserRep.Visibility = 0
-        VersionRep.Visibility = 0
+        RightSideRep.Visibility = 0
+        LeftSideRep.Visibility = 0
         TimeRep.Visibility = 0
         DateRep.Visibility = 0
 
@@ -261,6 +262,7 @@ def WriteMPASImages(datadescription, timestep):
 
         # if using layers, update the threshold to remove the land cells
         if use_layer:
+          # set color bar title here
           array_name = '%s_%i' % (varName, layer)
           Calculator1.Function = array_name
           Calculator1.ResultArrayName = array_name
@@ -275,10 +277,10 @@ def WriteMPASImages(datadescription, timestep):
 
         if annotationShowHeading:
           HeadingRep.Visibility = 1
-        if annotationShowUser:
-          UserRep.Visibility = 1
-        if annotationShowVersion:
-          VersionRep.Visibility = 1
+        if annotationShowRightSide:
+          RightSideRep.Visibility = 1
+        if annotationShowLeftSide:
+          LeftSideRep.Visibility = 1
         if annotationShowSimulationTime:
           TimeRep.Visibility = 1
         if annotationShowDate:
@@ -299,7 +301,7 @@ def CreateMPASViews(producer, varName, datadescription):
   global LookupTable1, ScalarBar1, RenderView1
   global BasicRep
   global XYChartView1, PlotOverLine1, PlotOverLineRep
-  global HeadingRep, UserRep, VersionRep, TimeRep, DateRep
+  global HeadingRep, RightSideRep, LeftSideRep, TimeRep, DateRep
   global Calculator1, Threshold1, ThresholdRep
 
 # ----------------------- Filter definitions -----------------------
@@ -385,7 +387,7 @@ def CreateMPASViews(producer, varName, datadescription):
       ColorSpace='Diverging', ScalarRangeInitialized=1.0 )
 
   ScalarBar1 = CreateScalarBar( Title=varName, TextPosition=1, 
-      Position=[0.87, 0.25], Position2=[0.13, 0.5], TitleOpacity=1.0, 
+      Position=[0.1, 0.25], Position2=[0.13, 0.5], TitleOpacity=1.0, 
       TitleShadow=0, AutomaticLabelFormat=1, TitleFontSize=10,
       TitleColor=[1.0, 1.0, 1.0], AspectRatio=20.0, NumberOfLabels=5,
       ComponentTitle='', Resizable=0, TitleFontFamily='Arial', Visibility=1,
@@ -456,13 +458,13 @@ def CreateMPASViews(producer, varName, datadescription):
   HeadingRep.FontSize = 18
   HeadingRep.TextScaleMode = 'Viewport'
 
-  UserText = Text(Text=annotationUser)
-  UserRep = Show()
-  UserRep.WindowLocation = 'UpperRightCorner'
-  UserRep.Color = annotationColor
-  UserRep.FontSize = 10
-  UserRep.Orientation = 90
-  UserRep.TextScaleMode = 'Viewport'
+  RightSideText = Text(Text=annotationRightSide)
+  RightSideRep = Show()
+  RightSideRep.WindowLocation = 'UpperRightCorner'
+  RightSideRep.Color = annotationColor
+  RightSideRep.FontSize = 10
+  RightSideRep.Orientation = 90
+  RightSideRep.TextScaleMode = 'Viewport'
 
   # get the version of mpas
   #grid = datadescription.GetInputDescriptionByName(gridname).GetGrid()
@@ -471,14 +473,13 @@ def CreateMPASViews(producer, varName, datadescription):
   #modext = versionArray.GetTuple1(1)
   #versionstring = "MPAS %d.%d" % (modver, modext)
 
-  #VersionText = Text(Text=versionstring)
-  VersionText = Text(Text='MPAS 2.0')
-  VersionRep = Show()
-  VersionRep.WindowLocation = 'UpperLeftCorner'
-  VersionRep.Color = annotationColor
-  VersionRep.FontSize = 10
-  VersionRep.Orientation = 90
-  VersionRep.TextScaleMode = 'Viewport'
+  LeftSideText = Text(Text=annotationLeftSide)
+  LeftSideRep = Show()
+  LeftSideRep.WindowLocation = 'UpperLeftCorner'
+  LeftSideRep.Color = annotationColor
+  LeftSideRep.FontSize = 10
+  LeftSideRep.Orientation = 90
+  LeftSideRep.TextScaleMode = 'Viewport'
 
   AnnotateTimeFilter1 = AnnotateTimeFilter()
   TimeRep = Show()
