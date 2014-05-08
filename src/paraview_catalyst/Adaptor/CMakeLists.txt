@@ -13,7 +13,7 @@ FortranCInterface_HEADER(MPASAdaptorAPIMangling.h SYMBOLS
   coprocessor_create_grid 
   coprocessor_register_tracer_data coprocessor_add_tracer_data
   coprocessor_register_data coprocessor_add_data
-  mpas_initialize mpas_registerdata mpas_coprocess mpas_finalize mpas_check_coprocess )
+  mpas_init_paraview_catalyst mpas_registerdata mpas_coprocess mpas_finalize_paraview_catalyst mpas_check_coprocess )
 
 include_directories(${MPASAdaptor_BINARY_DIR})
 

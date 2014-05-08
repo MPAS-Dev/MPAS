@@ -7,37 +7,17 @@
 !
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  ocn_TEMPLATE
+!  ocn_paraview_catalyst
 !
-!> \brief MPAS ocean analysis core member: TEMPLATE
-!> \author FILL_IN_AUTHOR
-!> \date   FILL_IN_DATE
+!> \brief MPAS ocean analysis core member: paraview_catalyst
+!> \author Mark Petersen
+!> \date   May 2014
 !> \details
-!>  MPAS ocean analysis core member: TEMPLATE
-!>  In order to add a new analysis member, do the following:
-!>  1. Copy these to your new analysis member name:
-!>     cp mpas_ocn_TEMPLATE.F mpas_ocn_your_new_name.F
-!>     cp Registry_ocn_TEMPLATE.xml Registry_ocn_your_new_name.xml
-!>  
-!>  2. In those two new files, replace the following text:
-!>     TEMPLATE, amTemplate, FILL_IN_AUTHOR, FILL_IN_DATE
-!>     Note TEMPLATE uses underscores, like global_stats, while
-!>     amTemplate uses caps, e.g. amGlobalStats.
-!>  
-!>  3. Add a #include line for your registry to
-!>     Registry_analysis_members.xml
-!>  
-!>  4. In mpas_ocn_analysis_driver.F, add calls for your analysis member
-!>     by copying lines with TEMPLATE.
-!>  
-!>  5. In src/core_ocean/analysis_members/Makefile, add your
-!>     new analysis member everywhere you see
-!>     mpas_ocn_global_stats.o
 !>  
 !
 !-----------------------------------------------------------------------
 
-module ocn_TEMPLATE
+module ocn_paraview_catalyst
 
    use mpas_grid_types
    use mpas_timer
@@ -63,13 +43,13 @@ module ocn_TEMPLATE
    !
    !--------------------------------------------------------------------
 
-   public :: ocn_setup_packages_TEMPLATE, &
-             ocn_init_TEMPLATE, &
-             ocn_init_alarms_TEMPLATE, &
-             ocn_compute_TEMPLATE, &
-             ocn_write_TEMPLATE, &
-             ocn_restart_TEMPLATE, &
-             ocn_finalize_TEMPLATE
+   public :: ocn_setup_packages_paraview_catalyst, &
+             ocn_init_paraview_catalyst, &
+             ocn_init_alarms_paraview_catalyst, &
+             ocn_compute_paraview_catalyst, &
+             ocn_write_paraview_catalyst, &
+             ocn_restart_paraview_catalyst, &
+             ocn_finalize_paraview_catalyst
 
    !--------------------------------------------------------------------
    !
@@ -77,7 +57,7 @@ module ocn_TEMPLATE
    !
    !--------------------------------------------------------------------
 
-   type (timer_node), pointer :: amTemplateTimer
+   type (timer_node), pointer :: amParaviewCatalystTimer
 
 !***********************************************************************
 
@@ -85,18 +65,18 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_setup_packages_TEMPLATE
+!  routine ocn_setup_packages_paraview_catalyst
 !
 !> \brief   Set up packages for MPAS-Ocean analysis member
-!> \author  FILL_IN_AUTHOR
-!> \date    FILL_IN_DATE
+!> \author  Mark Petersen
+!> \date    May 2014
 !> \details 
 !>  This routine is intended to configure the packages for this MPAS
 !>   ocean analysis member
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_setup_packages_TEMPLATE(configPool, packagePool, err)!{{{
+   subroutine ocn_setup_packages_paraview_catalyst(configPool, packagePool, err)!{{{
 
       use mpas_packages
 
@@ -127,32 +107,32 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
-      logical, pointer :: amTemplateActive
+      logical, pointer :: amParaviewCatalystActive
 
       err = 0
 
-      call mpas_pool_get_package(packagePool, 'amTemplateActive', amTemplateActive)
+      call mpas_pool_get_package(packagePool, 'amParaviewCatalystActive', amParaviewCatalystActive)
 
       ! turn on package for this analysis member
-      amTemplateActive = .true.
+      amParaviewCatalystActive = .true.
 
-   end subroutine ocn_setup_packages_TEMPLATE!}}}
+   end subroutine ocn_setup_packages_paraview_catalyst!}}}
 
 
 !***********************************************************************
 !
-!  routine ocn_init_TEMPLATE
+!  routine ocn_init_paraview_catalyst
 !
 !> \brief   Initialize MPAS-Ocean analysis member
-!> \author  FILL_IN_AUTHOR
-!> \date    FILL_IN_DATE
+!> \author  Mark Petersen
+!> \date    May 2014
 !> \details 
 !>  This routine conducts all initializations required for the 
 !>  MPAS-Ocean analysis member.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_TEMPLATE(domain, err)!{{{
+   subroutine ocn_init_paraview_catalyst(domain, err)!{{{
 
       use mpas_packages
 
@@ -186,22 +166,24 @@ contains
 
       err = 0
 
-   end subroutine ocn_init_TEMPLATE!}}}
+      call mpas_init_paraview_catalyst
+
+   end subroutine ocn_init_paraview_catalyst!}}}
 
 !***********************************************************************
 !
-!  routine ocn_init_alarms_TEMPLATE
+!  routine ocn_init_alarms_paraview_catalyst
 !
 !> \brief   Initialize alarms for MPAS-Ocean analysis member
-!> \author  FILL_IN_AUTHOR
-!> \date    FILL_IN_DATE
+!> \author  Mark Petersen
+!> \date    May 2014
 !> \details 
 !>  This routine conducts all alarm initializations required for the 
 !>  MPAS-Ocean analysis member.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_alarms_TEMPLATE(clock, startTime, computeAlarmID, err)!{{{
+   subroutine ocn_init_alarms_paraview_catalyst(clock, startTime, computeAlarmID, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -239,40 +221,40 @@ contains
       type (MPAS_Time_Type) :: alarmStartTime
       type (MPAS_TimeInterval_type) :: alarmTimeStep
 
-      character (len=StrKIND), pointer :: config_TEMPLATE_compute_interval, config_output_interval
+      character (len=StrKIND), pointer :: config_paraview_catalyst_compute_interval, config_output_interval
 
       err = 0
 
-      call mpas_pool_get_config(ocnConfigs, 'config_TEMPLATE_compute_interval', config_TEMPLATE_compute_interval)
+      call mpas_pool_get_config(ocnConfigs, 'config_paraview_catalyst_compute_interval', config_paraview_catalyst_compute_interval)
       call mpas_pool_get_config(ocnConfigs, 'config_output_interval', config_output_interval)
 
       ! set compute alarm for this analysis member
-      if (config_TEMPLATE_compute_interval=='same_as_output') then
+      if (config_paraview_catalyst_compute_interval=='same_as_output') then
          compute_interval = config_output_interval
       else
-         compute_interval = config_TEMPLATE_compute_interval
+         compute_interval = config_paraview_catalyst_compute_interval
       endif
 
       call mpas_set_timeInterval(alarmTimeStep, timeString=compute_interval, ierr=ierr)
       alarmStartTime = startTime + alarmTimeStep
       call mpas_add_clock_alarm(clock, computeAlarmID, alarmStartTime, alarmTimeStep, ierr=ierr)
 
-   end subroutine ocn_init_alarms_TEMPLATE!}}}
+   end subroutine ocn_init_alarms_paraview_catalyst!}}}
 
 !***********************************************************************
 !
-!  routine ocn_compute_TEMPLATE
+!  routine ocn_compute_paraview_catalyst
 !
 !> \brief   Compute MPAS-Ocean analysis member
-!> \author  FILL_IN_AUTHOR
-!> \date    FILL_IN_DATE
+!> \author  Mark Petersen
+!> \date    May 2014
 !> \details 
 !>  This routine conducts all computation required for this
 !>  MPAS-Ocean analysis member.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_compute_TEMPLATE(domain, timeLevel, err)!{{{
+   subroutine ocn_compute_paraview_catalyst(domain, timeLevel, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -304,14 +286,14 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), pointer :: amTemplatePool
+      type (mpas_pool_type), pointer :: amParaviewCatalystPool
       type (dm_info) :: dminfo
       type (block_type), pointer :: block
       type (mpas_pool_type), pointer :: statePool
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: diagnosticsPool
-      type (mpas_pool_type), pointer :: amTemplate
+      type (mpas_pool_type), pointer :: amParaviewCatalyst
 
       ! Here are some example variables which may be needed for your analysis member
       integer, pointer :: nVertLevels, nCellsSolve, nEdgesSolve, nVerticesSolve, num_tracers
@@ -324,7 +306,7 @@ contains
 
       dminfo = domain % dminfo
 
-      call mpas_timer_start("compute_TEMPLATE", .false., amTemplateTimer)
+      call mpas_timer_start("compute_paraview_catalyst", .false., amParaviewCatalystTimer)
 
       block => domain % blocklist
       do while (associated(block))
@@ -332,7 +314,7 @@ contains
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
          call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
-         call mpas_pool_get_subpool(block % structs, 'amTemplate', amTemplatePool)
+         call mpas_pool_get_subpool(block % structs, 'amParaviewCatalyst', amParaviewCatalystPool)
 
          ! Here are some example variables which may be needed for your analysis member
          call mpas_pool_get_dimension(statePool, 'num_tracers', num_tracers)
@@ -374,31 +356,31 @@ contains
       ! correct values for writing output.
       block => domain % blocklist
       do while (associated(block))
-         call mpas_pool_get_subpool(block % structs, 'amTemplate', amTemplatePool)
+         call mpas_pool_get_subpool(block % structs, 'amParaviewCatalyst', amParaviewCatalystPool)
 
-         ! assignment of final amTemplate variables could occur here.
+         ! assignment of final amParaviewCatalyst variables could occur here.
 
          block => block % next
       end do
 
-      call mpas_timer_stop("TEMPLATE", amTemplateTimer)
+      call mpas_timer_stop("paraview_catalyst", amParaviewCatalystTimer)
 
-   end subroutine ocn_compute_TEMPLATE!}}}
+   end subroutine ocn_compute_paraview_catalyst!}}}
 
 !***********************************************************************
 !
-!  routine ocn_restart_TEMPLATE
+!  routine ocn_restart_paraview_catalyst
 !
 !> \brief   Save restart for MPAS-Ocean analysis member
-!> \author  FILL_IN_AUTHOR
-!> \date    FILL_IN_DATE
+!> \author  Mark Petersen
+!> \date    May 2014
 !> \details 
 !>  This routine conducts computation required to save a restart state
 !>  for the MPAS-Ocean analysis member.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_restart_TEMPLATE(domain, err)!{{{
+   subroutine ocn_restart_paraview_catalyst(domain, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -430,15 +412,15 @@ contains
 
       err = 0
 
-   end subroutine ocn_restart_TEMPLATE!}}}
+   end subroutine ocn_restart_paraview_catalyst!}}}
 
 !***********************************************************************
 !
-!  routine ocn_write_TEMPLATE
+!  routine ocn_write_paraview_catalyst
 !
 !> \brief   MPAS-Ocean analysis output
-!> \author  FILL_IN_AUTHOR
-!> \date    FILL_IN_DATE
+!> \author  Mark Petersen
+!> \date    May 2014
 !> \details 
 !>  This routine writes all output for this MPAS-Ocean analysis member.
 !>  At this time this is just a stub, and all analysis output is written
@@ -446,7 +428,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_write_TEMPLATE(domain, err)!{{{
+   subroutine ocn_write_paraview_catalyst(domain, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -478,22 +460,22 @@ contains
 
       err = 0
 
-   end subroutine ocn_write_TEMPLATE!}}}
+   end subroutine ocn_write_paraview_catalyst!}}}
 
 !***********************************************************************
 !
-!  routine ocn_finalize_TEMPLATE
+!  routine ocn_finalize_paraview_catalyst
 !
 !> \brief   Finalize MPAS-Ocean analysis member
-!> \author  FILL_IN_AUTHOR
-!> \date    FILL_IN_DATE
+!> \author  Mark Petersen
+!> \date    May 2014
 !> \details 
 !>  This routine conducts all finalizations required for this
 !>  MPAS-Ocean analysis member.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_finalize_TEMPLATE(domain, err)!{{{
+   subroutine ocn_finalize_paraview_catalyst(domain, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -525,8 +507,10 @@ contains
 
       err = 0
 
-   end subroutine ocn_finalize_TEMPLATE!}}}
+      call mpas_finalize_paraview_catalyst
 
-end module ocn_TEMPLATE
+   end subroutine ocn_finalize_paraview_catalyst!}}}
+
+end module ocn_paraview_catalyst
 
 ! vim: foldmethod=marker

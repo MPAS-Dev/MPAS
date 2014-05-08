@@ -25,6 +25,7 @@ module ocn_analysis_driver
    use ocn_constants
    use ocn_global_stats
    use ocn_zonal_mean
+   use ocn_paraview_catalyst
 !   use ocn_TEMPLATE
 
    implicit none
@@ -62,6 +63,7 @@ module ocn_analysis_driver
    ! start alarm IDs at 11 because lower values are assigned in mpas_ocn_mpas_core.F
    integer, parameter :: compute_global_stats_AlarmID = 11
    integer, parameter :: compute_zonal_mean_AlarmID = 12
+   integer, parameter :: compute_paraview_catalyst_AlarmID = 13
 !   integer, parameter :: compute_TEMPLATE_AlarmID = (increment previous)
 
 !***********************************************************************
@@ -113,7 +115,7 @@ contains
       !-----------------------------------------------------------------
 
       integer :: err_tmp
-      logical, pointer :: config_use_global_stats, config_use_zonal_mean 
+      logical, pointer :: config_use_global_stats, config_use_zonal_mean, config_use_paraview_catalyst 
 !      logical, pointer :: config_use_TEMPLATE
 
       err = 0
@@ -128,6 +130,12 @@ contains
       call mpas_pool_get_config(configPool, 'config_use_zonal_mean', config_use_zonal_mean)
       if (config_use_zonal_mean) then
          call ocn_setup_packages_zonal_mean(configPool, packagePool, err_tmp)
+         err = ior(err, err_tmp)
+      endif
+
+      call mpas_pool_get_config(configPool, 'config_use_paraview_catalyst', config_use_paraview_catalyst)
+      if (config_use_paraview_catalyst) then
+         call ocn_setup_packages_paraview_catalyst(configPool, packagePool, err_tmp)
          err = ior(err, err_tmp)
       endif
 
@@ -183,7 +191,7 @@ contains
       !-----------------------------------------------------------------
 
       integer :: err_tmp
-      logical, pointer :: config_use_global_stats, config_use_zonal_mean
+      logical, pointer :: config_use_global_stats, config_use_zonal_mean, config_use_paraview_catalyst
 !      logical, pointer :: config_use_TEMPLATE
 
       err = 0
@@ -197,6 +205,12 @@ contains
       call mpas_pool_get_config(domain % configs, 'config_use_zonal_mean', config_use_zonal_mean)
       if (config_use_zonal_mean) then
          call ocn_init_zonal_mean(domain, err_tmp)
+         err = ior(err, err_tmp)
+      endif
+
+      call mpas_pool_get_config(domain % configs, 'config_use_paraview_catalyst', config_use_paraview_catalyst)
+      if (config_use_paraview_catalyst) then
+         call ocn_init_paraview_catalyst(domain, err_tmp)
          err = ior(err, err_tmp)
       endif
 
@@ -255,7 +269,7 @@ contains
 
       integer :: err_tmp
 
-      logical, pointer :: config_use_global_stats, config_use_zonal_mean
+      logical, pointer :: config_use_global_stats, config_use_zonal_mean, config_use_paraview_catalyst
 !      logical, pointer :: config_use_TEMPLATE
 
       err = 0
@@ -269,6 +283,12 @@ contains
       call mpas_pool_get_config(ocnConfigs, 'config_use_zonal_mean', config_use_zonal_mean)
       if (config_use_zonal_mean) then
          call ocn_init_alarms_zonal_mean(clock, startTime, compute_zonal_mean_AlarmID, err_tmp)
+         err = ior(err, err_tmp)
+      endif
+
+      call mpas_pool_get_config(ocnConfigs, 'config_use_paraview_catalyst', config_use_paraview_catalyst)
+      if (config_use_paraview_catalyst) then
+         call ocn_init_alarms_paraview_catalyst(clock, startTime, compute_paraview_catalyst_AlarmID, err_tmp)
          err = ior(err, err_tmp)
       endif
 
@@ -327,6 +347,7 @@ contains
 
       logical, pointer :: config_use_global_stats, config_global_stats_compute_startup
       logical, pointer :: config_use_zonal_mean, config_zonal_mean_compute_startup
+      logical, pointer :: config_use_paraview_catalyst, config_paraview_catalyst_compute_startup
 !      logical, pointer :: config_use_TEMPLATE, config_TEMPLATE_compute_startup
 
       err = 0
@@ -343,6 +364,13 @@ contains
       call mpas_pool_get_config(domain % configs, 'config_zonal_mean_compute_startup', config_zonal_mean_compute_startup)
       if (config_use_zonal_mean.and.config_zonal_mean_compute_startup) then
          call ocn_compute_zonal_mean(domain, timeLevel, err_tmp)
+         err = ior(err, err_tmp)
+      endif
+
+      call mpas_pool_get_config(domain % configs, 'config_use_paraview_catalyst', config_use_paraview_catalyst)
+      call mpas_pool_get_config(domain % configs, 'config_paraview_catalyst_compute_startup', config_paraview_catalyst_compute_startup)
+      if (config_use_paraview_catalyst.and.config_paraview_catalyst_compute_startup) then
+         call ocn_compute_paraview_catalyst(domain, timeLevel, err_tmp)
          err = ior(err, err_tmp)
       endif
 
@@ -400,7 +428,7 @@ contains
 
       integer :: timeLevel, err_tmp
 
-      logical, pointer :: config_use_global_stats, config_use_zonal_mean
+      logical, pointer :: config_use_global_stats, config_use_zonal_mean, config_use_paraview_catalyst
 !      logical, pointer :: config_use_TEMPLATE
 
       err = 0
@@ -414,6 +442,11 @@ contains
       call mpas_pool_get_config(domain % configs, 'config_use_zonal_mean', config_use_zonal_mean)
       if (config_use_zonal_mean) then
          call ocn_compute_zonal_mean(domain, timeLevel, err_tmp)
+      endif
+
+      call mpas_pool_get_config(domain % configs, 'config_use_paraview_catalyst', config_use_paraview_catalyst)
+      if (config_use_paraview_catalyst) then
+         call ocn_compute_paraview_catalyst(domain, timeLevel, err_tmp)
       endif
 
 !      call mpas_pool_get_config(domain % configs, 'config_use_TEMPLATE', config_use_TEMPLATE)
@@ -468,7 +501,7 @@ contains
       !-----------------------------------------------------------------
 
       integer :: timeLevel, err_tmp
-      logical, pointer :: config_use_global_stats, config_use_zonal_mean
+      logical, pointer :: config_use_global_stats, config_use_zonal_mean, config_use_paraview_catalyst
 !      logical, pointer :: config_use_TEMPLATE
 
       err = 0
@@ -487,6 +520,14 @@ contains
          if (mpas_is_alarm_ringing(clock, compute_zonal_mean_AlarmID, ierr=err_tmp)) then
             call mpas_reset_clock_alarm(clock, compute_zonal_mean_AlarmID, ierr=err_tmp)
             call ocn_compute_zonal_mean(domain, timeLevel, err_tmp)
+         endif
+      endif
+
+      call mpas_pool_get_config(domain % configs, 'config_use_paraview_catalyst', config_use_paraview_catalyst)
+      if (config_use_paraview_catalyst) then
+         if (mpas_is_alarm_ringing(clock, compute_paraview_catalyst_AlarmID, ierr=err_tmp)) then
+            call mpas_reset_clock_alarm(clock, compute_paraview_catalyst_AlarmID, ierr=err_tmp)
+            call ocn_compute_paraview_catalyst(domain, timeLevel, err_tmp)
          endif
       endif
 
@@ -544,7 +585,7 @@ contains
       !-----------------------------------------------------------------
 
       integer :: err_tmp
-      logical, pointer :: config_use_global_stats, config_use_zonal_mean
+      logical, pointer :: config_use_global_stats, config_use_zonal_mean, config_use_paraview_catalyst
 !      logical, pointer :: config_use_TEMPLATE
 
       err = 0
@@ -558,6 +599,12 @@ contains
       call mpas_pool_get_config(domain % configs, 'config_use_zonal_mean', config_use_zonal_mean)
       if (config_use_zonal_mean) then
          call ocn_restart_zonal_mean(domain, err_tmp)
+         err = ior(err, err_tmp)
+      endif
+
+      call mpas_pool_get_config(domain % configs, 'config_use_paraview_catalyst', config_use_paraview_catalyst)
+      if (config_use_paraview_catalyst) then
+         call ocn_restart_paraview_catalyst(domain, err_tmp)
          err = ior(err, err_tmp)
       endif
 
@@ -616,7 +663,7 @@ contains
 
       integer :: err_tmp
 
-      logical, pointer :: config_use_global_stats, config_use_zonal_mean
+      logical, pointer :: config_use_global_stats, config_use_zonal_mean, config_use_paraview_catalyst
 !      logical, pointer :: config_use_TEMPLATE
 
       err = 0
@@ -630,6 +677,12 @@ contains
       call mpas_pool_get_config(domain % configs, 'config_use_zonal_mean', config_use_zonal_mean)
       if (config_use_zonal_mean) then
          call ocn_write_zonal_mean(domain, err_tmp)
+         err = ior(err, err_tmp)
+      endif
+
+      call mpas_pool_get_config(domain % configs, 'config_use_paraview_catalyst', config_use_paraview_catalyst)
+      if (config_use_paraview_catalyst) then
+         call ocn_write_paraview_catalyst(domain, err_tmp)
          err = ior(err, err_tmp)
       endif
 
@@ -685,7 +738,7 @@ contains
       !-----------------------------------------------------------------
 
       integer :: err_tmp
-      logical, pointer :: config_use_global_stats, config_use_zonal_mean
+      logical, pointer :: config_use_global_stats, config_use_zonal_mean, config_use_paraview_catalyst
 !      logical, pointer :: config_use_TEMPLATE
 
       err = 0
@@ -699,6 +752,12 @@ contains
       call mpas_pool_get_config(domain % configs, 'config_use_zonal_mean', config_use_zonal_mean)
       if (config_use_zonal_mean) then
          call ocn_finalize_zonal_mean(domain, err_tmp)
+         err = ior(err, err_tmp)
+      endif
+
+      call mpas_pool_get_config(domain % configs, 'config_use_paraview_catalyst', config_use_paraview_catalyst)
+      if (config_use_paraview_catalyst) then
+         call ocn_finalize_paraview_catalyst(domain, err_tmp)
          err = ior(err, err_tmp)
       endif
 

@@ -291,6 +291,8 @@ module mpas_core
       !
 #ifdef USE_PARAVIEW
       call mpas_insitu_initialize
+      call mpas_init_mesh_paraview_catalyst(domain)
+      call mpas_init_data_paraview_catalyst(domain)
 #endif
 
    end subroutine mpas_core_init!}}}
@@ -590,10 +592,6 @@ print *, 'output alarmTimeStep', alarmTimeStep, ierr
       if (config_write_output_on_startup) then
          call ocn_write_output_frame(output_obj, output_frame, domain)
       endif
-
-#ifdef USE_PARAVIEW
-      call mpas_insitu_create_geometry(domain)
-#endif
 
       block_ptr => domain % blocklist
       do while(associated(block_ptr))

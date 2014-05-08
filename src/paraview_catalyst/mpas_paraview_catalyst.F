@@ -45,7 +45,8 @@ module mpas_paraview_catalyst
    !--------------------------------------------------------------------
 
    public :: mpas_insitu_initialize, &
-             mpas_insitu_create_geometry, &
+             mpas_init_mesh_paraview_catalyst, &
+             mpas_init_data_paraview_catalyst, &
              mpas_insitu_load_data, &
              mpas_insitu_coprocess, &
              mpas_insitu_finalize
@@ -73,13 +74,13 @@ module mpas_paraview_catalyst
 !-----------------------------------------------------------------------
    subroutine mpas_insitu_initialize!{{{
 
-      call mpas_initialize
+      call mpas_init_paraview_catalyst
 
    end subroutine mpas_insitu_initialize!}}}
 
 !***********************************************************************
 !
-!  routine mpas_insitu_create_geometry
+!  routine mpas_init_mesh_paraview_catalyst
 !
 !> \brief   Create mesh variables for paraview catalyst
 !> \author  Patricia Fasel, Mark Petersen
@@ -89,15 +90,15 @@ module mpas_paraview_catalyst
 !>  for in-situ visualization and analysis.
 !
 !-----------------------------------------------------------------------
-   subroutine mpas_insitu_create_geometry(domain)!{{{
+   subroutine mpas_init_mesh_paraview_catalyst(domain)!{{{
    
       !-----------------------------------------------------------------
       !
       ! input variables
       !
       !-----------------------------------------------------------------
-!mrp change inout to in when everything is working
-      type (domain_type), intent(inout) :: domain
+
+      type (domain_type), intent(in) :: domain
 
       !-----------------------------------------------------------------
       !
@@ -109,8 +110,7 @@ module mpas_paraview_catalyst
       integer, pointer :: config_num_halos
 
       ! Dimensions
-      integer, pointer :: nCells, nEdges, nVertices, maxEdges, vertexDegree, nVertLevels, &
-         indexTemperature, indexSalinity, num_tracers
+      integer, pointer :: nCells, nEdges, nVertices, maxEdges, vertexDegree, nVertLevels
       integer :: timeLevel
       integer :: nGhostCell, nGhostVertex
       integer :: iHalo, iCell, indx
@@ -123,12 +123,8 @@ module mpas_paraview_catalyst
          xCell, yCell, zCell, xVertex, yVertex, zVertex, lonCell, latCell, lonVertex, latVertex
 
       type (block_type), pointer :: block
-      type (field2DReal), pointer :: densityField, pressureField, circulationField, relativeVorticityField
-      type (field3DReal), pointer :: tracersField
 
       type (mpas_pool_type), pointer :: meshPool
-      type (mpas_pool_type), pointer :: statePool
-      type (mpas_pool_type), pointer :: diagnosticsPool
 
       type (mpas_exchange_list), pointer :: exchListPtr
 
@@ -140,8 +136,6 @@ module mpas_paraview_catalyst
       do while (associated(block))
 
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-         call mpas_pool_get_subpool(block % structs, 'state', statePool)
-         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
 
          ! Collect the number of halo cells in all levels
          nGhostCell = 0
@@ -218,8 +212,7 @@ module mpas_paraview_catalyst
          call mpas_pool_get_array(meshPool, 'verticesOnCell', verticesOnCell)
          call mpas_pool_get_array(meshPool, 'cellMask', cellMask)
 
-      print *,'COPROCESS create geometry',nCells,nVertices,maxEdges,vertexDegree,nVertLevels
-      call coprocessor_create_grid( \
+         call coprocessor_create_grid( \
                        nCells, maxEdges, nGhostCell, cellGhost, cellHalo, \
                        nVertices, vertexDegree, nGhostVertex, vertexGhost, vertexHalo, \
                        nVertLevels, \
@@ -239,54 +232,6 @@ module mpas_paraview_catalyst
                        verticesOnCell, \
                        cellMask)
 
-         call mpas_pool_get_dimension(statePool, 'num_tracers', num_tracers)
-         call mpas_pool_get_field(statePool, 'tracers', tracersField, timeLevel)
-         call mpas_pool_get_dimension(statePool, 'index_temperature', indexTemperature)
-         call coprocessor_register_tracer_data( \
-                       indexTemperature, \
-                       tracersField % constituentNames(indexTemperature), \
-                       num_tracers, \
-                       tracersField % dimSizes(2), \
-                       tracersField % dimSizes(3)-1, &   !!!!!!!!!!mrp -1 is temp
-                       tracersField % array)
-         call mpas_pool_get_dimension(statePool, 'index_salinity', indexSalinity)
-         call coprocessor_register_tracer_data( \
-                       indexSalinity, \
-                       tracersField % constituentNames(indexSalinity), \
-                       num_tracers, \
-                       tracersField % dimSizes(2), \
-                       tracersField % dimSizes(3)-1, &   !!!!!!!!!!mrp -1 is temp
-                       tracersField % array)
-
-         call mpas_pool_get_field(diagnosticsPool, 'density', densityField)
-         call coprocessor_register_data( \
-                       densityField % fieldName, \
-                       densityField % dimSizes(1), \
-                       densityField % dimSizes(2)-1, &   !!!! mrp +1 is temp
-                       densityField % array)
-
-
-         call mpas_pool_get_field(diagnosticsPool, 'pressure', pressureField)
-         call coprocessor_register_data( \
-                       pressureField % fieldName, \
-                       pressureField % dimSizes(1), \
-                       pressureField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
-                       pressureField % array)
-
-         call mpas_pool_get_field(diagnosticsPool, 'circulation', circulationField)
-         call coprocessor_register_data( \
-                       circulationField % fieldName, \
-                       circulationField % dimSizes(1), \
-                       circulationField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
-                       circulationField % array)
-
-         call mpas_pool_get_field(diagnosticsPool, 'relativeVorticity', relativeVorticityField)
-         call coprocessor_register_data( \
-                       relativeVorticityField % fieldName, \
-                       relativeVorticityField % dimSizes(1), \
-                       relativeVorticityField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
-                       relativeVorticityField % array)
-
          deallocate(cellGhost)
          deallocate(cellHalo)
          deallocate(vertexGhost)
@@ -295,7 +240,109 @@ module mpas_paraview_catalyst
        block => block % next
     end do
 
-   end subroutine mpas_insitu_create_geometry!}}}
+   end subroutine mpas_init_mesh_paraview_catalyst!}}}
+
+!***********************************************************************
+!
+!  routine mpas_init_data_paraview_catalyst
+!
+!> \brief   Create mesh variables for paraview catalyst
+!> \author  Patricia Fasel, Mark Petersen
+!> \date    April 2014
+!> \details 
+!>  Create all the mesh information needed by the paraview catalyst
+!>  for in-situ visualization and analysis.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_init_data_paraview_catalyst(domain)!{{{
+   
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (domain_type), intent(in) :: domain
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, pointer :: indexTemperature, indexSalinity, num_tracers
+      integer :: timeLevel
+
+      type (block_type), pointer :: block
+      type (field2DReal), pointer :: densityField, pressureField, circulationField, relativeVorticityField
+      type (field3DReal), pointer :: tracersField
+
+      type (mpas_pool_type), pointer :: statePool
+      type (mpas_pool_type), pointer :: diagnosticsPool
+
+      timeLevel=1  ! mrp change to input argument later
+
+      block => domain % blocklist
+      do while (associated(block))
+
+         call mpas_pool_get_subpool(block % structs, 'state', statePool)
+         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
+
+         call mpas_pool_get_dimension(statePool, 'num_tracers', num_tracers)
+         call mpas_pool_get_field(statePool, 'tracers', tracersField, timeLevel)
+         call mpas_pool_get_dimension(statePool, 'index_temperature', indexTemperature)
+
+         ! subtract one from dimsSizes to use nCells rather than nCells+1
+         call coprocessor_register_tracer_data( \
+                       indexTemperature, \
+                       tracersField % constituentNames(indexTemperature), \
+                       num_tracers, \
+                       tracersField % dimSizes(2), \
+                       tracersField % dimSizes(3)-1, & 
+                       tracersField % array)
+         call mpas_pool_get_dimension(statePool, 'index_salinity', indexSalinity)
+         call coprocessor_register_tracer_data( \
+                       indexSalinity, \
+                       tracersField % constituentNames(indexSalinity), \
+                       num_tracers, \
+                       tracersField % dimSizes(2), \
+                       tracersField % dimSizes(3)-1, & 
+                       tracersField % array)
+
+         call mpas_pool_get_field(diagnosticsPool, 'density', densityField)
+         call coprocessor_register_data( \
+                       densityField % fieldName, \
+                       densityField % dimSizes(1), \
+                       densityField % dimSizes(2)-1, & 
+                       densityField % array)
+
+
+         call mpas_pool_get_field(diagnosticsPool, 'pressure', pressureField)
+         call coprocessor_register_data( \
+                       pressureField % fieldName, \
+                       pressureField % dimSizes(1), \
+                       pressureField % dimSizes(2)-1, & 
+                       pressureField % array)
+
+         call mpas_pool_get_field(diagnosticsPool, 'circulation', circulationField)
+         call coprocessor_register_data( \
+                       circulationField % fieldName, \
+                       circulationField % dimSizes(1), \
+                       circulationField % dimSizes(2)-1, & 
+                       circulationField % array)
+
+         call mpas_pool_get_field(diagnosticsPool, 'relativeVorticity', relativeVorticityField)
+         call coprocessor_register_data( \
+                       relativeVorticityField % fieldName, \
+                       relativeVorticityField % dimSizes(1), \
+                       relativeVorticityField % dimSizes(2)-1, & 
+                       relativeVorticityField % array)
+
+       block => block % next
+    end do
+
+   end subroutine mpas_init_data_paraview_catalyst!}}}
+
 
 !***********************************************************************
 !
@@ -315,9 +362,8 @@ module mpas_paraview_catalyst
       ! input variables
       !
       !-----------------------------------------------------------------
-!mrp change inout to in when everything is working
-      type (domain_type), intent(inout) :: domain
-      integer, intent(inout) :: itime
+      type (domain_type), intent(in) :: domain
+      integer, intent(in) :: itime
 !      integer, intent(in) :: timeLevel  ! mrp add later
 
       !-----------------------------------------------------------------
@@ -348,13 +394,15 @@ timeLevel=1  ! mrp change to input argument later
          call mpas_pool_get_dimension(statePool, 'num_tracers', num_tracers)
          call mpas_pool_get_field(statePool, 'tracers', tracersField, timeLevel)
          call mpas_pool_get_dimension(statePool, 'index_temperature', indexTemperature)
+
+         ! subtract one from dimsSizes to use nCells rather than nCells+1
          call coprocessor_add_tracer_data( \
                        itime, \
                        indexTemperature, \
                        tracersField % constituentNames(indexTemperature), \
                        num_tracers, \
                        tracersField % dimSizes(2), \
-                       tracersField % dimSizes(3)-1, &   !!!!!!!!!!mrp -1 is temp
+                       tracersField % dimSizes(3)-1, & 
                        tracersField % array)
          call mpas_pool_get_dimension(statePool, 'index_salinity', indexSalinity)
          call coprocessor_add_tracer_data( \
@@ -363,7 +411,7 @@ timeLevel=1  ! mrp change to input argument later
                        tracersField % constituentNames(indexSalinity), \
                        num_tracers, \
                        tracersField % dimSizes(2), \
-                       tracersField % dimSizes(3)-1, &   !!!!!!!!!!mrp -1 is temp
+                       tracersField % dimSizes(3)-1, & 
                        tracersField % array)
 
          call mpas_pool_get_field(diagnosticsPool, 'density', densityField)
@@ -371,7 +419,7 @@ timeLevel=1  ! mrp change to input argument later
                        itime, \
                        densityField % fieldName, \
                        densityField % dimSizes(1), \
-                       densityField % dimSizes(2)-1, &  !!!!! mrp -1 is temp
+                       densityField % dimSizes(2)-1, & 
                        densityField % array)
 
          call mpas_pool_get_field(diagnosticsPool, 'pressure', pressureField)
@@ -379,7 +427,7 @@ timeLevel=1  ! mrp change to input argument later
                        itime, \
                        pressureField % fieldName, \
                        pressureField % dimSizes(1), \
-                       pressureField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
+                       pressureField % dimSizes(2)-1, & 
                        pressureField % array)
 
          call mpas_pool_get_field(diagnosticsPool, 'circulation', circulationField)
@@ -387,7 +435,7 @@ timeLevel=1  ! mrp change to input argument later
                        itime, \
                        circulationField % fieldName, \
                        circulationField % dimSizes(1), \
-                       circulationField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
+                       circulationField % dimSizes(2)-1, & 
                        circulationField % array)
 
          call mpas_pool_get_field(diagnosticsPool, 'relativeVorticity', relativeVorticityField)
@@ -395,7 +443,7 @@ timeLevel=1  ! mrp change to input argument later
                        itime, \
                        relativeVorticityField % fieldName, \
                        relativeVorticityField % dimSizes(1), \
-                       relativeVorticityField % dimSizes(2)-1, &   !!!!!!!!!!mrp -1 is temp
+                       relativeVorticityField % dimSizes(2)-1, & 
                        relativeVorticityField % array)
 
      block => block % next
@@ -448,7 +496,7 @@ timeLevel=1  ! mrp change to input argument later
    subroutine mpas_insitu_finalize()!{{{
  
       print *,'COPROCESS finalize'
-      call mpas_finalize
+      call mpas_finalize_paraview_catalyst
  
    end subroutine mpas_insitu_finalize!}}}
  

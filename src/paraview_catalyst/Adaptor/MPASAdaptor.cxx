@@ -539,7 +539,7 @@ extern "C" void coprocessor_add_tracer_data(int* itime,
 #undef coprocessor_add_tracer_dataset
 }
 
-extern "C" void mpas_initialize()
+extern "C" void mpas_init_paraview_catalyst()
 {
   // Initialize the adaptor.
   if(!Processor) {
@@ -580,7 +580,7 @@ extern "C" void mpas_coprocess()
   Processor->CoProcess(Data);
 }
 
-extern "C" void mpas_finalize()
+extern "C" void mpas_finalize_paraview_catalyst()
 {
   if(Data) {
     Data->Delete();
