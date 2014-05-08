@@ -23,6 +23,7 @@ module ocn_paraview_catalyst
    use mpas_timer
    use mpas_dmpar
    use mpas_timekeeping
+   use mpas_paraview_catalyst
 
    use ocn_constants
    use ocn_diagnostics_routines
@@ -58,6 +59,7 @@ module ocn_paraview_catalyst
    !--------------------------------------------------------------------
 
    type (timer_node), pointer :: amParaviewCatalystTimer
+   integer :: imageFrame
 
 !***********************************************************************
 
@@ -167,6 +169,10 @@ contains
       err = 0
 
       call mpas_init_paraview_catalyst
+      call mpas_init_mesh_paraview_catalyst(domain)
+      call mpas_init_data_paraview_catalyst(domain)
+
+      imageFrame = 1
 
    end subroutine ocn_init_paraview_catalyst!}}}
 
@@ -286,19 +292,12 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), pointer :: amParaviewCatalystPool
+      integer :: doWork, fileID
+
       type (dm_info) :: dminfo
       type (block_type), pointer :: block
-      type (mpas_pool_type), pointer :: statePool
-      type (mpas_pool_type), pointer :: meshPool
-      type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: diagnosticsPool
-      type (mpas_pool_type), pointer :: amParaviewCatalyst
-
-      ! Here are some example variables which may be needed for your analysis member
-      integer, pointer :: nVertLevels, nCellsSolve, nEdgesSolve, nVerticesSolve, num_tracers
-      integer :: iTracer, k, iCell
-      integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeTop, maxLevelVertexBot
+      character (len=StrKIND), pointer :: xtime
 
       real (kind=RKIND), dimension(:), pointer ::  areaCell, dcEdge, dvEdge
 
@@ -308,60 +307,25 @@ contains
 
       call mpas_timer_start("compute_paraview_catalyst", .false., amParaviewCatalystTimer)
 
-      block => domain % blocklist
-      do while (associated(block))
-         call mpas_pool_get_subpool(block % structs, 'state', statePool)
-         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-         call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
-         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
-         call mpas_pool_get_subpool(block % structs, 'amParaviewCatalyst', amParaviewCatalystPool)
+      doWork = 0
+      call mpas_check_coprocess(imageFrame, doWork)
+      if(doWork .eq. 0) then
+         return
+      endif
 
-         ! Here are some example variables which may be needed for your analysis member
-         call mpas_pool_get_dimension(statePool, 'num_tracers', num_tracers)
+      call mpas_load_data_paraview_catalyst(domain, imageFrame)
+      call mpas_coprocess
 
-         call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', nVertLevels)
-         call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
-         call mpas_pool_get_dimension(block % dimensions, 'nEdgesSolve', nEdgesSolve)
-         call mpas_pool_get_dimension(block % dimensions, 'nVerticesSolve', nVerticesSolve)
+      if (dminfo % my_proc_id == IO_NODE) then
+         call mpas_pool_get_subpool(domain % blocklist % structs, 'diagnostics', diagnosticsPool)
+         call mpas_pool_get_array(diagnosticsPool, 'xtime', xtime)
+         fileID = getFreeUnit()
+         open(fileID,file='paraview_catalyst_time.txt',STATUS='UNKNOWN', POSITION='append')
+            write (fileID,'(i10,10x,a,100es24.14)') imageFrame, trim(xtime)
+         close (fileID)
+      end if
 
-         call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
-         call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
-         call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
-         call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-         call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-         call mpas_pool_get_array(meshPool, 'maxLevelVertexBot', maxLevelVertexBot)
-
-         ! Computations which are functions of nCells, nEdges, or nVertices 
-         ! must be placed within this block loop
-         ! Here are some example loops
-         do iCell = 1,nCellsSolve
-            do k = 1, maxLevelCell(iCell)
-               do iTracer = 1, num_tracers
-               ! computations on tracers(iTracer,k, iCell)
-               end do
-            end do
-         end do
-
-         block => block % next
-      end do
-
-      ! mpi gather/scatter calls may be placed here.
-      ! Here are some examples.  See mpas_oac_global_stats.F for further details.
-!      call mpas_dmpar_sum_real_array(dminfo, nVariables, sumSquares(1:nVariables), reductions(1:nVariables))
-!      call mpas_dmpar_min_real_array(dminfo, nMins, mins(1:nMins), reductions(1:nMins))
-!      call mpas_dmpar_max_real_array(dminfo, nMaxes, maxes(1:nMaxes), reductions(1:nMaxes))
-
-      ! Even though some variables do not include an index that is decomposed amongst 
-      ! domain partitions, we assign them within a block loop so that all blocks have the
-      ! correct values for writing output.
-      block => domain % blocklist
-      do while (associated(block))
-         call mpas_pool_get_subpool(block % structs, 'amParaviewCatalyst', amParaviewCatalystPool)
-
-         ! assignment of final amParaviewCatalyst variables could occur here.
-
-         block => block % next
-      end do
+      imageFrame = imageFrame + 1
 
       call mpas_timer_stop("paraview_catalyst", amParaviewCatalystTimer)
 
@@ -510,6 +474,24 @@ contains
       call mpas_finalize_paraview_catalyst
 
    end subroutine ocn_finalize_paraview_catalyst!}}}
+
+   integer function getFreeUnit()!{{{
+      implicit none
+
+      integer :: index
+      logical :: isOpened
+
+      getFreeUnit = 0
+      do index = 1,99
+         if((index /= 5) .and. (index /= 6)) then
+            inquire(unit = index, opened = isOpened)
+            if( .not. isOpened) then
+               getFreeUnit = index
+               return
+            end if
+         end if
+      end do
+   end function getFreeUnit!}}}
 
 end module ocn_paraview_catalyst
 

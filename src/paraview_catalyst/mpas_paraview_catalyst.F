@@ -47,7 +47,7 @@ module mpas_paraview_catalyst
    public :: mpas_insitu_initialize, &
              mpas_init_mesh_paraview_catalyst, &
              mpas_init_data_paraview_catalyst, &
-             mpas_insitu_load_data, &
+             mpas_load_data_paraview_catalyst, &
              mpas_insitu_coprocess, &
              mpas_insitu_finalize
 
@@ -346,7 +346,7 @@ module mpas_paraview_catalyst
 
 !***********************************************************************
 !
-!  routine mpas_insitu_load_data
+!  routine mpas_load_data_paraview_catalyst
 !
 !> \brief   Pass data to paraview catalyst
 !> \author  Patricia Fasel, Mark Petersen
@@ -355,7 +355,7 @@ module mpas_paraview_catalyst
 !>  Pass data to paraview catalyst
 !
 !-----------------------------------------------------------------------
-   subroutine mpas_insitu_load_data(domain, itime)!{{{
+   subroutine mpas_load_data_paraview_catalyst(domain, itime)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -449,7 +449,7 @@ timeLevel=1  ! mrp change to input argument later
      block => block % next
    end do
 
-   end subroutine mpas_insitu_load_data!}}}
+   end subroutine mpas_load_data_paraview_catalyst!}}}
 
 !***********************************************************************
 !
@@ -476,7 +476,7 @@ timeLevel=1  ! mrp change to input argument later
       endif
       ! we actually need to do coprocessing
       ! the grids should already be loaded.
-      call mpas_insitu_load_data(domain, itime)
+      call mpas_load_data_paraview_catalyst(domain, itime)
       print *,'COPROCESS ',itime
       call mpas_coprocess
 

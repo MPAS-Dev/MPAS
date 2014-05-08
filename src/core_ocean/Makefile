@@ -2,7 +2,7 @@
 
 CVMIX_REPO_ADDRESS=http://cvmix.googlecode.com/svn/trunk/src/shared
 
-OCEAN_SHARED_INCLUDES=-I../shared -I../analysis_members -I../cvmix -I../../framework -I../../external/esmf_time_f90 -I../../operators
+OCEAN_SHARED_INCLUDES=-I../shared -I../analysis_members -I../cvmix -I../../framework -I../../external/esmf_time_f90 -I../../operators -I../../paraview_catalyst
 
 OCEAN_LIBRARIES=cvmix/*.o analysis_members/*.o shared/*.o
 
