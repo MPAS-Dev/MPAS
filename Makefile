@@ -1,8 +1,5 @@
 #MODEL_FORMULATION = -DNCAR_FORMULATION
 MODEL_FORMULATION = -DLANL_FORMULATION
-ifeq "$(USE_PARAVIEW)" "true"
-MODEL_FORMULATION += -DUSE_PARAVIEW
-endif
 
 
 dummy:
@@ -322,6 +319,7 @@ else
 	GEN_F90_MESSAGE="MPAS was built with .F files."
 endif
 
+
 ifneq ($(wildcard .mpas_core_*), ) # CHECK FOR BUILT CORE
 
 ifneq ($(wildcard .mpas_core_$(CORE)), ) # CHECK FOR SAME CORE AS ATTEMPTED BUILD.
@@ -417,8 +415,6 @@ endif
                  FCINCLUDES="$(FCINCLUDES)" \
                  CORE="$(CORE)"\
                  AUTOCLEAN="$(AUTOCLEAN)" \
-                 USE_PARAVIEW="$(USE_PARAVIEW)" \
-                 PARAVIEW="$(PARAVIEW)" \
                  GEN_F90="$(GEN_F90)" \
                  NAMELIST_SUFFIX="$(NAMELIST_SUFFIX)" \
                  EXE_NAME="$(EXE_NAME)"

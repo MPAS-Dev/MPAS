@@ -23,7 +23,15 @@ import mpi4py.MPI as MPI
 # main configuration options
 # -------------------------------------------------------------------------
 
-# which grid to use
+# choose grid type:
+# X_Y: Cartesian domain 
+# X_Y_Z: Spherical domain, on globe
+# LON_LAT: Spherical domain, Mercator projection
+# primal: cell-centered variables
+# dual: variables on vertices
+# 1LAYER: One z-layer is visualized at a time
+# NLAYER: image is a 3D view of all layers together.
+
 #gridname = 'X_Y_NLAYER-primal'
 #gridname = 'X_Y_NLAYER-dual'
 #gridname = 'X_Y_Z_1LAYER-primal'
@@ -41,10 +49,10 @@ gridname = 'LON_LAT_1LAYER-primal'
 # in 'filename pattern', %t will be replaced by the timestep, and %l will be
 # replaced by the layer number.
 variable_action = [
-                   ('temperature', 'temperature_%l_%t.png', 0),
-                   ('temperature', 'temperature_%l_%t.png', 25),
-                   ('salinity', 'salinity_%l_%t.png', 6),
-                   ('salinity', 'salinity_%l_%t.png', 12),
+                   ('temperature', 'temperature_k%l_t%t.png', 0),
+                   ('temperature', 'temperature_k%l_t%t.png', 25),
+                   ('salinity', 'salinity_k%l_t%t.png', 6),
+                   ('salinity', 'salinity_k%l_t%t.png', 12),
                   ]
 
 # show axes or not

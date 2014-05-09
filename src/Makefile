@@ -42,8 +42,9 @@ ops: $(AUTOCLEAN_DEPS) reg_includes externals frame
 	ln -sf operators/libops.a libops.a
 
 dycore: $(AUTOCLEAN_DEPS) reg_includes externals frame ops
-	( cd core_$(CORE); $(MAKE) CPPFLAGS="$(CPPFLAGS)" USE_PARAVIEW="$(USE_PARAVIEW)" PARAVIEW="$(PARAVIEW)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
+	( cd core_$(CORE); $(MAKE) CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
 	ln -sf core_$(CORE)/libdycore.a libdycore.a
+
 
 clean: clean_shared clean_core
 

@@ -12,9 +12,18 @@ except: from paraview.simple import *
 
 from mpas_common import *
 
+
+
 datasets = {
      'MPAS_OUTPUT': {
-         # the grid to output
+         # choose grid type:
+         # X_Y: Cartesian domain 
+         # X_Y_Z: Spherical domain, on globe
+         # LON_LAT: Spherical domain, Mercator projection
+         # primal: cell-centered variables
+         # dual: variables on vertices
+         # 1LAYER: One z-layer is visualized at a time
+         # NLAYER: image is a 3D view of all layers together.
          #'grid': 'X_Y_NLAYER-primal',
          #'grid': 'X_Y_NLAYER-dual',
          #'grid': 'X_Y_Z_1LAYER-primal',
@@ -45,7 +54,6 @@ datasets = {
      },
 
      'MPAS_OUTPUT2': {
-         # the grid to output
          #'grid': 'X_Y_NLAYER-primal',
          #'grid': 'X_Y_NLAYER-dual',
          #'grid': 'X_Y_Z_1LAYER-primal',
