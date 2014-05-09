@@ -2,15 +2,18 @@
 
 OBJS = mpas_ocn_analysis_driver.o \
        mpas_ocn_global_stats.o \
-       mpas_ocn_zonal_mean.o
+       mpas_ocn_zonal_mean.o \
+       mpas_ocn_paraview_catalyst.o
 
 all: $(OBJS)
 
-mpas_ocn_analysis_driver.o: mpas_ocn_global_stats.o mpas_ocn_zonal_mean.o
+mpas_ocn_analysis_driver.o: mpas_ocn_global_stats.o mpas_ocn_zonal_mean.o mpas_ocn_paraview_catalyst.o
 
 mpas_ocn_global_stats.o:
 
 mpas_ocn_zonal_mean.o:
+
+mpas_ocn_paraview_catalyst.o:
 
 clean:
 	$(RM) *.o *.i *.mod *.f90 lib*.a 

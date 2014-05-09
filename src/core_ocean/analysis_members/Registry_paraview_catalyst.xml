@@ -1,0 +1,31 @@
+	<nml_record name="paraview_catalyst" in_defaults="true">
+		<nml_option name="config_use_paraview_catalyst" type="logical" default_value=".false." units="unitless"
+			description="If true, ocean analysis member paraview_catalyst is called."
+			possible_values=".true. or .false."
+		/>
+		<nml_option name="config_paraview_catalyst_compute_interval" type="character" default_value="same_as_output" units="unitless"
+			description="Timestamp determining how often analysis member computation should be performed."
+			possible_values="'DDDD_HH:MM:SS', 'same_as_output'"
+		/>
+		<nml_option name="config_paraview_catalyst_compute_startup" type="logical" default_value=".true." units="unitless"
+			description="Logical flag determining if an analysis member computation occurs on start-up."
+			possible_values=".true. or .false."
+		/>
+	</nml_record>
+	<packages>
+		<package name="amParaviewCatalyst" description="This package includes variables required for the amParaviewCatalyst analysis member."/>
+	</packages>
+	<streams>
+		<stream name="output" type="output">
+			<var name="example_variable1"/> 
+			<var name="example_variable2"/> 
+		</stream>
+	</streams>
+	<var_struct name="amParaviewCatalyst" time_levs="1" packages="amParaviewCatalyst">
+		<var name="example_variable1" type="real" dimensions="nVertLevels nCells Time" units="UNITS HERE"
+			description="DESCRIPTION HERE"
+		/>
+		<var name="example_variable2" type="real" dimensions="nVertLevels nCells Time" units="UNITS HERE"
+			description="DESCRIPTION HERE"
+		/>
+	</var_struct>

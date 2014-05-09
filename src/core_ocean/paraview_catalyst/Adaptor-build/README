@@ -1,0 +1,2 @@
+The src/paraview_catalyst/Adapter-build directory will be populated
+by cmake and object files during the make process.
