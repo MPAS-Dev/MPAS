@@ -466,7 +466,7 @@ print *, 'output alarmTimeStep', alarmTimeStep, ierr
       call mpas_pool_get_array(statePool, 'tracers', tracers, 1)
 
       call mpas_pool_get_config(block % configs, 'config_horiz_tracer_adv_order', config_horiz_tracer_adv_order)
-      call mpas_pool_get_config(block % configs, 'config_hmix_ScaleWithMesh', config_hmix_scaleWithMesh)
+      call mpas_pool_get_config(block % configs, 'config_hmix_scaleWithMesh', config_hmix_scaleWithMesh)
       call mpas_pool_get_config(block % configs, 'config_maxMeshDensity', config_maxMeshDensity)
    
       call ocn_setup_sign_and_index_fields(meshPool)

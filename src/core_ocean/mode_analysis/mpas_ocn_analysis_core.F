@@ -259,8 +259,8 @@ module mpas_core
 
       integer, pointer :: nCells, nEdges, nVertices, nVertLevels
       integer, pointer :: config_horiz_tracer_adv_order
-      real (kind=RKIND), pointer :: config_maxMeshDensity
       logical, pointer :: config_hmix_scaleWithMesh
+      real (kind=RKIND), pointer :: config_maxMeshDensity
 
       call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells)
       call mpas_pool_get_dimension(block % dimensions, 'nEdges', nEdges)
@@ -284,21 +284,25 @@ module mpas_core
       call mpas_pool_get_array(meshPool, 'boundaryCell', boundaryCell)
       call mpas_pool_get_array(meshPool, 'edgeTangentVectors', edgeTangentVectors)
       call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
+      call mpas_pool_get_array(meshPool, 'boundaryCell', boundaryCell)
+      call mpas_pool_get_array(meshPool, 'maxLevelEdgeBot', maxLevelEdgeBot)
+      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
 
       call mpas_pool_get_array(diagnosticsPool, 'uTransport', uTransport)
       call mpas_pool_get_array(diagnosticsPool, 'uBolusGM', uBolusGM)
+      call mpas_pool_get_array(diagnosticsPool, 'normalVelocityX', normalVelocityX)
+      call mpas_pool_get_array(diagnosticsPool, 'normalVelocityY', normalVelocityY)
+      call mpas_pool_get_array(diagnosticsPool, 'normalVelocityZ', normalVelocityZ)
+      call mpas_pool_get_array(diagnosticsPool, 'normalVelocityZonal', normalVelocityZonal)
+      call mpas_pool_get_array(diagnosticsPool, 'normalVelocityMeridional', normalVelocityMeridional)
 
-      call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity)
-      call mpas_pool_get_array(statePool, 'normalVelocityX', normalVelocityX)
-      call mpas_pool_get_array(statePool, 'normalVelocityY', normalVelocityY)
-      call mpas_pool_get_array(statePool, 'normalVelocityZ', normalVelocityZ)
-      call mpas_pool_get_array(statePool, 'normalVelocityZonal', normalVelocityZonal)
-      call mpas_pool_get_array(statePool, 'normalVelocityMeridional', normalVelocityMeridional)
-      call mpas_pool_get_array(statePool, 'tracers', tracers)
+      call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, 1)
+      call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
+      call mpas_pool_get_array(statePool, 'tracers', tracers, 1)
 
       call mpas_pool_get_config(block % configs, 'config_horiz_tracer_adv_order', config_horiz_tracer_adv_order)
-      call mpas_pool_get_config(ocnConfigs, 'config_maxMeshDensity', config_maxMeshDensity)
-      call mpas_pool_get_config(ocnConfigs, 'config_hmix_scaleWithMesh', config_hmix_scaleWithMesh)
+      call mpas_pool_get_config(block % configs, 'config_hmix_scaleWithMesh', config_hmix_scaleWithMesh)
+      call mpas_pool_get_config(block % configs, 'config_maxMeshDensity', config_maxMeshDensity)
    
       call ocn_setup_sign_and_index_fields(meshPool)
       call mpas_initialize_deriv_two(meshPool, derivTwo, err)

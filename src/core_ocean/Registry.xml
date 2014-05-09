@@ -220,7 +220,7 @@
 		/>
 	</nml_record>
 	<nml_record name="hmix" in_defaults="true">
-		<nml_option name="config_hmix_ScaleWithMesh" type="logical" default_value=".false." units="unitless"
+		<nml_option name="config_hmix_scaleWithMesh" type="logical" default_value=".false." units="unitless"
 					description="If false, del2 and del4 coefficients are constant throughout the mesh (equivalent to setting $\rho_m=1$ throughout the mesh).  If true, these coefficients scale as mesh density to the -3/4 power."
 					possible_values=".true. or .false."
 		/>
