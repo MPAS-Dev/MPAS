@@ -2,7 +2,7 @@
 
 CVMIX_REPO_ADDRESS=http://cvmix.googlecode.com/svn/trunk/src/shared
 
-OCEAN_SHARED_INCLUDES=-I../shared -I../analysis_members -I../cvmix -I../../framework -I../../external/esmf_time_f90 -I../../operators -I../../paraview_catalyst
+OCEAN_SHARED_INCLUDES=-I../shared -I../analysis_members -I../cvmix -I../../framework -I../../external/esmf_time_f90 -I../../operators -I../paraview_catalyst
 
 OCEAN_LIBRARIES=cvmix/*.o analysis_members/*.o shared/*.o
 
@@ -49,11 +49,21 @@ libcvmix:
 		(cd cvmix; svn update; make all FC="$(FC)" FFLAGS="$(FFLAGS)" FINCLUDES="$(FINCLUDES)") \
 	fi
 
+ifeq "$(USE_PARAVIEW)" "true"
+paraview: 
+	( cd paraview_catalyst; $(MAKE) PARAVIEW="$(PARAVIEW)" CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
+	ln -sf paraview_catalyst/libparaview.a libparaview.a
+endif
+
 shared: libcvmix
 	(cd shared; $(MAKE) FCINCLUDES="$(FCINCLUDES) $(OCEAN_SHARED_INCLUDES)")
 
 analysis_members: libcvmix shared
 	( cd analysis_members; $(MAKE) FCINCLUDES="$(FCINCLUDES) $(OCEAN_SHARED_INCLUDES)" CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
+# Depend on paraview if it's available.
+ifeq "$(USE_PARAVIEW)" "true"
+analysis_members: paraview
+endif
 
 error_head:
 	@echo ""
@@ -80,6 +90,7 @@ clean:
 	if [ -d cvmix ]; then \
 		(cd cvmix; make clean) \
 	fi
+	(cd paraview_catalyst; $(MAKE) clean )
 	(cd mode_forward; $(MAKE) clean)
 	(cd mode_analysis; $(MAKE) clean)
 	(cd analysis_members; $(MAKE) clean)

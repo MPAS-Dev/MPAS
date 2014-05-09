@@ -37,24 +37,13 @@ frame: $(AUTOCLEAN_DEPS) reg_includes externals
 	( cd framework; $(MAKE) CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
 	ln -sf framework/libframework.a libframework.a
 
-ifeq "$(USE_PARAVIEW)" "true"
-paraview: $(AUTOCLEAN_DEPS) frame
-	( cd paraview_catalyst; $(MAKE) PARAVIEW="$(PARAVIEW)" CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
-	ln -sf paraview_catalyst/libparaview.a libparaview.a
-endif
-
 ops: $(AUTOCLEAN_DEPS) reg_includes externals frame
 	( cd operators; $(MAKE) CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
 	ln -sf operators/libops.a libops.a
 
 dycore: $(AUTOCLEAN_DEPS) reg_includes externals frame ops
-	( cd core_$(CORE); $(MAKE) CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
+	( cd core_$(CORE); $(MAKE) CPPFLAGS="$(CPPFLAGS)" USE_PARAVIEW="$(USE_PARAVIEW)" PARAVIEW="$(PARAVIEW)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
 	ln -sf core_$(CORE)/libdycore.a libdycore.a
-# Depend on paraview if it's available.
-ifeq "$(USE_PARAVIEW)" "true"
-dycore: paraview
-endif
-
 
 clean: clean_shared clean_core
 
@@ -76,7 +65,6 @@ endif
 	( cd registry; $(MAKE) clean )
 	( cd external; $(MAKE) clean )
 	( cd framework; $(MAKE) clean )
-	( cd paraview_catalyst; $(MAKE) clean )
 	( cd operators; $(MAKE) clean )
 	( cd inc; rm -f *.inc Registry.processed )
 	( cd driver; $(MAKE) clean )
