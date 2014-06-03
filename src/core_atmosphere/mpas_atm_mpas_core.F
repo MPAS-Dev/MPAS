@@ -310,6 +310,11 @@ module mpas_core
          currTime = mpas_get_clock_time(clock, MPAS_NOW, ierr)
          call mpas_get_time(curr_time=currTime, dateTimeString=timeStamp, ierr=ierr)         
          write(0,*) 'Begin timestep ', trim(timeStamp)
+         
+         !nick 23-02-2014: track vortex
+         block_ptr => domain % blocklist
+         !call atm_compute_vortexLoc(block_ptr % state % time_levs(1) % state, block_ptr % diag, &
+         !                               block_ptr % mesh, domain)
 
          ! Input external updates (i.e. surface)
          if (mpas_is_alarm_ringing(clock, sfcAlarmID, ierr=ierr)) then
@@ -456,18 +461,26 @@ module mpas_core
             diag % rho % array(k,iCell) = state % rho_zz % array(k,iCell) * grid % zz % array(k,iCell)
          end do
       end do
-
+      
       call interp_diagnostics(grid,state,diag,diag_physics)
       
       write(0,*) "Calculating ertel pv"
+      !need halo cells for everything w/ horizontal derivative
+      call mpas_dmpar_exch_halo_field(diag % theta)
+      call mpas_dmpar_exch_halo_field(diag % uReconstructX)
+      call mpas_dmpar_exch_halo_field(diag % uReconstructY)
+      call mpas_dmpar_exch_halo_field(diag % uReconstructZ)
+      call mpas_dmpar_exch_halo_field(state % w)
       
       call calc_ertel_pv(grid, state, diag)
       
       pvuVal = 2.0_RKIND
       missingVal = -99999.0_RKIND
-      call interp_pv(grid%nCells, grid%nVertLevels, pvuVal, grid % latCell % array, &
-                     diag % ertel_pv % array, diag % theta % array, diag % theta_pv % array, &
-                     missingVal)
+      call interp_pv_diagnostics(grid, diag, pvuVal, missingVal)
+      !call interp_DT_floodFill(grid, diag, pvuVal, missingVal)
+      !call interp_pv(grid%nCells, grid%nVertLevels, pvuVal, grid % latCell % array, &
+      !               diag % ertel_pv % array, diag % theta % array, diag % theta_pv % array, &
+      !               missingVal)
                      
       write(0,*) "Calculating dpv_dt"
       
@@ -551,15 +564,18 @@ module mpas_core
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag_physics % t2m, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % temperature_200hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % temperature_500hPa, ierr)
+      call MPAS_streamAddField(hifreq_stream, block_ptr % diag % temperature_700hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % temperature_850hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % height_200hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % height_500hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % height_850hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % uzonal_200hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % uzonal_500hPa, ierr)
+      call MPAS_streamAddField(hifreq_stream, block_ptr % diag % uzonal_700hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % uzonal_850hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % umeridional_200hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % umeridional_500hPa, ierr)
+      call MPAS_streamAddField(hifreq_stream, block_ptr % diag % umeridional_700hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % umeridional_850hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % w_200hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % w_500hPa, ierr)
@@ -568,6 +584,9 @@ module mpas_core
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % vorticity_500hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % vorticity_850hPa, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % theta_pv, ierr)
+      call MPAS_streamAddField(hifreq_stream, block_ptr % diag % u_pv, ierr)
+      call MPAS_streamAddField(hifreq_stream, block_ptr % diag % v_pv, ierr)
+      call MPAS_streamAddField(hifreq_stream, block_ptr % diag % vort_pv, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % depv_dt_lw, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % depv_dt_sw, ierr)
       call MPAS_streamAddField(hifreq_stream, block_ptr % diag % depv_dt_bl, ierr)
@@ -956,6 +975,272 @@ module mpas_core
       end do ! end loop over edges
 
    end subroutine atm_adv_coef_compression
+   
+   subroutine interp_DT_floodFill(grid, diag, pvuVal, missingVal)
+      !searching down columns to find 2pvu surface is buggy with stratospheric wave breaking,
+      !since it won't find the dynamic tropopause we'd like to find.
+      !a quick fix to check if a few levels below is also < 2pvu ends up finding the surface
+      !if there's high pv at the surface that gets close to DT.
+      !to alleviate the (hopefully) pockets of wave breaking, we can flood fill from a known
+      !region (ie model top) and hopefully cascade around any trouble regions.
+      !we can also add in communication between blocks in the future if need be.
+     
+      implicit none
+      
+      type (mesh_type), intent(in) :: grid
+      type (diag_type), intent(inout) :: diag
+      real(kind=RKIND) ::  pvuVal, missingVal
+      
+      integer :: iCell, k, nCells, nVertLevels, nChanged, iNbr, iCellNbr
+      integer, dimension(:), pointer :: nEdgesOnCell
+      integer, dimension(:,:), pointer :: cellsOnCell, cellsOnEdge, edgesOnCell, verticesOnCell, &
+                                          cellsOnVertex!, inStrato
+                                          
+      real(kind=RKIND) :: valInterpCell, sgnHemi, sgn, valh, vall, dv_dl, levFrac
+      real(kind=RKIND),dimension(:),pointer:: areaCell, latCell, u_pv, v_pv, theta_pv, vort_pv
+      real(kind=RKIND),dimension(:,:),pointer:: uZonal, uMeridional, vorticity, theta, ertel_pv, &
+                                                kiteAreasOnVertex
+                          
+      integer, dimension(:,:), allocatable :: candInStrato, inStrato
+      real(kind=RKIND), dimension(:,:), allocatable :: vVort
+      
+      nCells = grid % nCellsSolve 
+      nVertLevels = grid % nVertLevels
+      !maxEdgesCell = grid % maxEdges
+      
+      nEdgesOnCell => grid % nEdgesOnCell % array
+      cellsOnCell => grid % cellsOnCell % array
+      cellsOnEdge => grid % cellsOnEdge % array
+      verticesOnCell => grid % verticesOnCell % array
+      kiteAreasOnVertex => grid % kiteAreasOnVertex % array
+      cellsOnVertex => grid % cellsOnVertex % array
+      areaCell => grid % areaCell % array
+      
+      latCell => grid % latCell % array
+      
+      uZonal      => diag % uReconstructZonal % array
+      uMeridional => diag % uReconstructMeridional % array
+      vorticity   => diag % vorticity % array
+      theta       => diag % theta % array
+      ertel_pv    => diag % ertel_pv % array
+      
+      u_pv => diag % u_pv % array
+      v_pv => diag % v_pv % array
+      theta_pv => diag % theta_pv % array
+      vort_pv => diag % vort_pv % array
+      !inStrato => diag % inStrato % array
+      
+      !flood fill above dynamic tropopause.
+      !candInStrato>0 if above 2pvu. inStrato(k,iCell)>0 if above DT
+      allocate(candInStrato(nVertLevels, nCells))
+      allocate(inStrato(nVertLevels, nCells))
+      candInStrato(:,:) = 0
+      inStrato(:,:) = 0
+      !store whether candidate above DT to avoid repeating logic.
+      do iCell=1,nCells
+         sgnHemi = sign(1.0_RKIND, latCell(iCell)) !at the equator, sign(0)=0
+         if (sgnHemi .EQ. 0.0) sgnHemi = 1.0
+         valInterpCell = pvuVal*sgnHemi
+         do k=1,nVertLevels
+            sgn = (ertel_pv(k,iCell)-valInterpCell)*sgnHemi
+            if (sgn .GE. 0) candInStrato(k,iCell) = 1
+         end do
+      end do
+      
+      !seed flood fill with model top that's above DT.
+      !can have model top below 2pvu (eg, tropics)
+      nChanged = 0
+      do iCell=1,nCells
+         do k=nVertLevels-5,nVertLevels
+            if (candInStrato(k,iCell) .GT. 0) then
+               inStrato(k,iCell) = 1
+               candInStrato(k,iCell) = 0
+               nChanged = nChanged+1
+            end if
+         end do
+      end do
+      
+      !flood fill from the given seeds. since I don't know enough fortran,
+      !we'll just brute force a continuing loop.
+      do while(nChanged .GT. 0)
+        nChanged = 0
+        do iCell=1,nCells
+          do k=nVertLevels,1,-1
+             !update if candidate and neighbor in strato
+             if (candInStrato(k,iCell) .GT. 0) then
+                !nbr above
+                if (k .LT. nVertLevels) then
+                  if (inStrato(k+1,iCell) .GT. 0) then
+                    inStrato(k,iCell) = 1
+                    candInStrato(k,iCell) = 0
+                    nChanged = nChanged+1
+                    cycle
+                  end if
+                end if
+                
+                !side nbrs
+                do iNbr = 1, nEdgesOnCell(iCell)
+                  iCellNbr = cellsOnCell(iNbr,iCell)
+                  if (inStrato(k,iCellNbr) .GT. 0) then
+                    inStrato(k,iCell) = 1
+                    candInStrato(k,iCell) = 0
+                    nChanged = nChanged+1
+                    cycle
+                  end if
+                end do
+                
+                !nbr below
+                if (k .GT. 1) then
+                  if (inStrato(k-1,iCell) .GT. 0) then
+                    inStrato(k,iCell) = 1
+                    candInStrato(k,iCell) = 0
+                    nChanged = nChanged+1
+                    cycle
+                  end if
+                end if
+             end if !candInStrato
+          end do !levels
+        end do !cells
+      end do !while
+      
+      deallocate(candInStrato)
+      
+      !interpolate fields to the bottom of this strato
+      allocate(vVort(nVertLevels, nCells))
+      do iCell=1,nCells
+         do k=1,nVertLevels
+            vVort(k,iCell) = calc_verticalVorticity_cell(iCell, k, nEdgesOnCell(iCell), verticesOnCell, cellsOnVertex, &
+                                                         kiteAreasOnVertex, areaCell(iCell), vorticity)
+         end do
+      end do
+      
+      u_pv(:)= missingVal
+      v_pv(:)= missingVal
+      theta_pv(:)= missingVal
+      vort_pv(:)= missingVal
+      do iCell=1,nCells
+         do k=1,nVertLevels
+            !find lowest strato level
+            if (inStrato(k,iCell) .GT. 0) exit
+         end do
+         if (k .EQ. nVertLevels) cycle
+         
+         !for interpolation to 2 pvu,
+         !take value if at lowest value. linear if above.
+         if (k .EQ. 1) then
+           u_pv(iCell) = uZonal(k,iCell)
+           v_pv(iCell) = uMeridional(k,iCell)
+           theta_pv(iCell) = theta(k,iCell)
+           vort_pv(iCell) = vVort(k,iCell)
+         else
+           !interpolate between this level and beneath
+           k = k-1
+           valh = ertel_pv(k+1,iCell)
+           vall = ertel_pv(k,iCell)
+           dv_dl = valh-vall
+           if (abs(dv_dl)<1.e-6) then
+             levFrac = .5
+           else
+             sgnHemi = sign(1.0_RKIND, latCell(iCell)) !at the equator, sign(0)=0
+             if (sgnHemi .EQ. 0.0) sgnHemi = 1.0
+             valInterpCell = pvuVal*sgnHemi
+             levFrac = (valInterpCell-vall)/dv_dl
+           end if
+           
+           valh = uZonal(k+1,iCell)
+           vall = uZonal(k,iCell)
+           dv_dl = valh-vall
+           u_pv(iCell) = vall+dv_dl*levFrac
+           
+           valh = uMeridional(k+1,iCell)
+           vall = uMeridional(k,iCell)
+           dv_dl = valh-vall
+           v_pv(iCell) = vall+dv_dl*levFrac
+           
+           valh = theta(k+1,iCell)
+           vall = theta(k,iCell)
+           dv_dl = valh-vall
+           theta_pv(iCell) = vall+dv_dl*levFrac
+           
+           valh = vVort(k+1,iCell)
+           vall = vVort(k,iCell)
+           dv_dl = valh-vall
+           vort_pv(iCell) = vall+dv_dl*levFrac
+           
+         end if !column interp
+      
+      end do !nCells
+      
+      deallocate(vVort)
+      deallocate(inStrato)
+      
+   end subroutine interp_DT_floodFill
+   
+   subroutine interp_pv_diagnostics(grid, diag, pvuVal, missingVal)
+      !compute various fields on 2pvu surface using calculated PVU field
+      !potential temperature, uZonal, uMeridional, vertical vorticity
+      
+      implicit none
+      
+      type (mesh_type), intent(in) :: grid
+      type (diag_type), intent(inout) :: diag
+      real(kind=RKIND) ::  pvuVal, missingVal
+      
+      integer :: iCell, k, nCells, nVertLevels
+      integer, dimension(:), pointer :: nEdgesOnCell
+      integer, dimension(:,:), pointer :: cellsOnCell, cellsOnEdge, edgesOnCell, verticesOnCell, &
+                                          cellsOnVertex
+                                          
+      real(kind=RKIND),dimension(:),pointer:: areaCell, latCell, u_pv, v_pv, theta_pv, vort_pv
+      real(kind=RKIND),dimension(:,:),pointer:: uZonal, uMeridional, vorticity, theta, ertel_pv, &
+                                                kiteAreasOnVertex
+      
+      real(kind=RKIND), dimension(:,:), allocatable :: vVort
+      
+      nCells = grid % nCellsSolve 
+      nVertLevels = grid % nVertLevels
+      !maxEdgesCell = grid % maxEdges
+      
+      nEdgesOnCell => grid % nEdgesOnCell % array
+      cellsOnCell => grid % cellsOnCell % array
+      cellsOnEdge => grid % cellsOnEdge % array
+      verticesOnCell => grid % verticesOnCell % array
+      kiteAreasOnVertex => grid % kiteAreasOnVertex % array
+      cellsOnVertex => grid % cellsOnVertex % array
+      areaCell => grid % areaCell % array
+      
+      latCell => grid % latCell % array
+      
+      uZonal      => diag % uReconstructZonal % array
+      uMeridional => diag % uReconstructMeridional % array
+      vorticity   => diag % vorticity % array
+      theta       => diag % theta % array
+      ertel_pv    => diag % ertel_pv % array
+      
+      u_pv => diag % u_pv % array
+      v_pv => diag % v_pv % array
+      theta_pv => diag % theta_pv % array
+      vort_pv => diag % vort_pv % array
+      
+      call interp_pv(nCells, nVertLevels, pvuVal, latCell, &
+                     ertel_pv, uZonal, u_pv, missingVal)
+      call interp_pv(nCells, nVertLevels, pvuVal, latCell, &
+                     ertel_pv, uMeridional, v_pv, missingVal)
+      call interp_pv(nCells, nVertLevels, pvuVal, latCell, &
+                     ertel_pv, theta, theta_pv, missingVal)
+                     
+      allocate(vVort(nVertLevels, nCells))
+      do iCell=1,nCells
+         do k=1,nVertLevels
+            vVort(k,iCell) = calc_verticalVorticity_cell(iCell, k, nEdgesOnCell(iCell), verticesOnCell, cellsOnVertex, &
+                                                         kiteAreasOnVertex, areaCell(iCell), vorticity)
+         end do
+      end do
+      call interp_pv(nCells, nVertLevels, pvuVal, latCell, &
+                     ertel_pv, vVort, vort_pv, missingVal)
+      deallocate(vVort)
+      
+   end subroutine interp_pv_diagnostics
    
    subroutine calc_ertel_dpv_dt(grid, state, diag, tend_physics, tend, diag_physics)
       !Driver for Cavallo's way of doing PV budgets.
@@ -1926,7 +2211,11 @@ module mpas_core
                          missingVal)
 
       implicit none
-      ! interpolate columns of field1 to where field0 is interpVal*sign(lat)
+      ! interpolate columns of field1 to where field0 is interpVal*sign(lat) such that
+      ! vals in cells above index are above interpVal and cells below index are below interpVal.
+      ! to limit higher level spikes (eg from mixing ~17km), require change in sign to persist >1 levels.
+      !if whole column is above value, use surface value.
+      
       ! input
 
       integer :: nCells, nLevels
@@ -1937,21 +2226,27 @@ module mpas_core
 
       !  local
       
-      integer :: iCell, iLev, levInd
-      real(kind=RKIND) :: valh, vall, sgnh, sgnl, dv_dl, levFrac, valInterpCell
+      integer :: iCell, iLev, levInd, indlNbr
+      real(kind=RKIND) :: valh, vall, vallNbr, sgnh, sgnl, sgnlNbr
+      real(kind=RKIND) :: dv_dl, levFrac, valInterpCell, sgnHemi
 
       do iCell = 1, nCells
         !starting from top, trap val if values on opposite side
         levInd = -1 !what should happen with missing values?
         levFrac = 0.0
-        valInterpCell = sign(interpVal, latCell(iCell))
+        sgnHemi = sign(1.0_RKIND, latCell(iCell)) !problem at the equator...is sign(0)=0?
+        if (sgnHemi .EQ. 0.0) sgnHemi = 1.0
+        valInterpCell = interpVal*sgnHemi
         do iLev = nLevels,2,-1
         !do iLev = 2,nLevels-1,1
           valh = field0(iLev,iCell)
           vall = field0(iLev-1,iCell)
-          sgnh = valh-valInterpCell
-          sgnl = vall-valInterpCell
-          if (sgnh*sgnl<= 0.0) then
+          indlNbr = max(iLev-2,1)
+          vallNbr = field0(indlNbr, iCell)
+          sgnh = (valh-valInterpCell)*sgnHemi
+          sgnl = (vall-valInterpCell)*sgnHemi
+          sgnlNbr = (vallNbr-valInterpCell)*sgnHemi
+          if (sgnh>= 0.0 .AND. sgnl<=0.0 .AND. sgnlNbr<=0.0) then
             !sandwiched value. equal in case val0 is a vals[l].
             !get linear interpolation: val0 = vals[l]+dvals/dl * dl
             !Avoid divide by 0 by just assuming value is 
@@ -1961,7 +2256,7 @@ module mpas_core
             if (abs(dv_dl)<1.e-6) then
               levFrac = 0.5;
             else
-              levFrac = (interpVal-vall)/dv_dl
+              levFrac = (valInterpCell-vall)/dv_dl
             end if
             
             levInd = iLev-1
@@ -1972,7 +2267,11 @@ module mpas_core
 
         !find value of field using index we just found
         if (levInd<0) then
-          field(iCell) = missingVal
+          if (sgnl>0.0) then
+            field(iCell) = field1(1,iCell)
+          else
+            field(iCell) = missingVal
+          end if
         else
           valh = field1(levInd+1,iCell)
           vall = field1(levInd,iCell)
@@ -1983,6 +2282,121 @@ module mpas_core
       end do
       
    end subroutine interp_pv
+   
+   real (kind=RKIND) function sphere_distance(lat1, lon1, lat2, lon2, radius)
+
+     !Compute the great-circle distance between (lat1, lon1) and (lat2, lon2) on a
+     !sphere with given radius.
+     !==================================================================================================
+     implicit none
+
+     real (kind=RKIND), intent(in) :: lat1, lon1, lat2, lon2, radius
+     real (kind=RKIND) :: arg1
+
+     arg1 = sqrt( sin(0.5*(lat2-lat1))**2 +  &
+                  cos(lat1)*cos(lat2)*sin(0.5*(lon2-lon1))**2 )
+     sphere_distance = 2.*radius*asin(arg1)
+
+   end function sphere_distance
+
+
+  subroutine atm_compute_vortexLoc(state, diag, grid, domain)
+     
+      use mpas_grid_types
+      use mpas_constants
+   
+      implicit none
+      
+      !Track the min of the vortex on 2pvu from previous time and
+      !update inVortex[iCell]>0 if cell w/in radius
+   
+      type (state_type), intent(inout) :: state
+      type (diag_type), intent(inout) :: diag
+      type (mesh_type), intent(in) :: grid
+      type (domain_type), intent(in) :: domain
+   
+      integer :: iCell, k
+      real(kind=RKIND) :: pvuVal, missingVal, valCell, theta_min, global_theta_min
+      real(kind=RKIND) :: vortexLat, vortexLon, lat0, lon0, bigVal, dist, maxDist
+      maxDist = 2.0e5 !200km
+
+      do iCell=1,grid%nCellsSolve
+         do k=1,grid%nVertLevels
+            diag % theta % array(k,iCell) = state % theta_m % array(k,iCell) / (1._RKIND + rvord * state % scalars % array(state % index_qv,k,iCell))
+            diag % rho % array(k,iCell) = state % rho_zz % array(k,iCell) * grid % zz % array(k,iCell)
+         end do
+      end do
+      
+      write(0,*) "Calculating ertel pv"
+      !need halo cells for everything w/ horizontal derivative
+      call mpas_dmpar_exch_halo_field(diag % theta)
+      call mpas_dmpar_exch_halo_field(diag % uReconstructX)
+      call mpas_dmpar_exch_halo_field(diag % uReconstructY)
+      call mpas_dmpar_exch_halo_field(diag % uReconstructZ)
+      call mpas_dmpar_exch_halo_field(state % w)
+      
+      call calc_ertel_pv(grid, state, diag)
+      
+      pvuVal = 2.0_RKIND
+      missingVal = -99999.0_RKIND
+      call interp_pv(grid%nCells, grid%nVertLevels, pvuVal, grid % latCell % array, &
+                     diag % ertel_pv % array, diag % theta % array, diag % theta_pv % array, &
+                     missingVal)
+      
+      !now we track min within a spatial disk
+      !since i don't know how to make this work for >1 block/process,
+      !only use this for 1 block for process :)
+      vortexLat = diag % vortexLat % scalar
+      vortexLon = diag % vortexLon % scalar
+      
+      bigVal = 99999.0_RKIND
+      theta_min = bigVal
+      do iCell = 1, grid % nCellsSolve
+        !include cell in min only if
+        !(1) cell within search disk by distance and (2) value not missing value
+        if (diag % theta_pv % array(iCell)==missingVal) cycle
+        
+        dist = sphere_distance(grid%latCell%array(iCell), grid%lonCell%array(iCell), vortexLat, vortexLon, a)
+        if (dist>maxDist) cycle
+        
+        valCell = diag % theta_pv % array(iCell)
+        if (valCell<theta_min) then
+          theta_min = valCell
+          lat0 = grid%latCell%array(iCell)
+          lon0 = grid%lonCell%array(iCell)
+        end if
+      end do
+
+      call mpas_dmpar_min_real(domain%dminfo, theta_min, global_theta_min)
+      if (theta_min>global_theta_min) then
+       !then block doesn't have the minimum cell.
+       !rig this so the block w/ the minimum will update all others
+       lat0 = bigVal
+       lon0 = bigVal
+       !n.b. as is, this can mix lat/lon of >1 cells with equal min values
+       !but what are the odds of 2 floats being bit equal?
+       !They're close in space as well
+      end if
+
+      call mpas_dmpar_min_real(domain%dminfo, lat0, vortexLat)
+      call mpas_dmpar_min_real(domain%dminfo, lon0, vortexLon)
+      
+      diag % vortexLat % scalar = vortexLat
+      diag % vortexLon % scalar = vortexLon
+      
+      write(0,*) 'vortex lat/lon: ', vortexLat, vortexLon
+      
+      !update inVortex array
+      maxDist = 8.0e5 !800km
+      diag % inVortex % array(:) = 0
+      do iCell = 1, grid % nCellsSolve
+        dist = sphere_distance(grid%latCell%array(iCell), grid%lonCell%array(iCell), vortexLat, vortexLon, a)
+        if (dist .le. maxDist) then
+          diag % inVortex % array(iCell) = 1
+        end if
+      end do
+        
+  end subroutine atm_compute_vortexLoc
 
 !***********************************************************************
 !

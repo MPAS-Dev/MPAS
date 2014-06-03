@@ -95,8 +95,15 @@
 !inout arguments:
  type(domain_type),intent(inout):: domain
 
+!nick 5-03-2014: zero water vapor inside vortex for lw radiation scheme
+!have to store original qv, 0 columns, mpas2physics, call radiation, restore qv
+
 !local variables:
  type(block_type),pointer:: block
+ integer :: iCell, nCellsSolve, nLevels
+ !nick
+ !real(kind=RKIND), dimension(:,:), pointer :: qv
+ !real(kind=RKIND), dimension(:,:), allocatable :: qvTemp
 
 !==================================================================================================
 
@@ -109,19 +116,48 @@
 
  block => domain % blocklist
  do while(associated(block))
+ 
+    !nick
+    !0 qv inside vortex
+    !nLevels = block%mesh % nVertLevels
+    !nCellsSolve = block%mesh % nCellsSolve
+    !qv => block % state % time_levs(1) % state % scalars % array(block % state % time_levs(1) % state % index_qv,:,:)
+    !allocate(qvTemp(nLevels, nCellsSolve))
+    !qvTemp(1:nLevels,1:nCellsSolve) = qv(1:nLevels,1:nCellsSolve)
+    !do iCell = 1, block%mesh % nCellsSolve
+    !  if (block%diag%inVortex%array(iCell)>0) then
+    !    qv(1:nLevels,iCell) = 0.0
+    !  end if
+    !end do
 
     !allocate arrays shared by all physics parameterizations:
     call allocate_forall_physics
 
-    !physics prep step:
+    !physics prep step (w/ killed qv for lw radiation):
     call MPAS_to_physics(block%mesh,block%state%time_levs(1)%state,block%diag, &
                          block%diag_physics)
 
     !call to cloud scheme:
+    !should precipw/cloudiness/... be modified inside vortex as well?
     if(l_radtlw .or. l_radtsw) then
        call allocate_cloudiness
        call driver_cloudiness(block%diag_physics)
     endif
+    
+    !call to long wave radiation scheme:
+    if(l_radtlw) then
+       call allocate_radiation_lw(xtime_s)
+       call driver_radiation_lw(xtime_s,block%mesh,block%state%time_levs(1)%state,  &
+                                block%diag_physics,block%atm_input,block%sfc_input, &
+                                block%tend_physics)
+    endif
+    
+    !nick
+    !restore qv (for rest):
+    !qv(1:nLevels,1:nCellsSolve) = qvTemp(1:nLevels,1:nCellsSolve)
+    !deallocate(qvTemp)
+    !call MPAS_to_physics(block%mesh,block%state%time_levs(1)%state,block%diag, &
+    !                     block%diag_physics)
 
     !call to short wave radiation scheme:
     if(l_radtsw) then
@@ -129,14 +165,6 @@
        call driver_radiation_sw(itimestep,block%mesh,block%state%time_levs(1)%state, &
                                 block%diag_physics,block%atm_input,block%sfc_input,  &
                                 block%tend_physics,xtime_s)
-    endif
-
-    !call to long wave radiation scheme:
-    if(l_radtlw) then
-       call allocate_radiation_lw(xtime_s)
-       call driver_radiation_lw(xtime_s,block%mesh,block%state%time_levs(1)%state,  &
-                                block%diag_physics,block%atm_input,block%sfc_input, &
-                                block%tend_physics)
     endif
 
     !call to accumulate long- and short-wave diagnostics if needed:
@@ -148,7 +176,7 @@
        call deallocate_cloudiness
     if(config_radt_sw_scheme.ne.'off') call deallocate_radiation_sw
     if(config_radt_lw_scheme.ne.'off') call deallocate_radiation_lw
-
+    
     !call to surface-layer scheme:
     if(config_sfclayer_scheme .ne. 'off') then
        call allocate_sfclayer

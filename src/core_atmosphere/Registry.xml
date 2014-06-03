@@ -225,6 +225,7 @@
                         <var name="qi"      array_group="moist"       streams="iro"/>
                         <var name="qs"      array_group="moist"       streams="iro"/>
                         <var name="qg"      array_group="moist"       streams="iro"/>
+                        <!--<var name="tracer1"      array_group="passive"       streams="iro"/> -->
                 </var_array>
 
                 <var_array name="aerosols" type="real" dimensions="nAerLevels nCells Time">
@@ -276,6 +277,9 @@
                 <var name="pv_cell"                 type="real"     dimensions="nVertLevels nCells Time"/>
                 <var name="ertel_pv"                type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
                 <var name="theta_pv"                type="real"     dimensions="nCells Time"                 streams="o"/>
+                <var name="u_pv"                    type="real"     dimensions="nCells Time"                 streams="o"/>
+                <var name="v_pv"                    type="real"     dimensions="nCells Time"                 streams="o"/>
+                <var name="vort_pv"                 type="real"     dimensions="nCells Time"                 streams="o"/>
                 <var name="depv_dt_lw"              type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
                 <var name="depv_dt_sw"              type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
                 <var name="depv_dt_bl"              type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
@@ -283,6 +287,9 @@
                 <var name="dtheta_dt_mp"            type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
                 <var name="depv_dt_mp"              type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
                 <var name="depv_dt_mix"             type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
+                <var name="vortexLat"               type="real"     dimensions="Time"                        streams="iro"/>
+                <var name="vortexLon"               type="real"     dimensions="Time"                        streams="iro"/>
+                <var name="inVortex"                type="integer"  dimensions="nCells Time"                 streams="o"/>
 
                 <!-- reconstructed horizontal velocity vectors at cell centers -->
                 <var name="uReconstructX"           type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
@@ -298,12 +305,12 @@
                 <var name="gradPVn"                 type="real"     dimensions="nVertLevels nEdges Time"/>
                 <var name="h_divergence"            type="real"     dimensions="nVertLevels nCells Time"     streams="o"/>
 
-                <var name="exner"                   type="real"     dimensions="nVertLevels nCells Time"     streams="ro"/>
-                <var name="exner_base"              type="real"     dimensions="nVertLevels nCells Time"     streams="iro"/>
+                <var name="exner"                   type="real"     dimensions="nVertLevels nCells Time"     streams="r"/>
+                <var name="exner_base"              type="real"     dimensions="nVertLevels nCells Time"     streams="ir"/>
                 <var name="rtheta_base"             type="real"     dimensions="nVertLevels nCells Time"     streams="r"/>
                 <var name="pressure_base"           type="real"     dimensions="nVertLevels nCells Time"     streams="iro"/>
-                <var name="rho_base"                type="real"     dimensions="nVertLevels nCells Time"     streams="iro"/>
-                <var name="theta_base"              type="real"     dimensions="nVertLevels nCells Time"     streams="iro"/>
+                <var name="rho_base"                type="real"     dimensions="nVertLevels nCells Time"     streams="ir"/>
+                <var name="theta_base"              type="real"     dimensions="nVertLevels nCells Time"     streams="ir"/>
 
                 <var name="ruAvg"                   type="real"     dimensions="nVertLevels nEdges Time"/>
                 <var name="wwAvg"                   type="real"     dimensions="nVertLevelsP1 nCells Time"/>
@@ -383,6 +390,7 @@
                         <var name="tend_qi"    name_in_code="qi"        array_group="moist"       streams="o"/>
                         <var name="tend_qs"    name_in_code="qs"        array_group="moist"       streams="o"/>
                         <var name="tend_qg"    name_in_code="qg"        array_group="moist"       streams="o"/>
+                        <!--<var name="tend_tracer1" name_in_code="tracer1"        array_group="passive"       streams="o"/> -->
                 </var_array>
         </var_struct>
 

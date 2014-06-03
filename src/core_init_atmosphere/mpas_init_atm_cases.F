@@ -3489,11 +3489,14 @@ do iCell=1,grid%nCells
    if (grid % landmask % array(iCell) == 1) then
 
       do k = 1, config_nfgsoillevels
-         if (fg % st_fg % array(k,iCell) <= 0.0) write(0,*) 'Bad st_fg ', k, iCell
+         if (fg % st_fg % array(k,iCell) < 0.0) write(0,*) 'Bad st_fg ', k, iCell
       enddo
 
       do k = 1, config_nfgsoillevels
-         if (fg % sm_fg % array(k,iCell) <= 0.0) write(0,*) 'Bad sm_fg ', k, iCell
+         if (fg % sm_fg % array(k,iCell) < 0.0) then
+           write(0,*) 'Bad sm_fg ', k, iCell, fg % sm_fg % array(k,iCell)
+           fg % sm_fg % array(k,iCell) = 0.0
+         end if
       enddo
       !LDF end.
 

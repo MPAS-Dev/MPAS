@@ -215,6 +215,7 @@
                         <var name="qv"      array_group="moist"       streams="o"/>
                         <var name="qc"      array_group="moist"       streams="o"/>
                         <var name="qr"      array_group="moist"       streams="o"/>
+                        <var name="tracer1"      array_group="passive"       streams="o"/>
                 </var_array>
         </var_struct>
 
@@ -284,6 +285,9 @@
                 <var name="rw"                                type="real"     dimensions="nVertLevelsP1 nCells Time"/>
                 <var name="rtheta_p"                          type="real"     dimensions="nVertLevels nCells Time"/>
                 <var name="rho_p"                             type="real"     dimensions="nVertLevels nCells Time"/>
+                
+                <var name="vortexLat"                         type="real"     dimensions="Time"                        streams="o"/>
+                <var name="vortexLon"                         type="real"     dimensions="Time"                        streams="o"/>
         </var_struct>
 
         <var_struct name="diag_physics" time_levs="1">
