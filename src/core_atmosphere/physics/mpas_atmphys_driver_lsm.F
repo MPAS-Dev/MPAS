@@ -30,9 +30,7 @@
  logical,parameter:: frpcpn   = .false.
  logical,parameter:: rdlai2d  = .false.
 
-!urban physics: since MPAS does not plan to run the urban physics option, the two options
-!below are defined locally:
- integer,parameter,public:: isurban=1
+!urban physics: MPAS does not plan to run the urban physics option.
  integer,parameter:: sf_urban_physics = 0 !activate urban canopy model (=0: no urban canopy) 
 
  integer,private:: i,j,k,n
@@ -63,6 +61,9 @@
 !>      Laura D. Fowler (birch.mmm.ucar.edu) / 2014-04-22.
 !>    * Modified sourcecode to use pools.
 !>      Laura D. Fowler (birch.mmm.ucar.edu) / 2014-05-15.
+!>    * Moved the definition of isurban to subroutine landuse_init_forMPAS in mpas_atmphys_landuse.F.
+!>      isurban is now defined as a function of the input landuse data file.
+!>      Dominikus Heinzeller (IMK) / 2014-07-24.
 
 !>
 !> DOCUMENTATION:

@@ -53,6 +53,7 @@
                 <nml_option name="config_met_prefix"            type="character"     default_value="CFSR"/>
                 <nml_option name="config_sfc_prefix"            type="character"     default_value="SST"/>
                 <nml_option name="config_fg_interval"           type="integer"       default_value="21600"/>
+                <nml_option name="input_landuse_data"           type="character"     default_value="USGS"/>
         </nml_record>
 
         <nml_record name="vertical_grid" in_defaults="true">

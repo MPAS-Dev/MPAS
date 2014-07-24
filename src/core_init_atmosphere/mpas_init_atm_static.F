@@ -40,7 +40,11 @@
 
  character(len=StrKIND) :: fname
  character(len=StrKIND), pointer :: config_geog_data_path
+ character(len=StrKIND), pointer :: input_landuse_data
  character(len=StrKIND+1) :: geog_data_path      ! same as config_geog_data_path, but guaranteed to have a trailing slash
+ character(len=StrKIND+1) :: geog_sub_path       ! subdirectory names in config_geog_data_path, with trailing slash
+
+ integer:: isice_lu,iswater_lu,ismax_lu
 
  integer:: nx,ny,nz
  integer:: endian,isigned,istatus,wordsize
@@ -94,6 +98,7 @@
  write(0,*) '--- enter subroutine init_atm_static:'
 
  call mpas_pool_get_config(configs, 'config_geog_data_path', config_geog_data_path)
+ call mpas_pool_get_config(configs, 'input_landuse_data', input_landuse_data)
 
  write(geog_data_path, '(a)') config_geog_data_path
  i = len_trim(geog_data_path)
@@ -168,9 +173,9 @@
  kiteAreasOnVertex = kiteAreasOnVertex * sphere_radius**2.0
 
 
- !
- ! Initialize Coriolis parameter field on edges and vertices
- !
+!
+! Initialize Coriolis parameter field on edges and vertices
+!
  do iEdge=1,nEdges
     fEdge(iEdge)  = 2.0 * omega * sin(latEdge(iEdge))
  end do
@@ -179,11 +184,28 @@
  end do
 
 
- !
- ! Compute weights used in advection and deformation calculation
- !
+!
+! Compute weights used in advection and deformation calculation
+!
  call atm_initialize_advection_rk(mesh, nCells, nEdges, maxEdges, on_a_sphere, sphere_radius) 
  call atm_initialize_deformation_weights(mesh, nCells, on_a_sphere, sphere_radius) 
+
+
+!
+! Set land use and soil category parameters for water and ice
+!
+ surface_input_select0: select case(trim(input_landuse_data))
+    case('USGS')
+       isice_lu = 24
+       iswater_lu = 16
+       ismax_lu = 24
+    case('MODIFIED_IGBP_MODIS_NOAH')
+       isice_lu = 15
+       iswater_lu = 17
+       ismax_lu = 20
+    case default
+       CALL wrf_error_fatal ("Invalid Land Use Dataset '"//trim(input_landuse_data))
+ end select surface_input_select0
 
 
 !
@@ -246,6 +268,14 @@
 !
 ! Interpolate LU_INDEX
 !
+ surface_input_select1: select case(trim(input_landuse_data))
+    case('USGS')
+       geog_sub_path = 'landuse_30s/'
+    case('MODIFIED_IGBP_MODIS_NOAH')
+       geog_sub_path = 'modis_landuse_20class_30s/'
+    case default
+       CALL wrf_error_fatal ("Invalid Land Use Dataset '"//trim(input_landuse_data))
+ end select surface_input_select1
  nx = 1200
  ny = 1200
  nz = 1
@@ -254,7 +284,7 @@
  wordsize = 1
  scalefactor = 1.0
  allocate(rarray(nx,ny,nz))
- allocate(ncat(24,nCells))
+ allocate(ncat(ismax_lu,nCells))
  ncat(:,:) = 0
  lu_index(:) = 0.0
 
@@ -264,7 +294,7 @@
     do iTileStart = 1,42001,nx
        iTileEnd = iTileStart + nx - 1
        write(fname,'(a,i5.5,a1,i5.5,a1,i5.5,a1,i5.5)') trim(geog_data_path)// &
-             'landuse_30s/',iTileStart,'-',iTileEnd,'.',jTileStart,'-',jTileEnd
+             trim(geog_sub_path),iTileStart,'-',iTileEnd,'.',jTileStart,'-',jTileEnd
        write(0,*) trim(fname)
 
        call read_geogrid(fname,len_trim(fname),rarray,nx,ny,nz,isigned,endian, &
@@ -291,7 +321,7 @@
 
  do iCell = 1,nCells
     lu_index(iCell) = 1
-    do i = 2,24
+    do i = 2,ismax_lu
        if(ncat(i,iCell) > ncat(lu_index(iCell),iCell)) then
           lu_index(iCell) = i
        end if
@@ -423,19 +453,19 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! KLUDGE TO FIX SOIL TYPE OVER ANTARCTICA
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- where (lu_index == 24) soilcat_top = 16
- where (lu_index == 24) soilcat_bot = 16
+ where (lu_index == isice_lu) soilcat_top = 16
+ where (lu_index == isice_lu) soilcat_bot = 16
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! CORRECT INCONSISTENT SOIL AND LAND USE DATA
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  do iCell = 1,nCells
-    if (lu_index(iCell) == 16 .or. &
+    if (lu_index(iCell) == iswater_lu .or. &
         soilcat_top(iCell) == 14 .or. &
         soilcat_bot(iCell) == 14) then
-        if (lu_index(iCell) /= 16) then
+        if (lu_index(iCell) /= iswater_lu) then
             write(0,*) 'Turning lu_index into water at ', iCell
-            lu_index(iCell) = 16
+            lu_index(iCell) = iswater_lu
         end if
         if (soilcat_top(iCell) /= 14) then
             write(0,*) 'Turning soilcat_top into water at ', iCell
@@ -454,7 +484,7 @@
 !
  landmask(:) = 0
  do iCell=1, nCells
-    if (lu_index(iCell) /= 16) landmask(iCell) = 1
+    if (lu_index(iCell) /= iswater_lu) landmask(iCell) = 1
  end do
  write(0,*) '--- end interpolate LANDMASK'
 
