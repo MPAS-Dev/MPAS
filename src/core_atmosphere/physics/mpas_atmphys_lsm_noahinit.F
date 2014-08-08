@@ -258,7 +258,7 @@
           call physics_message(mess)
           lumatch=1
        else
-          call physics_message("skipping over lutype = " // trim ( lutype ))
+          call physics_message('    skipping over lutype = ' // trim ( lutype ))
           do lc = 1, lucats+12
              read(16,*)
           enddo
