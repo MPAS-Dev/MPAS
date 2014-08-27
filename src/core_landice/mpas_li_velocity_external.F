@@ -361,12 +361,14 @@ contains
          tracers
       integer, dimension(:), pointer :: vertexMask
       character (len=StrKIND), pointer :: config_velocity_solver
+      logical, pointer :: config_always_compute_fem_grid
       integer, pointer :: anyVertexMaskChanged
 
       err = 0
 
       ! configs
       call mpas_pool_get_config(liConfigs, 'config_velocity_solver', config_velocity_solver)
+      call mpas_pool_get_config(liConfigs, 'config_always_compute_fem_grid', config_always_compute_fem_grid)
 
       ! Mesh variables
       call mpas_pool_get_array(meshPool, 'layerThicknessFractions', layerThicknessFractions)
@@ -387,7 +389,7 @@ contains
       ! External dycore calls to be made only when vertex mask changes
       ! ==================================================================
 
-      if (anyVertexMaskChanged == 1) then
+      if ((anyVertexMaskChanged == 1) .or. (config_always_compute_fem_grid)) then
 #if defined(USE_EXTERNAL_L1L2) || defined(USE_EXTERNAL_FIRSTORDER) || defined(USE_EXTERNAL_STOKES)
           call mpas_timer_start("velocity_solver_compute_2d_grid")
           call velocity_solver_compute_2d_grid(vertexMask)

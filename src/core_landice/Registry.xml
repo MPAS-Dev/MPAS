@@ -194,6 +194,10 @@
 		            description="Prints additional information about thickness advection."
 		            possible_values=".true. or .false."
 		/>
+		<nml_option name="config_always_compute_fem_grid" type="logical" default_value=".false." units="unitless"
+		            description="Always compute finite-element grid information for external dycores rather than only doing so when the ice extent changes."
+		            possible_values=".true. or .false."
+		/>
 	</nml_record>
 
 
