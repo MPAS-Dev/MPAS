@@ -31,10 +31,10 @@ module mpas_timekeeping
                          MPAS_360DAY = 2
 
    integer :: TheCalendar 
+   integer :: digitsInYear = 4
 
    integer, dimension(12), parameter :: daysInMonth     = (/31,28,31,30,31,30,31,31,30,31,30,31/)
    integer, dimension(12), parameter :: daysInMonthLeap = (/31,29,31,30,31,30,31,31,30,31,30,31/)
-
 
    type MPAS_Time_type
       type (ESMF_Time) :: t
@@ -225,6 +225,21 @@ module mpas_timekeeping
       end if
 
    end subroutine mpas_destroy_clock
+
+
+   subroutine mpas_set_year_width(yearWidth, ierr)
+      integer, intent(in) :: yearWidth
+      integer, intent(out) :: ierr
+
+      if (yearWidth <= 0) then
+          write(stderrUnit,*) 'ERROR: mpas_set_year_width: yearWidth cannot be less than or equal to zero.' 
+          ierr = 1
+          return
+      end if
+
+      digitsInYear = yearWidth
+
+   end subroutine mpas_set_year_width
 
 
    logical function mpas_is_clock_start_time(clock, ierr)
@@ -979,9 +994,9 @@ module mpas_timekeeping
       character (len=StrKIND), intent(out), optional :: dateTimeString
       integer, intent(out), optional :: ierr
 
-      call ESMF_TimeGet(curr_time % t, YY=YYYY, MM=MM, DD=DD, H=H, M=M, S=S, Sn=S_n, Sd=S_d, rc=ierr)
-      call ESMF_TimeGet(curr_time % t, dayOfYear=DoY, rc=ierr)
-      call ESMF_TimeGet(curr_time % t, timeString=dateTimeString, rc=ierr)
+      call ESMF_TimeGet(curr_time % t, digitsInYear, YY=YYYY, MM=MM, DD=DD, H=H, M=M, S=S, Sn=S_n, Sd=S_d, rc=ierr)
+      call ESMF_TimeGet(curr_time % t, digitsInYear, dayOfYear=DoY, rc=ierr)
+      call ESMF_TimeGet(curr_time % t, digitsInYear, timeString=dateTimeString, rc=ierr)
       if (present(ierr)) then
          if (ierr == ESMF_SUCCESS) ierr = 0
       end if

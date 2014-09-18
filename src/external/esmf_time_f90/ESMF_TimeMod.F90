@@ -298,13 +298,14 @@
 !                              dayOfYear, dayOfYear_r8, dayOfYear_intvl,      &
 !                              timeString, rc)
 
-recursive subroutine ESMF_TimeGet(time, YY, MM, DD, D, Dl, H, M, S, MS, &
+recursive subroutine ESMF_TimeGet(time, yearWidth, YY, MM, DD, D, Dl, H, M, S, MS, &
                               Sn, Sd, &
                               dayOfYear, dayOfYear_r8, dayOfYear_intvl,      &
                               timeString, rc)
 
 ! !ARGUMENTS:
       type(ESMF_Time), intent(in) :: time
+      integer, intent(in), optional :: yearWidth
       integer, intent(out), optional :: YY
 !      integer(ESMF_KIND_I8), intent(out), optional :: YRl
       integer, intent(out), optional :: MM
@@ -483,7 +484,7 @@ recursive subroutine ESMF_TimeGet(time, YY, MM, DD, D, Dl, H, M, S, MS, &
         minute = mod( time%basetime%S, SECONDS_PER_HOUR) / SECONDS_PER_MINUTE
         second = mod( time%basetime%S, SECONDS_PER_MINUTE )
         CALL ESMFold_TimeGetString( year, month, dayofmonth, &
-                                    hour, minute, second, timeString )
+                                    hour, minute, second, timeString, yearWidth )
       ENDIF
       IF ( PRESENT( dayOfYear_intvl ) ) THEN
         year = time%YR
@@ -795,7 +796,7 @@ recursive subroutine ESMF_TimeGet(time, YY, MM, DD, D, Dl, H, M, S, MS, &
 
 ! !INTERFACE:
       subroutine ESMFold_TimeGetString( year, month, dayofmonth, &
-                                        hour, minute, second, TimeString )
+                                        hour, minute, second, TimeString, yearWidthIn )
 
 ! !ARGUMENTS:
       integer, intent(in) :: year
@@ -805,6 +806,10 @@ recursive subroutine ESMF_TimeGet(time, YY, MM, DD, D, Dl, H, M, S, MS, &
       integer, intent(in) :: minute
       integer, intent(in) :: second
       character*(*), intent(out) :: TimeString
+      integer, intent(in), optional :: yearWidthIn
+
+      integer :: yearWidth
+      character*(256) :: TimeFormatString
 ! !DESCRIPTION:
 !     Convert {\tt ESMF\_Time}'s value into ISO 8601 format YYYY-MM-DDThh:mm:ss
 !
@@ -831,8 +836,15 @@ recursive subroutine ESMF_TimeGet(time, YY, MM, DD, D, Dl, H, M, S, MS, &
 
 !$$$here...  add negative sign for YR<0
 !$$$here...  add Sn, Sd ??
-      write(TimeString,FMT="(I4.4,'-',I2.2,'-',I2.2,'_',I2.2,':',I2.2,':',I2.2)") &
-             year,month,dayofmonth,hour,minute,second
+
+      if (present(yearWidthIn)) then
+         yearWidth = yearWidthIn
+      else
+         yearWidth = 4
+      end if
+
+      write(TimeFormatString,FMT="(A,I4.4,A,I4.4,A)") "(I", yearWidth, ".", yearWidth, "'-',I2.2,'-',I2.2,'_',I2.2,':',I2.2,':',I2.2)"
+      write(TimeString,FMT=TimeFormatString) year,month,dayofmonth,hour,minute,second
 
       end subroutine ESMFold_TimeGetString
 
