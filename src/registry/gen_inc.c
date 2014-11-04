@@ -484,7 +484,6 @@ void write_default_streams(ezxml_t registry){/*{{{*/
 			optpackages = ezxml_attr(opt_xml, "packages");
 			optprecision = ezxml_attr(opt_xml, "precision");
 			optref_time = ezxml_attr(opt_xml, "reference_time");
-			optrecord_interval = ezxml_attr(opt_xml, "record_interval");
 			optclobber_mode = ezxml_attr(opt_xml, "clobber_mode");
 
 			/* Generate immutable default stream */
@@ -503,9 +502,6 @@ void write_default_streams(ezxml_t registry){/*{{{*/
 				}
 				if (optref_time) {
 					fprintf(fd, "                  reference_time=\"%s\"\n", optref_time);
-				}
-				if (optrecord_interval) {
-					fprintf(fd, "                  record_interval=\"%s\"\n", optrecord_interval);
 				}
 				if (optclobber_mode) {
 					fprintf(fd, "                  clobber_mode=\"%s\"\n", optclobber_mode);
@@ -534,9 +530,6 @@ void write_default_streams(ezxml_t registry){/*{{{*/
 				}
 				if (optref_time) {
 					fprintf(fd, "        reference_time=\"%s\"\n", optref_time);
-				}
-				if (optrecord_interval) {
-					fprintf(fd, "        record_interval=\"%s\"\n", optrecord_interval);
 				}
 				if (optclobber_mode) {
 					fprintf(fd, "        clobber_mode=\"%s\"\n", optclobber_mode);

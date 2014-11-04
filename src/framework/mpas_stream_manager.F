@@ -31,10 +31,9 @@ module mpas_stream_manager
                                   MPAS_STREAM_PROPERTY_IMMUTABLE     =  6, &
                                   MPAS_STREAM_PROPERTY_FILENAME      =  7, &
                                   MPAS_STREAM_PROPERTY_REF_TIME      =  8, &
-                                  MPAS_STREAM_PROPERTY_RECORD_INTV   =  9, &
-                                  MPAS_STREAM_PROPERTY_PRECISION     = 10, &
-                                  MPAS_STREAM_PROPERTY_FILENAME_INTV = 11, &
-                                  MPAS_STREAM_PROPERTY_CLOBBER       = 12
+                                  MPAS_STREAM_PROPERTY_PRECISION     =  9, &
+                                  MPAS_STREAM_PROPERTY_FILENAME_INTV = 10, &
+                                  MPAS_STREAM_PROPERTY_CLOBBER       = 11
 
     integer, public, parameter :: MPAS_STREAM_CLOBBER_NEVER     = 100, &
                                   MPAS_STREAM_CLOBBER_APPEND    = 101, &
@@ -293,11 +292,7 @@ module mpas_stream_manager
     !>  the stream, thereby determining where the "file breaks" will occur between 
     !>  timestamps. If no "referenceTime" is specified, the start time of the 
     !>  clock associated with the stream handler will be used as the reference 
-    !>  time. Additionally, the interval between records in the file may be
-    !>  specified using the optional "recordInterval" argument; if this argument
-    !>  is not supplied, the stream manager will assume that this interval is
-    !>  equal to the shortest period of any periodic alarm attached to the stream.
-    !>  The optional argument 'realPrecision' specifies the precision of
+    !>  time. The optional argument 'realPrecision' specifies the precision of
     !>  real-valued fields in the files associated with the stream; this
     !>  argument may take on values MPAS_IO_SINGLE_PRECISION,
     !>  MPAS_IO_DOUBLE_PRECISION, or MPAS_IO_NATIVE_PRECISION; if this argument is
@@ -312,9 +307,8 @@ module mpas_stream_manager
     !>  existing files (MPAS_STREAM_CLOBBER_NEVER).
     !
     !-----------------------------------------------------------------------
-    subroutine MPAS_stream_mgr_create_stream(manager, streamID, direction, filename, &
-                                             filenameInterval, referenceTime, recordInterval, &
-                                             realPrecision, clobberMode, ierr) !{{{
+    subroutine MPAS_stream_mgr_create_stream(manager, streamID, direction, filename, filenameInterval, &
+                                             referenceTime, realPrecision, clobberMode, ierr) !{{{
 
         implicit none
 
@@ -326,7 +320,6 @@ module mpas_stream_manager
         character (len=*), intent(in) :: filename
         character (len=*), intent(in), optional :: filenameInterval
         type (MPAS_Time_type), intent(in), optional :: referenceTime
-        type (MPAS_TimeInterval_type), intent(in), optional :: recordInterval
         integer, intent(in), optional :: realPrecision
         integer, intent(in), optional :: clobberMode
         integer, intent(out), optional :: ierr
@@ -376,10 +369,6 @@ module mpas_stream_manager
             new_stream % referenceTime = referenceTime
         else
             new_stream % referenceTime = mpas_get_clock_time(manager % streamClock, MPAS_START_TIME)
-        end if
-        if (present(recordInterval)) then
-            allocate(new_stream % recordInterval)
-            new_stream % recordInterval = recordInterval
         end if
         if (present(realPrecision)) then
             new_stream % precision = realPrecision
@@ -501,9 +490,6 @@ module mpas_stream_manager
         call mpas_pool_destroy_pool(stream % pkg_pool)
         if (associated(stream % referenceTime)) then
             deallocate(stream % referenceTime)
-        end if
-        if (associated(stream % recordInterval)) then
-            deallocate(stream % recordInterval)
         end if
         if (stream % valid) then
             call MPAS_closeStream(stream % stream, ierr=err_local)
@@ -1409,15 +1395,6 @@ module mpas_stream_manager
             case (MPAS_STREAM_PROPERTY_REF_TIME)
                 call mpas_set_time(stream_cursor % referenceTime, dateTimeString=propertyValue)
 
-            case (MPAS_STREAM_PROPERTY_RECORD_INTV)
- 
-                ! The interval between records may not have been allocated if the optional recordInterval
-                !    argument was not provided when the stream was created
-                if (.not. associated(stream_cursor % recordInterval)) then
-                    allocate(stream_cursor % recordInterval)
-                end if
-                call mpas_set_timeInterval(stream_cursor % recordInterval, timeString=propertyValue)
-
             case default
                 STREAM_ERROR_WRITE('  MPAS_stream_mgr_set_property(): No such property ' COMMA propertyName)
                 STREAM_ERROR_WRITE('    or specified property is not of type character.')
@@ -1600,49 +1577,6 @@ module mpas_stream_manager
 
             case (MPAS_STREAM_PROPERTY_REF_TIME)
                 call mpas_get_time(stream_cursor % referenceTime, dateTimeString=propertyValue)
-
-            case (MPAS_STREAM_PROPERTY_RECORD_INTV)
-
-                ! The interval between records may not have been allocated if the optional recordInterval
-                !    argument was not provided when the stream was created. If there is no explicit recordInterval,
-                !    assume that the interval is the shortest interval between alarms on the stream; since
-                !    recordInterval is only used for reading, use the input alarm list in this check.
-                if (.not. associated(stream_cursor % recordInterval)) then
-            
-                    !
-                    ! If no direction is specified, return the read interval, since this was the only historic 
-                    !    use of the recordInterval for a stream.
-                    !
-                    if (present(direction)) then
-                        if (direction == MPAS_STREAM_OUTPUT) then
-                            alarm_cursor => stream_cursor % alarmList_out % head
-                        else
-                            alarm_cursor => stream_cursor % alarmList_in % head
-                        end if
-                    else
-                        alarm_cursor => stream_cursor % alarmList_in % head
-                    end if
-                    nAlarms = 0
-                    do while (associated(alarm_cursor))
-                        temp_interval = mpas_alarm_interval(manager % streamClock, alarm_cursor % name, err_local)
-                        if (err_local == 0) then
-                            if (nAlarms == 0) then
-                                interval = temp_interval
-                            else if (temp_interval < interval) then
-                                interval = temp_interval
-                            end if
-                            nAlarms = nAlarms + 1
-                        end if
-                        alarm_cursor => alarm_cursor % next
-                    end do
-                    if (nAlarms > 0) then
-                        call mpas_get_timeInterval(interval, timeString=propertyValue)
-                    else
-                        propertyValue = 'none'
-                    end if
-                else
-                    call mpas_get_timeInterval(stream_cursor % recordInterval, timeString=propertyValue)
-                end if
 
             case default
                 STREAM_ERROR_WRITE(' MPAS_stream_mgr_get_property(): No such property ' COMMA propertyName)
@@ -4437,17 +4371,16 @@ end module mpas_stream_manager
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filename_c, filename_intv_c, ref_time_c, rec_intv_c, &
+subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filename_c, filename_intv_c, ref_time_c, &
                                       immutable_c, precision_c, clobber_c, ierr_c) bind(c) !{{{
 
     use mpas_c_interfacing, only : mpas_c_to_f_string
     use iso_c_binding, only : c_char, c_int, c_ptr, c_f_pointer
     use mpas_stream_manager, only : MPAS_streamManager_type, MPAS_STREAM_MGR_NOERR, MPAS_STREAM_PROPERTY_FILENAME, &
                                     MPAS_STREAM_PROPERTY_FILENAME_INTV, MPAS_STREAM_PROPERTY_REF_TIME, &
-                                    MPAS_STREAM_PROPERTY_RECORD_INTV, MPAS_STREAM_PROPERTY_PRECISION, &
-                                    MPAS_STREAM_PROPERTY_CLOBBER, MPAS_STREAM_CLOBBER_NEVER, MPAS_STREAM_CLOBBER_APPEND, &
-                                    MPAS_STREAM_CLOBBER_TRUNCATE, MPAS_STREAM_CLOBBER_OVERWRITE, MPAS_stream_mgr_create_stream, &
-                                    MPAS_stream_mgr_set_property
+                                    MPAS_STREAM_PROPERTY_PRECISION, MPAS_STREAM_PROPERTY_CLOBBER, MPAS_STREAM_CLOBBER_NEVER, &
+                                    MPAS_STREAM_CLOBBER_APPEND, MPAS_STREAM_CLOBBER_TRUNCATE, MPAS_STREAM_CLOBBER_OVERWRITE, &
+                                    MPAS_stream_mgr_create_stream, MPAS_stream_mgr_set_property
 
     use mpas_kind_types, only : StrKIND
     use mpas_io, only : MPAS_IO_SINGLE_PRECISION, MPAS_IO_DOUBLE_PRECISION, MPAS_IO_NATIVE_PRECISION
@@ -4461,14 +4394,13 @@ subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filena
     character(kind=c_char) :: filename_c(*)
     character(kind=c_char) :: filename_intv_c(*)
     character(kind=c_char) :: ref_time_c(*)
-    character(kind=c_char) :: rec_intv_c(*)
     integer(kind=c_int) :: immutable_c
     integer(kind=c_int) :: precision_c
     integer(kind=c_int) :: clobber_c
     integer(kind=c_int) :: ierr_c
 
     type (MPAS_streamManager_type), pointer :: manager
-    character(len=StrKIND) :: streamID, filename, filename_interval, reference_time, record_interval
+    character(len=StrKIND) :: streamID, filename, filename_interval, reference_time
     integer :: direction, immutable, prec, ierr
     integer :: clobber_mode
 
@@ -4478,7 +4410,6 @@ subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filena
     call mpas_c_to_f_string(filename_c, filename)
     call mpas_c_to_f_string(filename_intv_c, filename_interval)
     call mpas_c_to_f_string(ref_time_c, reference_time)
-    call mpas_c_to_f_string(rec_intv_c, record_interval)
     immutable = immutable_c
 
     if (precision_c == 4) then
@@ -4531,10 +4462,6 @@ subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filena
 
     if (reference_time /= 'initial_time') then
         call MPAS_stream_mgr_set_property(manager, streamID, MPAS_STREAM_PROPERTY_REF_TIME, reference_time, ierr=ierr)
-    end if
-
-    if (record_interval /= 'none') then
-        call MPAS_stream_mgr_set_property(manager, streamID, MPAS_STREAM_PROPERTY_RECORD_INTV, record_interval, ierr=ierr)
     end if
 
     if (trim(filename_interval) /= 'none') then

@@ -25,7 +25,7 @@
 /* 
  *  Interface routines for building streams at run-time; defined in mpas_stream_manager.F
  */
-void stream_mgr_create_stream_c(void *, const char *, int *, const char *, const char *, char *, char *, int *, int *, int *, int *);
+void stream_mgr_create_stream_c(void *, const char *, int *, const char *, const char *, char *, int *, int *, int *, int *);
 void mpas_stream_mgr_add_field_c(void *, const char *, const char *, int *);
 void mpas_stream_mgr_add_pool_c(void *, const char *, const char *, int *);
 void stream_mgr_add_alarm_c(void *, const char *, const char *, const char *, const char *, int *);
@@ -859,13 +859,12 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 	ezxml_t substream_xml;
 	ezxml_t streamsmatch_xml, streammatch_xml;
 	const char *compstreamname_const, *structname_const;
-	const char *streamID, *filename_template, *filename_interval, *direction, *varfile, *fieldname_const, *reference_time, *record_interval, *streamname_const, *precision;
+	const char *streamID, *filename_template, *filename_interval, *direction, *varfile, *fieldname_const, *reference_time, *streamname_const, *precision;
 	const char *interval_in, *interval_out, *packagelist;
 	const char *clobber;
 	char *packages, *package;
 	char filename_interval_string[256];
 	char ref_time_local[256];
-	char rec_intv_local[256];
 	char fieldname[256];
 	FILE *fd;
 	char msgbuf[MSGSIZE];
@@ -906,7 +905,6 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 		interval_in = ezxml_attr(stream_xml, "input_interval");
 		interval_out = ezxml_attr(stream_xml, "output_interval");
 		reference_time = ezxml_attr(stream_xml, "reference_time");
-		record_interval = ezxml_attr(stream_xml, "record_interval");
 		precision = ezxml_attr(stream_xml, "precision");
 		packagelist = ezxml_attr(stream_xml, "packages");
 		clobber = ezxml_attr(stream_xml, "clobber_mode");
@@ -1033,15 +1031,6 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 		}
 		fprintf(stderr, "        %-20s%s\n", "reference time:", ref_time_local);
 
-		if (record_interval != NULL) {
-			snprintf(rec_intv_local, 256, "%s", record_interval);
-			fprintf(stderr, "        %-20s%s\n", "record interval:", rec_intv_local);
-		}
-		else {
-			snprintf(rec_intv_local, 256, "none");
-			fprintf(stderr, "        %-20s%s\n", "record interval:", "-");
-		}
-
 		if (precision != NULL && strstr(precision, "single") != NULL) {
 			iprec = 4;
 		}
@@ -1067,7 +1056,7 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 			}
 		}
 
-		stream_mgr_create_stream_c(manager, streamID, &itype, filename_template, filename_interval_string, ref_time_local, rec_intv_local, 
+		stream_mgr_create_stream_c(manager, streamID, &itype, filename_template, filename_interval_string, ref_time_local, 
 					&immutable, &iprec, &iclobber, &err);
 		if (err != 0) {
 			*status = 1;
@@ -1134,7 +1123,6 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 		interval_in = ezxml_attr(stream_xml, "input_interval");
 		interval_out = ezxml_attr(stream_xml, "output_interval");
 		reference_time = ezxml_attr(stream_xml, "reference_time");
-		record_interval = ezxml_attr(stream_xml, "record_interval");
 		precision = ezxml_attr(stream_xml, "precision");
 		packagelist = ezxml_attr(stream_xml, "packages");
 		clobber = ezxml_attr(stream_xml, "clobber_mode");
@@ -1260,15 +1248,6 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 		}
 		fprintf(stderr, "        %-20s%s\n", "reference time:", ref_time_local);
 
-		if (record_interval != NULL) {
-			snprintf(rec_intv_local, 256, "%s", record_interval);
-			fprintf(stderr, "        %-20s%s\n", "record interval:", rec_intv_local);
-		}
-		else {
-			snprintf(rec_intv_local, 256, "none");
-			fprintf(stderr, "        %-20s%s\n", "record interval:", "-");
-		}
-
 		if (precision != NULL && strstr(precision, "single") != NULL) {
 			iprec = 4;
 		}
@@ -1294,7 +1273,7 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 			}
 		}
 
-		stream_mgr_create_stream_c(manager, streamID, &itype, filename_template, filename_interval_string, ref_time_local, rec_intv_local, 
+		stream_mgr_create_stream_c(manager, streamID, &itype, filename_template, filename_interval_string, ref_time_local,  
 						&immutable, &iprec, &iclobber, &err);
 		if (err != 0) {
 			*status = 1;
