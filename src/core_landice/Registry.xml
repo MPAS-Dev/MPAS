@@ -45,7 +45,7 @@
 	<nml_record name="velocity_solver" in_defaults="true">
 		<nml_option name="config_velocity_solver" type="character" default_value="sia" units="unitless"
 		            description="Selection of the method for solving ice velocity."
-		            possible_values="'sia'"
+		            possible_values="'sia', 'L1L2', 'FO', 'Stokes'"
 		/>
 	</nml_record>
 
@@ -258,6 +258,7 @@
 			<var name="normalVelocity"/>
 			<var name="bedTopography"/>
 			<var name="sfcMassBal"/>
+			<var name="beta"/>
 		</stream>
 
 
@@ -375,6 +376,9 @@
 		/>
 		<var name="uReconstructMeridional"            type="real"     dimensions="nVertLevels nCells Time"    
 		     units="m s^{-1}"  description="meridional velocity reconstructed on cell centers"
+		/>
+		<var name="anyVertexMaskChanged  "            type="integer"  dimensions="Time"
+		     units="none"  description="flag needed by external velocity solvers that indicates if the region to solve on the block's domain has changed (treated as a logical)"
 		/>
 	</var_struct>
 
@@ -507,7 +511,7 @@
 		     description="Area of the portions of each dual cell that are part of each cellsOnVertex."
 		/>
 		<var name="coeffs_reconstruct" type="real" dimensions="R3 maxEdges nCells" units="unitless"
-			 description="Coefficients to reconstruct velocity vectors at cells centers."
+		     description="Coefficients to reconstruct velocity vectors at cell centers."
 		/>
 		<!-- Mesh Variables specific to land ice core -->
 		<var name="edgeSignOnCell" type="integer" dimensions="maxEdges nCells" units="unitless"
@@ -531,6 +535,10 @@
 		<var name="sfcMassBal" type="real" dimensions="nCells" units="kg m^2 s^{-1}"
 		     description="Surface mass balance"
 		/>
+		<var name="beta" type="real" dimensions="nCells" units="Pa s m^{−1}"
+		     description="higher-order basal traction parameter"
+		/>
+		<!-- Note: beta should be moved to diagnostic fields when a process model is added -->
 	</var_struct>
 
 
