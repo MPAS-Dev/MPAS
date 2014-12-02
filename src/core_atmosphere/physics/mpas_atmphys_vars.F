@@ -35,6 +35,9 @@
 !>      Laura D. Fowler (laura@ucar.edu) / 2013-08-23.
 !>    * renamed local variable conv_deep_scheme to convection_scheme.
 !>      Laura D. Fowler (laura@ucar.edu) / 2014-09-18.
+!>    * added empty subroutine dummy that does not do anything, but needed for compiling MPAS with
+!>      some compilers.
+!>      Laura D. Fowler (laurs@ucar.edu) / 2014-12-02.
 
 
 !==================================================================================================
@@ -507,6 +510,16 @@
     tsk_p,            &!surface-skin temperature                                                [K]
     xice_p,           &!ice mask                                                                [-]
     xland_p            !land mask    (1 for land; 2 for water)                                  [-]
+
+
+ contains
+
+!==================================================================================================
+ subroutine dummy()
+!==================================================================================================
+!dummy subroutine that does not do anything.
+
+ end subroutine dummy
 
 !==================================================================================================
  end module mpas_atmphys_vars
