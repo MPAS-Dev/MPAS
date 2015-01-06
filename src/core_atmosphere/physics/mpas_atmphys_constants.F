@@ -23,10 +23,13 @@
 !>
 !> add-ons and modifications to sourcecode:
 !> ----------------------------------------
-!>    * Replaced the variable g (that originally pointed to gravity) with gravity, for simplicity.
+!>    * replaced the variable g (that originally pointed to gravity) with gravity, for simplicity.
 !>      Laura D. Fowler (laura@ucar.edu) / 2014-03-21.
-!>    * Removed the constraint of only using RKIND from mpas_kind_types.
+!>    * removed the constraint of only using RKIND from mpas_kind_types.
 !>      Laura D. Fowler (laura@ucar.edu) / 2014-09-18.
+!>    * added empty subroutine dummy that does not do anything, but needed for compiling MPAS with
+!>      some compilers.
+!>      Laura D. Fowler (laurs@ucar.edu) / 2014-12-02.
 
  
 !==================================================================================================
@@ -77,6 +80,15 @@
  real(kind=RKIND),parameter:: solcon_0 = 1370.          !solar constant                      [W/m2]
  real(kind=RKIND),parameter:: degrad   = 3.1415926/180. !conversion from degree to radiant      [-]
  real(kind=RKIND),parameter:: dpd      = 360./365.
+
+ contains
+
+!==================================================================================================
+ subroutine dummy()
+!==================================================================================================
+!dummy subroutine that does not do anything.
+
+ end subroutine dummy
 
 !==================================================================================================
  end module mpas_atmphys_constants
