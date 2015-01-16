@@ -212,7 +212,7 @@ contains
       integer, pointer :: nCells, nEdges, nVertices, nCellsSolve, nEdgesSolve, nVerticesSolve, nVertLevels, maxNEdgesOnCell 
       integer, dimension(:,:), pointer :: cellsOnEdge, cellsOnVertex, verticesOnCell, verticesOnEdge, edgesOnCell
       integer, dimension(:), pointer :: indexToCellID, indexToEdgeID, indexToVertexID, nEdgesOnCell
-      real (kind=RKIND), dimension(:), pointer :: xCell, yCell, zCell, areaTriangle
+      real (kind=RKIND), dimension(:), pointer :: xCell, yCell, zCell, xVertex, yVertex, zVertex, areaTriangle
       real (kind=RKIND), pointer :: radius
       type (field1DInteger), pointer :: indexToCellIDField, indexToEdgeIDField, indexToVertexIDField
 
@@ -251,6 +251,9 @@ contains
       call mpas_pool_get_array(meshPool, 'xCell', xCell)
       call mpas_pool_get_array(meshPool, 'yCell', yCell)
       call mpas_pool_get_array(meshPool, 'zCell', zCell)
+      call mpas_pool_get_array(meshPool, 'xVertex', xVertex)
+      call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
+      call mpas_pool_get_array(meshPool, 'zVertex', zVertex)
       call mpas_pool_get_array(meshPool, 'areaTriangle', areaTriangle)
 
       call mpas_pool_get_field(meshPool, 'indexToCellID', indexToCellIDField)
@@ -273,7 +276,7 @@ contains
               nCellsSolve, nEdgesSolve, nVerticesSolve, maxNEdgesOnCell, radius, &
               cellsOnEdge, cellsOnVertex, verticesOnCell, verticesOnEdge, edgesOnCell, &
               nEdgesOnCell, indexToCellID, &
-              xCell, yCell, zCell, areaTriangle, &
+              xCell, yCell, zCell, xVertex, yVertex, zVertex, areaTriangle, &
               sendCellsArray, recvCellsArray, &
               sendEdgesArray, recvEdgesArray, &
               sendVerticesArray, recvVerticesArray)

@@ -30,7 +30,7 @@ int const *cellsOnEdge_F, *cellsOnVertex_F, *verticesOnCell_F,
     *verticesOnEdge_F, *edgesOnCell_F, *indexToCellID_F, *nEdgesOnCells_F;
 std::vector<double> layersRatio, levelsNormalizedThickness;
 int nLayers;
-double const *xCell_F, *yCell_F, *zCell_F, *areaTriangle_F;
+double const *xCell_F, *yCell_F, *zCell_F, *xVertex_F,  *yVertex_F, *zVertex_F, *areaTriangle_F;
 std::vector<double> xCellProjected, yCellProjected, zCellProjected;
 const double unit_length = 1000;
 const double T0 = 273.15;
@@ -91,8 +91,10 @@ void velocity_solver_set_grid_data(int const* _nCells_F, int const* _nEdges_F,
     int const* _cellsOnEdge_F, int const* _cellsOnVertex_F,
     int const* _verticesOnCell_F, int const* _verticesOnEdge_F,
     int const* _edgesOnCell_F, int const* _nEdgesOnCells_F,
-    int const* _indexToCellID_F, double const* _xCell_F, double const* _yCell_F,
-    double const* _zCell_F, double const* _areaTriangle_F,
+    int const* _indexToCellID_F,
+    double const* _xCell_F, double const* _yCell_F, double const* _zCell_F,
+    double const* _xVertex_F, double const* _yVertex_F, double const* _zVertex_F,
+    double const* _areaTriangle_F,
     int const* sendCellsArray_F, int const* recvCellsArray_F,
     int const* sendEdgesArray_F, int const* recvEdgesArray_F,
     int const* sendVerticesArray_F, int const* recvVerticesArray_F) {
@@ -116,6 +118,9 @@ void velocity_solver_set_grid_data(int const* _nCells_F, int const* _nEdges_F,
   xCell_F = _xCell_F;
   yCell_F = _yCell_F;
   zCell_F = _zCell_F;
+  xVertex_F = _xVertex_F;
+  yVertex_F = _yVertex_F;
+  zVertex_F = _zVertex_F;
   areaTriangle_F = _areaTriangle_F;
   mask.resize(nVertices_F);
 
@@ -929,10 +934,10 @@ void get_prism_velocity_on_FEdges(double * uNormal,
       t1[1 + 2 * j] = yCell_F[iCell];
     }
 
-    //computing triangle circumcenters (vertices of MPAS cells). Can we have these passed by MPAS?
+    //getting triangle circumcenters (vertices of MPAS cells).
     double circ[2][2] ,p[2],bcoords[2][3];
-    triangle_circumcenter_2d (t0, circ[0]);
-    triangle_circumcenter_2d (t1, circ[1]);
+    circ[0][0] = xVertex_F[fVertex0]; circ[0][1] = yVertex_F[fVertex0];
+    circ[1][0] = xVertex_F[fVertex1]; circ[1][1] = yVertex_F[fVertex1];
 
     //Identify to what triangle the circumcenters belong and compute its baricentric coordinates
     ID circToTria[2];
@@ -1784,72 +1789,5 @@ int prismType(long long int const* prismVertexMpasIds, int& minIndex)
         }
       }
     }
-  }
-
- void triangle_circumcenter_2d ( const double t[2 * 3], double pc[2] )
-
-  //****************************************************************************80
-  //
-  //  Purpose:
-  //
-  //    TRIANGLE_CIRCUMCENTER_2D computes the circumcenter of a triangle in 2D.
-  //
-  //  Discussion:
-  //
-  //    The circumcenter of a triangle is the center of the circumcircle, the
-  //    circle that passes through the three vertices of the triangle.
-  //
-  //    The circumcircle contains the triangle, but it is not necessarily the
-  //    smallest triangle to do so.
-  //
-  //    If all angles of the triangle are no greater than 90 degrees, then
-  //    the center of the circumscribed circle will lie inside the triangle.
-  //    Otherwise, the center will lie outside the triangle.
-  //
-  //    The circumcenter is the intersection of the perpendicular bisectors
-  //    of the sides of the triangle.
-  //
-  //    In geometry, the circumcenter of a triangle is often symbolized by "O".
-  //
-  //  Licensing:
-  //
-  //    This code is distributed under the GNU LGPL license.
-  //
-  //  Modified:
-  //
-  //    09 February 2005
-  //
-  //  Author:
-  //
-  //    John Burkardt
-  //
-  //  Parameters:
-  //
-  //    Input, double T[2*3], the triangle vertices.
-  //
-  //    Output, double *TRIANGLE_CIRCUMCENTER_2D[2], the circumcenter.
-  //
-  {
-
-      double asq;
-      double bot;
-      double csq;
-      double top1;
-      double top2;
-
-      asq = ( t[0 + 1 * 2] - t[0 + 0 * 2] ) * ( t[0 + 1 * 2] - t[0 + 0 * 2] )
-            + ( t[1 + 1 * 2] - t[1 + 0 * 2] ) * ( t[1 + 1 * 2] - t[1 + 0 * 2] );
-
-      csq = ( t[0 + 2 * 2] - t[0 + 0 * 2] ) * ( t[0 + 2 * 2] - t[0 + 0 * 2] )
-            + ( t[1 + 2 * 2] - t[1 + 0 * 2] ) * ( t[1 + 2 * 2] - t[1 + 0 * 2] );
-
-      top1 =   ( t[1 + 1 * 2] - t[1 + 0 * 2] ) * csq - ( t[1 + 2 * 2] - t[1 + 0 * 2] ) * asq;
-      top2 = - ( t[0 + 1 * 2] - t[0 + 0 * 2] ) * csq + ( t[0 + 2 * 2] - t[0 + 0 * 2] ) * asq;
-
-      bot  =  ( t[1 + 1 * 2] - t[1 + 0 * 2] ) * ( t[0 + 2 * 2] - t[0 + 0 * 2] )
-              - ( t[1 + 2 * 2] - t[1 + 0 * 2] ) * ( t[0 + 1 * 2] - t[0 + 0 * 2] );
-
-      pc[0] = t[0 + 0 * 2] + 0.5 * top1 / bot;
-      pc[1] = t[1 + 0 * 2] + 0.5 * top2 / bot;
   }
 

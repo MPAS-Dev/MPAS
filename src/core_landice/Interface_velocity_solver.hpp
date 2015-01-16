@@ -105,8 +105,10 @@ void velocity_solver_set_grid_data(int const* _nCells_F, int const* _nEdges_F,
     int const* _cellsOnEdge_F, int const* _cellsOnVertex_F,
     int const* _verticesOnCell_F, int const* _verticesOnEdge_F,
     int const* _edgesOnCell_F, int const* _nEdgesOnCells_F,
-    int const* _indexToCellID_F, double const* _xCell_F, double const* _yCell_F,
-    double const* _zCell_F, double const* _areaTriangle_F,
+    int const* _indexToCellID_F,
+    double const* _xCell_F, double const* _yCell_F, double const* _zCell_F,
+    double const* _xVertex_F, double const* _yVertex_F, double const* _zVertex_F,
+    double const* _areaTriangle_F,
     int const* sendCellsArray_F, int const* recvCellsArray_F,
     int const* sendEdgesArray_F, int const* recvEdgesArray_F,
     int const* sendVerticesArray_F, int const* recvVerticesArray_F);
@@ -277,7 +279,6 @@ void computeMap();
 void setBdFacesOnPrism (const std::vector<std::vector<std::vector<int> > >& prismStruct, const std::vector<int>& prismFaceIds, std::vector<int>& tetraPos, std::vector<int>& facePos);
 void tetrasFromPrismStructured (int const* prismVertexMpasIds, int const* prismVertexGIds, int tetrasIdsOnPrism[][4]);
 
-void triangle_circumcenter_2d ( const double t[2 * 3], double pc[2] );
 bool belongToTria(double const* x, double const* t, double bcoords[3], double eps = 1e-3);
 
 
