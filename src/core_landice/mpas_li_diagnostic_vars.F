@@ -113,12 +113,15 @@ contains
       type (block_type), pointer :: block
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: statePool
+      character (len=StrKIND), pointer :: config_velocity_solver
       type (field2DReal), pointer :: normalVelocityField, layerThicknessEdgeField
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, uReconstructX, uReconstructY, uReconstructZ, uReconstructZonal, uReconstructMeridional
       integer :: err_tmp
 
 
       err = 0
+
+      call mpas_pool_get_config(liConfigs, 'config_velocity_solver', config_velocity_solver)
 
       ! ===
       ! === Diagnostic solve of variables prior to velocity 
@@ -175,16 +178,19 @@ contains
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block % structs, 'state', statePool)
 
-         call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel=timeLevel)
-         call mpas_pool_get_array(statePool, 'uReconstructX', uReconstructX, timeLevel=timeLevel)
-         call mpas_pool_get_array(statePool, 'uReconstructY', uReconstructY, timeLevel=timeLevel)
-         call mpas_pool_get_array(statePool, 'uReconstructZ', uReconstructZ, timeLevel=timeLevel)
-         call mpas_pool_get_array(statePool, 'uReconstructZonal', uReconstructZonal, timeLevel=timeLevel)
-         call mpas_pool_get_array(statePool, 'uReconstructMeridional', uReconstructMeridional, timeLevel=timeLevel)
+         ! External dycores return reconstructed velocities.  Native SIA dycore needs to have them calculated.
+         if (trim(config_velocity_solver) == 'sia') then
+            call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel=timeLevel)
+            call mpas_pool_get_array(statePool, 'uReconstructX', uReconstructX, timeLevel=timeLevel)
+            call mpas_pool_get_array(statePool, 'uReconstructY', uReconstructY, timeLevel=timeLevel)
+            call mpas_pool_get_array(statePool, 'uReconstructZ', uReconstructZ, timeLevel=timeLevel)
+            call mpas_pool_get_array(statePool, 'uReconstructZonal', uReconstructZonal, timeLevel=timeLevel)
+            call mpas_pool_get_array(statePool, 'uReconstructMeridional', uReconstructMeridional, timeLevel=timeLevel)
 
-         call mpas_reconstruct(meshPool, normalVelocity,               &
-                          uReconstructX, uReconstructY, uReconstructZ, &
-                          uReconstructZonal, uReconstructMeridional )
+            call mpas_reconstruct(meshPool, normalVelocity,               &
+                            uReconstructX, uReconstructY, uReconstructZ, &
+                            uReconstructZonal, uReconstructMeridional )
+         endif
 
          block => block % next
       end do

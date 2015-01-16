@@ -359,7 +359,7 @@ contains
       real (kind=RKIND), dimension(:), pointer :: &
          thickness, lowerSurface, upperSurface, layerThicknessFractions, beta
       real (kind=RKIND), dimension(:,:), pointer :: &
-         normalVelocity
+         normalVelocity, uReconstructX, uReconstructY, uReconstructZ
       real (kind=RKIND), dimension(:,:,:), pointer :: &
          tracers
       integer, dimension(:), pointer :: vertexMask
@@ -379,6 +379,9 @@ contains
 
       ! State variables
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel=timeLevel)
+      call mpas_pool_get_array(statePool, 'uReconstructX', uReconstructX, timeLevel=timeLevel)
+      call mpas_pool_get_array(statePool, 'uReconstructY', uReconstructY, timeLevel=timeLevel)
+      call mpas_pool_get_array(statePool, 'uReconstructZ', uReconstructZ, timeLevel=timeLevel)
       call mpas_pool_get_array(statePool, 'thickness', thickness, timeLevel=timeLevel)
       call mpas_pool_get_array(statePool, 'lowerSurface', lowerSurface, timeLevel=timeLevel)
       call mpas_pool_get_array(statePool, 'upperSurface', upperSurface, timeLevel=timeLevel)
@@ -455,7 +458,7 @@ contains
       case ('L1L2') ! ===============================================
 #ifdef USE_EXTERNAL_L1L2
           call mpas_timer_start("velocity_solver_solve_L1L2")
-          call velocity_solver_solve_L1L2(lowerSurface, thickness, beta, tracers(index_temperature,:,:), normalVelocity)
+          call velocity_solver_solve_L1L2(lowerSurface, thickness, beta, tracers(index_temperature,:,:), normalVelocity, uReconstructX, uReconstructY)
 !         call velocity_solver_estimate_SS_SMB(normalVelocity, mesh % sfcMassBal % array)
           call mpas_timer_stop("velocity_solver_solve_L1L2")
           ! Optional calls to have LifeV output data files
@@ -472,7 +475,7 @@ contains
       case ('FO') ! ===============================================
 #ifdef USE_EXTERNAL_FIRSTORDER
           call mpas_timer_start("velocity_solver_solve_FO")
-          call velocity_solver_solve_FO(lowerSurface, thickness, beta, tracers(index_temperature,:,:), normalVelocity)
+          call velocity_solver_solve_FO(lowerSurface, thickness, beta, tracers(index_temperature,:,:), normalVelocity, uReconstructX, uReconstructY)
 !	  call velocity_solver_estimate_SS_SMB(normalVelocity, mesh % sfcMassBal % array)
           call mpas_timer_stop("velocity_solver_solve_FO")
           call mpas_timer_start("velocity_solver export")
@@ -489,7 +492,8 @@ contains
       case ('Stokes') ! ===============================================
 #ifdef USE_EXTERNAL_STOKES
           call mpas_timer_start("velocity_solver_solve_stokes")
-          call velocity_solver_solve_stokes(lowerSurface, thickness, beta, tracers(index_temperature,:,:), normalVelocity)
+          call velocity_solver_solve_stokes(lowerSurface, thickness, beta, tracers(index_temperature,:,:), normalVelocity, uReconstructX, uReconstructY, uReconstructZ)
+          uReconstructZ = uReconstructZ / (365.0*24.0*3600.0)  ! convert from m/yr to m/s
           call mpas_timer_stop("velocity_solver_solve_stokes")
 #else
           write(0,*) "Error: External Stokes library needed to run stokes dycore."
@@ -500,6 +504,9 @@ contains
 
 
    normalVelocity = normalVelocity / (365.0*24.0*3600.0)  ! convert from m/yr to m/s
+   uReconstructX =  uReconstructX / (365.0*24.0*3600.0)  ! convert from m/yr to m/s
+   uReconstructY =  uReconstructY / (365.0*24.0*3600.0)  ! convert from m/yr to m/s
+
 
    !--------------------------------------------------------------------
    end subroutine li_velocity_external_solve

@@ -365,7 +365,6 @@
 		<var name="normalVelocity" type="real" dimensions="nVertInterfaces nEdges Time" units="m s^{-1}"
 		     description="horizonal velocity, normal component to an edge"
 		/>
-			<!-- normalVelocity needs to be input/restart for iterative velocity solvers -->
 		<var name="uReconstructX"                     type="real"     dimensions="nVertInterfaces nCells Time"    
 		     units="m s^{-1}"  description="x-component of velocity reconstructed on cell centers"
 		/>
@@ -381,7 +380,7 @@
 		<var name="uReconstructMeridional"            type="real"     dimensions="nVertInterfaces nCells Time"    
 		     units="m s^{-1}"  description="meridional velocity reconstructed on cell centers"
 		/>
-		<var name="anyVertexMaskChanged  "            type="integer"  dimensions="Time"
+		<var name="anyVertexMaskChanged"              type="integer"  dimensions="Time"
 		     units="none"  description="flag needed by external velocity solvers that indicates if the region to solve on the block's domain has changed (treated as a logical)"
 		/>
 	</var_struct>
