@@ -969,10 +969,17 @@ void get_prism_velocity_on_FEdges(double * uNormal,
       pc[i] *= (circToTria[i] == fVertex[i]) ? 1 : -1;
     }
 
-    if (pc[0]+pc[1] <= 0) {std::cout << "Error, cirmcumcenters' locations of adjacent triangles is reversed"<<std::endl; exit(2);}
+    if (pc[0]+pc[1] <= 0) {std::cout << "Error, circumcenters' locations of adjacent triangles is reversed"<<std::endl; exit(2);}
 
     //Computing normal average velocity on the cell face corresponding to the cell edge.
-    for (int il = 0; il < nLayers; il++) {
+    //For each layer:
+    //1. We split the edge in the two parts that belong to the two triangles: p_mid-circ0, p_mid-circ1.
+    // (It may happen that these parts belong to the same triangle but the algorithm still work by setting the part length to be negative when the circumcenter belong to the "other" triangle.)
+    //2. compute the average normal velocity on each of the two vertical faces (associated to the edge parts) by averaging the normal velocity on the 4 vertices of each face.
+    //3. compute the average normal velocity on the vertical face associated to the whole edge by weighing the velocities computed in 2. by the ratio of the edge part length and the edge length.
+    //Points 1. 2. 3. are compressed in the code below and x and y component of normal velocity are computed separately.
+
+    for (int il = 0; il < nLayers; il++) { //loop over layers
       int ilReversed = nLayers - il - 1;
       int index = iEdge * nLayers + ilReversed;
       uNormal[index] = 0;
@@ -980,22 +987,30 @@ void get_prism_velocity_on_FEdges(double * uNormal,
         for(int i=0; i<2; ++i) {
         ID iCell3D = il * columnShift + layerShift * iCells[i][j];
 
+        //contribution of x component of velocity at vertex circ[i] at bottom and top of layer
         uNormal[index] += 0.25* pc[i]/(pc[0]+pc[1])*bcoords[i][j] * nx
           * (velocityOnCells[iCell3D] + velocityOnCells[iCell3D + columnShift]);
+
+        //getting IDs for y component of velocities
         iCell3D += nPoints3D;
+        //contribution of y component of velocity at vertex circ[i] at bottom and top of layer
         uNormal[index] += 0.25* pc[i]/(pc[0]+pc[1])*bcoords[i][j] * ny
           * (velocityOnCells[iCell3D] + velocityOnCells[iCell3D + columnShift]);
         }
       }
       ID iCell3D0 = il * columnShift + layerShift * iCell0;
       ID iCell3D1 = il * columnShift + layerShift * iCell1;
+      //contribution of x component of velocity at vertex p_mid at bottom and top of layer
       uNormal[index] += 0.125 * nx
         * (velocityOnCells[iCell3D0] + velocityOnCells[iCell3D0 + columnShift] + velocityOnCells[iCell3D1] + velocityOnCells[iCell3D1 + columnShift]);
+
+      //getting IDs for y component of velocities
       iCell3D0 += nPoints3D;
       iCell3D1 += nPoints3D;
+      //contribution of y component of velocity at vertex p_mid at bottom and top of layer
       uNormal[index] += 0.125* ny
         * (velocityOnCells[iCell3D0] + velocityOnCells[iCell3D0 + columnShift] + velocityOnCells[iCell3D1] + velocityOnCells[iCell3D1 + columnShift]);
-    }
+    } //end loop over layers
   }
 
 }
