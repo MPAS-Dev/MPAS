@@ -209,7 +209,7 @@ contains
       !
       !-----------------------------------------------------------------
       type (mpas_pool_type), pointer :: meshPool
-      integer, pointer :: nCells, nEdges, nVertices, nCellsSolve, nEdgesSolve, nVerticesSolve, nVertLevels, maxNEdgesOnCell 
+      integer, pointer :: nCells, nEdges, nVertices, nCellsSolve, nEdgesSolve, nVerticesSolve, nVertInterfaces, maxNEdgesOnCell 
       integer, dimension(:,:), pointer :: cellsOnEdge, cellsOnVertex, verticesOnCell, verticesOnEdge, edgesOnCell
       integer, dimension(:), pointer :: indexToCellID, indexToEdgeID, indexToVertexID, nEdgesOnCell
       real (kind=RKIND), dimension(:), pointer :: xCell, yCell, zCell, xVertex, yVertex, zVertex, areaTriangle
@@ -235,7 +235,7 @@ contains
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
       call mpas_pool_get_dimension(meshPool, 'nVertices', nVertices)
-      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+      call mpas_pool_get_dimension(meshPool, 'nVertInterfaces', nVertInterfaces)
       call mpas_pool_get_dimension(meshPool, 'maxEdges', maxNEdgesOnCell)
       call mpas_pool_get_config(meshPool, 'sphere_radius', radius)
 
@@ -272,7 +272,7 @@ contains
       !zCell is supposed to be zero when working on planar geometries (radius = 0) 
       !nVertLevels should be equal to nVertLevelsSolve (no splitting of the domain in the vertical direction)
       call mpas_timer_start("velocity_solver_set_grid_data")
-      call velocity_solver_set_grid_data(nCells, nEdges, nVertices, nVertLevels, &
+      call velocity_solver_set_grid_data(nCells, nEdges, nVertices, nVertInterfaces, &
               nCellsSolve, nEdgesSolve, nVerticesSolve, maxNEdgesOnCell, radius, &
               cellsOnEdge, cellsOnVertex, verticesOnCell, verticesOnEdge, edgesOnCell, &
               nEdgesOnCell, indexToCellID, &
