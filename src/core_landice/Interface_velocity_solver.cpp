@@ -307,12 +307,15 @@ void velocity_solver_solve_fo(double const* lowerSurface_F,
     for (int i = 0; i < nVertices; i++) {
       mpasIndexToVertexID[i] = indexToCellID_F[vertexToFCell[i]];
     }
-    get_tetraP1_velocity_on_FEdges(u_normal_F, velocityOnVertices, edgeToFEdge,
-        mpasIndexToVertexID);
+  //  get_tetraP1_velocity_on_FEdges(u_normal_F, velocityOnVertices, edgeToFEdge,
+ //       mpasIndexToVertexID);
   }
 
   mapVerticesToCells(velocityOnVertices, &velocityOnCells[0], 2, nLayers,
       Ordering);
+
+  if (!isDomainEmpty)
+    get_prism_velocity_on_FEdges(u_normal_F, velocityOnCells, edgeToFEdge);
 
   std::vector<double> velOnEdges(nEdges * nLayers);
   for (int i = 0; i < nEdges; i++) {
@@ -875,46 +878,123 @@ void get_tetraP1_velocity_on_FEdges(double * uNormal,
 
 }
 
+//This function computes the average normal velocity on the edges/faces of MPAS cells.
+//The function rely on the assumption that the locations of the circumcenters of two triangles sharing an edge are inside the union of the triangles and that
+//the locations of the cicumcenters should not coincide and should not be inverted(i.e. if triangle 1 precedes triangle 2 on the circumcenters line, then circumcenter 1 should preced circumceter 2).
+//The flux obtained multiplying normal velocity with the area of the face corresponding that edge will be exact for linear-bilinear finite elements on the prisms.
+//The flux will be second order accurate for other finite elements (e.g. linear or quadratic on Tetrahedra).
+
 void get_prism_velocity_on_FEdges(double * uNormal,
-    const std::vector<double>& velocityOnVertices,
+    const std::vector<double>& velocityOnCells,
     const std::vector<int>& edgeToFEdge) {
 
-  //fix this
-  int columnShift = (Ordering == 1) ? 1 : nVertices;
-  int layerShift = (Ordering == 0) ? 1 : nLayers + 1;
+  //using layout of velocityOnCells
+  int columnShift = 1;
+  int layerShift = (nLayers + 1);
 
-  UInt nPoints3D = nVertices * (nLayers + 1);
+  UInt nPoints3D = nCells_F * (nLayers + 1);
 
+  //Looping through the internal edges of the triangulation
   for (int i = numBoundaryEdges; i < nEdges; i++) {
+
+    //identifying vertices on the edge
     ID lId0 = verticesOnEdge[2 * i];
     ID lId1 = verticesOnEdge[2 * i + 1];
     int iCell0 = vertexToFCell[lId0];
     int iCell1 = vertexToFCell[lId1];
 
+    //computing normal to the cell edge (dual of triangular edge)
     double nx = xCell_F[iCell1] - xCell_F[iCell0];
     double ny = yCell_F[iCell1] - yCell_F[iCell0];
     double n = sqrt(nx * nx + ny * ny);
     nx /= n;
     ny /= n;
 
-    ID iEdge = edgeToFEdge[i];
+    //computing midpoint of triangle edge
+    double p_mid[2] = {0.5*(xCell_F[iCell1] + xCell_F[iCell0]), 0.5*(yCell_F[iCell1] + yCell_F[iCell0])};
 
+    //identifying triangles that shares the edge
+    ID iEdge = edgeToFEdge[i];
+    ID fVertex0 = verticesOnEdge_F[2 * iEdge] - 1;
+    ID fVertex1 = verticesOnEdge_F[2 * iEdge + 1] - 1;
+    ID triaId0 = fVertexToTriangleID[fVertex0];
+    ID triaId1 = fVertexToTriangleID[fVertex1];
+    double t0[2*3], t1[2*3]; //t0[0] contains the x-coords of vertices of triangle 0 and t0[1] its y-coords.
+    for (int j = 0; j < 3; j++) {
+      int iCell = cellsOnVertex_F[3 * fVertex0 + j] - 1;
+      t0[0 + 2 * j] = xCell_F[iCell];
+      t0[1 + 2 * j] = yCell_F[iCell];
+      iCell = cellsOnVertex_F[3 * fVertex1 + j] - 1;
+      t1[0 + 2 * j] = xCell_F[iCell];
+      t1[1 + 2 * j] = yCell_F[iCell];
+    }
+
+    //computing triangle circumcenters (vertices of MPAS cells). Can we have these passed by MPAS?
+    double circ[2][2] ,p[2],bcoords[2][3];
+    triangle_circumcenter_2d (t0, circ[0]);
+    triangle_circumcenter_2d (t1, circ[1]);
+
+    //Identify to what triangle the circumcenters belong and compute its baricentric coordinates
+    ID circToTria[2];
+    ID iCells[2][3]; //iCells[k] is the array of cells indexes of triangle k on iEdge
+    for (int i=0; i<2; ++i) { //loop on the two vertices of mpas edge iEdge
+      if(belongToTria(circ[i], t0, bcoords[i])) {
+        circToTria[i] = fVertex0;
+        for (int j = 0; j < 3; j++)
+          iCells[i][j] = cellsOnVertex_F[3 * fVertex0 + j] - 1;
+      }
+      else if(belongToTria(circ[i], t1, bcoords[i])) {
+        circToTria[i] = fVertex1;
+        for (int j = 0; j < 3; j++)
+          iCells[i][j] = cellsOnVertex_F[3 * fVertex1 + j] - 1;
+      }
+      else { //error, edge midpont does not belong to either triangles
+        std::cout << "Error, edge midpont does not belong to either triangles" << std::endl;
+        for (int j = 0; j < 3; j++)
+          std::cout << "("<<t0[0 + 2 * j]<<","<<t0[1 + 2 * j]<<") ";
+        std::cout <<std::endl;
+        for (int j = 0; j < 3; j++)
+          std::cout << "("<<t1[0 + 2 * j]<<","<<t1[1 + 2 * j]<<") ";
+        std::cout <<"\n = ("<<circ[i][0]<<","<<circ[i][1]<<")"<<std::endl;
+        exit(1);
+      }
+    }
+
+    //compute signed distance between circumcenters and triangle edge midpoint.
+    //The distance will be positive if circumcenter is inside its triangle, otherwise it will be negative.
+    //In this way the calculation below is correct also when circumcenters are in the "other" triangle.
+    double pc[2], fVertex[2] = {fVertex0, fVertex1};
+    for(int i=0; i<2; ++i) {
+      pc[i]= std::sqrt(std::pow(p_mid[0]-circ[i][0],2)+std::pow(p_mid[1]-circ[i][1],2));
+      pc[i] *= (circToTria[i] == fVertex[i]) ? 1 : -1;
+    }
+
+    if (pc[0]+pc[1] <= 0) {std::cout << "Error, cirmcumcenters' locations of adjacent triangles is reversed"<<std::endl; exit(2);}
+
+    //Computing normal average velocity on the cell face corresponding to the cell edge.
     for (int il = 0; il < nLayers; il++) {
       int ilReversed = nLayers - il - 1;
-      ID lId3D1 = il * columnShift + layerShift * lId0;
-      ID lId3D2 = il * columnShift + layerShift * lId1;
-      //not accurate
-      uNormal[iEdge * nLayers + ilReversed] = 0.25 * nx
-          * (velocityOnVertices[lId3D1] + velocityOnVertices[lId3D2]
-              + velocityOnVertices[lId3D1 + columnShift]
-              + velocityOnVertices[lId3D2 + columnShift]);
+      int index = iEdge * nLayers + ilReversed;
+      uNormal[index] = 0;
+      for(int j=0; j<3; ++j) {
+        for(int i=0; i<2; ++i) {
+        ID iCell3D = il * columnShift + layerShift * iCells[i][j];
 
-      lId3D1 += nPoints3D;
-      lId3D2 += nPoints3D;
-      uNormal[iEdge * nLayers + ilReversed] += 0.25 * ny
-          * (velocityOnVertices[lId3D1] + velocityOnVertices[lId3D2]
-              + velocityOnVertices[lId3D1 + columnShift]
-              + velocityOnVertices[lId3D2 + columnShift]);
+        uNormal[index] += 0.25* pc[i]/(pc[0]+pc[1])*bcoords[i][j] * nx
+          * (velocityOnCells[iCell3D] + velocityOnCells[iCell3D + columnShift]);
+        iCell3D += nPoints3D;
+        uNormal[index] += 0.25* pc[i]/(pc[0]+pc[1])*bcoords[i][j] * ny
+          * (velocityOnCells[iCell3D] + velocityOnCells[iCell3D + columnShift]);
+        }
+      }
+      ID iCell3D0 = il * columnShift + layerShift * iCell0;
+      ID iCell3D1 = il * columnShift + layerShift * iCell1;
+      uNormal[index] += 0.125 * nx
+        * (velocityOnCells[iCell3D0] + velocityOnCells[iCell3D0 + columnShift] + velocityOnCells[iCell3D1] + velocityOnCells[iCell3D1 + columnShift]);
+      iCell3D0 += nPoints3D;
+      iCell3D1 += nPoints3D;
+      uNormal[index] += 0.125* ny
+        * (velocityOnCells[iCell3D0] + velocityOnCells[iCell3D0 + columnShift] + velocityOnCells[iCell3D1] + velocityOnCells[iCell3D1 + columnShift]);
     }
   }
 
@@ -1525,6 +1605,20 @@ if(!isDomainEmpty) {
   return 0;
 }
 
+//barycentric coordinates bcoords are properly updated only when functions return true.
+bool belongToTria(double const* x, double const* t, double bcoords[3], double eps) {
+  double v1[2],v2[2],v3[2];
+  for(int i=0; i<2; ++i) {
+  v1[i] = t[i + 2 * 0];
+  v2[i] = t[i + 2 * 1];
+  v3[i] = t[i + 2 * 2];
+  }
+  double det = (v3[1]-v2[1])*(v3[0]-v1[0]) - (v3[0]-v2[0])*(v3[1]-v1[1]);
+  double c1,c2;
+  return ( (bcoords[0] = ((v3[1]-v2[1])*(v3[0]-x[0]) - (v3[0]-v2[0])*(v3[1]-x[1]))/det) > -eps) &&
+         ( (bcoords[1] = (-(v3[1]-v1[1])*(v3[0]-x[0]) + (v3[0]-v1[0])*(v3[1]-x[1]))/det) > -eps) &&
+         ( (bcoords[2] = 1.0 - bcoords[0] - bcoords[1]) > -eps );
+}
 
 int prismType(long long int const* prismVertexMpasIds, int& minIndex)
 {
@@ -1675,5 +1769,72 @@ int prismType(long long int const* prismVertexMpasIds, int& minIndex)
         }
       }
     }
+  }
+
+ void triangle_circumcenter_2d ( const double t[2 * 3], double pc[2] )
+
+  //****************************************************************************80
+  //
+  //  Purpose:
+  //
+  //    TRIANGLE_CIRCUMCENTER_2D computes the circumcenter of a triangle in 2D.
+  //
+  //  Discussion:
+  //
+  //    The circumcenter of a triangle is the center of the circumcircle, the
+  //    circle that passes through the three vertices of the triangle.
+  //
+  //    The circumcircle contains the triangle, but it is not necessarily the
+  //    smallest triangle to do so.
+  //
+  //    If all angles of the triangle are no greater than 90 degrees, then
+  //    the center of the circumscribed circle will lie inside the triangle.
+  //    Otherwise, the center will lie outside the triangle.
+  //
+  //    The circumcenter is the intersection of the perpendicular bisectors
+  //    of the sides of the triangle.
+  //
+  //    In geometry, the circumcenter of a triangle is often symbolized by "O".
+  //
+  //  Licensing:
+  //
+  //    This code is distributed under the GNU LGPL license.
+  //
+  //  Modified:
+  //
+  //    09 February 2005
+  //
+  //  Author:
+  //
+  //    John Burkardt
+  //
+  //  Parameters:
+  //
+  //    Input, double T[2*3], the triangle vertices.
+  //
+  //    Output, double *TRIANGLE_CIRCUMCENTER_2D[2], the circumcenter.
+  //
+  {
+
+      double asq;
+      double bot;
+      double csq;
+      double top1;
+      double top2;
+
+      asq = ( t[0 + 1 * 2] - t[0 + 0 * 2] ) * ( t[0 + 1 * 2] - t[0 + 0 * 2] )
+            + ( t[1 + 1 * 2] - t[1 + 0 * 2] ) * ( t[1 + 1 * 2] - t[1 + 0 * 2] );
+
+      csq = ( t[0 + 2 * 2] - t[0 + 0 * 2] ) * ( t[0 + 2 * 2] - t[0 + 0 * 2] )
+            + ( t[1 + 2 * 2] - t[1 + 0 * 2] ) * ( t[1 + 2 * 2] - t[1 + 0 * 2] );
+
+      top1 =   ( t[1 + 1 * 2] - t[1 + 0 * 2] ) * csq - ( t[1 + 2 * 2] - t[1 + 0 * 2] ) * asq;
+      top2 = - ( t[0 + 1 * 2] - t[0 + 0 * 2] ) * csq + ( t[0 + 2 * 2] - t[0 + 0 * 2] ) * asq;
+
+      bot  =  ( t[1 + 1 * 2] - t[1 + 0 * 2] ) * ( t[0 + 2 * 2] - t[0 + 0 * 2] )
+              - ( t[1 + 2 * 2] - t[1 + 0 * 2] ) * ( t[0 + 1 * 2] - t[0 + 0 * 2] );
+
+      pc[0] = t[0 + 0 * 2] + 0.5 * top1 / bot;
+      pc[1] = t[1 + 0 * 2] + 0.5 * top2 / bot;
   }
 

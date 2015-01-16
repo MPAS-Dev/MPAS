@@ -232,7 +232,7 @@ void get_tetraP1_velocity_on_FEdges(double* uNormal,
     const std::vector<int>& mpasIndexToVertexID);
 
 void get_prism_velocity_on_FEdges(double* uNormal,
-    const std::vector<double>& velocityOnVertices,
+    const std::vector<double>& velocityOnCells,
     const std::vector<int>& edgeToFEdge);
 
 int initialize_iceProblem(int nTriangles);
@@ -277,6 +277,8 @@ void computeMap();
 void setBdFacesOnPrism (const std::vector<std::vector<std::vector<int> > >& prismStruct, const std::vector<int>& prismFaceIds, std::vector<int>& tetraPos, std::vector<int>& facePos);
 void tetrasFromPrismStructured (int const* prismVertexMpasIds, int const* prismVertexGIds, int tetrasIdsOnPrism[][4]);
 
+void triangle_circumcenter_2d ( const double t[2 * 3], double pc[2] );
+bool belongToTria(double const* x, double const* t, double bcoords[3], double eps = 1e-3);
 
 
 
