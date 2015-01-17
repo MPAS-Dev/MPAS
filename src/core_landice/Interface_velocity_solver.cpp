@@ -181,7 +181,7 @@ void velocity_solver_solve_l1l2(double const* lowerSurface_F,
 
 #ifdef LIFEV
 
-  std::fill(u_normal_F, u_normal_F + nEdges_F * nLayers, 0.);
+  std::fill(u_normal_F, u_normal_F + nEdges_F * (nLayers+1), 0.);
 
   double localSum(0), sum(0);
 
@@ -216,17 +216,22 @@ void velocity_solver_solve_l1l2(double const* lowerSurface_F,
 
    mapVerticesToCells (velocityOnVertices, &velocityOnCells[0], 2, nLayers, Ordering);
 
+   //computing x, yVelocityOnCell
    int sizeVelOnCell = nCells_F * (nLayers + 1);
-   for(int i=0; i<sizeVelOnCell; ++i) {
-     xVelocityOnCell[i] = velocityOnCells[i];
-     yVelocityOnCell[i] = velocityOnCells[i+sizeVelOnCell];
+   for(int iCell=0; iCell<nCells_F; ++iCell)
+     for(int il=0; il<nLayers + 1; ++il) {
+       int ilReversed = nLayers - il;
+       int indexReversed = iCell * (nLayers+1) + ilReversed;
+       int index = iCell * (nLayers + 1) +il;
+     xVelocityOnCell[indexReversed] = velocityOnCells[index];
+     yVelocityOnCell[indexReversed] = velocityOnCells[index+sizeVelOnCell];
    }
 
    if (!isDomainEmpty)
      get_prism_velocity_on_FEdges(u_normal_F, velocityOnCells, edgeToFEdge);
 
-   allToAll (u_normal_F,  &sendEdgesListReversed, &recvEdgesListReversed, nLayers);
-   allToAll (u_normal_F,  sendEdgesList_F, recvEdgesList_F, nLayers);
+   allToAll (u_normal_F,  &sendEdgesListReversed, &recvEdgesListReversed, nLayers+1);
+   allToAll (u_normal_F,  sendEdgesList_F, recvEdgesList_F, nLayers+1);
 
 #endif
 
@@ -277,7 +282,7 @@ void velocity_solver_solve_fo(double const* lowerSurface_F,
     double const* thickness_F, double const* beta_F,
     double const* temperature_F, double* u_normal_F, double* xVelocityOnCell, double* yVelocityOnCell) {
 
-  std::fill(u_normal_F, u_normal_F + nEdges_F * nLayers, 0.);
+  std::fill(u_normal_F, u_normal_F + nEdges_F * (nLayers+1), 0.);
 
   if (!isDomainEmpty) {
 
@@ -319,25 +324,30 @@ void velocity_solver_solve_fo(double const* lowerSurface_F,
   mapVerticesToCells(velocityOnVertices, &velocityOnCells[0], 2, nLayers,
       Ordering);
 
+  //computing x, yVelocityOnCell
   int sizeVelOnCell = nCells_F * (nLayers + 1);
-  for(int i=0; i<sizeVelOnCell; ++i) {
-    xVelocityOnCell[i] = velocityOnCells[i];
-    yVelocityOnCell[i] = velocityOnCells[i+sizeVelOnCell];
+  for(int iCell=0; iCell<nCells_F; ++iCell)
+    for(int il=0; il<nLayers + 1; ++il) {
+      int ilReversed = nLayers - il;
+      int indexReversed = iCell * (nLayers+1) + ilReversed;
+      int index = iCell * (nLayers + 1) +il;
+    xVelocityOnCell[indexReversed] = velocityOnCells[index];
+    yVelocityOnCell[indexReversed] = velocityOnCells[index+sizeVelOnCell];
   }
 
   if (!isDomainEmpty)
     get_prism_velocity_on_FEdges(u_normal_F, velocityOnCells, edgeToFEdge);
 
-  std::vector<double> velOnEdges(nEdges * nLayers);
+  std::vector<double> velOnEdges(nEdges * (nLayers+1));
   for (int i = 0; i < nEdges; i++) {
-    for (int il = 0; il < nLayers; il++) {
-      velOnEdges[i * nLayers + il] = u_normal_F[edgeToFEdge[i] * nLayers + il];
+    for (int il = 0; il < nLayers+1; il++) {
+      velOnEdges[i * (nLayers+1) + il] = u_normal_F[edgeToFEdge[i] * (nLayers+1) + il];
     }
   }
 
-  allToAll(u_normal_F, &sendEdgesListReversed, &recvEdgesListReversed, nLayers);
+  allToAll(u_normal_F, &sendEdgesListReversed, &recvEdgesListReversed, nLayers+1);
 
-  allToAll(u_normal_F, sendEdgesList_F, recvEdgesList_F, nLayers);
+  allToAll(u_normal_F, sendEdgesList_F, recvEdgesList_F, nLayers+1);
 
   first_time_step = false;
 
@@ -353,7 +363,7 @@ void velocity_solver_solve_fo(double const* lowerSurface_F,
   for (int i = 0; i < nEdges; i++) {
     for (int il = 0; il < 1; il++) {
       if (std::fabs(
-          velOnEdges[i * nLayers + il]
+          velOnEdges[i * (nLayers+1) + il]
               - u_normal_F[edgeToFEdge[i] * nLayers + il]) > 1e-9)
       //  if(edgeToFEdge[i]>nEdgesSolve_F)
           {
@@ -366,7 +376,7 @@ void velocity_solver_solve_fo(double const* lowerSurface_F,
         ID triaId1 = fVertexToTriangleID[fVertex1];
         ID procTria0 = trianglesProcIds[fVertex0];
         ID procTria1 = trianglesProcIds[fVertex1];
-        std::cout << "vs( " << velOnEdges[i * nLayers + il] << ", "
+        std::cout << "vs( " << velOnEdges[i * (nLayers+1) + il] << ", "
             << u_normal_F[edgeToFEdge[i] * nLayers + il] << ")  ";
         std::cout << "edge: " << edge << ", gEdge: " << gEdge << ", on proc: "
             << edgesProcId[edgeToFEdge[i]];
@@ -940,7 +950,7 @@ void get_prism_velocity_on_FEdges(double * uNormal,
 
     for (int il = 0; il < nLayers+1; il++) { //loop over layers
       int ilReversed = nLayers - il;
-      int index = iEdge * nLayers + ilReversed;
+      int index = iEdge * (nLayers+1) + ilReversed;
       uNormal[index] = 0;
       for(int j=0; j<3; ++j) {
         for(int i=0; i<2; ++i) {
