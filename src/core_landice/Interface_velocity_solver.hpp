@@ -88,12 +88,12 @@ void velocity_solver_init_fo(double const* levelsRatio);
 void velocity_solver_solve_l1l2(double const* lowerSurface_F,
     double const* thickness_F, double const* beta_F,
     double const* temperature_F, double* u_normal_F = 0,
-    double* heatIntegral_F = 0, double* viscosity_F = 0);
+    double* xVelocityOnCell = 0, double* yVelocityOnCell = 0);
 
 void velocity_solver_solve_fo(double const* lowerSurface_F,
     double const* thickness_F, double const* beta_F,
     double const* temperature_F, double* u_normal_F = 0,
-    double* heatIntegral_F = 0, double* viscosity_F = 0);
+    double* xVelocityOnCell = 0, double* yVelocityOnCell = 0);
 
 
 void velocity_solver_compute_2d_grid(int const* verticesMask_F);
@@ -227,11 +227,6 @@ void extendMaskByOneLayer(int const* verticesMask_F,
     std::vector<int>& extendedFVerticesMask);
 
 void importP0Temperature(double const* temperature_F);
-
-void get_tetraP1_velocity_on_FEdges(double* uNormal,
-    const std::vector<double>& velocityOnVertices,
-    const std::vector<int>& edgeToFEdge,
-    const std::vector<int>& mpasIndexToVertexID);
 
 void get_prism_velocity_on_FEdges(double* uNormal,
     const std::vector<double>& velocityOnCells,
