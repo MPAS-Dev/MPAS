@@ -34,7 +34,7 @@ double const *xCell_F, *yCell_F, *zCell_F, *xVertex_F,  *yVertex_F, *zVertex_F, 
 std::vector<double> xCellProjected, yCellProjected, zCellProjected;
 const double unit_length = 1000;
 const double T0 = 273.15;
-const double minThick = 1e-2; //10m
+const double minThick = 1e-3; //1m
 const double minBeta = 1e-5;
 //void *phgGrid = 0;
 std::vector<int> edgesToReceive, fCellsToReceive, indexToTriangleID,
@@ -1313,25 +1313,18 @@ void import2DFields(double const * lowerSurface_F, double const * thickness_F,
       it != bdExtensionMap.end(); ++it) {
     int iv = it->first;
     int ic = it->second;
-    thicknessData[iv] = thickness_F[ic] / unit_length + eps; //- 1e-8*std::sqrt(pow(xCell_F[ic],2)+std::pow(yCell_F[ic],2));
-    elevationData[iv] = std::max(
-        thicknessData[iv] + lowerSurface_F[ic] / unit_length,
-        118. / 1028. * thicknessData[iv]);
+    thicknessData[iv] = std::max(thickness_F[ic] / unit_length, eps);
+    elevationData[iv] = thicknessData[iv] + lowerSurface_F[ic] / unit_length;
     if (beta_F != 0)
-      //  betaData[ iv ] = beta_F[ic]/unit_length;
-      betaData[iv] =
-          (lowerSurface_F[ic] > -910. / 1028. * thickness_F[ic]) ?
-              beta_F[ic] / unit_length : 0;
+      betaData[iv] = beta_F[ic] / unit_length;
   }
 
   for (int index = 0; index < nVertices; index++) {
     int iCell = vertexToFCell[index];
 
     if (!isVertexBoundary[index]) {
-      thicknessData[index] = thickness_F[iCell] / unit_length + eps;
-      elevationData[index] = std::max(
-          (lowerSurface_F[iCell] / unit_length) + thicknessData[index],
-          118. / 1028. * thicknessData[index]);
+      thicknessData[index] = std::max(thickness_F[iCell] / unit_length, eps);
+      elevationData[index] = (lowerSurface_F[iCell] / unit_length) + thicknessData[index];
     }
   }
 
@@ -1340,10 +1333,7 @@ void import2DFields(double const * lowerSurface_F, double const * thickness_F,
       int iCell = vertexToFCell[index];
 
       if (!isVertexBoundary[index])
-        //betaData[ index ] = beta_F[iCell]/unit_length;
-        betaData[index] =
-            (lowerSurface_F[iCell] > -910. / 1028. * thickness_F[iCell]) ?
-                beta_F[iCell] / unit_length : 0;
+        betaData[index] = beta_F[iCell] / unit_length;
     }
   }
 
