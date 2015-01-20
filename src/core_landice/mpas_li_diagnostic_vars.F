@@ -114,6 +114,7 @@ contains
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: statePool
       character (len=StrKIND), pointer :: config_velocity_solver
+      logical, pointer :: config_do_velocity_reconstruction_for_external_dycore
       type (field2DReal), pointer :: normalVelocityField, layerThicknessEdgeField
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, uReconstructX, uReconstructY, uReconstructZ, uReconstructZonal, uReconstructMeridional
       integer :: err_tmp
@@ -122,6 +123,7 @@ contains
       err = 0
 
       call mpas_pool_get_config(liConfigs, 'config_velocity_solver', config_velocity_solver)
+      call mpas_pool_get_config(liConfigs, 'config_do_velocity_reconstruction_for_external_dycore', config_do_velocity_reconstruction_for_external_dycore)
 
       ! ===
       ! === Diagnostic solve of variables prior to velocity 
@@ -178,8 +180,11 @@ contains
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block % structs, 'state', statePool)
 
-         ! External dycores return reconstructed velocities.  Native SIA dycore needs to have them calculated.
-         if (trim(config_velocity_solver) == 'sia') then
+         ! Native SIA dycore needs to have reconstructed velocities calculated.
+         ! External dycores return their native velocities at cell center locations,
+         ! but these can optionally be overwritten by reconstructed velocities for testing.
+         if ( (trim(config_velocity_solver) == 'sia') .or.    &
+               config_do_velocity_reconstruction_for_external_dycore ) then
             call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel=timeLevel)
             call mpas_pool_get_array(statePool, 'uReconstructX', uReconstructX, timeLevel=timeLevel)
             call mpas_pool_get_array(statePool, 'uReconstructY', uReconstructY, timeLevel=timeLevel)
