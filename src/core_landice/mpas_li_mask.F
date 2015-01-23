@@ -76,6 +76,12 @@ module li_mask
    end interface
 
 
+   interface li_mask_is_floating_ice_int
+      module procedure li_mask_is_floating_ice_intout_1d
+      module procedure li_mask_is_floating_ice_intout_0d
+   end interface
+
+
    interface li_mask_is_grounded_ice
       module procedure li_mask_is_grounded_ice_logout_1d
       module procedure li_mask_is_grounded_ice_logout_0d
@@ -406,6 +412,60 @@ contains
    end subroutine li_calculate_mask
 
 
+!***********************************************************************
+!
+!  routine li_calculate_extrapolate_floating_edgemask
+!
+!> \brief   Extrapolates floating edges forward as needed by external FEM dycores
+!> \author  Matt Hoffman
+!> \date    29 January 2015
+!> \details
+!>  External FEM dycores include the first non-ice cells in their mesh.  They
+!>  also use a mask to apply floating lateral boundary conditions on edges.
+!>  Because they include extra cell center location in their meshes, the triangle
+!>  edges connecting these extra nodes will not be covered by the standard
+!>  MPAS edge mask.  This routine deals with this problem by 'extrapolating'
+!>  the floating edge mask forward to cover the edges connecting these extra nodes.
+!>  It does so by looping over vertices, and for any vertex that has at least one
+!>  floating edge, it sets all edges on that vertex to be floating.
+!
+!-----------------------------------------------------------------------
+
+   subroutine li_calculate_extrapolate_floating_edgemask(meshPool, floatingEdges)
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: &
+         meshPool          !< Input: mesh information
+
+      !-----------------------------------------------------------------
+      ! input/output variables
+      !-----------------------------------------------------------------
+      integer, dimension(:) :: &
+         floatingEdges          !< Input/Output: 0/1 mask of floating edges
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+      integer, dimension(:,:), pointer :: edgesOnVertex
+      integer, pointer :: nVertices, vertexDegree
+      integer :: iVertex
+
+      call mpas_pool_get_dimension(meshPool, 'nVertices', nVertices)
+      call mpas_pool_get_dimension(meshPool, 'vertexDegree', vertexDegree)
+      call mpas_pool_get_array(meshPool, 'edgesOnVertex', edgesOnVertex)
+
+      do iVertex = 1, nVertices
+         floatingEdges(edgesOnVertex(:,iVertex)) = maxval(edgesOnVertex(:,iVertex))
+      enddo
+
+   end subroutine li_calculate_extrapolate_floating_edgemask
+
 
    ! ===================================
    ! Functions for decoding bitmasks - will work with cellMask, edgeMask, or vertexMask
@@ -479,6 +539,19 @@ contains
       li_mask_is_floating_ice_logout_0d = (iand(mask, li_mask_ValueFloating) == li_mask_ValueFloating)
    end function li_mask_is_floating_ice_logout_0d
 
+   function li_mask_is_floating_ice_intout_1d(mask)
+      integer, dimension(:), intent(in) :: mask
+      integer, dimension(size(mask)) :: li_mask_is_floating_ice_intout_1d
+
+      li_mask_is_floating_ice_intout_1d = iand(mask, li_mask_ValueFloating) / li_mask_ValueFloating
+   end function li_mask_is_floating_ice_intout_1d
+
+   function li_mask_is_floating_ice_intout_0d(mask)
+      integer, intent(in) :: mask
+      integer :: li_mask_is_floating_ice_intout_0d
+
+      li_mask_is_floating_ice_intout_0d = iand(mask, li_mask_ValueFloating) / li_mask_ValueFloating
+   end function li_mask_is_floating_ice_intout_0d
 
    ! -- Functions that check for presence of grounded ice --
    function li_mask_is_grounded_ice_logout_1d(mask)
