@@ -21,7 +21,7 @@ DEFAULT_VIEW_PROPERTIES = {
     'UseLight': 1,
     'StereoRender': 0,
     'CameraPosition': [15000.0, 99592.9248046875, 647834.944767225],
-    'StereoCapableWindow': 0,
+#    'StereoCapableWindow': 0,
     'CameraClippingRange': [441356.5953195527, 1361552.4689387335],
     'LightSwitch': 0,
     'ViewTime': 0.0,
