@@ -116,8 +116,6 @@ contains
 
       ! turn on package for this analysis member
       paraview_catalystActive = .true.
-!mrp
-print *, 'ocn_setup_packages_paraview_catalyst'
 
    end subroutine ocn_setup_packages_paraview_catalyst!}}}
 
@@ -172,9 +170,6 @@ print *, 'ocn_setup_packages_paraview_catalyst'
       call mpas_init_paraview_catalyst
       call mpas_init_mesh_paraview_catalyst(domain)
       call mpas_init_data_paraview_catalyst(domain)
-
-!mrp
-print *, 'ocn_init_paraview_catalyst'
 
       imageFrame = 1
 
@@ -261,8 +256,7 @@ print *, 'ocn_init_paraview_catalyst'
       imageFrame = imageFrame + 1
 
       call mpas_timer_stop("paraview_catalyst", paraview_catalystTimer)
-!mrp
-print *, 'ocn_compute_paraview_catalyst'
+
    end subroutine ocn_compute_paraview_catalyst!}}}
 
 !***********************************************************************
@@ -459,7 +453,7 @@ print *, 'ocn_compute_paraview_catalyst'
       integer :: timeLevel
 
       type (block_type), pointer :: block
-      type (field2DReal), pointer :: densityField, kineticEnergyCellField, relativeVorticityCellField
+      type (field2DReal), pointer :: kineticEnergyCellField, relativeVorticityCellField
       type (field3DReal), pointer :: tracersField
 
       type (mpas_pool_type), pointer :: statePool
@@ -494,13 +488,6 @@ print *, 'ocn_compute_paraview_catalyst'
                        tracersField % dimSizes(3)-1, & 
                        tracersField % array)
 
-         call mpas_pool_get_field(diagnosticsPool, 'density', densityField)
-         call coprocessor_register_data( \
-                       densityField % fieldName, \
-                       densityField % dimSizes(1), \
-                       densityField % dimSizes(2)-1, & 
-                       densityField % array)
-
          call mpas_pool_get_field(diagnosticsPool, 'kineticEnergyCell', kineticEnergyCellField)
          call coprocessor_register_data( \
                        kineticEnergyCellField % fieldName, \
@@ -518,8 +505,6 @@ print *, 'ocn_compute_paraview_catalyst'
        block => block % next
     end do
 
-!mrp
-print *, 'mpas_init_data_paraview_catalyst'
    end subroutine mpas_init_data_paraview_catalyst!}}}
 
 
@@ -543,7 +528,6 @@ print *, 'mpas_init_data_paraview_catalyst'
       !-----------------------------------------------------------------
       type (domain_type), intent(in) :: domain
       integer, intent(in) :: itime
-!      integer, intent(in) :: timeLevel  ! mrp add later
 
       !-----------------------------------------------------------------
       !
@@ -556,13 +540,13 @@ print *, 'mpas_init_data_paraview_catalyst'
 
       type (block_type), pointer :: block
       integer :: timeLevel
-      type (field2DReal), pointer :: densityField, kineticEnergyCellField, relativeVorticityCellField
+      type (field2DReal), pointer :: kineticEnergyCellField, relativeVorticityCellField
       type (field3DReal), pointer :: tracersField
 
       type (mpas_pool_type), pointer :: statePool
       type (mpas_pool_type), pointer :: diagnosticsPool
 
-timeLevel=1  ! mrp change to input argument later
+      timeLevel=1  ! Could change to input argument later
 
       block => domain % blocklist
       do while (associated(block))
@@ -593,14 +577,6 @@ timeLevel=1  ! mrp change to input argument later
                        tracersField % dimSizes(3)-1, & 
                        tracersField % array)
 
-         call mpas_pool_get_field(diagnosticsPool, 'density', densityField)
-         call coprocessor_add_data( \
-                       itime, \
-                       densityField % fieldName, \
-                       densityField % dimSizes(1), \
-                       densityField % dimSizes(2)-1, & 
-                       densityField % array)
-
          call mpas_pool_get_field(diagnosticsPool, 'kineticEnergyCell', kineticEnergyCellField)
          call coprocessor_add_data( \
                        itime, \
@@ -617,11 +593,8 @@ timeLevel=1  ! mrp change to input argument later
                        relativeVorticityCellField % dimSizes(2)-1, & 
                        relativeVorticityCellField % array)
 
-     block => block % next
-   end do
-
-!mrp
-print *, 'mpas_load_data_paraview_catalyst'
+         block => block % next
+      end do
 
    end subroutine mpas_load_data_paraview_catalyst!}}}
 

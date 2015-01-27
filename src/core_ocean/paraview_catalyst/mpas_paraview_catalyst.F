@@ -183,8 +183,6 @@ module mpas_paraview_catalyst
          call mpas_pool_get_array(meshPool, 'vertexMask', vertexMask)
          call mpas_pool_get_array(meshPool, 'verticesOnCell', verticesOnCell)
          call mpas_pool_get_array(meshPool, 'cellMask', cellMask)
-!mrp
-print *, 'mpas_init_mesh_paraview_catalyst nCells=',nCells
 
          call coprocessor_create_grid( \
                        nCells, maxEdges, nGhostCell, cellGhost, cellHalo, \
