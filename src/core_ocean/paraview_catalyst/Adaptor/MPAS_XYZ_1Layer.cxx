@@ -84,7 +84,7 @@ void create_xyz2D_grids(
     usePrimalCell.resize(nPrimalCells);
     for (int i = 0; i < nPrimalCells; i++) {
       usePrimalCell[i] = true;
-      for (int j = 0; j < nPrimalVertsPerCell; j++) {
+      for (int j = 0; j < nEdgesOnCell[i]; j++) {
         if (verticesOnCell[(i * nPrimalVertsPerCell) + j] >= (nPrimalVerts + 1)) {
           usePrimalCell[i] = false;
         }
