@@ -1,0 +1,5 @@
+To use these scripts, copy mpas_common.py to your working directory (where you
+run a core_* executable from) and copy one of the mpas-*.py scripts to a file
+named mpas.py. Make any edits to it that are required for the simulation run.
+Instructions for the dataset map are available as part of the mpas-example.py
+script.

@@ -88,8 +88,8 @@ contains
 !  routine ocn_setup_packages_TEMPLATE
 !
 !> \brief   Set up packages for MPAS-Ocean analysis member
-!> \author  Mark Petersen
-!> \date    November 2013
+!> \author  FILL_IN_AUTHOR
+!> \date    FILL_IN_DATE
 !> \details 
 !>  This routine is intended to configure the packages for this MPAS
 !>   ocean analysis member
@@ -193,8 +193,8 @@ contains
 !  routine ocn_init_alarms_TEMPLATE
 !
 !> \brief   Initialize alarms for MPAS-Ocean analysis member
-!> \author  Mark Petersen
-!> \date    November 2013
+!> \author  FILL_IN_AUTHOR
+!> \date    FILL_IN_DATE
 !> \details 
 !>  This routine conducts all alarm initializations required for the 
 !>  MPAS-Ocean analysis member.
