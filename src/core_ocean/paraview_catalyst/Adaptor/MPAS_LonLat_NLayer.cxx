@@ -278,12 +278,12 @@ void create_lonlat3D_mesh(
         double yVert = yVertex[cIndx];
         bool makeWrapPt = false;
 
-        if ((xRef - xVert) < -M_PI) {
-          xVert -= 2.0 * M_PI;
+        if ((xRef - xVert) < -180.0) {
+          xVert -= 360.0;
           makeWrapPt = true;
         }
-        else if ((xRef - xVert) > M_PI) {
-          xVert += 2.0 * M_PI;
+        else if ((xRef - xVert) > 180.0) {
+          xVert += 360.0;
           makeWrapPt = true;
         }
 

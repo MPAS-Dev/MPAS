@@ -165,10 +165,14 @@ contains
       !
       !-----------------------------------------------------------------
 
+      real (kind=RKIND), pointer :: config_longitude_periodic_split
+
       err = 0
 
+      call mpas_pool_get_config(domain % configs, 'config_longitude_periodic_split', config_longitude_periodic_split)
+
       call mpas_init_paraview_catalyst
-      call mpas_init_mesh_paraview_catalyst(domain)
+      call mpas_init_mesh_paraview_catalyst(domain, config_longitude_periodic_split)
       call mpas_init_data_paraview_catalyst(domain)
 
       imageFrame = 1

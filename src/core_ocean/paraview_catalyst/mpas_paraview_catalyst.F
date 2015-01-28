@@ -21,6 +21,7 @@
 module mpas_paraview_catalyst
 
    use mpas_grid_types
+   use mpas_constants
 
    implicit none
    private
@@ -62,7 +63,7 @@ module mpas_paraview_catalyst
 !>  for in-situ visualization and analysis.
 !
 !-----------------------------------------------------------------------
-   subroutine mpas_init_mesh_paraview_catalyst(domain)!{{{
+   subroutine mpas_init_mesh_paraview_catalyst(domain,longitude_periodic_split)!{{{
    
       !-----------------------------------------------------------------
       !
@@ -71,6 +72,7 @@ module mpas_paraview_catalyst
       !-----------------------------------------------------------------
 
       type (domain_type), intent(in) :: domain
+      real (kind=RKIND), intent(in) :: longitude_periodic_split
 
       !-----------------------------------------------------------------
       !
@@ -91,8 +93,11 @@ module mpas_paraview_catalyst
       integer, dimension(:), pointer :: nEdgesOnCell
       integer, dimension(:,:), pointer :: cellsOnVertex, vertexMask, verticesOnCell, cellMask
 
+      real (kind=RKIND) :: split
       real (kind=RKIND), dimension(:), pointer ::  &
          xCell, yCell, zCell, xVertex, yVertex, zVertex, lonCell, latCell, lonVertex, latVertex
+      real (kind=RKIND), dimension(:), pointer ::  &
+         lonCellDegrees, latCellDegrees, lonVertexDegrees, latVertexDegrees
 
       type (block_type), pointer :: block
 
@@ -184,6 +189,27 @@ module mpas_paraview_catalyst
          call mpas_pool_get_array(meshPool, 'verticesOnCell', verticesOnCell)
          call mpas_pool_get_array(meshPool, 'cellMask', cellMask)
 
+         ! Allocate arrays to hold lon/lat dimensions to send to catalyst
+         allocate(lonCellDegrees(nCells+1))
+         allocate(latCellDegrees(nCells+1))
+         allocate(lonVertexDegrees(nVertices+1))
+         allocate(latVertexDegrees(nVertices+1))
+
+         ! mrp: I thought I could change split in Mercator projection, 
+         !  but it is not completely working yet.
+
+         ! make value of split between 0 and 360
+          split = mod(longitude_periodic_split,360.0)
+          lonCellDegrees = mod(lonCell*180./pii + split,360.0) - split
+          latCellDegrees = mod(latCell*180./pii + split,360.0) - split
+          lonVertexDegrees = mod(lonVertex*180./pii + split,360.0) - split
+          latVertexDegrees = mod(latVertex*180./pii + split,360.0) - split
+
+!        lonCellDegrees = lonCell*180./pii
+!        latCellDegrees = latCell*180./pii
+!        lonVertexDegrees = lonVertex*180./pii
+!        latVertexDegrees = latVertex*180./pii
+
          call coprocessor_create_grid( \
                        nCells, maxEdges, nGhostCell, cellGhost, cellHalo, \
                        nVertices, vertexDegree, nGhostVertex, vertexGhost, vertexHalo, \
@@ -194,10 +220,10 @@ module mpas_paraview_catalyst
                        xVertex, \
                        yVertex, \
                        zVertex, \
-                       lonCell, \
-                       latCell, \
-                       lonVertex, \
-                       latVertex, \
+                       lonCellDegrees, \
+                       latCellDegrees, \
+                       lonVertexDegrees, \
+                       latVertexDegrees, \
                        nEdgesOnCell, \
                        cellsOnVertex, \
                        vertexMask, \
@@ -208,6 +234,11 @@ module mpas_paraview_catalyst
          deallocate(cellHalo)
          deallocate(vertexGhost)
          deallocate(vertexHalo)
+
+         deallocate(lonCellDegrees)
+         deallocate(latCellDegrees)
+         deallocate(lonVertexDegrees)
+         deallocate(latVertexDegrees)
 
        block => block % next
     end do
