@@ -410,6 +410,12 @@
 		<var name="uReconstructMeridional"            type="real"     dimensions="nVertInterfaces nCells Time"    
 		     units="m s^{-1}"  description="meridional velocity reconstructed on cell centers"
 		/>
+		<var name="surfaceSpeed"                     type="real"     dimensions="nCells Time"
+		     units="m s^{-1}"  description="ice surface speed reconstructed at cell centers"
+		/>
+		<var name="basalSpeed"                     type="real"     dimensions="nCells Time"
+		     units="m s^{-1}"  description="ice basal speed reconstructed at cell centers"
+		/>
 		<var name="anyVertexMaskChanged"              type="integer"  dimensions="Time"
 		     units="none"  description="flag needed by external velocity solvers that indicates if the region to solve on the block's domain has changed (treated as a logical)"
 			packages="higherOrderVelocity"

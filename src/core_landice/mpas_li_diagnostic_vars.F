@@ -117,6 +117,8 @@ contains
       logical, pointer :: config_do_velocity_reconstruction_for_external_dycore
       type (field2DReal), pointer :: normalVelocityField, layerThicknessEdgeField
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, uReconstructX, uReconstructY, uReconstructZ, uReconstructZonal, uReconstructMeridional
+      real (kind=RKIND), dimension(:), pointer :: surfaceSpeed, basalSpeed
+      integer, pointer :: nVertInterfaces
       integer :: err_tmp
 
 
@@ -179,6 +181,11 @@ contains
       do while (associated(block))
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block % structs, 'state', statePool)
+         call mpas_pool_get_dimension(meshPool, 'nVertInterfaces', nVertInterfaces)
+         call mpas_pool_get_array(statePool, 'uReconstructX', uReconstructX, timeLevel=timeLevel)
+         call mpas_pool_get_array(statePool, 'uReconstructY', uReconstructY, timeLevel=timeLevel)
+         call mpas_pool_get_array(statePool, 'surfaceSpeed', surfaceSpeed, timeLevel=timeLevel)
+         call mpas_pool_get_array(statePool, 'basalSpeed', basalSpeed, timeLevel=timeLevel)
 
          ! Native SIA dycore needs to have reconstructed velocities calculated.
          ! External dycores return their native velocities at cell center locations,
@@ -186,8 +193,6 @@ contains
          if ( (trim(config_velocity_solver) == 'sia') .or.    &
                config_do_velocity_reconstruction_for_external_dycore ) then
             call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel=timeLevel)
-            call mpas_pool_get_array(statePool, 'uReconstructX', uReconstructX, timeLevel=timeLevel)
-            call mpas_pool_get_array(statePool, 'uReconstructY', uReconstructY, timeLevel=timeLevel)
             call mpas_pool_get_array(statePool, 'uReconstructZ', uReconstructZ, timeLevel=timeLevel)
             call mpas_pool_get_array(statePool, 'uReconstructZonal', uReconstructZonal, timeLevel=timeLevel)
             call mpas_pool_get_array(statePool, 'uReconstructMeridional', uReconstructMeridional, timeLevel=timeLevel)
@@ -196,6 +201,10 @@ contains
                             uReconstructX, uReconstructY, uReconstructZ, &
                             uReconstructZonal, uReconstructMeridional )
          endif
+
+         ! Calculate diagnostic speed arrays
+         surfaceSpeed = sqrt(uReconstructX(1,:)**2 + uReconstructY(1,:)**2)
+         basalSpeed   = sqrt(uReconstructX(nVertInterfaces,:)**2 + uReconstructY(nVertInterfaces,:)**2)
 
          block => block % next
       end do
