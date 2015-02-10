@@ -429,7 +429,7 @@
 			packages="higherOrderVelocity"
 		/>
 		<var name="floatingEdges"
-			type="integer" dimensions="nEdges"
+			type="integer" dimensions="nEdges Time"
 			units="unitless"
 			description="edges which are floating have a value of 1.  non floating edges have a value of 0."
 			packages="higherOrderVelocity"
@@ -594,6 +594,14 @@
 			packages="higherOrderVelocity"
 		/>
 		<!-- Note: beta should be moved to diagnostic fields when a process model is added -->
+	</var_struct>
+
+
+	<!-- Scratach Variables -->
+	<var_struct name="scratch" time_levs="1">
+		<var name="floatingEdgesCopy" type="integer" dimensions="nEdges" units="none"
+		     description="a temporary copy of the floatingEdges field"
+		/>
 	</var_struct>
 
 <!-- ======================================================================= -->

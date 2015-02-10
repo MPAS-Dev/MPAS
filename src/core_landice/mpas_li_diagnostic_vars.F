@@ -294,6 +294,7 @@ contains
       type (block_type), pointer :: block
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: statePool
+      type (mpas_pool_type), pointer :: scratchPool
       real (kind=RKIND), dimension(:), pointer :: thickness, upperSurface, &
         lowerSurface, bedTopography, upperSurfaceVertex
       integer, dimension(:), pointer :: cellMask, edgeMask, vertexMaskOld, vertexMaskNew, floatingEdges
@@ -360,6 +361,7 @@ contains
       do while (associated(block))
           call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
           call mpas_pool_get_subpool(block % structs, 'state', statePool)
+          call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
 
           call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
 
@@ -406,7 +408,7 @@ contains
           if (config_velocity_solver /= 'sia') then
              ! The interface expects an array where 1's are floating edges and 0's are non-floating edges.
              floatingEdges = li_mask_is_floating_ice_int(edgeMask)
-             call li_calculate_extrapolate_floating_edgemask(meshPool, floatingEdges)
+             call li_calculate_extrapolate_floating_edgemask(meshPool, scratchPool, floatingEdges)
           end if
 
           block => block % next

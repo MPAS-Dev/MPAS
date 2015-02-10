@@ -431,14 +431,15 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine li_calculate_extrapolate_floating_edgemask(meshPool, floatingEdges)
+   subroutine li_calculate_extrapolate_floating_edgemask(meshPool, scratchPool, floatingEdges)
 
       !-----------------------------------------------------------------
       ! input variables
       !-----------------------------------------------------------------
       type (mpas_pool_type), intent(in) :: &
          meshPool          !< Input: mesh information
-
+      type (mpas_pool_type), intent(in) :: &
+         scratchPool          !< Input: mesh information
       !-----------------------------------------------------------------
       ! input/output variables
       !-----------------------------------------------------------------
@@ -454,15 +455,21 @@ contains
       !-----------------------------------------------------------------
       integer, dimension(:,:), pointer :: edgesOnVertex
       integer, pointer :: nVertices, vertexDegree
+      type (field1DInteger), pointer :: floatingEdgesCopyField
       integer :: iVertex
 
       call mpas_pool_get_dimension(meshPool, 'nVertices', nVertices)
       call mpas_pool_get_dimension(meshPool, 'vertexDegree', vertexDegree)
       call mpas_pool_get_array(meshPool, 'edgesOnVertex', edgesOnVertex)
+      call mpas_pool_get_field(scratchPool, 'floatingEdgesCopy', floatingEdgesCopyField)
+      call mpas_allocate_scratch_field(floatingEdgesCopyField, .true.)
+      floatingEdgesCopyField % array = floatingEdges
 
       do iVertex = 1, nVertices
-         floatingEdges(edgesOnVertex(:,iVertex)) = maxval(edgesOnVertex(:,iVertex))
+         floatingEdges(edgesOnVertex(:,iVertex)) = maxval(floatingEdgesCopyField % array(edgesOnVertex(:,iVertex)))
       enddo
+
+      call mpas_deallocate_scratch_field(floatingEdgesCopyField, .true.)
 
    end subroutine li_calculate_extrapolate_floating_edgemask
 
