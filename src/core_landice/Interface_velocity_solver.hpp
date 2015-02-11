@@ -33,6 +33,7 @@
 #include <iostream>
 #include <limits>
 #include <cmath>
+#include <map>
 
 #define velocity_solver_init_mpi velocity_solver_init_mpi_
 #define velocity_solver_finalize velocity_solver_finalize_
