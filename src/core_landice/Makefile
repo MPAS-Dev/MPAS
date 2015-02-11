@@ -112,5 +112,5 @@ clean:
 	$(FC) $(FFLAGS) -c $*.f90 $(FCINCLUDES) -I../framework -I../operators -I../external/esmf_time_f90
 
 .cpp.o:
-	$(CXX) $(CXXFLAGS) -c $*.cpp $(CXINCLUDES) -lmpi_cxx -lstdc++ $(CPPFLAGS)
+	$(CXX) $(CXXFLAGS) -c $*.cpp $(CXINCLUDES) $(CPPINCLUDES) -lmpi_cxx -lstdc++ $(CPPFLAGS)
 
