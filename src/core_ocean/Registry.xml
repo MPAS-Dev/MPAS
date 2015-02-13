@@ -925,6 +925,7 @@
 			<var name="zMid"/>
 			<var name="zTop"/>
 			<var name="kineticEnergyCell"/>
+			<var name="kineticEnergyCellSurface"/>
 			<var name="relativeVorticityCell"/>
 			<var name="areaCellGlobal"/>
 			<var name="areaEdgeGlobal"/>
@@ -1544,6 +1545,9 @@
 
 		<var name="kineticEnergyCell" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-2}"
 			 description="kinetic energy of horizonal velocity on cells"
+		/>
+		<var name="kineticEnergyCellSurface" type="real" dimensions="nCells Time" units="m^2 s^{-2}"
+			 description="kinetic energy of horizonal velocity on cells in layer 1"
 		/>
 		<var name="hEddyFlux" type="real" dimensions="nVertLevels nEdges Time" units=""
 			 description="Eddy flux in Gent-McWilliams eddy parameterization"
