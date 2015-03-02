@@ -1662,6 +1662,7 @@ int parse_struct(FILE *fd, ezxml_t registry, ezxml_t superStruct, int subpool, c
 	const char *streamname, *streamname2;
 	const char *packagename;
 	const char *structnameincode;
+	const char *structsize;
 
 	char *string, *tofree, *token;
 	char spacing[1024];
@@ -1696,6 +1697,8 @@ int parse_struct(FILE *fd, ezxml_t registry, ezxml_t superStruct, int subpool, c
 	for (struct_xml = ezxml_child(superStruct, "var_struct"); struct_xml; struct_xml = struct_xml->next){
 		err = parse_struct(fd, registry, struct_xml, 1, structname, corename);
 	}
+
+	structsize = ezxml_attr(superStruct, "pool_size");
 
 	fortprintf(fd, "   subroutine mpas_generate%s%s_%s(block, structPool, dimensionPool, packagePool)\n", core_string, pool_name, structname);
 	fortprintf(fd, "      type (block_type), intent(inout), pointer :: block\n");
@@ -1777,7 +1780,11 @@ int parse_struct(FILE *fd, ezxml_t registry, ezxml_t superStruct, int subpool, c
 
 	// Setup new pool to be added into structPool
 	fortprintf(fd, "      %sallocate(newSubPool)\n", spacing);
-	fortprintf(fd, "      %scall mpas_pool_create_pool(newSubPool)\n", spacing);
+	if ( structsize == NULL ) {
+		fortprintf(fd, "      %scall mpas_pool_create_pool(newSubPool)\n", spacing);
+	} else {
+		fortprintf(fd, "      %scall mpas_pool_create_pool(newSubPool, %d)\n", spacing, atoi(structsize));
+	}
 	fortprintf(fd, "      %scall mpas_pool_add_subpool(structPool, '%s', newSubPool)\n", spacing, structnameincode);
 	fortprintf(fd, "      %scall mpas_pool_add_subpool(block %% allStructs, '%s', newSubPool)\n", spacing, structname);
 
