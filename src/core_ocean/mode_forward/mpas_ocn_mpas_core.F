@@ -849,7 +849,6 @@ module mpas_core
    
       use mpas_grid_types
       use mpas_stream_manager
-   
       implicit none
 
       type (domain_type), intent(inout) :: domain 
