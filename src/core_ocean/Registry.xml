@@ -925,7 +925,6 @@
 			<var name="zMid"/>
 			<var name="zTop"/>
 			<var name="kineticEnergyCell"/>
-			<var name="kineticEnergyCellSurface"/>
 			<var name="relativeVorticityCell"/>
 			<var name="areaCellGlobal"/>
 			<var name="areaEdgeGlobal"/>
@@ -1572,6 +1571,9 @@
 			 description="curl of horizontal velocity, defined at vertices"
 		/>
 		<var name="relativeVorticityCell" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+			 description="curl of horizontal velocity, averaged from vertices to cell centers"
+		/>
+		<var name="relativeVorticityCellSurface" type="real" dimensions="nCells Time" units="s^{-1}"
 			 description="curl of horizontal velocity, averaged from vertices to cell centers"
 		/>
 		<var name="normalizedRelativeVorticityEdge" type="real" dimensions="nVertLevels nEdges Time" units="s^{-1}"
