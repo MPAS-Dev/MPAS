@@ -41,6 +41,11 @@ ifeq ($(DEBUG), TRUE)
     override CPPFLAGS += -DMPAS_DEBUG
 endif
 
+ifneq "$(CPP_DEF_FLAG)" ""
+	override FFLAGS := $(patsubst -D%,$(CPP_DEF_FLAG)%,$(FFLAGS))
+	override CFLAGS := $(patsubst -D%,$(CPP_DEF_FLAG)%,$(CFLAGS))
+	override CPPFLAGS := $(patsubst -D%,$(CPP_DEF_FLAG)%,$(CPPFLAGS))
+endif
 
 all:
 	@echo $(CPPINCLUDES)

@@ -446,6 +446,12 @@ else
 	override CPPFLAGS += -DMPAS_GIT_VERSION="unknown"
 endif # END OF GIT DESCRIBE VERSION
 
+ifneq "$(CPP_DEF_FLAG)" ""
+	override FFLAGS := $(patsubst -D%,$(CPP_DEF_FLAG)%,$(FFLAGS))
+	override CFLAGS := $(patsubst -D%,$(CPP_DEF_FLAG)%,$(CFLAGS))
+	override CPPFLAGS := $(patsubst -D%,$(CPP_DEF_FLAG)%,$(CPPFLAGS))
+endif
+
 ####################################################
 # Section for adding external libraries and includes
 ####################################################
