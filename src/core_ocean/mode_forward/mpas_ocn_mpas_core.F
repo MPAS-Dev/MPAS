@@ -607,7 +607,7 @@ module mpas_core
       call mpas_get_time(curr_time=currTime, dateTimeString=timeStamp, ierr=ierr)
       write(stderrUnit,*) 'Initial time ', trim(timeStamp)
 
-      call ocn_analysis_compute_startup(domain, stream_manager, err) 
+      call ocn_analysis_compute_startup(domain, stream_manager, ierr) 
 
       if (config_write_output_on_startup) then
           call mpas_timer_start('io_write', .false.)
@@ -662,8 +662,8 @@ module mpas_core
             block_ptr => block_ptr % next
          end do
       
-         call ocn_analysis_compute_w_alarms(stream_manager, domain, err) 
-         call ocn_analysis_write(stream_manager, err)
+         call ocn_analysis_compute_w_alarms(stream_manager, domain, ierr) 
+         call ocn_analysis_write(stream_manager, ierr)
 
          call mpas_timer_start('io_write', .false.)
          call mpas_stream_mgr_write(stream_manager, streamID='output', ierr=ierr)
