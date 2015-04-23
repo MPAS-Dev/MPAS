@@ -35,12 +35,14 @@
 
         <nml_record name="nhyd_model" in_defaults="true">
                 <nml_option name="config_time_integration"           type="character"     default_value="SRK3"        in_defaults="false"/>
-                <nml_option name="config_dt"                         type="real"          default_value="450.0"/>
+                <nml_option name="config_dt"                         type="real"          default_value="720.0"/>
                 <nml_option name="config_calendar_type"              type="character"     default_value="gregorian"   in_defaults="false"/>
                 <nml_option name="config_start_time"                 type="character"     default_value="2010-10-23_00:00:00"/>
                 <nml_option name="config_stop_time"                  type="character"     default_value="none"        in_defaults="false"/>
                 <nml_option name="config_run_duration"               type="character"     default_value="5_00:00:00"/>
-                <nml_option name="config_number_of_sub_steps"        type="integer"       default_value="6"/>
+                <nml_option name="config_split_dynamics_transport"   type="logical"       default_value="true"/>
+                <nml_option name="config_number_of_sub_steps"        type="integer"       default_value="2"/>
+                <nml_option name="config_dynamics_split_steps"       type="integer"       default_value="3"/>
                 <nml_option name="config_h_mom_eddy_visc2"           type="real"          default_value="0.0"/>
                 <nml_option name="config_h_mom_eddy_visc4"           type="real"          default_value="0.0"/>
                 <nml_option name="config_v_mom_eddy_visc2"           type="real"          default_value="0.0"/>
@@ -179,7 +181,7 @@
 			<var name="w"/>
 			<var name="rho"/>
 			<var name="theta"/>
-			<var name="rh"/>
+			<var name="relhum"/>
 			<var name="exner_base"/>
 			<var name="pressure_base"/>
 			<var name="rho_base"/>
@@ -308,7 +310,7 @@
 			<var name="pressure_p"/>
 			<var name="rho"/>
 			<var name="theta"/>
-			<var name="rh"/>
+			<var name="relhum"/>
 			<var name="uReconstructZonal"/>
 			<var name="uReconstructMeridional"/>
 			<var name="rv"/>
@@ -437,7 +439,6 @@
 			<var name="lai"/>
 			<var name="noahres"/>
 			<var name="potevp"/>
-			<var name="qz0"/>
 			<var name="sfc_albedo"/>
 			<var name="sfc_emiss"/>
 			<var name="sfc_emibck"/>
@@ -564,7 +565,7 @@
 			<var name="rho"/>
 			<var name="theta"/>
 			<var_array name="scalars"/>
-			<var name="rh"/>
+			<var name="relhum"/>
 			<var name="divergence"/>
 			<var name="vorticity"/>
 			<var name="ke"/>
@@ -573,7 +574,6 @@
 			<var name="i_rainnc"/>
 			<var name="rainnc"/>
 			<var name="precipw"/>
-			<var name="relhum"/>
 			<var name="cuprec"/>
 			<var name="i_rainc"/>
 			<var name="rainc"/>
@@ -813,7 +813,7 @@
                 <!-- needed for those 4 variables to get bit for bit restart capabilities, otherwise.                    -->
                 <var name="rho"                     type="real"     dimensions="nVertLevels nCells Time"/>
                 <var name="theta"                   type="real"     dimensions="nVertLevels nCells Time"/>
-                <var name="rh"                      type="real"     dimensions="nVertLevels nCells Time"/>
+                <var name="relhum"                  type="real"     dimensions="nVertLevels nCells Time"/>
                 <var name="v"                       type="real"     dimensions="nVertLevels nEdges Time"/>
                 <var name="divergence"              type="real"     dimensions="nVertLevels nCells Time"/>
                 <var name="vorticity"               type="real"     dimensions="nVertLevels nVertices Time"/>
@@ -845,8 +845,11 @@
                 <var name="rho_base"                type="real"     dimensions="nVertLevels nCells Time"/>
                 <var name="theta_base"              type="real"     dimensions="nVertLevels nCells Time"/>
 
+                <var name="rho_zz_old_split"        type="real"     dimensions="nVertLevels nCells Time"/>
                 <var name="ruAvg"                   type="real"     dimensions="nVertLevels nEdges Time"/>
                 <var name="wwAvg"                   type="real"     dimensions="nVertLevelsP1 nCells Time"/>
+                <var name="ruAvg_split"             type="real"     dimensions="nVertLevels nEdges Time"/>
+                <var name="wwAvg_split"             type="real"     dimensions="nVertLevelsP1 nCells Time"/>
                 <var name="cqu"                     type="real"     dimensions="nVertLevels nEdges Time"/>
                 <var name="cqw"                     type="real"     dimensions="nVertLevels nCells Time"/>
 
@@ -1034,7 +1037,6 @@
                 <var name="graupelnc"     type="real"     dimensions="nCells Time"/>
 
                 <var name="precipw"       type="real"     dimensions="nCells Time"/>
-                <var name="relhum"        type="real"     dimensions="nVertLevels nCells Time"/>
 
                 <!-- ================================================================================================== -->
                 <!-- ... PARAMETERIZATION OF CONVECTION:                                                                -->
@@ -1368,7 +1370,6 @@
                 <!-- lai            :leaf area index                                                                [-] -->
                 <!-- noahres        :residual of the noah land-surface scheme energy budget                     [W m-2] -->
                 <!-- potevp         :potential evaporation                                                      [W m-2] -->
-                <!-- qz0            :specific humidity at znt                                                 [kg kg-1] -->
                 <!-- sfc_albedo     :surface albedo                                                                 [-] -->
                 <!-- sfc_embck      :background emissivity                                                          [-] -->
                 <!-- sfc_emiss      :surface emissivity                                                             [-] -->
@@ -1394,7 +1395,6 @@
                 <var name="lai"           type="real"     dimensions="nCells Time"/>
                 <var name="noahres"       type="real"     dimensions="nCells Time"/>
                 <var name="potevp"        type="real"     dimensions="nCells Time"/>
-                <var name="qz0"           type="real"     dimensions="nCells Time"/>
                 <var name="sfc_albedo"    type="real"     dimensions="nCells Time"/>
                 <var name="sfc_emiss"     type="real"     dimensions="nCells Time"/>
                 <var name="sfc_emibck"    type="real"     dimensions="nCells Time"/>
