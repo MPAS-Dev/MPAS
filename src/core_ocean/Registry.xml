@@ -827,6 +827,10 @@
 					description="Disables tendencies on the tracer fields from CVMix/KPP nonlocal fluxes."
 					possible_values=".true. or .false."
 		/>
+		<nml_option name="config_use_tracer1" type="logical" default_value=".false." units="unitless"
+					description="If true, a tracer named tracer1 is included in solving the tracer equation.  It is used to test that a unit tracer remains constant."
+					possible_values=".true. or .false."
+		/>
 	</nml_record>
 	<packages>
 		<package name="splitTimeIntegrator" description="This package includes variables required for either the split or unsplit explicit time integrators."/>
@@ -834,6 +838,7 @@
 		<package name="surfaceRestoring" description="This package includes variables required for surface tracer restoring."/>
 		<package name="bulkForcing" description="This package includes varibles required for bulk surface forcing."/>
 		<package name="frazilIce" description="This package includes variables required for frazil ice formation."/>
+		<package name="tracer1" description="This package includes variables required for tracer1 as a debugging and verification tool."/>
 		<package name="inSituEOS" description="This package includes variables required for to compute in situ equation of state derivatives, like thermal expansion and haline contraction."/>
 		<package name="forwardMode" description="This package controls variables that are intended to be used within the forward run mode of the ocean model."/>
 		<package name="analysisMode" description="This package controls variables that are intended to be used within the analysis run mode of the ocean model."/>
@@ -1174,7 +1179,7 @@
 				 description="salinity"
 			/>
 			<var name="tracer1" array_group="dynamics" units="na"
-				 description="tracer"
+				 description="tracer" packages="tracer1"
 			/>
 		</var_array>
 		<var name="normalVelocity" type="real" dimensions="nVertLevels nEdges Time" units="m s^{-1}"
@@ -1469,7 +1474,7 @@
 				 description="time tendency of salinity measured as change in practical salinity units per second"
 			/>
 			<var name="tendTracer1" array_group="dynamics" units="na" name_in_code="tracer1"
-				 description="test tracer"
+				 description="test tracer" packages="tracer1"
 			/>
 		</var_array>
 		<var name="tendNormalVelocity" type="real" dimensions="nVertLevels nEdges Time" units="m s^{-2}" name_in_code="normalVelocity"
@@ -1505,7 +1510,7 @@
 				description="salinity extrapolated to ocean surface"
 			/>
 			<var name="tracer1SurfaceValue" array_group="surfaceValues" units="na"
-				description="Tracer of 1 extrapolated to ocean surface"
+				description="Tracer of 1 extrapolated to ocean surface" packages="tracer1"
 			/>
 		</var_array>
 		<var_array name="tracersSurfaceLayerValue" type="real" dimensions="nCells Time" packages="forwardMode;analysisMode">
@@ -1516,7 +1521,8 @@
 				description="salinity averaged over ocean surface layer (generally 0.1 of the ocean boundary layer)"
 			/>
 			<var name="tracer1SurfaceLayerValue" array_group="surfaceLayerValues" units="na"
-				description="Tracer of 1 averaged over ocean surface layer (generally 0.1 of the ocean boundary layer)"
+				description="Tracer of 1 averaged over ocean surface layer (generally 0.1 of the ocean boundary layer)" 
+				packages="tracer1"
 			/>
 		</var_array>
 		<var name="normalVelocitySurfaceLayer" type="real" dimensions="nEdges Time" nits="m s^{-1}"
@@ -2034,7 +2040,7 @@
 				 description="Flux of salinity through the ocean surface. Positive into ocean."
 			/>
 			<var name="surfaceTracer1Flux" array_group="testing" units="percent"
-				 description="Flux of tracer1 through the ocean surface. Positive into ocean."
+				 description="Flux of tracer1 through the ocean surface. Positive into ocean." packages="tracer1"
 			/>
 		</var_array>
 
@@ -2170,7 +2176,7 @@
 				 description="Time averaged salinity extrapolated to ocean surface"
 			/>
 			<var name="avgTracer1SurfaceValue" array_group="surfaceValues" units="percent"
-				 description="Time averaged tracer1 extrapolated to ocean surface"
+				 description="Time averaged tracer1 extrapolated to ocean surface" packages="tracer1"
 			/>
 		</var_array>
 		<var_array name="avgSurfaceVelocity" type="real" dimensions="nCells Time" packages="forwardMode;analysisMode">
