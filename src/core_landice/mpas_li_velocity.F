@@ -253,11 +253,17 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, uReconstructX, uReconstructY, uReconstructZ, uReconstructZonal, uReconstructMeridional
       real (kind=RKIND), dimension(:), pointer :: surfaceSpeed, basalSpeed
       integer, dimension(:,:), pointer :: cellsOnEdge
+      integer, dimension(:,:), pointer :: cellsOnVertex
+      integer, dimension(:,:), pointer :: verticesOnEdge
       real (kind=RKIND), dimension(:), pointer :: upperSurface
       type (field2DReal), pointer :: normalVelocityField
+      integer, dimension(:), pointer :: indexToEdgeID
       ! truly local variables
       integer :: cell1, cell2
+      integer :: cell3, cell4
+      integer :: vertex1, vertex2
       integer :: iEdge
+      integer :: iCell
       integer :: err_tmp
 
       call mpas_timer_start("velocity solve")
@@ -281,6 +287,7 @@ contains
          call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
          call mpas_pool_get_array(velocityPool, 'normalVelocity', normalVelocity)
          call mpas_pool_get_array(geometryPool, 'edgeMask', edgeMask)
+         call mpas_pool_get_array(meshPool, 'indexToEdgeID', indexToEdgeID)
 
          select case (config_velocity_solver)
          case ('none')
@@ -299,9 +306,56 @@ contains
 
          ! Some "quality control" of normalVelocity
          call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
+         call mpas_pool_get_array(meshPool, 'cellsOnVertex', cellsOnVertex)
+         call mpas_pool_get_array(meshPool, 'verticesOnEdge', verticesOnEdge)
          call mpas_pool_get_array(geometryPool, 'cellMask', cellMask)
          call mpas_pool_get_array(geometryPool, 'upperSurface', upperSurface)
          do iEdge = 1, nEdgesSolve
+
+            ! Check if the velocity solver has returned a velocity on any non-dynamic edges
+            if ( li_mask_is_ice(edgeMask(iEdge)) .and.                    &
+                (.not.(li_mask_is_dynamic_ice(edgeMask(iEdge)))) .and.   &
+                (maxval(abs(normalVelocity(:,iEdge))) /= 0.0_RKIND)      &
+               ) then
+               ! There is an edge case where this is ok.  If there are two peninsulas of dynamic ice
+               ! with a single 'row' of nondynamic cells between them, the FEM velo solver will likely
+               ! calculate a nonzero velocity on an edge that has 0 thickness.  The two FEM elements
+               ! neighboring this edge have nonzero thickness everywhere except along this edge, and
+               ! so there is no guarantee of zero-velocity on this edge.  Schematically, this looks like:
+               !
+               !    \   I   /
+               !   A |--e--| A
+               !    /   I   \
+               !
+               ! where the lines are edges, and e is the edge with the issue.  I's are inactive cells, and
+               ! A's are active cells.  So check for this specific situation before calling this an error.
+               cell1 = cellsOnEdge(1, iEdge)
+               cell2 = cellsOnEdge(2, iEdge)
+               ! Criterion 1: both cells adjacent to edge are inactive
+               if ( ( .not. li_mask_is_dynamic_ice(cellMask(cell1)) )   .and.     &
+                    ( .not. li_mask_is_dynamic_ice(cellMask(cell2)) ) ) then
+                  ! Criterion 2: both remaining cells adjacent to edge's vertices are active
+                  vertex1 = verticesOnEdge(1, iEdge)
+                  do iCell = 1, 3
+                     cell3 = cellsOnVertex(iCell, vertex1)
+                     if ((cell3 /= cell1) .and. (cell3 /= cell2)) exit  ! we found the remaining cell on the vertex
+                  enddo
+                  vertex2 = verticesOnEdge(2, iEdge)
+                  do iCell = 1, 3
+                     cell4 = cellsOnVertex(iCell, vertex2)
+                     if ((cell4 /= cell1) .and. (cell4 /= cell2)) exit  ! we found the remaining cell on the vertex
+                  enddo
+                  if ( (li_mask_is_dynamic_ice(cellMask(cell3))) .and.     &
+                       (li_mask_is_dynamic_ice(cellMask(cell4))) ) then
+                     write (stderrUnit,*) "Notice: External velocity solver returned a normalVelocity on a non-dynamic edge, but this is ok because the location is in a non-dynamic 'inlet'.  normalVelocity has been set to 0 at this location.  Location is edge index:", indexToEdgeID(iEDge)
+                     normalVelocity(:,iEdge) = 0.0_RKIND
+                  else
+                     write (stderrUnit,*) 'ERROR: VELO ON NON-DYNAMIC EDGE, edge=', indexToEdgeID(iEDge)
+                     err_tmp= 1
+                     !!!normalVelocity(:,iEdge) = 0.0_RKIND  ! a hack to ignore this error.
+                  endif  ! Criterion 2 check
+               endif  ! Criterion 1 check
+            endif
 
             ! Don't allow normalVelocity on edges where an unglaciated cell with
             ! higher elevation neighbors a glaciated cell.  Some velocity solvers
@@ -325,16 +379,8 @@ contains
                endif
             endif
 
-            ! Check if the velocity solver has returned a velocity on any non-dynamic edges
-            if ( li_mask_is_ice(edgeMask(iEdge)) .and.                    &
-                (.not.(li_mask_is_dynamic_ice(edgeMask(iEdge)))) .and.   &
-                (maxval(abs(normalVelocity(:,iEdge))) /= 0.0_RKIND)      &
-               ) then
-               err_tmp= 1
-               !!!normalVelocity(:,iEdge) = 0.0_RKIND  ! this is a hack because the rest of the code requires this, but this condition should really cause a fatal error.
-            endif
-
          enddo
+
          if (err_tmp == 1) then
             write(stderrUnit,*) 'Error: Velocity has been calculated on non-dynamic edges.  There is a problem with the velocity solver.' !!!  Velocity on those edges have been set to 0, but this should be a fatal error.'
             err = 1
