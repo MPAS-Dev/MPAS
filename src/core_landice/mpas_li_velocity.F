@@ -370,7 +370,7 @@ contains
             ! in these situations.
             if ( li_mask_is_dynamic_margin(edgeMask(iEdge)) ) then
                cell1 = cellsOnEdge(1, iEdge)
-               cell2 = cellsOnEdge(1, iEdge)
+               cell2 = cellsOnEdge(2, iEdge)
                if ( ( li_mask_is_dynamic_ice(cellMask(cell1)) .and.     &
                       upperSurface(cell2) > upperSurface(cell1) ) .or.  &
                     ( li_mask_is_dynamic_ice(cellMask(cell2)) .and.     &
