@@ -276,11 +276,6 @@ module li_time_integration_fe
          write(stdoutUnit,*) '  Maximum allowable time step on THIS processor based on advective CFL is (Days_hhh:mmm:sss):   ' // trim(allowableAdvecDtOnProcString)
       endif
 
-      if (dtSeconds > allowableAdvecDtOnProc) then
-         write(stderrUnit,*) 'ERROR: Advective CFL violation on this processor.  Maximum allowable time step for this processor is (Days_hhh:mmm:sss): ' // trim(allowableAdvecDtOnProcString)
-         err = ior(err,1)
-      endif
-
       ! Local diffusive CFL info
       if (config_adaptive_timestep_include_DCFL) then
           call mpas_set_timeInterval(allowableDiffDtOnProcInterval, dt=allowableDiffDtOnProc, ierr=err_tmp)
@@ -290,10 +285,6 @@ module li_time_integration_fe
 
           if (config_print_thickness_advection_info) then
              write(stdoutUnit,*) '  Maximum allowable time step on THIS processor based on diffusive CFL is (Days_hhh:mmm:sss):   ' // trim(allowableDiffDtOnProcString)
-          endif
-
-          if (dtSeconds > allowableDiffDtOnProc) then
-             write(stderrUnit,*) 'WARNING: Diffusive CFL violation on this processor.  Maximum allowable time step for this processor is (Days_hhh:mmm:sss): ' // trim(allowableDiffDtOnProcString)
           endif
       endif
 
@@ -347,6 +338,17 @@ module li_time_integration_fe
       call set_timestep(allowableAdvecDtAllProcs, allowableDiffDtAllProcs, domain % clock, dtSeconds, err_tmp)
       err = ior(err,err_tmp)
 
+
+
+      ! Check for CFL error before finishing
+      if (dtSeconds > allowableAdvecDtOnProc) then
+         write(stderrUnit,*) 'ERROR: Advective CFL violation on this processor.  Maximum allowable time step for this processor is (Days_hhh:mmm:sss): ' // trim(allowableAdvecDtOnProcString)
+         err = ior(err,1)
+      endif
+      ! Local diffusive CFL info
+      if ( (config_adaptive_timestep_include_DCFL) .and. (dtSeconds > allowableDiffDtOnProc) ) then
+         write(stderrUnit,*) 'WARNING: Diffusive CFL violation on this processor.  Maximum allowable time step for this processor is (Days_hhh:mmm:sss): ' // trim(allowableDiffDtOnProcString)
+      endif
 
       if (err > 0) then
            write(stderrUnit,*) 'Error in calculating thickness tendency  (possibly CFL violation)'
@@ -579,7 +581,7 @@ module li_time_integration_fe
       !-----------------------------------------------------------------
       ! output variables
       !-----------------------------------------------------------------
-      real (kind=RKIND) :: dtSeconds
+      real (kind=RKIND), intent(out) :: dtSeconds
       integer, intent(out) :: err !< Output: error flag
 
       !-----------------------------------------------------------------
