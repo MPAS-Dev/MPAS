@@ -133,8 +133,6 @@ contains
          DRHODS,            &! derivative of density with respect to salinity
          tmin, tmax,        &! valid temperature range for level k
          smin, smax          ! valid salinity    range for level k
-      real (kind=RKIND), dimension(:), allocatable :: &
-         pRefEOS ! temporary pressure scalar
       real (kind=RKIND), dimension(:,:), allocatable :: &
          p, p2,    &! temporary pressure scalars
          TQ,SQ,             &! adjusted T,S
@@ -214,7 +212,7 @@ contains
          bup2s1t1 =  6.128773e-8,       &
          bup2s1t2 =  6.207323e-10
    
-      integer :: k_test, k_ref
+      integer :: k_ref
    
       err = 0
    
@@ -257,28 +255,22 @@ contains
 !  average temperatures and salinities from Levitus 1994, and 
 !  integrating using hydrostatic balance.
 
-      allocate(pRefEOS(nVertLevels),p(nVertLevels,nCells),p2(nVertLevels,nCells))
+      allocate(p(nVertLevels,nCells),p2(nVertLevels,nCells))
 
       allocate(TQ(nVertLevels,nCells),SQ(nVertLevels,nCells),BULK_MOD(nVertLevels,nCells),SQR(nVertLevels,nCells),DENOMK(nVertLevels,nCells), RHO_S(nVertLevels,nCells), &
          WORK1(nVertLevels,nCells), WORK2(nVertLevels,nCells), WORK3(nVertLevels,nCells), WORK4(nVertLevels,nCells), T2(nVertLevels,nCells))
 
 
       if (displacement_type_local == 'absolute' .and.   &
-         (k_displaced_local <= 0 .or. k_displaced_local > nVertLevels) ) then
+         (k_displaced_local < 0 .or. k_displaced_local > nVertLevels) ) then
 
          write (stderrUnit,*) 'Abort: In equation_of_state_jm', &
-             ' k_displaced must be between 1 and nVertLevels for ', &
+             ' k_displaced must be between 0 and nVertLevels for ', &
              'displacement_type = absolute'
          call mpas_dmpar_abort(dminfo)
       endif
 
       do iCell=1,nCells
-        do k = 1,nVertLevels
-           depth = abs(zMid(k,iCell))
-           pRefEOS(k) = 0.059808*(exp(-0.025*depth) - 1.0) &
-               + 0.100766*depth + 2.28405e-7*depth**2
-        enddo
-
         !  If k_displaced=0, in-situ density is returned (no displacement)
         !  If k_displaced/=0, potential density is returned
   
@@ -288,24 +280,25 @@ contains
         !     referenced to level k_displaced for all k
         !  NOTE: k_displaced = 0 or > nVertLevels is incompatible with 'absolute'
         !     so abort if necessary
-        if (k_displaced_local == 0) then
-           do k=1,nVertLevels
-              p(k,iCell)   = pRefEOS(k)
-              p2(k,iCell)  = p(k,iCell)*p(k,iCell)
-           enddo
-        else ! k_displaced_local /= 0
-           do k=1,nVertLevels
-              if (displacement_type_local == 'relative') then
-                 k_test = min(k + k_displaced_local, nVertLevels)
-                 k_ref  = max(k_test, 1)
-              else
-                 k_test = min(k_displaced_local, nVertLevels)
-                 k_ref  = max(k_test, 1)
-              endif
-              p(k,iCell)   = pRefEOS(k_ref)
-              p2(k,iCell)  = p(k,iCell)*p(k,iCell)
-           enddo
-        endif
+        do k=1,nVertLevels
+          if (k_displaced_local == 0) then
+            if (displacement_type_local == 'relative') then
+              depth = abs(zMid(k,iCell))
+            else
+              depth = 0.0
+            endif
+          else ! k_displaced_local /= 0
+            if (displacement_type_local == 'relative') then
+              k_ref = max(min(k + k_displaced_local, nVertLevels),1)
+            else
+              k_ref = max(min(k_displaced_local, nVertLevels),1)
+            endif
+            depth = abs(zMid(k_ref,iCell))
+          endif
+          p(k,iCell) = 0.059808*(exp(-0.025*depth) - 1.0) &
+             + 0.100766*depth + 2.28405e-7*depth**2
+          p2(k,iCell)  = p(k,iCell)*p(k,iCell)
+        enddo
       enddo
   
       do iCell=1,nCells
@@ -396,7 +389,7 @@ contains
          end do
       endif
 
-      deallocate(pRefEOS,p,p2)
+      deallocate(p,p2)
       deallocate(tracerTS)
       deallocate(TQ,SQ,T2,BULK_MOD,SQR,DENOMK,RHO_S, WORK1, WORK2, WORK3, WORK4)
 

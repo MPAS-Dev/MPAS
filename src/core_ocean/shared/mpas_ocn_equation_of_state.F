@@ -81,7 +81,10 @@ contains
    !        s - state: tracers
    !        k_displaced 
    !
-   !  If k_displaced==0, density is returned with no displacement 
+   !  If k_displaced==0 and displacement_type=='relative', density is returned with no displacement 
+   !
+   !  If k_displaced==0 and displacement_type=='absolute', density is returned and is for
+   !  a parcel adiabatically displaced from its original level to sea level (z=0)
    !
    !  If k_displaced~=0, density is returned, and is for
    !  a parcel adiabatically displaced from its original level to level 

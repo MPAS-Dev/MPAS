@@ -501,8 +501,8 @@ contains
 
       end do
 
-      ! compute potentialDensity, the density displaced adiabatically to the mid-depth of top layer.
-      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, 1, 'absolute', potentialDensity, err, timeLevelIn=timeLevel)
+      ! compute potentialDensity, the density displaced adiabatically to sea level.
+      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, 0, 'absolute', potentialDensity, err, timeLevelIn=timeLevel)
 
       ! compute displacedDensity, density displaced adiabatically to the mid-depth one layer deeper.  
       ! That is, layer k has been displaced to the depth of layer k+1.
