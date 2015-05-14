@@ -580,7 +580,7 @@ contains
              call mpas_pool_get_array(velocityPool, 'floatingEdges', floatingEdges)
              floatingEdges = li_mask_is_floating_ice_int(edgeMask)
              call mpas_pool_get_array(geometryPool, 'vertexMask', vertexMask, timeLevel=1)
-             call li_calculate_extrapolate_floating_edgemask(meshPool, vertexMask, floatingEdges)
+             call li_calculate_extrapolate_floating_edgemask(meshPool, edgeMask, vertexMask, floatingEdges)
           end if
 
           block => block % next

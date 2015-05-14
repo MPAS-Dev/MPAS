@@ -450,24 +450,27 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine li_calculate_extrapolate_floating_edgemask(meshPool, vertexMask, floatingEdges)
+   subroutine li_calculate_extrapolate_floating_edgemask(meshPool, edgeMask, vertexMask, floatingEdges)
 
       !-----------------------------------------------------------------
       ! input variables
       !-----------------------------------------------------------------
       type (mpas_pool_type), intent(in) :: &
          meshPool          !< Input: mesh information
-      integer, dimension(:) :: &
-         vertexMask          !< Input: vertexMask
+      integer, dimension(:), intent(in) :: &
+         edgeMask          !< Input: edgeMask
+      integer, dimension(:), intent(in) :: &
+         vertexMask        !< Input: vertexMask
+
       !-----------------------------------------------------------------
       ! input/output variables
       !-----------------------------------------------------------------
-      integer, dimension(:) :: &
-         floatingEdges          !< Input/Output: 0/1 mask of floating edges
 
       !-----------------------------------------------------------------
       ! output variables
       !-----------------------------------------------------------------
+      integer, dimension(:), intent(out) :: &
+         floatingEdges          !< Input/Output: 0/1 mask of floating edges
 
       !-----------------------------------------------------------------
       ! local variables
@@ -479,8 +482,11 @@ contains
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
       call mpas_pool_get_array(meshPool, 'verticesOnEdge', verticesOnEdge)
 
+      floatingEdges = 0  ! initialize to 0 before recalculating
       do iEdge = 1, nEdges
-         floatingEdges(iEdge) = maxval(li_mask_is_floating_ice_int(vertexMask(verticesOnEdge(:, iEdge))))
+         if (li_mask_is_dynamic_ice(edgeMask(iEdge))) then
+            floatingEdges(iEdge) = maxval(li_mask_is_floating_ice_int(vertexMask(verticesOnEdge(:, iEdge))))
+         endif
       enddo
 
    end subroutine li_calculate_extrapolate_floating_edgemask
