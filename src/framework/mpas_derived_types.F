@@ -62,6 +62,8 @@ module mpas_derived_types
 
 #include "mpas_domain_types.inc"
 
+#include "mpas_filter_list_types.inc"
+
 #include "mpas_core_types.inc"
 
 #include "mpas_forcing_types.inc"

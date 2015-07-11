@@ -106,6 +106,17 @@
    end interface
 
    abstract interface
+      function mpas_setup_filter_list_function(inList, filterLists) result(iErr)
+         import mpas_filter_list_type
+         import mpas_pool_type
+
+         type (mpas_filter_list_type), pointer :: inList
+         type (mpas_pool_type), pointer :: filterLists
+         integer :: iErr
+      end function
+   end interface
+
+   abstract interface
       function mpas_core_init_function(domain, timeStamp) result(iErr)
          import domain_type
          type (domain_type), intent(inout) :: domain
@@ -130,8 +141,11 @@
       end function
    end interface
 
+
    type core_type
       type (domain_type), pointer :: domainlist => null()
+      type (mpas_filter_list_type), pointer :: filters => null()
+      type (mpas_pool_type), pointer :: filterLists => null()
 
       character (len=StrKIND) :: modelName !< Constant: Name of model
       character (len=StrKIND) :: coreName !< Constant: Name of core
@@ -158,6 +172,7 @@
       procedure (mpas_setup_immutable_streams_function), pointer, nopass :: setup_immutable_streams => null()
       procedure (mpas_setup_derived_dimensions_function), pointer, nopass :: setup_derived_dimensions => null()
       procedure (mpas_setup_decomposed_dimensions_function), pointer, nopass :: setup_decomposed_dimensions => null()
+      procedure (mpas_setup_filter_list_function), pointer, nopass :: setup_filter_list => null()
 
       ! core_type is a linked list
       type (core_type), pointer :: next => null()
