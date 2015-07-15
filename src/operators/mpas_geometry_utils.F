@@ -838,17 +838,17 @@ module mpas_geometry_utils
       point2 = (/ -0.01, 0.5, 0.0 /)
 
       if (.not. mpas_point_in_polygon(point1, trianglePoints, .false.)) then
-         write(stderrUnit,*) 'Error in mpas_unit_test_in_triangle: point1 calculated to be outside of triangle.'
+         write(stderrUnit,*) 'Error in mpas_unit_test_in_triangle: point1 calculated to be outside of triangle -- FAILED.'
          ierr = 1
       else
-         write(stdoutUnit,*) 'mpas_unit_test_in_triangle: point1 test - SUCCESS'
+         write(stderrUnit,*) 'mpas_unit_test_in_triangle: point1 test - SUCCESS'
       endif
 
       if (mpas_point_in_polygon(point2, trianglePoints, .false.)) then
-         write(stderrUnit,*) 'Error in mpas_unit_test_in_triangle: point2 calculated to be inside of triangle.'
+         write(stderrUnit,*) 'Error in mpas_unit_test_in_triangle: point2 calculated to be inside of triangle -- FAILED.'
          ierr = 1
       else
-         write(stdoutUnit,*) 'mpas_unit_test_in_triangle: point2 test - SUCCESS'
+         write(stderrUnit,*) 'mpas_unit_test_in_triangle: point2 test - SUCCESS'
       endif
 
    end subroutine mpas_unit_test_in_triangle !}}}
@@ -899,19 +899,19 @@ module mpas_geometry_utils
       call mpas_calculate_barycentric_weights(point1, trianglePoints(1,:), trianglePoints(2,:), trianglePoints(3,:), meshPool,     &
              weights(1), weights(2), weights(3), ierr)
       if (maxval(abs(weights - (/ 0.33333333333333333, 0.33333333333333333, 0.33333333333333333 /) )) > eps) then
-         write(stderrUnit,*) 'Error in mpas_unit_test_bary_weights: point1 weights have error greater than tolerance.'
+         write(stderrUnit,*) 'Error in mpas_unit_test_bary_weights: point1 weights have error greater than tolerance -- FAILED.'
          ierr = 1
       else
-         write(stdoutUnit,*) 'mpas_unit_test_bary_weights: point1 test - SUCCESS'
+         write(stderrUnit,*) 'mpas_unit_test_bary_weights: point1 test - SUCCESS'
       endif
 
       call mpas_calculate_barycentric_weights(point2, trianglePoints(1,:), trianglePoints(2,:), trianglePoints(3,:), meshPool,     &
              weights(1), weights(2), weights(3), ierr)
       if (maxval(abs(weights - (/ 1.0, 0.0, 0.0 /) )) > eps) then
-         write(stderrUnit,*) 'Error in mpas_unit_test_bary_weights: point1 weights have error greater than tolerance.'
+         write(stderrUnit,*) 'Error in mpas_unit_test_bary_weights: point1 weights have error greater than tolerance -- FAILED.'
          ierr = 1
       else
-         write(stdoutUnit,*) 'mpas_unit_test_bary_weights: point2 test - SUCCESS'
+         write(stderrUnit,*) 'mpas_unit_test_bary_weights: point2 test - SUCCESS'
       endif
 
    end subroutine mpas_unit_test_bary_weights !}}}
