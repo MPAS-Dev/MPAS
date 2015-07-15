@@ -81,7 +81,7 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_equation_of_state_jm_density(meshPool, k_displaced, displacement_type, &
-       indexT, indexS, tracers, density, err, &
+       indexT, indexS, tracers, zMid, density, err, &
        tracersSurfaceLayerValue, thermalExpansionCoeff, salineContractionCoeff)!{{{
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    !  This module contains routines necessary for computing the density
@@ -110,6 +110,7 @@ contains
       integer, intent(in) :: k_displaced, indexT, indexS
       character(len=*), intent(in) :: displacement_type
       real (kind=RKIND), dimension(:,:,:), intent(in) :: tracers
+      real (kind=RKIND), dimension(:,:), intent(in) :: zMid
       real (kind=RKIND), dimension(:,:), intent(out) :: density
       integer, intent(out) :: err
       real (kind=RKIND), dimension(:,:), intent(in), optional :: tracersSurfaceLayerValue
@@ -133,11 +134,8 @@ contains
          DRHODS,            &! derivative of density with respect to salinity
          tmin, tmax,        &! valid temperature range for level k
          smin, smax          ! valid salinity    range for level k
-      real (kind=RKIND), dimension(:), pointer :: &
-        refBottomDepth, pRefEOS
-      real (kind=RKIND), dimension(:), allocatable :: &
-         p, p2 ! temporary pressure scalars
       real (kind=RKIND), dimension(:,:), allocatable :: &
+         p, p2,    &! temporary pressure scalars
          TQ,SQ,             &! adjusted T,S
          BULK_MOD,          &! Bulk modulus
          SQR,DENOMK,        &! work arrays
@@ -215,12 +213,11 @@ contains
          bup2s1t1 =  6.128773e-8,       &
          bup2s1t2 =  6.207323e-10
    
-      integer :: k_test, k_ref
+      integer :: k_ref
    
       err = 0
    
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-      call mpas_pool_get_array(meshPool, 'refBottomDepth', refBottomDepth)
 
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
@@ -259,62 +256,52 @@ contains
 !  average temperatures and salinities from Levitus 1994, and 
 !  integrating using hydrostatic balance.
 
-      allocate(pRefEOS(nVertLevels),p(nVertLevels),p2(nVertLevels))
+      allocate(p(nVertLevels,nCells),p2(nVertLevels,nCells))
+
       allocate(TQ(nVertLevels,nCells),SQ(nVertLevels,nCells),BULK_MOD(nVertLevels,nCells),SQR(nVertLevels,nCells),DENOMK(nVertLevels,nCells), RHO_S(nVertLevels,nCells), &
          WORK1(nVertLevels,nCells), WORK2(nVertLevels,nCells), WORK3(nVertLevels,nCells), WORK4(nVertLevels,nCells), T2(nVertLevels,nCells))
 
 
-      ! This could be put in the init routine.
-      ! Note I am using refBottomDepth, so pressure on top level does
-      ! not include SSH contribution.  I am not sure if that matters, but
-      ! POP does it the same way.
-      depth = 0.5*refBottomDepth(1)
-      pRefEOS(1) = 0.059808*(exp(-0.025*depth) - 1.0) &
-          + 0.100766*depth + 2.28405e-7*depth**2
-      do k = 2,nVertLevels
-         depth = 0.5*(refBottomDepth(k)+refBottomDepth(k-1))
-         pRefEOS(k) = 0.059808*(exp(-0.025*depth) - 1.0) &
-             + 0.100766*depth + 2.28405e-7*depth**2
-      enddo
-
-      !  If k_displaced=0, in-situ density is returned (no displacement)
-      !  If k_displaced/=0, potential density is returned
-
-      !  if displacement_type = 'relative', potential density is calculated
-      !     referenced to level k + k_displaced
-      !  if displacement_type = 'absolute', potential density is calculated
-      !     referenced to level k_displaced for all k
-      !  NOTE: k_displaced = 0 or > nVertLevels is incompatible with 'absolute'
-      !     so abort if necessary
-
       if (displacement_type_local == 'absolute' .and.   &
-         (k_displaced_local <= 0 .or. k_displaced_local > nVertLevels) ) then
+         (k_displaced_local < 0 .or. k_displaced_local > nVertLevels) ) then
 
          write (stderrUnit,*) 'Abort: In equation_of_state_jm', &
-             ' k_displaced must be between 1 and nVertLevels for ', &
+             ' k_displaced must be between 0 and nVertLevels for ', &
              'displacement_type = absolute'
          call mpas_dmpar_abort(dminfo)
       endif
 
-      if (k_displaced_local == 0) then
-         do k=1,nVertLevels
-            p(k)   = pRefEOS(k)
-            p2(k)  = p(k)*p(k)
-         enddo
-      else ! k_displaced_local /= 0
-         do k=1,nVertLevels
+      do iCell=1,nCells
+        !  If k_displaced=0, in-situ density is returned (no displacement)
+        !  If k_displaced/=0, potential density is returned
+  
+        !  if displacement_type = 'relative', potential density is calculated
+        !     referenced to level k + k_displaced
+        !  if displacement_type = 'absolute', potential density is calculated
+        !     referenced to level k_displaced for all k
+        !  NOTE: k_displaced = 0 or > nVertLevels is incompatible with 'absolute'
+        !     so abort if necessary
+        do k=1,nVertLevels
+          if (k_displaced_local == 0) then
             if (displacement_type_local == 'relative') then
-               k_test = min(k + k_displaced_local, nVertLevels)
-               k_ref  = max(k_test, 1)
+              depth = abs(zMid(k,iCell))
             else
-               k_test = min(k_displaced_local, nVertLevels)
-               k_ref  = max(k_test, 1)
+              depth = 0.0
             endif
-            p(k)   = pRefEOS(k_ref)
-            p2(k)  = p(k)*p(k)
-         enddo
-      endif
-
+          else ! k_displaced_local /= 0
+            if (displacement_type_local == 'relative') then
+              k_ref = max(min(k + k_displaced_local, nVertLevels),1)
+            else
+              k_ref = max(min(k_displaced_local, nVertLevels),1)
+            endif
+            depth = abs(zMid(k_ref,iCell))
+          endif
+          p(k,iCell) = 0.059808*(exp(-0.025*depth) - 1.0) &
+             + 0.100766*depth + 2.28405e-7*depth**2
+          p2(k,iCell)  = p(k,iCell)*p(k,iCell)
+        enddo
+      enddo
+  
       do iCell=1,nCells
          do k=1,maxLevelCell(iCell)
             SQ(k,iCell)  = max(min(tracerTS(2,k,iCell),smax),smin)
@@ -341,19 +328,19 @@ contains
 
             WORK3(k,iCell) = bup0s1t0 + bup0s1t1*TQ(k,iCell) +                    &
                     (bup0s1t2 + bup0s1t3*TQ(k,iCell))*T2(k,iCell) +                &
-                    p(k) *(bup1s1t0 + bup1s1t1*TQ(k,iCell) + bup1s1t2*T2(k,iCell)) + &
-                    p2(k)*(bup2s1t0 + bup2s1t1*TQ(k,iCell) + bup2s1t2*T2(k,iCell))
+                    p(k,iCell) *(bup1s1t0 + bup1s1t1*TQ(k,iCell) + bup1s1t2*T2(k,iCell)) + &
+                    p2(k,iCell)*(bup2s1t0 + bup2s1t1*TQ(k,iCell) + bup2s1t2*T2(k,iCell))
             WORK4(k,iCell) = SQR(k,iCell)*(bup0sqt0 + bup0sqt1*TQ(k,iCell) + bup0sqt2*T2(k,iCell) + &
-                         bup1sqt0*p(k))
+                         bup1sqt0*p(k,iCell))
    
             BULK_MOD(k,iCell)  = bup0s0t0 + bup0s0t1*TQ(k,iCell) +                    &
                         (bup0s0t2 + bup0s0t3*TQ(k,iCell) + bup0s0t4*T2(k,iCell))*T2(k,iCell) + &
-                        p(k) *(bup1s0t0 + bup1s0t1*TQ(k,iCell) +                &
+                        p(k,iCell) *(bup1s0t0 + bup1s0t1*TQ(k,iCell) +                &
                         (bup1s0t2 + bup1s0t3*TQ(k,iCell))*T2(k,iCell)) +           &
-                        p2(k)*(bup2s0t0 + bup2s0t1*TQ(k,iCell) + bup2s0t2*T2(k,iCell)) + &
+                        p2(k,iCell)*(bup2s0t0 + bup2s0t1*TQ(k,iCell) + bup2s0t2*T2(k,iCell)) + &
                         SQ(k,iCell)*(WORK3(k,iCell) + WORK4(k,iCell))
   
-            DENOMK(k,iCell) = 1.0/(BULK_MOD(k,iCell) - p(k))
+            DENOMK(k,iCell) = 1.0/(BULK_MOD(k,iCell) - p(k,iCell))
    
             density(k,iCell) = (unt0 + RHO_S(k,iCell))*BULK_MOD(k,iCell)*DENOMK(k,iCell)
 
@@ -371,15 +358,15 @@ contains
 
                DKDT  = bup0s0t1 + 2.0*bup0s0t2*TQ(k,iCell) +                       &
                  (3.0*bup0s0t3 + 4.0*bup0s0t4*TQ(k,iCell))*T2(k,iCell) +               &
-                  p(k) *(bup1s0t1 + 2.0*bup1s0t2*TQ(k,iCell) + 3.0*bup1s0t3*T2(k,iCell)) + &
-                  p2(k)*(bup2s0t1 + 2.0*bup2s0t2*TQ(k,iCell)) +                  &
+                  p(k,iCell) *(bup1s0t1 + 2.0*bup1s0t2*TQ(k,iCell) + 3.0*bup1s0t3*T2(k,iCell)) + &
+                  p2(k,iCell)*(bup2s0t1 + 2.0*bup2s0t2*TQ(k,iCell)) +                  &
                   SQ(k,iCell)*(bup0s1t1 + 2.0*bup0s1t2*TQ(k,iCell) + 3.0*bup0s1t3*T2(k,iCell) +  &
-                  p(k)  *(bup1s1t1 + 2.0*bup1s1t2*TQ(k,iCell)) +             &
-                  p2(k) *(bup2s1t1 + 2.0*bup2s1t2*TQ(k,iCell)) +             &
+                  p(k,iCell)  *(bup1s1t1 + 2.0*bup1s1t2*TQ(k,iCell)) +             &
+                  p2(k,iCell) *(bup2s1t1 + 2.0*bup2s1t2*TQ(k,iCell)) +             &
                   SQR(k,iCell)*(bup0sqt1 + 2.0*bup0sqt2*TQ(k,iCell)))
 
                DRHODT = (DENOMK(k,iCell)*(DRDT0*BULK_MOD(k,iCell) -                    &
-                  p(k)*(unt0+RHO_S(k,iCell))*DKDT*DENOMK(k,iCell)))
+                  p(k,iCell)*(unt0+RHO_S(k,iCell))*DKDT*DENOMK(k,iCell)))
 
 
                thermalExpansionCoeff(k,iCell) = -DRHODT/density(k,iCell)
@@ -395,7 +382,7 @@ contains
                DKDS = WORK3(k,iCell) + 1.5*WORK4(k,iCell)
 
                DRHODS = DENOMK(k,iCell)*(DRDS0*BULK_MOD(k,iCell) -                    &
-                   p(k)*(unt0+RHO_S(k,iCell))*DKDS*DENOMK(k,iCell))
+                   p(k,iCell)*(unt0+RHO_S(k,iCell))*DKDS*DENOMK(k,iCell))
 
                salineContractionCoeff(k,iCell) = DRHODS/density(k,iCell)
 
@@ -403,7 +390,7 @@ contains
          end do
       endif
 
-      deallocate(pRefEOS,p,p2)
+      deallocate(p,p2)
       deallocate(tracerTS)
       deallocate(TQ,SQ,T2,BULK_MOD,SQR,DENOMK,RHO_S, WORK1, WORK2, WORK3, WORK4)
 

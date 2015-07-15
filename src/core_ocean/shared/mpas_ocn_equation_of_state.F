@@ -82,7 +82,10 @@ contains
    !        s - state: tracers
    !        k_displaced 
    !
-   !  If k_displaced==0, density is returned with no displacement 
+   !  If k_displaced==0 and displacement_type=='relative', density is returned with no displacement 
+   !
+   !  If k_displaced==0 and displacement_type=='absolute', density is returned and is for
+   !  a parcel adiabatically displaced from its original level to sea level (z=0)
    !
    !  If k_displaced~=0, density is returned, and is for
    !  a parcel adiabatically displaced from its original level to level 
@@ -107,6 +110,7 @@ contains
 
       integer, dimension(:), pointer :: maxLevelCell
       real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue
+      real (kind=RKIND), dimension(:,:), pointer :: zMid
       real (kind=RKIND), dimension(:,:,:), pointer :: tracers
       integer :: iCell, k
       integer, pointer :: indexT, indexS
@@ -125,6 +129,7 @@ contains
       call mpas_pool_get_array(statePool, 'tracers', tracers, timeLevel)
       call mpas_pool_get_dimension(statePool, 'index_temperature', indexT)
       call mpas_pool_get_dimension(statePool, 'index_salinity', indexS)
+      call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
 
       if (linearEos) then
 
@@ -133,7 +138,7 @@ contains
 
       elseif (jmEos) then
 
-         call ocn_equation_of_state_jm_density(meshPool, k_displaced, displacement_type, indexT, indexS, tracers, density, err, &
+         call ocn_equation_of_state_jm_density(meshPool, k_displaced, displacement_type, indexT, indexS, tracers, zMid, density, err, &
             tracersSurfaceValue, thermalExpansionCoeff, salineContractionCoeff)
 
       endif

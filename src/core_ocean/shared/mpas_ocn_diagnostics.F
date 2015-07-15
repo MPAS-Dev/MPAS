@@ -480,8 +480,30 @@ contains
               timeLevelIn=timeLevel)
       endif
 
-      ! compute potentialDensity, the density displaced adiabatically to the mid-depth of top layer.
-      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, 1, 'absolute', potentialDensity, err, timeLevelIn=timeLevel)
+      do iCell = 1, nCells
+         ! Compute zMid, the z-coordinate of the middle of the layer.
+         ! Compute zTop, the z-coordinate of the top of the layer.
+         ! Note the negative sign, since bottomDepth is positive
+         ! and z-coordinates are negative below the surface.
+         k = maxLevelCell(iCell)
+         zMid(k:nVertLevels,iCell) = -bottomDepth(iCell) + 0.5*layerThickness(k,iCell)
+         zTop(k:nVertLevels,iCell) = -bottomDepth(iCell) +     layerThickness(k,iCell)
+
+         do k = maxLevelCell(iCell)-1, 1, -1
+            zMid(k,iCell) = zMid(k+1,iCell)  &
+            + 0.5*(  layerThickness(k+1,iCell) &
+                     + layerThickness(k  ,iCell))
+            zTop(k,iCell) = zTop(k+1,iCell)  &
+                     + layerThickness(k  ,iCell)
+         end do
+
+         ! copy zTop(1,iCell) into sea-surface height array
+         ssh(iCell) = zTop(1,iCell)
+
+      end do
+
+      ! compute potentialDensity, the density displaced adiabatically to sea level.
+      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, 0, 'absolute', potentialDensity, err, timeLevelIn=timeLevel)
 
       ! compute displacedDensity, density displaced adiabatically to the mid-depth one layer deeper.  
       ! That is, layer k has been displaced to the depth of layer k+1.
@@ -533,25 +555,6 @@ contains
                 + 0.5*gravity*(  density(k-1,iCell)*layerThickness(k-1,iCell) &
                                + density(k  ,iCell)*layerThickness(k  ,iCell))
            end do
-
-           ! Compute zMid, the z-coordinate of the middle of the layer.
-           ! Compute zTop, the z-coordinate of the top of the layer.
-           ! Note the negative sign, since bottomDepth is positive
-           ! and z-coordinates are negative below the surface.
-           k = maxLevelCell(iCell)
-           zMid(k:nVertLevels,iCell) = -bottomDepth(iCell) + 0.5*layerThickness(k,iCell)
-           zTop(k:nVertLevels,iCell) = -bottomDepth(iCell) +     layerThickness(k,iCell)
-
-           do k = maxLevelCell(iCell)-1, 1, -1
-              zMid(k,iCell) = zMid(k+1,iCell)  &
-                + 0.5*(  layerThickness(k+1,iCell) &
-                       + layerThickness(k  ,iCell))
-              zTop(k,iCell) = zTop(k+1,iCell)  &
-                       + layerThickness(k  ,iCell)
-           end do
-
-           ! copy zTop(1,iCell) into sea-surface height array
-           ssh(iCell) = zTop(1,iCell)
 
         end do
 
