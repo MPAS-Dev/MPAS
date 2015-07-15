@@ -74,6 +74,7 @@ module test_core
       use mpas_derived_types
       use mpas_kind_types
       use mpas_timer
+      use mpas_geometry_utils
    
       implicit none
    
@@ -85,6 +86,11 @@ module test_core
 
 
       iErr = 0
+
+
+      call mpas_unit_test_in_triangle(iErr)
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', pool)
+      call mpas_unit_test_bary_weights(pool, iErr)
 
    end function test_core_run!}}}
 
