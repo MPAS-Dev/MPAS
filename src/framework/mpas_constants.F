@@ -16,6 +16,10 @@
 !> This module provides various constants that can be used in different parts of MPAS.
 !> They may or may not be a physical quantity.
 !
+!  updates:
+!  * revised the definition of cp.
+!    laura D. Fowler (laura@ucar.edu) / 2015-08-06.
+!
 !-----------------------------------------------------------------------
 
 module mpas_constants
@@ -29,7 +33,7 @@ module mpas_constants
    real (kind=RKIND), parameter :: rgas    = 287.0               !< Constant: Gas constant for dry air [J kg-1 K-1]
    real (kind=RKIND), parameter :: rv      = 461.6               !< Constant: Gas constant for water vapor [J kg-1 K-1]
    real (kind=RKIND), parameter :: rvord   = rv/rgas             !
-   real (kind=RKIND), parameter :: cp      = 1003.0              !< Constant: Specific heat of dry air at constant pressure [J kg-1 K-1]
+   real (kind=RKIND), parameter :: cp      = 7.*rgas/2.          !< Constant: Specific heat of dry air at constant pressure [J kg-1 K-1]
    real (kind=RKIND), parameter :: cv      = cp - rgas           !< Constant: Specific heat of dry air at constant volume [J kg-1 K-1]
    real (kind=RKIND), parameter :: cvpm    = -cv/cp              !
    real (kind=RKIND), parameter :: prandtl = 1.0                 !< Constant: Prandtl number
