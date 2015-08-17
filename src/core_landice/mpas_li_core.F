@@ -223,9 +223,13 @@ module li_core
       logical, pointer :: config_do_restart, config_write_output_on_startup, config_write_stats_on_startup
       character(len=StrKIND), pointer :: config_restart_timestamp_name
       character(len=StrKIND), pointer :: config_velocity_solver
-      ! Variables needed for printing timestamps
+      ! Variables needed for initializing timestep and printing timestamps
       type (MPAS_Time_Type) :: currTime
       character(len=StrKIND) :: timeStamp
+      type (mpas_pool_type), pointer :: meshPool
+      real (kind=RKIND) :: dtSeconds !< the current time step in seconds
+      real (kind=RKIND), pointer :: deltat_output !< variable used for output, in seconds
+      type (MPAS_TimeInterval_type) :: timeStepInterval !< the current time step as an interval
 
       integer :: err, err_tmp, globalErr
       logical :: solveVelo
@@ -257,6 +261,29 @@ module li_core
       ! ===
       ! === Calculate Initial state
       ! ===
+      
+      ! Initial timestep: get dt in seconds
+      currTime = mpas_get_clock_time(domain % clock, MPAS_NOW, err_tmp)
+      call mpas_get_time(curr_time=currTime, dateTimeString=timeStamp, ierr=err_tmp)
+            
+      timeStepInterval = mpas_get_clock_timestep(domain % clock, ierr=err_tmp)
+      err = ior(err,err_tmp)
+      call mpas_get_timeInterval(timeStepInterval, StartTimeIn=currTime, dt=dtSeconds, ierr=err_tmp)
+      err = ior(err,err_tmp)
+      
+      
+      block => domain % blocklist
+      do while (associated(block))
+         ! Assign the time stamp for this time step
+         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+
+         call mpas_pool_get_array(meshPool, 'deltat', deltat_output)
+         deltat_output = dtSeconds
+
+
+         block => block % next
+      end do
+            
       call mpas_timer_start("initial state calculation")
 
       ! On a restart, we already have the exact velocity field we need, 
