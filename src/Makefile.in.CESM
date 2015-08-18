@@ -1,5 +1,7 @@
 include $(CASEROOT)/Macros
 
+USE_FILTERS=true
+
 ifneq ($(wildcard core_$(CORE)/build_options.mk), ) # Check for build_options.mk
     include core_$(CORE)/build_options.mk
 else # ELSE Use Default Options
@@ -21,6 +23,8 @@ ifeq ($(strip $(USE_ESMF_LIB)), TRUE)
 else
    ESMFDIR = noesmf
 endif
+
+ADDL_TARGETS = filters
 
 RM = rm -f
 CPP = cpp -P -traditional
@@ -53,12 +57,13 @@ all:
 	( $(MAKE) mpas RM="$(RM)" CPP="$(CPP)" NETCDF="$(NETCDF)" PNETCDF="$(PNETCDF)" \
 	  PIO="$(PIO)" FC="$(FC)" CC="$(CC)" SFC="$(SFC)" SCC="$(SCC)" \
 	  CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" FCINCLUDES="$(FCINCLUDES)" \
-	  FFLAGS="$(FFLAGS)" CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" )
+	  FFLAGS="$(FFLAGS)" CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" ADDL_TARGETS="$(ADDL_TAGETS)" )
 
-mpas: externals frame ops dycore drver
+mpas: externals frame ops dycore drver $(ADDL_TARGETS)
 	ar ru lib$(COMPONENT).a framework/*.o
 	ar ru lib$(COMPONENT).a operators/*.o
 	ar ru lib$(COMPONENT).a external/ezxml/*.o
+	ar ru lib$(COMPONENT).a filters/*.o
 	ar ru lib$(COMPONENT).a `find core_$(CORE)/ -type f -name "*.o"`  # Find command finds objects in any subdirectories
 	ar ru lib$(COMPONENT).a $(DRIVER)/*.o
 
