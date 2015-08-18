@@ -9,6 +9,8 @@ module test_core
 
    use mpas_framework
    use mpas_timekeeping
+   use mpas_stream_manager
+   use mpas_filter_driver
 
    type (MPAS_Clock_type), pointer :: clock
 
@@ -53,6 +55,8 @@ module test_core
       startTime = mpas_get_clock_time(clock, MPAS_START_TIME, iErr)
       call mpas_get_time(startTime, dateTimeString=startTimeStamp) 
 
+      call mpas_filter_driver_init(domain % core % filters, domain, iErr=iErr)
+
    end function test_core_init!}}}
 
 
@@ -85,11 +89,14 @@ module test_core
       type (mpas_pool_type), pointer :: pool
       type (mpas_pool_iterator_type) :: itr
 
-
       iErr = 0
 
       call mpas_unit_test_fix_periodicity(iErr)
       call mpas_unit_test_triangle_signed_area_sphere(iErr)
+
+      call mpas_filter_driver_compute(domain % core % filters, domain, iErr = iErr)
+
+      call mpas_stream_mgr_write(domain % streamManager, iErr = iErr)
 
    end function test_core_run!}}}
 
@@ -117,6 +124,8 @@ module test_core
  
 
       iErr = 0
+
+      call mpas_filter_driver_finalize(domain % core % filters, domain, iErr=iErr)
 
       call mpas_destroy_clock(clock, iErr)
 
