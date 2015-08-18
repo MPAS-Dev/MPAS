@@ -361,6 +361,7 @@ endif
 RM = rm -f
 CPP = cpp -P -traditional
 RANLIB = ranlib
+PRE_CORE_TARGETS=
 
 ifdef CORE
 
@@ -581,6 +582,7 @@ endif
                  CORE="$(CORE)"\
                  AUTOCLEAN="$(AUTOCLEAN)" \
                  GEN_F90="$(GEN_F90)" \
+                 PRE_CORE_TARGETS="$(PRE_CORE_TARGETS)" \
                  NAMELIST_SUFFIX="$(NAMELIST_SUFFIX)" \
                  EXE_NAME="$(EXE_NAME)"
 
