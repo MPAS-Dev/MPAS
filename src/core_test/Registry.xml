@@ -115,4 +115,22 @@
 		<var name="cellsOnVertex"                     type="integer"  dimensions="vertexDegree nVertices"/>
 		<var name="kiteAreasOnVertex"                 type="real"     dimensions="vertexDegree nVertices"/>
 	</var_struct>
+	<filters>
+		<filter name="testComputeInterval1" module_name="mpas_filter_test_compute_interval"/>
+		<filter name="testComputeInterval2" module_name="mpas_filter_test_compute_interval"/>
+	</filters>
+	<nml_record name="testComputeInterval1">
+		<nml_option name="config_testComputeInterval1_enable" type="logical" default_value=".false."/>
+		<nml_option name="config_testComputeInterval1_compute_interval" type="character" default_value="dt"/>
+		<nml_option name="config_testComputeInterval1_stream_name" type="character" default_value="none"/>
+		<nml_option name="config_testComputeInterval1_compute_on_startup" type="logical" default_value=".false."/>
+		<nml_option name="config_testComputeInterval1_write_on_startup" type="logical" default_value=".false."/>
+	</nml_record>
+	<nml_record name="testComputeInterval2">
+		<nml_option name="config_testComputeInterval2_enable" type="logical" default_value=".false."/>
+		<nml_option name="config_testComputeInterval2_compute_interval" type="character" default_value="0000_00:05:00"/>
+		<nml_option name="config_testComputeInterval2_stream_name" type="character" default_value="none"/>
+		<nml_option name="config_testComputeInterval2_compute_on_startup" type="logical" default_value=".false."/>
+		<nml_option name="config_testComputeInterval2_write_on_startup" type="logical" default_value=".false."/>
+	</nml_record>
 </registry>
