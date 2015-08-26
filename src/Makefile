@@ -35,8 +35,12 @@ ops: $(AUTOCLEAN_DEPS) externals frame
 	( cd operators; $(MAKE) CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
 	ln -sf operators/libops.a libops.a
 
-dycore: $(AUTOCLEAN_DEPS) build_tools externals frame ops
-	( cd core_$(CORE); $(MAKE) CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" REG_PARSE="$(PWD)/tools/registry/parse" gen_includes )
+filters: $(AUTOCLEAN_DEPS) externals frame ops
+	( cd filters; $(MAKE) CPPFLGAS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all)
+	ln -sf filters/libfilters.a libfilters.a
+
+dycore: $(AUTOCLEAN_DEPS) build_tools externals frame ops $(ADDL_TARGETS)
+	( cd core_$(CORE); $(MAKE) CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" REG_PATH="$(PWD)/tools/registry/" REG_PARSE="parse" FILTER_PARSE="filter-parse" gen_includes )
 	( cd core_$(CORE); $(MAKE) CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" NL_GEN="$(PWD)/tools/input_gen/namelist_gen" ST_GEN="$(PWD)/tools/input_gen/streams_gen" core_input_gen )
 	( cd core_$(CORE); $(MAKE) CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
 	ln -sf core_$(CORE)/libdycore.a libdycore.a
@@ -58,9 +62,10 @@ ifeq "$(AUTOCLEAN)" "true"
 	@echo "*********************************************************************************************"
 	@echo ""
 endif
-	$(RM) libframework.a libops.a libdycore.a lib$(CORE).a *.o
+	$(RM) libframework.a libops.a libdycore.a libfilters.a lib$(CORE).a *.o
 	( cd tools; $(MAKE) clean )
 	( cd external; $(MAKE) clean )
+	( cd filters; $(MAKE) clean )
 	( cd framework; $(MAKE) clean )
 	( cd operators; $(MAKE) clean )
 	( cd driver; $(MAKE) clean )

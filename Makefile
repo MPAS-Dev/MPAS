@@ -361,8 +361,11 @@ endif
 RM = rm -f
 CPP = cpp -P -traditional
 RANLIB = ranlib
+ADDL_TARGETS=
 
 ifdef CORE
+
+USE_FILTERS=false
 
 ifneq ($(wildcard src/core_$(CORE)), ) # CHECK FOR EXISTENCE OF CORE DIRECTORY
 
@@ -462,6 +465,11 @@ ifeq "$(TAU)" "true"
 else
 	LINKER=$(FC)
 	TAU_MESSAGE="TAU Hooks are off."
+endif
+
+ifeq "$(USE_FILTERS)" "true"
+	LIBS += -lfilters
+	ADDL_TARGETS = filters
 endif
 
 ifeq "$(GEN_F90)" "true"
@@ -581,6 +589,7 @@ endif
                  CORE="$(CORE)"\
                  AUTOCLEAN="$(AUTOCLEAN)" \
                  GEN_F90="$(GEN_F90)" \
+                 ADDL_TARGETS="$(ADDL_TARGETS)" \
                  NAMELIST_SUFFIX="$(NAMELIST_SUFFIX)" \
                  EXE_NAME="$(EXE_NAME)"
 

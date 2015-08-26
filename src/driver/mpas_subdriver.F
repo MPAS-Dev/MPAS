@@ -48,6 +48,7 @@ module mpas_subdriver
       use mpas_c_interfacing, only : mpas_f_to_c_string, mpas_c_to_f_string
       use mpas_timekeeping, only : mpas_get_clock_time, mpas_get_time
       use mpas_bootstrapping, only : mpas_bootstrap_framework_phase1, mpas_bootstrap_framework_phase2
+      use mpas_filter_list, only : mpas_filter_list_create_list
  
       implicit none
 
@@ -146,6 +147,10 @@ module mpas_subdriver
       domain_ptr => corelist % domainlist
       domain_ptr % core => corelist
 
+      allocate(corelist % filters)
+      call mpas_filter_list_create_list(corelist % filters)
+      call mpas_pool_create_pool(corelist % filterLists)
+
       call mpas_allocate_domain(domain_ptr)
 
       !
@@ -181,6 +186,13 @@ module mpas_subdriver
       call test_setup_core(corelist)
       call test_setup_domain(domain_ptr)
 #endif
+
+      if ( associated(corelist % setup_filter_list) ) then
+         iErr = corelist % setup_filter_list(corelist % filters, corelist % filterLists)
+         if ( iErr /= 0 ) then
+            call mpas_dmpar_global_abort('ERROR: Filter setup failed for core ' // trim(corelist % coreName))
+         end if
+      end if
 
       if ( readNamelistArg ) then
          domain_ptr % namelist_filename = namelistFile
@@ -331,6 +343,7 @@ module mpas_subdriver
    subroutine mpas_finalize()
 
       use mpas_stream_manager, only : MPAS_stream_mgr_finalize
+      use mpas_filter_list, only : mpas_filter_list_destroy_list
    
       implicit none
 
@@ -356,7 +369,10 @@ module mpas_subdriver
 
       call mpas_framework_finalize(domain_ptr % dminfo, domain_ptr)
 
+      call mpas_filter_list_destroy_list(corelist % filters)
+
       deallocate(corelist % domainlist)
+      deallocate(corelist % filters)
       deallocate(corelist)
 
    end subroutine mpas_finalize

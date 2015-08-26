@@ -45,6 +45,7 @@ module test_core_interface
       core % setup_decomposed_dimensions => test_setup_decomposed_dimensions
       core % setup_block => test_setup_block
       core % setup_namelist => test_setup_namelists
+      core % setup_filter_list => test_setup_filters
 
       core % Conventions = 'MPAS'
       core % source = 'MPAS'
@@ -271,6 +272,8 @@ module test_core_interface
 #include "inc/namelist_call.inc"
 
 #include "inc/namelist_defines.inc"
+
+#include "inc/filter_function.inc"
 
 end module test_core_interface
 
