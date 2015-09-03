@@ -42,7 +42,8 @@ const double minBeta = 1e-5;
 const double rho_ice = 910.0;
 //void *phgGrid = 0;
 std::vector<int> edgesToReceive, fCellsToReceive, indexToTriangleID,
-    verticesOnTria, trianglesOnEdge, trianglesPositionsOnEdge, verticesOnEdge;
+    verticesOnTria, trianglesOnEdge, trianglesPositionsOnEdge, verticesOnEdge, 
+    trianglesProcIds,  reduced_ranks;
 std::vector<int> indexToVertexID, vertexToFCell, indexToEdgeID, edgeToFEdge,
     mask, fVertexToTriangleID, fCellToVertex, floatingEdgesIds, dirichletNodesIDs;
 std::vector<double> temperatureOnTetra, velocityOnVertices, velocityOnCells,
@@ -139,6 +140,9 @@ void velocity_solver_set_grid_data(int const* _nCells_F, int const* _nEdges_F,
       unpackMpiArray(sendVerticesArray_F));
   recvVerticesList_F = new exchangeList_Type(
       unpackMpiArray(recvVerticesArray_F));
+
+  trianglesProcIds.resize(nVertices_F);
+  getProcIds(trianglesProcIds, recvVerticesList_F);
 
   if (radius > 10) {
     xCellProjected.resize(nCells_F);
@@ -1361,10 +1365,13 @@ void createReducedMPI(int nLocalEntities, MPI_Comm& reduced_comm_id) {
   std::vector<int> haveElements(numProcs);
   int nonEmpty = int(nLocalEntities > 0);
   MPI_Allgather(&nonEmpty, 1, MPI_INT, &haveElements[0], 1, MPI_INT, comm);
-  std::vector<int> ranks;
+  std::vector<int> ranks; 
+  reduced_ranks.resize(numProcs,0);
   for (int i = 0; i < numProcs; i++) {
-    if (haveElements[i])
+    if (haveElements[i]) {
+      reduced_ranks[i] = ranks.size(); 
       ranks.push_back(i);
+    }
   }
 
   MPI_Comm_group(comm, &world_group_id);
@@ -1764,5 +1771,22 @@ int prismType(long long int const* prismVertexMpasIds, int& minIndex)
         }
       }
     }
+  }
+  
+  void procsSharingVertex(const int vertex, std::vector<int>& procIds) {
+    int fCell = vertexToFCell[vertex];
+    procIds.clear();
+    int nEdg = nEdgesOnCells_F[fCell];
+    int me;
+    MPI_Comm_rank(comm, &me);
+    procIds.reserve(nEdg);
+    for(int i=0; i<nEdg; ++i) {
+      int fVertex = verticesOnCell_F[maxNEdgesOnCell_F * fCell + i]-1;
+      if (verticesMask_F[fVertex] & 0x02) {
+        int proc = trianglesProcIds[fVertex];
+        if(proc != me) 
+          procIds.push_back(reduced_ranks[proc]);
+      }  
+    } 
   }
 
