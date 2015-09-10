@@ -29,7 +29,6 @@ module li_calving
    use li_mask
    use li_constants
 
-
    implicit none
    private
 
@@ -218,6 +217,7 @@ module li_calving
          call mpas_pool_get_array(geometryPool, 'cellMask', cellMask)
 
          if (config_print_calving_info) then
+
             write(stderrUnit,*) 'Do ice calving, option = ', trim(config_calving)
             write(stderrUnit,*) 'Calving timscale (yr) = ', config_calving_timescale / scyr
 

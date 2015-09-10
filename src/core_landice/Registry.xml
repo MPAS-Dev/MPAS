@@ -330,6 +330,7 @@
 			<var name="zVertex"/>
 			<var name="indexToVertexID"/>
 			<var name="cellsOnEdge"/>
+			<var name="nCellsOnCell"/>
 			<var name="nEdgesOnCell"/>
 			<var name="nEdgesOnEdge"/>
 			<var name="edgesOnCell"/>
@@ -678,7 +679,6 @@ is the value of that variable from the *previous* time level!
 		<var name="restoreThickness" type="real" dimensions="nCells Time" units="m" time_levs="1"
 		     description="thickness of ice added to restore the calving front to its initial position"
 		/>
-
 		<!-- Variables only needed by SIA solver or for calculating diffusivity -->
 		<var name="upperSurfaceVertex" type="real" dimensions="nVertices Time" units="m above datum"
 		     description="elevation at top of ice on vertices" packages="SIAvelocity"
