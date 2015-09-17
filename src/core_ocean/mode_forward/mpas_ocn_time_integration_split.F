@@ -31,7 +31,7 @@ module ocn_time_integration_split
 
    use ocn_tendency
    use ocn_diagnostics
-   use ocn_gm
+   use ocn_mep
 
    use ocn_equation_of_state
    use ocn_vmix
@@ -128,7 +128,6 @@ module ocn_time_integration_split
       integer, pointer :: config_n_bcl_iter_mid, config_n_bcl_iter_beg, config_n_bcl_iter_end
       integer, pointer :: config_n_ts_iter, config_btr_subcycle_loop_factor, config_n_btr_subcycles
       integer, pointer :: config_n_btr_cor_iter
-      logical, pointer :: config_use_standardGM
 
       logical, pointer :: config_use_freq_filtered_thickness, config_btr_solve_SSH2, config_filter_btr_mode
       logical, pointer :: config_vel_correction, config_prescribe_velocity, config_prescribe_thickness
@@ -175,7 +174,7 @@ module ocn_time_integration_split
 
       ! Diagnostics Array Pointers
       real (kind=RKIND), dimension(:), pointer :: barotropicForcing, barotropicThicknessFlux
-      real (kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge, normalTransportVelocity, normalGMBolusVelocity
+      real (kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge, normalTransportVelocity
       real (kind=RKIND), dimension(:,:), pointer :: vertAleTransportTop
       real (kind=RKIND), dimension(:,:), pointer :: velocityX, velocityY, velocityZ
       real (kind=RKIND), dimension(:,:), pointer :: velocityZonal, velocityMeridional
@@ -229,7 +228,6 @@ module ocn_time_integration_split
       call mpas_pool_get_config(domain % configs, 'config_prescribe_velocity', config_prescribe_velocity)
       call mpas_pool_get_config(domain % configs, 'config_prescribe_thickness', config_prescribe_thickness)
 
-      call mpas_pool_get_config(domain % configs, 'config_use_standardGM', config_use_standardGM)
       call mpas_pool_get_config(domain % configs, 'config_use_cvmix_kpp', config_use_cvmix_kpp)
       call mpas_pool_get_config(domain % configs, 'config_land_ice_flux_mode', config_land_ice_flux_mode)
 
@@ -601,26 +599,20 @@ module ocn_time_integration_split
                call mpas_pool_get_array(statePool, 'normalBaroclinicVelocity', normalBaroclinicVelocityNew, 2)
 
                call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
-               call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
 
                call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
-               ! For Split_Explicit unsplit, simply set normalBarotropicVelocityNew=0, normalBarotropicVelocitySubcycle=0, and uNew=normalBaroclinicVelocityNew
+               ! For Split_Explicit unsplit, simply set 
+               !  normalBarotropicVelocityNew=0, 
+               !  normalBarotropicVelocitySubcycle=0, and 
+               !  uNew=normalBaroclinicVelocityNew
                normalBarotropicVelocityNew(:) = 0.0
 
                normalVelocityNew(:,:)  = normalBaroclinicVelocityNew(:,:) 
 
-               do iEdge = 1, nEdges
-                  do k = 1, nVertLevels
-
-                     ! normalTransportVelocity = normalBaroclinicVelocity + normalGMBolusVelocity 
-                     ! This is u used in advective terms for layerThickness and tracers 
-                     ! in tendency calls in stage 3.
-                     normalTransportVelocity(k,iEdge) = edgeMask(k,iEdge) &
-                           *( normalBaroclinicVelocityNew(k,iEdge) + normalGMBolusVelocity(k,iEdge) )
-
-                  enddo
-               end do  ! iEdge
+               normalTransportVelocity(:,:) = normalBaroclinicVelocityNew
+               call ocn_mep_transportVelocity_update(normalTransportVelocity)
+               normalTransportVelocity(:,:) = edgeMask(:,:) * normalTransportVelocity
    
                block => block % next
             end do  ! block
@@ -1140,14 +1132,13 @@ module ocn_time_integration_split
                call mpas_pool_get_array(statePool, 'normalBaroclinicVelocity', normalBaroclinicVelocityNew, 2)
 
                call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
-               call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
                call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
                call mpas_pool_get_array(diagnosticsPool, 'barotropicThicknessFlux', barotropicThicknessFlux)
 
                call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
                call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
-               allocate(uTemp(nVertLevels))
+               allocate(uTemp(nVertLevels,nEdges))
 
                ! Correction velocity    normalVelocityCorrection = (Flux - Sum(h u*))/H
                ! or, for the full latex version:
@@ -1162,18 +1153,22 @@ module ocn_time_integration_split
                endif
 
                do iEdge = 1, nEdges
-
-                  ! velocity for normalVelocityCorrectionection is normalBarotropicVelocity + normalBaroclinicVelocity + uBolus
-                  uTemp(:) = normalBarotropicVelocityNew(iEdge) + normalBaroclinicVelocityNew(:,iEdge) + normalGMBolusVelocity(:,iEdge)
-
+                  ! velocity for normalVelocityCorrectionection is 
+                  ! normalBarotropicVelocity + normalBaroclinicVelocity + uBolus
+                  uTemp(:,iEdge) = normalBarotropicVelocityNew(iEdge) + normalBaroclinicVelocityNew(:,iEdge)
+               end do ! iEdge
+               
+               call ocn_mep_transportVelocity_update(uTemp)
+               
+               do iEdge = 1, nEdges
                   ! thicknessSum is initialized outside the loop because on land boundaries 
                   ! maxLevelEdgeTop=0, but I want to initialize thicknessSum with a 
                   ! nonzero value to avoid a NaN.
-                  normalThicknessFluxSum = layerThicknessEdge(1,iEdge) * uTemp(1)
+                  normalThicknessFluxSum = layerThicknessEdge(1,iEdge) * uTemp(1,iEdge)
                   thicknessSum  = layerThicknessEdge(1,iEdge)
 
                   do k = 2, maxLevelEdgeTop(iEdge)
-                     normalThicknessFluxSum = normalThicknessFluxSum + layerThicknessEdge(k,iEdge) * uTemp(k)
+                     normalThicknessFluxSum = normalThicknessFluxSum + layerThicknessEdge(k,iEdge) * uTemp(k,iEdge)
                      thicknessSum  =  thicknessSum + layerThicknessEdge(k,iEdge)
                   enddo
 
@@ -1181,18 +1176,19 @@ module ocn_time_integration_split
 
                   do k = 1, nVertLevels
 
-                     ! normalTransportVelocity = normalBarotropicVelocity + normalBaroclinicVelocity + normalGMBolusVelocity + normalVelocityCorrection
+                     ! normalTransportVelocity = normalBarotropicVelocity + normalBaroclinicVelocity 
+                     !                         + normalGMBolusVelocity + normalVelocityCorrection
                      ! This is u used in advective terms for layerThickness and tracers 
                      ! in tendency calls in stage 3.
-!mrp note: in QC version, there is an if (config_use_standardGM) on adding normalGMBolusVelocity
-! I think it is not needed because normalGMBolusVelocity=0 when GM not on.
                      normalTransportVelocity(k,iEdge) &
-                           = edgeMask(k,iEdge) &
-                           *( normalBarotropicVelocityNew(iEdge) + normalBaroclinicVelocityNew(k,iEdge) &
-                           + normalGMBolusVelocity(k,iEdge) + normalVelocityCorrection )
+                           = normalBarotropicVelocityNew(iEdge) + normalBaroclinicVelocityNew(k,iEdge) &
+                           + normalVelocityCorrection
                   enddo
 
                end do ! iEdge
+
+               call ocn_mep_transportVelocity_update(normalTransportVelocity)
+               normalTransportVelocity(:,:) = edgeMask(:,:) * normalTransportVelocity(:,:)
 
                deallocate(uTemp)
 
@@ -1518,9 +1514,8 @@ module ocn_time_integration_split
         call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, 2)
 
         ! Compute normalGMBolusVelocity; it will be added to the baroclinic modes in Stage 2 above.
-        if (config_use_standardGM) then
-           call ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, scratchPool)
-        end if
+        call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
+        
         call ocn_vmix_implicit(dt, meshPool, diagnosticsPool, statePool, err, 2)
 
         block => block % next
@@ -1568,7 +1563,6 @@ module ocn_time_integration_split
          call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessNew, 2)
 
          call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
-         call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
          call mpas_pool_get_array(diagnosticsPool, 'velocityX', velocityX)
          call mpas_pool_get_array(diagnosticsPool, 'velocityY', velocityY)
          call mpas_pool_get_array(diagnosticsPool, 'velocityZ', velocityZ)
@@ -1603,9 +1597,7 @@ module ocn_time_integration_split
          call ocn_effective_density_in_land_ice_update(meshPool, forcingPool, statePool, scratchPool, err)
 
          ! Compute normalGMBolusVelocity; it will be added to normalVelocity in Stage 2 of the next cycle. 
-         if (config_use_standardGM) then
-            call ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, scratchPool)
-         end if
+         call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
 
          call mpas_reconstruct(meshPool, normalVelocityNew,  &
                           velocityX, velocityY, velocityZ,   &
@@ -1626,9 +1618,7 @@ module ocn_time_integration_split
          call ocn_time_average_accumulate(averagePool, statePool, diagnosticsPool, 2)
          call ocn_time_average_coupled_accumulate(diagnosticsPool, statePool, forcingPool, 2)
 
-         if (config_use_standardGM) then
-            call ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool)
-         end if
+         call ocn_mep_reconstruct(diagnosticsPool, meshPool)
 
          block => block % next
       end do

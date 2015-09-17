@@ -30,7 +30,7 @@ module ocn_time_integration_rk4
    use ocn_constants
    use ocn_tendency
    use ocn_diagnostics
-   use ocn_gm
+   use ocn_mep
 
    use ocn_equation_of_state
    use ocn_vmix
@@ -122,7 +122,6 @@ module ocn_time_integration_rk4
       ! Config options
       logical, pointer :: config_prescribe_velocity, config_prescribe_thickness
       logical, pointer :: config_filter_btr_mode, config_use_freq_filtered_thickness
-      logical, pointer :: config_use_standardGM
       logical, pointer :: config_use_cvmix_kpp
       logical, pointer :: config_use_tracerGroup
       real (kind=RKIND), pointer :: config_mom_del4
@@ -152,7 +151,7 @@ module ocn_time_integration_rk4
       ! Diagnostics Array Pointers
       real (kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge
       real (kind=RKIND), dimension(:,:), pointer :: vertAleTransportTop
-      real (kind=RKIND), dimension(:,:), pointer :: normalTransportVelocity, normalGMBolusVelocity
+      real (kind=RKIND), dimension(:,:), pointer :: normalTransportVelocity
       real (kind=RKIND), dimension(:,:), pointer :: velocityX, velocityY, velocityZ
       real (kind=RKIND), dimension(:,:), pointer :: velocityZonal, velocityMeridional
       real (kind=RKIND), dimension(:,:), pointer :: gradSSH
@@ -192,7 +191,6 @@ module ocn_time_integration_rk4
       call mpas_pool_get_config(domain % configs, 'config_prescribe_velocity', config_prescribe_velocity)
       call mpas_pool_get_config(domain % configs, 'config_prescribe_thickness', config_prescribe_thickness)
       call mpas_pool_get_config(domain % configs, 'config_use_freq_filtered_thickness', config_use_freq_filtered_thickness)
-      call mpas_pool_get_config(domain % configs, 'config_use_standardGM', config_use_standardGM)
       call mpas_pool_get_config(domain % configs, 'config_use_cvmix_kpp', config_use_cvmix_kpp)
       call mpas_pool_get_config(domain % configs, 'config_land_ice_flux_mode', config_land_ice_flux_mode)
 
@@ -528,7 +526,6 @@ module ocn_time_integration_rk4
               call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
 
               call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
-              call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
 
               normalVelocityProvis(:,:) = normalVelocityCur(:,:) + rk_substep_weights(rk_step) * normalVelocityTend(:,:)
 
@@ -579,14 +576,11 @@ module ocn_time_integration_rk4
               ! ------------------------------------------------------------------
               normalTransportVelocity(:,:) = normalVelocityProvis(:,:)
 
-              ! Compute normalGMBolusVelocity, relativeSlope and RediDiffVertCoef if respective flags are turned on
-              if (config_use_standardGM) then
-                 call ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, scratchPool)
-              end if
+              ! Update quantities used in the mep
+              call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
 
-              if (config_use_standardGM) then
-                 normalTransportVelocity(:,:) = normalTransportVelocity(:,:) + normalGMBolusVelocity(:,:)
-              end if
+              call ocn_mep_transportVelocity_update(normalTransportVelocity)
+              
               ! ------------------------------------------------------------------
               ! End: Accumulating various parametrizations of the transport velocity
               ! ------------------------------------------------------------------
@@ -747,15 +741,12 @@ module ocn_time_integration_rk4
         ! ------------------------------------------------------------------
         normalTransportVelocity(:,:) = normalVelocityNew(:,:)
 
-        ! Compute normalGMBolusVelocity, slopeRelative and RediDiffVertCoef if respective flags are turned on
-        ! QC Note: this routine is called here to get updated k33. normalTransportVelocity probably does not need to be updated at all here.
-        if (config_use_standardGM) then
-           call ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, scratchPool)
-        end if
+        ! Compute  normalGMBolusVelocity, slopeRelative and RediDiffVertCoef if respective flags are turned on
+        ! QC Note: this routine is called here to get updated k33. normalTransportVelocity probably 
+        !   does not need to be updated at all here.
+        call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
 
-        if (config_use_standardGM) then
-           normalTransportVelocity(:,:) = normalTransportVelocity(:,:) + normalGMBolusVelocity(:,:)
-        end if
+        call ocn_mep_transportVelocity_update(normalTransportVelocity)
         ! ------------------------------------------------------------------
         ! End: Accumulating various parametrizations of the transport velocity
         ! ------------------------------------------------------------------
@@ -810,7 +801,6 @@ module ocn_time_integration_rk4
          call mpas_pool_get_dimension(diagnosticsPool, 'index_SSHGradientMeridional', indexSSHGradientMeridional)
 
          call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
-         call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
          call mpas_pool_get_array(diagnosticsPool, 'velocityX', velocityX)
          call mpas_pool_get_array(diagnosticsPool, 'velocityY', velocityY)
          call mpas_pool_get_array(diagnosticsPool, 'velocityZ', velocityZ)
@@ -844,13 +834,9 @@ module ocn_time_integration_rk4
          normalTransportVelocity(:,:) = normalVelocityNew(:,:)
 
          ! Compute normalGMBolusVelocity and the tracer transport velocity
-         if (config_use_standardGM) then
-             call ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, scratchPool)
-         end if
+         call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
 
-         if (config_use_standardGM) then
-            normalTransportVelocity(:,:) = normalTransportVelocity(:,:) + normalGMBolusVelocity(:,:)
-         end if
+         call ocn_mep_transportVelocity_update(normalTransportVelocity)
          ! ------------------------------------------------------------------
          ! End: Accumulating various parameterizations of the transport velocity
          ! ------------------------------------------------------------------
@@ -874,9 +860,7 @@ module ocn_time_integration_rk4
          call ocn_time_average_accumulate(averagePool, statePool, diagnosticsPool, 2)
          call ocn_time_average_coupled_accumulate(diagnosticsPool, statePool, forcingPool, 2)
 
-         if (config_use_standardGM) then
-            call ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool)
-         end if
+         call ocn_mep_reconstruct(diagnosticsPool, meshPool)
 
          block => block % next
       end do

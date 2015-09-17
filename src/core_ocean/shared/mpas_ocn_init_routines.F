@@ -35,7 +35,7 @@ module ocn_init_routines
 
    use ocn_time_average
    use ocn_diagnostics
-   use ocn_gm
+   use ocn_mep
    use ocn_constants
 
    private
@@ -506,7 +506,7 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       real (kind=RKIND), dimension(:), pointer :: areaCell, boundaryLayerDepth
       real (kind=RKIND), dimension(:,:), pointer :: advCoefs, advCoefs3rd, normalTransportVelocity
       real (kind=RKIND), dimension(:,:), pointer :: layerThickness
-      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, normalGMBolusVelocity, edgeTangentVectors
+      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, edgeTangentVectors
       real (kind=RKIND), dimension(:,:), pointer :: velocityX, velocityY, velocityZ
       real (kind=RKIND), dimension(:,:), pointer :: velocityZonal, velocityMeridional
       real (kind=RKIND), dimension(:,:,:), pointer :: derivTwo
@@ -516,7 +516,6 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       integer, pointer :: nCells, nEdges, nVertices, nVertLevels
       integer, pointer :: config_horiz_tracer_adv_order
       logical, pointer :: config_hmix_scaleWithMesh, config_do_restart
-      logical, pointer :: config_use_standardGM
       real (kind=RKIND), pointer :: config_maxMeshDensity
 
       type (mpas_pool_iterator_type) :: groupItr
@@ -550,7 +549,6 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
 
       call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
-      call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
       call mpas_pool_get_array(diagnosticsPool, 'velocityX', velocityX)
       call mpas_pool_get_array(diagnosticsPool, 'velocityY', velocityY)
       call mpas_pool_get_array(diagnosticsPool, 'velocityZ', velocityZ)
@@ -564,7 +562,6 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       call mpas_pool_get_config(block % configs, 'config_horiz_tracer_adv_order', config_horiz_tracer_adv_order)
       call mpas_pool_get_config(block % configs, 'config_hmix_scaleWithMesh', config_hmix_scaleWithMesh)
       call mpas_pool_get_config(block % configs, 'config_maxMeshDensity', config_maxMeshDensity)
-      call mpas_pool_get_config(block % configs, 'config_use_standardGM', config_use_standardGM)
       call mpas_pool_get_config(block % configs, 'config_do_restart', config_do_restart)
 
       call ocn_init_routines_setup_sign_and_index_fields(meshPool)
@@ -617,13 +614,9 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       normalTransportVelocity(:,:) = normalVelocity(:,:)
 
       ! Compute normalGMBolusVelocity, relativeSlope and RediDiffVertCoef if respective flags are turned on
-      if (config_use_standardGM) then
-          call ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, scratchPool)
-      end if
+      call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
 
-      if (config_use_standardGM) then
-         normalTransportVelocity(:,:) = normalTransportVelocity(:,:) + normalGMBolusVelocity(:,:)
-       end if
+      call ocn_mep_transportVelocity_update(normalTransportVelocity)
       ! ------------------------------------------------------------------
       ! End: Accumulating various parametrizations of the transport velocity
       ! ------------------------------------------------------------------
@@ -643,9 +636,7 @@ end subroutine ocn_init_routines_compute_max_level!}}}
                        velocityMeridional    &
                       )
 
-      if (config_use_standardGM) then
-         call ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool)
-      end if
+      call ocn_mep_reconstruct(diagnosticsPool, meshPool)
 
       call mpas_pool_initialize_time_levels(statePool)
 

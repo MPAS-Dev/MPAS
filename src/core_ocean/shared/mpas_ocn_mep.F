@@ -50,7 +50,7 @@ module ocn_mep
    !
    !--------------------------------------------------------------------
 
-   logical :: mepStdGMOn, mepTWAdragGMOn, mepTWAdragVertViscOn 
+   logical :: mepStdGMOn, mepTWAdragGMOn, mepTWAdragVertViscOn, mepRediOn, mepUseGMmodule
 
 !***********************************************************************
 
@@ -109,18 +109,27 @@ contains
       mepStdGMOn = .false.
       mepTWAdragGMOn = .false.
       mepTWAdragVertViscOn = .false.
+      mepRediOn = .false.
+      mepUseGMmodule = .false.
 
+      ! Momentum eddy parameterization flags
       if (config_mep_stdGM_enable) then
          mepStdGMOn = .true.
-         call ocn_mep_stdGM_init(err)
+         mepUseGMmodule = .true.
       end if
       if (config_mep_twaDragGM_enable) then
          mepTWAdragGMOn = .true.
-         call ocn_mep_twa_drag_GM_init(err)
+         mepUseGMmodule= .true.
       end if
       if (config_mep_twaDragVertVisc_enable) then
          mepTWAdragVertViscOn = .true.
          call ocn_mep_twa_drag_VertVisc_init(err)
+      end if
+      
+      ! Tracer eddy parameterization flags
+      if (config_mep_Redi_enable) then
+         mepRediOn = .true.
+         mepUseGMmodule = .true.
       end if
 
       ! Check for invalid parameterizations being enabled
@@ -135,10 +144,15 @@ contains
          err = 1
       end if
 
+      ! Initialize GM module if needed
+      if (mepUseGMmodule) then
+         call ocn_gm_init(err)
+      end if
 
    !--------------------------------------------------------------------
 
    end subroutine ocn_mep_init!}}}
+
 
 !***********************************************************************
 !
@@ -146,25 +160,141 @@ contains
 !
 !> \brief  This routine updates the mep module given an ocean state 
 !> \author Juan A. Saenz, Todd Ringler
-!> \date   14 September 2015
+!> \date   17 September 2015
 !> \details 
 !>  This routine updates the mep given a current ocean state.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_update(err)!{{{
+   subroutine ocn_mep_update(diagnosticsPool, meshPool, scratchPool)!{{{
 
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
 
-   integer, intent(out) :: err !< Output: error flag
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
 
-   !--------------------------------------------------------------------
-   !
-   ! set some local module variables based on input config choices
-   !
-   !--------------------------------------------------------------------
-   !--------------------------------------------------------------------
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(inout) :: diagnosticsPool !< Input/Output: Diagnostics information
+      type (mpas_pool_type), intent(inout) :: scratchPool !< Input/Output: Scratch structure
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      
+      if (mepUseGMmodule) then
+         ! might want to give the routine called here a more general name
+         call ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, scratchPool)
+      end if
+   
 
    end subroutine ocn_mep_update!}}}
+
+
+!***********************************************************************
+!
+!  routine ocn_mep_transportVelocity_update
+!
+!> \brief  This routine updates the transport velocity 
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   17 September 2015
+!> \details 
+!>  This routine receives a velocity (eulerian velocity) and adds 
+!>  the GM bolus velocity, resulting in the residual velocity
+!>  It is assumed that the mep module has already been updated.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_transportVelocity_update(normalTransportVelocity)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: normalTransportVelocity
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      ! NOTE: This routine is called within block loops
+      
+      if (mepStdGMOn) then
+         normalTransportVelocity(:,:) = normalTransportVelocity(:,:) + normalGMBolusVelocity(:,:)
+      end if
+   
+
+   end subroutine ocn_mep_transportVelocity_update!}}}
+
+
+!***********************************************************************
+!
+!  routine ocn_mep_reconstruct
+!
+!> \brief  This routine interfaces the cell center reconstruction
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   17 September 2015
+!> \details 
+!>  This routine interfaces the cell center reconstruction for diagnostics
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_reconstruct(diagnosticsPool, meshPool)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
+      type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostic information
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      ! NOTE: This routine is called within block loops
+      
+      if (mepUseGMmodule) then
+         call ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool)
+      end if
+   
+
+   end subroutine ocn_mep_transportVelocity_update!}}}
+
+
+
 
 !***********************************************************************
 
