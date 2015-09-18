@@ -376,15 +376,15 @@ contains
 
       integer, intent(out) :: err !< Output: error flag
 
-      logical, pointer :: config_use_standardGM
+      logical, pointer :: config_mep_Redi_enable
 
       err = 0
 
-      call mpas_pool_get_config(ocnConfigs, 'config_use_standardGM', config_use_standardGM)
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_Redi_enable', config_mep_Redi_enable)
 
       rediOn = .false.
 
-      if ( config_use_standardGM ) then
+      if ( config_mep_Redi_enable ) then
           rediOn = .true.
       endif
 

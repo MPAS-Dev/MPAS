@@ -49,7 +49,7 @@ module ocn_vmix_coefs_redi
    !--------------------------------------------------------------------
 
    logical :: rediDiffOn
-   logical, pointer :: config_use_standardGM
+   logical, pointer :: config_mep_Redi_enable
    real (kind=RKIND), pointer :: config_Redi_kappa
 
 !***********************************************************************
@@ -125,7 +125,7 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
       call mpas_pool_get_array(diagnosticsPool, 'k33',k33)
 
-      if (config_use_standardGM) then
+      if (config_mep_Redi_enable) then
           call ocn_tracer_vmix_coefs_redi(meshPool, vertDiffTopOfCell, k33, err)
       end if
 
@@ -223,10 +223,10 @@ contains
 
       err = 0
 
-      call mpas_pool_get_config(ocnConfigs, 'config_use_standardGM',config_use_standardGM)
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_Redi_enable',config_mep_Redi_enable)
       call mpas_pool_get_config(ocnConfigs, 'config_Redi_kappa',config_Redi_kappa)
 
-      if (config_use_standardGM) then
+      if (config_mep_Redi_enable) then
          rediDiffOn = .True.
       else
          rediDiffOn = .False.
