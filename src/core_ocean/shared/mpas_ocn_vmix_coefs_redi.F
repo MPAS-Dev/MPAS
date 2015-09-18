@@ -50,7 +50,7 @@ module ocn_vmix_coefs_redi
 
    logical :: rediDiffOn
    logical, pointer :: config_mep_Redi_enable
-   real (kind=RKIND), pointer :: config_Redi_kappa
+   real (kind=RKIND), pointer :: config_mep_Redi_kappa
 
 !***********************************************************************
 
@@ -224,7 +224,7 @@ contains
       err = 0
 
       call mpas_pool_get_config(ocnConfigs, 'config_mep_Redi_enable',config_mep_Redi_enable)
-      call mpas_pool_get_config(ocnConfigs, 'config_Redi_kappa',config_Redi_kappa)
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_Redi_kappa',config_mep_Redi_kappa)
 
       if (config_mep_Redi_enable) then
          rediDiffOn = .True.

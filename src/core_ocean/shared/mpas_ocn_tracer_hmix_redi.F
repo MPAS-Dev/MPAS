@@ -56,7 +56,7 @@ module ocn_tracer_hmix_redi
    logical, pointer :: config_disable_redi_horizontal_term1
    logical, pointer :: config_disable_redi_horizontal_term2
    logical, pointer :: config_disable_redi_horizontal_term3
-   real (kind=RKIND), pointer :: config_Redi_kappa
+   real (kind=RKIND), pointer :: config_mep_Redi_kappa
 
 
 !***********************************************************************
@@ -162,7 +162,7 @@ contains
       call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
       call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
 
-      call mpas_pool_get_config(ocnConfigs, 'config_Redi_kappa',config_Redi_kappa)
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_Redi_kappa',config_mep_Redi_kappa)
       call mpas_pool_get_config(ocnConfigs, 'config_disable_redi_horizontal_term1',config_disable_redi_horizontal_term1)
       call mpas_pool_get_config(ocnConfigs, 'config_disable_redi_horizontal_term2',config_disable_redi_horizontal_term2)
       call mpas_pool_get_config(ocnConfigs, 'config_disable_redi_horizontal_term3',config_disable_redi_horizontal_term3)
@@ -200,7 +200,7 @@ contains
       dTracerdZTopOfCell = 0.0
       dTracerdZTopOfEdge = 0.0
 
-      ! this is the "standard" del2 term, but forced to use config_redi_kappa
+      ! this is the "standard" del2 term, but forced to use config_mep_Redi_kappa
       if(.not.config_disable_redi_horizontal_term1) then
 
          do iCell = 1, nCells
@@ -210,11 +210,11 @@ contains
                cell1 = cellsOnEdge(1,iEdge)
                cell2 = cellsOnEdge(2,iEdge)
 
-               r_tmp = config_redi_kappa * dvEdge(iEdge) / dcEdge(iEdge)
+               r_tmp = config_mep_Redi_kappa * dvEdge(iEdge) / dcEdge(iEdge)
 
                do k = 1, maxLevelEdgeTop(iEdge)
 
-                  ! this is the tapering of config_redi_kappa where abs(slope) > config_max_relative_slope
+                  ! this is the tapering of config_mep_Redi_kappa where abs(slope) > config_mep_max_relative_slope
                   s_tmp = relativeSlopeTapering(k,iEdge)
 
                   do iTracer = 1, num_tracers
@@ -297,7 +297,7 @@ contains
 
                      flux = 0.5 * dvEdge(iEdge) * ( s_tmpU + s_tmpD )
                      flux = flux * layerThicknessEdge(k, iEdge)
-                     tend(iTracer, k, iCell) = tend(iTracer, k, iCell) + edgeSignOnCell(i, iCell) * config_Redi_kappa * flux * invAreaCell
+                     tend(iTracer, k, iCell) = tend(iTracer, k, iCell) + edgeSignOnCell(i, iCell) * config_mep_Redi_kappa * flux * invAreaCell
                   end do
                end do
             end do
@@ -334,7 +334,7 @@ contains
                gradHTracerSlopedTopOfCell(maxLevelCell(iCell)+1,iCell) = 0.0
                do k = 1, maxLevelCell(iCell)
                   s_tmp = relativeSlopeTaperingCell(k,iCell)
-                  tend(iTracer,k,iCell) = tend(iTracer,k,iCell) + s_tmp * config_Redi_kappa * &
+                  tend(iTracer,k,iCell) = tend(iTracer,k,iCell) + s_tmp * config_mep_Redi_kappa * &
                       (gradHTracerSlopedTopOfCell(k,iCell) - gradHTracerSlopedTopOfCell(k+1,iCell))
                end do
             end do

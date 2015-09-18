@@ -323,26 +323,40 @@
 					possible_values="any positive real"
 		/>
 	</nml_record>
-	<nml_record name="mesoscale_eddy_parameterization" mode="forward">
-		<nml_option name="config_use_standardGM" type="logical" default_value=".false." units="NA"
-					description="If true, the standard GM for the tracer advection and mixing is turned on. This includes the redi portion which is captured in hmix."
+	<nml_record name="mep_GM" mode="forward">
+		<nml_option name="config_mep_stdGM_enable" type="logical" default_value=".false." units="NA"
+					description="If true, standard Gent-McWilliams parameterization is turned on."
 					possible_values=".true. or .false."
 		/>
-		<nml_option name="config_standardGM_tracer_kappa" type="real" default_value="0.0" units="m^2 s^{-1}"
-					description="Coefficient of standard GM parametrization of eddy transport (Bolus component), $\kappa$"
+		<nml_option name="config_mep_twaDragGM_enable" type="logical" default_value=".false." units="NA"
+					description="If true, Gent-McWilliams parameterization is implemented in the twa framework."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_mep_Redi_enable" type="logical" default_value=".false." units="NA"
+					description="If true, Redi diffusion parameterization is implemented."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_mep_GM_tracer_kappa" type="real" default_value="0.0" units="m^2 s^{-1}"
+					description="Coefficient of GM parametrization of eddy transport (Bolus component), $\kappa$"
 					possible_values="Any positive real value."
 		/>
-		<nml_option name="config_Redi_kappa" type="real" default_value="0.0" units="m^2 s^{-1}"
+		<nml_option name="config_mep_Redi_kappa" type="real" default_value="0.0" units="m^2 s^{-1}"
 					description="The Redi diffusion coefficient"
 					possible_values="Positive real numbers"
 		/>
-		<nml_option name="config_gravWaveSpeed_trunc" type="real" default_value="0.3" units="m/s"
+		<nml_option name="config_mep_gravWaveSpeed_trunc" type="real" default_value="0.3" units="m/s"
 					description="Gravity wave speed truncation threshold for the vertical stream function boundary value problem, $c$"
 					possible_values="Positive real numbers that represents the gravity wave speed of the first, second, etc., baroclinic modes"
 		/>
-		<nml_option name="config_max_relative_slope" type="real" default_value="0.01" units="non-dimensional"
+		<nml_option name="config_mep_max_relative_slope" type="real" default_value="0.01" units="non-dimensional"
 					description="Tapering parameter for Redi diffusion coeffient.  Tapering occurs when relativeSlopeTopOfEdge is greater than config_max_relative_slope"
 					possible_values="Positive real numbers"
+		/>
+	</nml_record>
+	<nml_record name="mep_twa_drag" mode="forward">
+		<nml_option name="config_mep_twaDragVertVisc_enable" type="logical" default_value=".false." units="NA"
+					description="If true, twa framework is used and form drag is parameterized as vertical viscocity."
+					possible_values=".true. or .false."
 		/>
 	</nml_record>
 	<nml_record name="hmix_del2_tensor" mode="forward">

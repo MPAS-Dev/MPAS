@@ -27,7 +27,7 @@ module ocn_diagnostics
    use mpas_vector_reconstruction
 
    use ocn_constants
-   use ocn_gm
+   use ocn_mep
    use ocn_equation_of_state
    use ocn_thick_ale
    use ocn_diagnostics_routines
