@@ -104,7 +104,10 @@ contains
 
       err = 0
 
-      call mpas_pool_get_config(ocnConfigs, 'config_mep_type', config_mep_type)
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_stdGM_enable', config_mep_stdGM_enable)
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_twaDragGM_enable', config_mep_twaDragGM_enable)
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_twaDragVertVisc_enable', config_mep_twaDragVertVisc_enable)
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_Redi_enable', config_mep_Redi_enable)
 
       mepStdGMOn = .false.
       mepTWAdragGMOn = .false.
@@ -287,11 +290,11 @@ contains
       ! NOTE: This routine is called within block loops
       
       if (mepUseGMmodule) then
-         call ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool)
+         call ocn_mep_reconstruct(diagnosticsPool, meshPool)
       end if
    
 
-   end subroutine ocn_mep_transportVelocity_update!}}}
+   end subroutine ocn_mep_reconstruct!}}}
 
 
 
