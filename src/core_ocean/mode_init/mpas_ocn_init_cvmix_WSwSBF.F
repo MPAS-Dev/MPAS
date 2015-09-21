@@ -282,8 +282,6 @@ contains
 
            kML=k+1
 
-           print *, 'temp at k = ', kML-1, 'is ',activeTracers(index_temperature,kML-1, iCell)
-           print *, 'kML zs = ',refZMid(kML), BLdepth
            do k = kML, nVertLevels
               if ( associated(activeTracers) ) then 
                  temperature = activeTracers(index_temperature, kML-1, iCell) + (refZMid(k) - BLdepth) * &
