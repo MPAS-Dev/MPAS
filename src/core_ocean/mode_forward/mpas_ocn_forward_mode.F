@@ -49,9 +49,11 @@ module ocn_forward_mode
    use ocn_vel_hmix
    use ocn_vel_forcing
    use ocn_vel_coriolis
+   use ocn_vel_forcing_windstress
+   use ocn_surface_bulk_forcing
 
    use ocn_tracer_hmix
-   use ocn_tracer_surface_flux
+   use ocn_tracer_surface_flux_to_tend
    use ocn_tracer_short_wave_absorption
    use ocn_tracer_nonlocalflux
    use ocn_tracer_advection
@@ -113,7 +115,8 @@ module ocn_forward_mode
       type (MPAS_Time_Type) :: startTime
       type (MPAS_TimeInterval_type) :: timeStep
 
-      logical, pointer :: config_do_restart, config_filter_btr_mode, config_conduct_tests
+      logical, pointer :: config_do_restart, config_read_nearest_restart, config_filter_btr_mode, config_conduct_tests
+      logical, pointer :: config_AM_eliassenPalm_do_restart
       character (len=StrKIND), pointer :: config_vert_coord_movement, config_pressure_gradient_type
       real (kind=RKIND), pointer :: config_maxMeshDensity
 
@@ -130,6 +133,8 @@ module ocn_forward_mode
       call ocn_constants_init(domain % configs, domain % packages)
 
       call mpas_pool_get_config(domain % configs, 'config_do_restart', config_do_restart)
+      call mpas_pool_get_config(domain % configs, 'config_read_nearest_restart', config_read_nearest_restart)
+      call mpas_pool_get_config(domain % configs, 'config_AM_eliassenPalm_do_restart', config_AM_eliassenPalm_do_restart)
       call mpas_pool_get_config(domain % configs, 'config_vert_coord_movement', config_vert_coord_movement)
       call mpas_pool_get_config(domain % configs, 'config_pressure_gradient_type', config_pressure_gradient_type)
       call mpas_pool_get_config(domain % configs, 'config_filter_btr_mode', config_filter_btr_mode)
@@ -141,8 +146,20 @@ module ocn_forward_mode
       !
       call mpas_timer_start('io_read', .false.)
       call MPAS_stream_mgr_read(domain % streamManager, streamID='mesh', whence=MPAS_STREAM_NEAREST, ierr=err_tmp)
+      
+      ! Read in a restart file for the eliassen_palm analysis member
+      if ( config_AM_eliassenPalm_do_restart ) then
+         call mpas_timer_start('io_read', .false.)
+         call MPAS_stream_mgr_read(domain % streamManager, streamID='eliassenPalmRestart', ierr=err_tmp)
+         call mpas_timer_stop('io_read')
+      end if
+
       if ( config_do_restart ) then
-         call MPAS_stream_mgr_read(domain % streamManager, streamID='restart', ierr=err_tmp)
+         if ( config_read_nearest_restart ) then
+            call MPAS_stream_mgr_read(domain % streamManager, streamID='restart', whence=MPAS_STREAM_NEAREST, ierr=err_tmp)
+         else
+            call MPAS_stream_mgr_read(domain % streamManager, streamID='restart', ierr=err_tmp)
+         end if
       else
          call MPAS_stream_mgr_read(domain % streamManager, streamID='input', ierr=err_tmp)
       end if
@@ -174,6 +191,10 @@ module ocn_forward_mode
       call ocn_vel_hmix_init(err_tmp)
       ierr = ior(ierr, err_tmp)
       call ocn_vel_forcing_init(err_tmp)
+      ierr = ior(ierr, err_tmp)
+      call ocn_vel_forcing_windstress_init(err_tmp)
+      ierr = ior(ierr, err_tmp)
+      call ocn_surface_bulk_forcing_init(err_tmp)
       ierr = ior(ierr, err_tmp)
 
       call ocn_tracer_hmix_init(err_tmp)
@@ -438,7 +459,6 @@ module ocn_forward_mode
            call mpas_pool_get_subpool(block_ptr % structs, 'mesh', meshPool)
            call mpas_pool_get_subpool(block_ptr % structs, 'state', statePool)
            call mpas_pool_get_subpool(block_ptr % structs, 'forcing', forcingPool)
-           call ocn_forcing_build_arrays(meshPool, statePool, forcingPool, ierr, 1)
            call ocn_forcing_build_fraction_absorbed_array(meshPool, statePool, forcingpool, ierr, 1)
            block_ptr => block_ptr % next
          end do
@@ -456,6 +476,7 @@ module ocn_forward_mode
          end do
 
          call ocn_analysis_compute(domain, err) 
+         call ocn_analysis_restart(domain, err) 
          call ocn_analysis_write(domain, err)
 
          call mpas_timer_start('io_write', .false.)

@@ -35,6 +35,9 @@ module ocn_analysis_driver
    use ocn_meridional_heat_transport
    use ocn_test_compute_interval
    use ocn_high_frequency_output
+   use ocn_time_filters
+   use ocn_eliassen_palm
+   use ocn_mixed_layer_depths
 !   use ocn_TEM_PLATE
 
    implicit none
@@ -70,6 +73,7 @@ module ocn_analysis_driver
 
    character (len=*), parameter :: initTimerPrefix = 'init_'
    character (len=*), parameter :: computeTimerPrefix = 'compute_'
+   character (len=*), parameter :: computeStartupTimerPrefix = 'compute_startup_'
    character (len=*), parameter :: writeTimerPrefix = 'write_'
    character (len=*), parameter :: alarmTimerPrefix = 'reset_alarm_'
    character (len=*), parameter :: restartTimerPrefix = 'restart_'
@@ -145,6 +149,9 @@ contains
       call mpas_pool_add_config(analysisMemberList, 'waterMassCensus', 1)
       call mpas_pool_add_config(analysisMemberList, 'zonalMean', 1)
       call mpas_pool_add_config(analysisMemberList, 'highFrequencyOutput', 1)
+      call mpas_pool_add_config(analysisMemberList, 'timeFilters', 1)
+      call mpas_pool_add_config(analysisMemberList, 'eliassenPalm', 1)
+      call mpas_pool_add_config(analysisMemberList, 'mixedLayerDepths', 1)
 !     call mpas_pool_add_config(analysisMemberList, 'temPlate', 1)
 
       ! DON'T EDIT BELOW HERE
@@ -334,7 +341,7 @@ contains
 
       err = 0
 
-      call mpas_timer_start('analysis_compute', .false.)
+      call mpas_timer_start('analysis_compute_startup', .false.)
 
       timeLevel=1
 
@@ -351,7 +358,7 @@ contains
             call mpas_pool_get_config(domain % configs, configName, config_AM_write_on_startup)
 
             if ( config_AM_compute_on_startup ) then
-               timerName = trim(computeTimerPrefix) // poolItr % memberName(1:nameLength)
+               timerName = trim(computeStartupTimerPrefix) // poolItr % memberName(1:nameLength)
                call mpas_timer_start(timerName, .false.)
                call ocn_compute_analysis_members(domain, timeLevel, poolItr % memberName, err_tmp)
                call mpas_timer_stop(timerName)
@@ -373,7 +380,7 @@ contains
          end if
       end do
 
-      call mpas_timer_stop('analysis_compute')
+      call mpas_timer_stop('analysis_compute_startup')
 
    end subroutine ocn_analysis_compute_startup!}}}
 
@@ -740,6 +747,12 @@ contains
          call ocn_init_zonal_mean(domain, err_tmp)
      else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
         call ocn_init_high_frequency_output(domain, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'timeFilters' ) then
+        call ocn_init_time_filters(domain, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'eliassenPalm' ) then
+        call ocn_init_eliassen_palm(domain, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
+        call ocn_init_mixed_layer_depths(domain, err_tmp)
 !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
 !        call ocn_init_TEM_PLATE(domain, err_tmp)
       end if
@@ -789,6 +802,12 @@ contains
          call ocn_compute_zonal_mean(domain, timeLevel, err_tmp)
      else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
         call ocn_compute_high_frequency_output(domain, timeLevel, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'timeFilters' ) then
+        call ocn_compute_time_filters(domain, timeLevel, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'eliassenPalm' ) then
+        call ocn_compute_eliassen_palm(domain, timeLevel, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
+        call ocn_compute_mixed_layer_depths(domain, timeLevel, err_tmp)
 !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
 !        call ocn_compute_TEM_PLATE(domain, timeLevel, err_tmp)
       end if
@@ -837,6 +856,12 @@ contains
          call ocn_restart_zonal_mean(domain, err_tmp)
      else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
         call ocn_restart_high_frequency_output(domain, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'timeFilters' ) then
+        call ocn_restart_time_filters(domain, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'eliassenPalm' ) then
+        call ocn_restart_eliassen_palm(domain, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
+        call ocn_restart_mixed_layer_depths(domain, err_tmp)
 !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
 !        call ocn_restart_TEM_PLATE(domain, err_tmp)
       end if
@@ -885,6 +910,12 @@ contains
          call ocn_finalize_zonal_mean(domain, err_tmp)
      else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
         call ocn_finalize_high_frequency_output(domain, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'timeFilters' ) then
+        call ocn_finalize_time_filters(domain, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'eliassenPalm' ) then
+        call ocn_finalize_eliassen_palm(domain, err_tmp)
+     else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
+        call ocn_finalize_mixed_layer_depths(domain, err_tmp)
 !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
 !        call ocn_finalize_TEM_PLATE(domain, err_tmp)
       end if
