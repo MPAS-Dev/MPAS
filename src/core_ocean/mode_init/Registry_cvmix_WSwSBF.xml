@@ -62,7 +62,31 @@
                 <nml_option name="config_cvmix_WSwSBF_salinity_gradient" type="real" default_value="0.0" units="PSU m^{-1}"
                                         description="d/dz of salinity."
                                         possible_values="Any real number"
-                />
+		/>
+		<nml_option name="config_cvmix_WSwSBF_temperature_gradient_sfc_layer" type="real" default_value="0.0" units="deg C m^{-1}"
+			                description="d/dz of temperature in surface (mixed) layer"
+					possible_values="Any real number"
+		/>
+	        <nml_option name="config_cvmix_WSwSBF_salinity_gradient_sfc_layer" type="real" default_value="0.0" units="PSU m^{-1}"
+			                description="d/dz of salinity in surface (mixed) layer"
+					possible_values="Any real number"
+		/>
+		<nml_option name="config_cvmix_WSwSBF_sfc_layer_depth_temperature" type="real" default_value="0.0" units="m"
+					description="depth surface of isothermal layer"
+					possible_values="Any positive real number but must be less than bottom depth"
+		/>
+		<nml_option name="config_cvmix_WSwSBF_sfc_layer_depth_salinity" type="real" default_value="0.0" units="m"
+					description="depth of surface isohaline layer"
+					possible_values="Any positive real number but less than bottom depth"
+		/>
+		<nml_option name="config_cvmix_WSwSBF_ML_temperature_change" type="real" default_value="0.0" units="m"
+					description="temperature jump across the mixed layer interface"
+					possible_values="Any real number"
+		/>
+		<nml_option name="config_cvmix_WSwSBF_ML_salinity_change" type="real" default_value="0.0" units="m"
+					description="salinity jump across the mixed layer interface"
+					possible_values="Any real number"
+		/>
                 <nml_option name="config_cvmix_WSwSBF_vertical_grid" type="character" default_value="uniform" units="unitless"
                                         description="prescription of setting the vertical resolution of the test case"
                                         possible_values="'uniform' and 'stretched100'"

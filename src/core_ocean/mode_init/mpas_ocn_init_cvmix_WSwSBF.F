@@ -106,7 +106,9 @@ contains
 
       real (kind=RKIND), dimension(:), pointer :: interfaceLocations
 
-      integer :: iCell, iEdge, iVertex, k
+      integer :: iCell, iEdge, iVertex, k, kML
+
+      real (kind=RKIND) :: BLdepth
 
       character (len=StrKIND), pointer :: config_init_configuration, &
                                           config_cvmix_WSwSBF_vertical_grid
@@ -130,7 +132,13 @@ contains
                                           config_cvmix_WSwSBF_salinity_gradient, &
                                           config_cvmix_WSwSBF_bottom_depth, &
                                           config_cvmix_WSwSBF_max_windstress, &
-                                          config_cvmix_WSwSBF_coriolis_parameter
+                                          config_cvmix_WSwSBF_coriolis_parameter, &
+                                          config_cvmix_WSwSBF_temperature_gradient_sfc_layer, &
+                                          config_cvmix_WSwSBF_salinity_gradient_sfc_layer, &
+                                          config_cvmix_WSwSBF_sfc_layer_depth_temperature, &
+                                          config_cvmix_WSwSBF_sfc_layer_depth_salinity,    &
+                                          config_cvmix_WSwSBF_ML_temperature_change,       &
+                                          config_cvmix_WSwSBF_ML_salinity_change
       ! assume no error
       iErr = 0
 
@@ -164,6 +172,18 @@ contains
       call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_bottom_depth', config_cvmix_WSwSBF_bottom_depth)
       call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_max_windstress', config_cvmix_WSwSBF_max_windstress)
       call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_coriolis_parameter', config_cvmix_WSwSBF_coriolis_parameter)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_temperature_gradient_sfc_layer', &
+                config_cvmix_WSwSBF_temperature_gradient_sfc_layer)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_salinity_gradient_sfc_layer', &
+                config_cvmix_WSwSBF_salinity_gradient_sfc_layer)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_sfc_layer_depth_temperature', &
+                config_cvmix_WSwSBF_sfc_layer_depth_temperature)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_sfc_layer_depth_salinity', &
+                config_cvmix_WSwSBF_sfc_layer_depth_salinity)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_ML_temperature_change', &
+                config_cvmix_WSwSBF_ML_temperature_change)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_ML_salinity_change', &
+                config_cvmix_WSwSBF_ML_salinity_change)
 
       ! load data that required to initialize the ocean simulation
       block_ptr => domain % blocklist
@@ -227,18 +247,56 @@ contains
 
         do iCell = 1, nCellsSolve
            ! Set temperature and salinity
-           do k = 1, nVertLevels
+        
+           k=1
+           do while (k .le. nVertLevels .and. refZMid(k) > - config_cvmix_WSwSBF_sfc_layer_depth_temperature)
               if ( associated(activeTracers) ) then
-                 temperature = config_cvmix_WSwSBF_surface_temperature + refZMid(k) * config_cvmix_WSwSBF_temperature_gradient
+                 temperature = config_cvmix_WSwSBF_surface_temperature + refZMid(k) *  &
+                         config_cvmix_WSwSBF_temperature_gradient_sfc_layer
                  activeTracers(index_temperature, k, iCell) = temperature
-                 salinity = config_cvmix_WSwSBF_surface_salinity + refZMid(k) * config_cvmix_WSwSBF_salinity_gradient
+                 salinity = config_cvmix_WSwSBF_surface_salinity + refZMid(k) * config_cvmix_WSwSBF_salinity_gradient_sfc_layer
                  activeTracers(index_salinity, k, iCell) = salinity
-              end if
-              
+              endif
+
               if ( associated(debugTracers) ) then
                  debugTracers(index_tracer1, k, iCell) = 1.0_RKIND
-              end if
-           end do
+              endif
+
+              k = k + 1
+           enddo
+        
+           if ( k > 1 ) then
+              if ( associated(activeTracers) ) then
+                 temperature = activeTracers(index_temperature, k-1, iCell) + config_cvmix_WSwSBF_ML_temperature_change
+                 activeTracers(index_temperature, k, iCell) = temperature
+                 salinity = activeTracers(index_salinity, k-1, iCell) + config_cvmix_WSwSBF_ML_salinity_change
+              endif
+              BLdepth = refZMid(k)
+           else
+              if ( associated(activeTracers) ) then
+                 activeTracers(index_temperature, k, iCell) = config_cvmix_WSwSBF_surface_temperature
+                 activeTracers(index_salinity, k, iCell) = config_cvmix_WSwSBF_surface_salinity
+              endif
+              BLdepth = 0.0
+           endif
+
+           kML=k+1
+
+           print *, 'temp at k = ', kML-1, 'is ',activeTracers(index_temperature,kML-1, iCell)
+           print *, 'kML zs = ',refZMid(kML), BLdepth
+           do k = kML, nVertLevels
+              if ( associated(activeTracers) ) then 
+                 temperature = activeTracers(index_temperature, kML-1, iCell) + (refZMid(k) - BLdepth) * &
+                         config_cvmix_WSwSBF_temperature_gradient
+                 activeTracers(index_temperature, k, iCell) = temperature
+                 salinity = activeTracers(index_salinity, kML-1, iCell) + (refZMid(k) - BLdepth) *  &
+                         config_cvmix_WSwSBF_salinity_gradient
+              endif
+
+              if ( associated(debugTracers) ) then
+                 debugTracers(index_tracer1, k, iCell) = 1.0_RKIND
+              endif
+           enddo
 
            ! Set layerThickness
            do k = 1, nVertLevels
