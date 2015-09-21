@@ -289,6 +289,7 @@ contains
                  activeTracers(index_temperature, k, iCell) = temperature
                  salinity = activeTracers(index_salinity, kML-1, iCell) + (refZMid(k) - BLdepth) *  &
                          config_cvmix_WSwSBF_salinity_gradient
+                 activeTracers(index_salinity, k, iCell) = salinity
               endif
 
               if ( associated(debugTracers) ) then
