@@ -83,7 +83,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, err, timeLevelIn)!{{{
+   subroutine ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, mepPool, err, timeLevelIn)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -93,6 +93,8 @@ contains
 
       type (mpas_pool_type), intent(in) :: &
          meshPool          !< Input: mesh information
+      type (mpas_pool_type), intent(in) :: &
+         mepPool          !< Input: mesh information
       
       integer, intent(in), optional :: timeLevelIn !< Input: Time level for state pool
 
@@ -150,7 +152,7 @@ contains
       call ocn_vmix_coefs_tanh_build(meshPool, statePool, diagnosticsPool, err2, timeLevel)
       call ocn_vmix_coefs_rich_build(meshPool, statePool, diagnosticsPool, err3, timeLevel)
       call ocn_vmix_coefs_cvmix_build(meshPool, statePool, diagnosticsPool, err4, timeLevel)
-      call ocn_vmix_coefs_redi_build(meshPool, statePool, diagnosticsPool, err5, timeLevel)
+      call ocn_vmix_coefs_redi_build(meshPool, statePool, diagnosticsPool, mepPool, err5, timeLevel)
 
       err = ior(ior(ior(err1, ior(err2, err3)), err4), err5)
 
@@ -424,9 +426,10 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vmix_implicit(dt, meshPool, diagnosticsPool, statePool, err, timeLevelIn)!{{{
+   subroutine ocn_vmix_implicit(dt, meshPool, diagnosticsPool, statePool, mepPool, err, timeLevelIn)!{{{
       real (kind=RKIND), intent(in) :: dt
       type (mpas_pool_type), intent(in) :: meshPool
+      type (mpas_pool_type), intent(in) :: mepPool
       type (mpas_pool_type), intent(inout) :: diagnosticsPool
       type (mpas_pool_type), intent(inout) :: statePool
       integer, intent(out) :: err
@@ -472,7 +475,7 @@ contains
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
 
-      call ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, err, timeLevel)
+      call ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, mepPool, err, timeLevel)
 
       ! if using CVMix, then viscosity has to be averaged from cell centers to cell edges
       if ( config_use_cvmix ) then

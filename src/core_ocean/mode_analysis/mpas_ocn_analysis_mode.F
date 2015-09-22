@@ -210,6 +210,7 @@ module ocn_analysis_mode
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: diagnosticsPool
       type (mpas_pool_type), pointer :: scratchPool
+      type (mpas_pool_type), pointer :: mepPool
 
       type (MPAS_timeInterval_type) :: timeStep
       character (len=StrKIND), pointer :: config_dt
@@ -237,8 +238,9 @@ module ocn_analysis_mode
          call mpas_pool_get_subpool(block_ptr % structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block_ptr % structs, 'diagnostics', diagnosticsPool)
          call mpas_pool_get_subpool(block_ptr % structs, 'scratch', scratchPool)
+         call mpas_pool_get_subpool(block_ptr % structs, 'mep', mepPool)
 
-         call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, 1)
+         call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, mepPool, 1)
          block_ptr => block_ptr % next
       end do
       call mpas_timer_stop("diagnostic solve")

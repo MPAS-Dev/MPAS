@@ -103,6 +103,7 @@ module ocn_time_integration_rk4
       type (mpas_pool_type), pointer :: forcingPool
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: averagePool
+      type (mpas_pool_type), pointer :: mepPool
 
       integer :: rk_step
 
@@ -407,6 +408,7 @@ module ocn_time_integration_rk4
         block => domain % blocklist
         do while (associated(block))
            call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+           call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
            call mpas_pool_get_subpool(block % structs, 'verticalMesh', verticalMeshPool)
            call mpas_pool_get_subpool(block % structs, 'state', statePool)
            call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
@@ -460,7 +462,7 @@ module ocn_time_integration_rk4
                call ocn_filter_btr_mode_tend_vel(tendPool, provisStatePool, diagnosticsPool, meshPool, 1)
            endif
 
-           call ocn_tend_tracer(tendPool, provisStatePool, forcingPool, diagnosticsPool, meshPool, scratchPool, dt, 1)
+           call ocn_tend_tracer(tendPool, provisStatePool, forcingPool, diagnosticsPool, meshPool, mepPool, scratchPool, dt, 1)
            block => block % next
         end do
         call mpas_timer_stop("RK4-tendency computations")
@@ -503,6 +505,7 @@ module ocn_time_integration_rk4
               call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
               call mpas_pool_get_subpool(tendPool, 'tracersTend', tracersTendPool)
               call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+              call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
               call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
               call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
               call mpas_pool_get_subpool(block % structs, 'provis_state', provisStatePool)
@@ -569,7 +572,7 @@ module ocn_time_integration_rk4
                  layerThicknessProvis(:,:) = layerThicknessCur(:,:)
               end if
 
-              call ocn_diagnostic_solve(dt, provisStatePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, 1)
+              call ocn_diagnostic_solve(dt, provisStatePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, mepPool, 1)
 
               ! ------------------------------------------------------------------
               ! Accumulating various parametrizations of the transport velocity
@@ -577,9 +580,9 @@ module ocn_time_integration_rk4
               normalTransportVelocity(:,:) = normalVelocityProvis(:,:)
 
               ! Update quantities used in the mep
-              call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
+              call ocn_mep_update(diagnosticsPool, meshPool, mepPool, scratchPool)
 
-              call ocn_mep_transportVelocity_update(normalTransportVelocity)
+              call ocn_mep_transportVelocity_update(normalTransportVelocity, mepPool)
               
               ! ------------------------------------------------------------------
               ! End: Accumulating various parametrizations of the transport velocity
@@ -684,6 +687,7 @@ module ocn_time_integration_rk4
         call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
         call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
+        call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
 
         call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessNew, 2)
 
@@ -708,7 +712,7 @@ module ocn_time_integration_rk4
            end if
         end do
 
-        call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, 2)
+        call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, mepPool, 2)
         call ocn_sea_ice_formation(meshPool, indexTemperature, indexSalinity, layerThicknessNew, tracersNew, seaIceEnergy, err)
         block => block % next
       end do
@@ -720,6 +724,7 @@ module ocn_time_integration_rk4
          call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
          call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+         call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
          call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
          call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
 
@@ -732,21 +737,20 @@ module ocn_time_integration_rk4
         ! be computed.  For kpp, more variables may be needed.  Either way, this
         ! could be made more efficient by only computing what is needed for the
         ! implicit vmix routine that follows. 
-        call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, 2)
+        call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, mepPool, 2)
 
-        call ocn_vmix_implicit(dt, meshPool, diagnosticsPool, statePool, err, 2)
+        call ocn_vmix_implicit(dt, meshPool, diagnosticsPool, statePool, mepPool, err, 2)
 
         ! ------------------------------------------------------------------
         ! Accumulating various parametrizations of the transport velocity
         ! ------------------------------------------------------------------
         normalTransportVelocity(:,:) = normalVelocityNew(:,:)
 
-        ! Compute  normalGMBolusVelocity, slopeRelative and RediDiffVertCoef if respective flags are turned on
-        ! QC Note: this routine is called here to get updated k33. normalTransportVelocity probably 
-        !   does not need to be updated at all here.
-        call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
+        ! QC Note: this routine is called here to get updated k33 only. Other variables probably 
+        !   do not need to be updated at all here.
+        call ocn_mep_update(diagnosticsPool, meshPool, mepPool, scratchPool)
 
-        call ocn_mep_transportVelocity_update(normalTransportVelocity)
+        call ocn_mep_transportVelocity_update(normalTransportVelocity, mepPool)
         ! ------------------------------------------------------------------
         ! End: Accumulating various parametrizations of the transport velocity
         ! ------------------------------------------------------------------
@@ -786,6 +790,7 @@ module ocn_time_integration_rk4
          call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
          call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+         call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
          call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
          call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
          call mpas_pool_get_subpool(block % structs, 'average', averagePool)
@@ -823,7 +828,7 @@ module ocn_time_integration_rk4
             layerThicknessNew(:,:) = layerThicknessCur(:,:)
          end if
 
-         call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, 2)
+         call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, mepPool, 2)
 
          ! Update the effective desnity in land ice if we're coupling to land ice
          call ocn_effective_density_in_land_ice_update(meshPool, forcingPool, statePool, scratchPool, err)
@@ -833,10 +838,9 @@ module ocn_time_integration_rk4
          ! ------------------------------------------------------------------
          normalTransportVelocity(:,:) = normalVelocityNew(:,:)
 
-         ! Compute normalGMBolusVelocity and the tracer transport velocity
-         call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
+         call ocn_mep_update(diagnosticsPool, meshPool, mepPool, scratchPool)
 
-         call ocn_mep_transportVelocity_update(normalTransportVelocity)
+         call ocn_mep_transportVelocity_update(normalTransportVelocity, mepPool)
          ! ------------------------------------------------------------------
          ! End: Accumulating various parameterizations of the transport velocity
          ! ------------------------------------------------------------------
@@ -857,10 +861,10 @@ module ocn_time_integration_rk4
          SSHGradient(indexSSHGradientZonal, :) = gradSSHZonal(1, :)
          SSHGradient(indexSSHGradientMeridional, :) = gradSSHMeridional(1, :)
 
-         call ocn_time_average_accumulate(averagePool, statePool, diagnosticsPool, 2)
+         call ocn_time_average_accumulate(averagePool, statePool, diagnosticsPool, mepPool, 2)
          call ocn_time_average_coupled_accumulate(diagnosticsPool, statePool, forcingPool, 2)
 
-         call ocn_mep_reconstruct(diagnosticsPool, meshPool)
+         call ocn_mep_reconstruct(diagnosticsPool, meshPool, mepPool)
 
          block => block % next
       end do

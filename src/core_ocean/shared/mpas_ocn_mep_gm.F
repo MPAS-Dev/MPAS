@@ -5,7 +5,7 @@
 ! Additional copyright and license information can be found in the LICENSE file
 ! distributed with this code, or at http://mpas-dev.github.com/license.html
 !
-module ocn_gm
+module ocn_mep_gm
 
    use mpas_derived_types
    use mpas_pool_routines
@@ -72,7 +72,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, scratchPool)!{{{
+   subroutine ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, mepPool, scratchPool)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -89,6 +89,7 @@ contains
       !-----------------------------------------------------------------
 
       type (mpas_pool_type), intent(inout) :: diagnosticsPool !< Input/Output: Diagnostics information
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input: mep information
       type (mpas_pool_type), intent(inout) :: scratchPool !< Input/Output: Scratch structure
 
       !-----------------------------------------------------------------
@@ -119,19 +120,20 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'displacedDensity', displacedDensity)
       call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
 
-      call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity) 
-      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfEdge', relativeSlopeTopOfEdge)
-      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfCell', relativeSlopeTopOfCell)
-      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTapering', relativeSlopeTapering)
-      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTaperingCell', relativeSlopeTaperingCell)
-      call mpas_pool_get_array(diagnosticsPool, 'k33', k33)
       call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
       call mpas_pool_get_array(diagnosticsPool, 'hEddyFlux', hEddyFlux)
       call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
       call mpas_pool_get_array(diagnosticsPool, 'BruntVaisalaFreqTop', BruntVaisalaFreqTop)
-      call mpas_pool_get_array(diagnosticsPool, 'gmStreamFuncTopOfEdge', gmStreamFuncTopOfEdge)
-      call mpas_pool_get_array(diagnosticsPool, 'gmStreamFuncTopOfCell', gmStreamFuncTopOfCell)
 
+      call mpas_pool_get_array(mepPool, 'normalGMBolusVelocity', normalGMBolusVelocity) 
+      call mpas_pool_get_array(mepPool, 'relativeSlopeTopOfEdge', relativeSlopeTopOfEdge)
+      call mpas_pool_get_array(mepPool, 'relativeSlopeTopOfCell', relativeSlopeTopOfCell)
+      call mpas_pool_get_array(mepPool, 'relativeSlopeTapering', relativeSlopeTapering)
+      call mpas_pool_get_array(mepPool, 'relativeSlopeTaperingCell', relativeSlopeTaperingCell)
+      call mpas_pool_get_array(mepPool, 'k33', k33)
+      call mpas_pool_get_array(mepPool, 'gmStreamFuncTopOfEdge', gmStreamFuncTopOfEdge)
+      call mpas_pool_get_array(mepPool, 'gmStreamFuncTopOfCell', gmStreamFuncTopOfCell)
+      
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop',  maxLevelEdgeTop)
       call mpas_pool_get_array(meshPool, 'maxLevelCell',  maxLevelCell)
       call mpas_pool_get_array(meshPool, 'cellsOnEdge',  cellsOnEdge)
@@ -586,7 +588,7 @@ contains
 
 !***********************************************************************
 
-end module ocn_gm
+end module ocn_mep_gm
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 ! vim: foldmethod=marker

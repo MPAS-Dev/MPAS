@@ -351,7 +351,7 @@ contains
 !>  This routine computes tracer tendencies for the ocean
 !
 !-----------------------------------------------------------------------
-   subroutine ocn_tend_tracer(tendPool, statePool, forcingPool, diagnosticsPool, meshPool, scratchPool, dt, timeLevelIn)!{{{
+   subroutine ocn_tend_tracer(tendPool, statePool, forcingPool, diagnosticsPool, meshPool, mepPool, scratchPool, dt, timeLevelIn)!{{{
       implicit none
 
       !
@@ -362,6 +362,7 @@ contains
       type (mpas_pool_type), intent(inout) :: forcingPool     !< Input: Forcing information
       type (mpas_pool_type), intent(in)    :: diagnosticsPool !< Input: Diagnostic information
       type (mpas_pool_type), intent(in)    :: meshPool        !< Input: Mesh information
+      type (mpas_pool_type), intent(in)    :: mepPool        !< Input: Mesh information
       type (mpas_pool_type), intent(in)    :: scratchPool     !< Input: Scratch information
       real (kind=RKIND), intent(in) :: dt                     !< Input: Time step
       integer, intent(in), optional :: timeLevelIn            !< Input/Optional: Time Level Indes
@@ -404,8 +405,8 @@ contains
 
       real (kind=RKIND), dimension(:,:), pointer :: &
         normalTransportVelocity, layerThickness,vertAleTransportTop, layerThicknessEdge, vertDiffTopOfCell, &
-        tend_layerThickness, normalThicknessFlux, tracerGroupSurfaceFlux, fractionAbsorbed, zMid, relativeSlopeTopOfEdge, &
-        relativeSlopeTapering, relativeSlopeTaperingCell
+        tend_layerThickness, normalThicknessFlux, tracerGroupSurfaceFlux, fractionAbsorbed, zMid, &
+        relativeSlopeTopOfEdge, relativeSlopeTapering, relativeSlopeTaperingCell
 
       !
       ! three dimensional pointers
@@ -470,10 +471,10 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
       call mpas_pool_get_array(diagnosticsPool, 'vertAleTransportTop', vertAleTransportTop)
       call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
-      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfEdge', relativeSlopeTopOfEdge)
-      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTapering', relativeSlopeTapering)
-      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTaperingCell', relativeSlopeTaperingCell)
       call mpas_pool_get_array(diagnosticsPool, 'vertNonLocalFlux', vertNonLocalFlux)
+      call mpas_pool_get_array(mepPool, 'relativeSlopeTopOfEdge', relativeSlopeTopOfEdge)
+      call mpas_pool_get_array(mepPool, 'relativeSlopeTapering', relativeSlopeTapering)
+      call mpas_pool_get_array(mepPool, 'relativeSlopeTaperingCell', relativeSlopeTaperingCell)
       call mpas_pool_get_array(forcingPool, 'penetrativeTemperatureFlux', penetrativeTemperatureFlux)
       call mpas_pool_get_array(forcingPool, 'fractionAbsorbed', fractionAbsorbed)
       call mpas_pool_get_array(tendPool, 'layerThickness', tend_layerThickness)

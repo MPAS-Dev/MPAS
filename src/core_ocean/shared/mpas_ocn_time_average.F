@@ -69,10 +69,11 @@ module ocn_time_average
 
     end subroutine ocn_time_average_init!}}}
 
-    subroutine ocn_time_average_accumulate(averagePool, statePool, diagnosticsPool, timeLevelIn)!{{{
+    subroutine ocn_time_average_accumulate(averagePool, statePool, diagnosticsPool, mepPool, timeLevelIn)!{{{
         type (mpas_pool_type), intent(inout) :: averagePool
         type (mpas_pool_type), intent(in) :: statePool
         type (mpas_pool_type), intent(in) :: diagnosticsPool
+        type (mpas_pool_type), intent(in) :: mepPool
         integer, intent(in), optional :: timeLevelIn
 
         real (kind=RKIND), pointer :: nAverage, old_nAverage
@@ -115,10 +116,10 @@ module ocn_time_average
         call mpas_pool_get_array(diagnosticsPool, 'transportVelocityZonal', transportVelocityZonal)
         call mpas_pool_get_array(diagnosticsPool, 'transportVelocityMeridional', transportVelocityMeridional)
         call mpas_pool_get_array(diagnosticsPool, 'vertTransportVelocityTop', vertTransportVelocityTop)
-        call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
-        call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityZonal', GMBolusVelocityZonal)
-        call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityMeridional', GMBolusVelocityMeridional)
-        call mpas_pool_get_array(diagnosticsPool, 'vertGMBolusVelocityTop', vertGMBolusVelocityTop)
+        call mpas_pool_get_array(mepPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
+        call mpas_pool_get_array(mepPool, 'GMBolusVelocityZonal', GMBolusVelocityZonal)
+        call mpas_pool_get_array(mepPool, 'GMBolusVelocityMeridional', GMBolusVelocityMeridional)
+        call mpas_pool_get_array(mepPool, 'vertGMBolusVelocityTop', vertGMBolusVelocityTop)
 
         call mpas_pool_get_array(averagePool, 'nAverage', nAverage)
         call mpas_pool_get_array(averagePool, 'avgSSH', avgSSH)

@@ -105,6 +105,7 @@ module ocn_time_integration_split
       type (mpas_pool_type), pointer :: forcingPool
       type (mpas_pool_type), pointer :: averagePool
       type (mpas_pool_type), pointer :: scratchPool
+      type (mpas_pool_type), pointer :: mepPool
 
       type (dm_info) :: dminfo
       integer :: iCell, i,k,j, iEdge, cell1, cell2, split_explicit_step, split, &
@@ -118,7 +119,8 @@ module ocn_time_integration_split
       real (kind=RKIND), dimension(:,:), pointer :: &
                  vertViscTopOfEdge, vertDiffTopOfCell
       real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroup
-      real (kind=RKIND), dimension(:), allocatable:: uTemp
+      real (kind=RKIND), dimension(:), allocatable :: uTemp
+      real (kind=RKIND), dimension(:,:), allocatable :: uTemp2D
       real (kind=RKIND), dimension(:,:), allocatable:: tracersTemp
 
       integer :: tsIter
@@ -487,6 +489,7 @@ module ocn_time_integration_split
                call mpas_pool_get_subpool(block % structs, 'state', statePool)
                call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
                call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+               call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
                call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
                call mpas_pool_get_subpool(tendPool, 'tracersTend', tracersTendPool)
                call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
@@ -611,7 +614,7 @@ module ocn_time_integration_split
                normalVelocityNew(:,:)  = normalBaroclinicVelocityNew(:,:) 
 
                normalTransportVelocity(:,:) = normalBaroclinicVelocityNew
-               call ocn_mep_transportVelocity_update(normalTransportVelocity)
+               call ocn_mep_transportVelocity_update(normalTransportVelocity, mepPool)
                normalTransportVelocity(:,:) = edgeMask(:,:) * normalTransportVelocity
    
                block => block % next
@@ -1127,6 +1130,7 @@ module ocn_time_integration_split
                call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
                call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
                call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+               call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
 
                call mpas_pool_get_array(statePool, 'normalBarotropicVelocity', normalBarotropicVelocityNew, 2)
                call mpas_pool_get_array(statePool, 'normalBaroclinicVelocity', normalBaroclinicVelocityNew, 2)
@@ -1138,7 +1142,7 @@ module ocn_time_integration_split
                call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
                call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
-               allocate(uTemp(nVertLevels,nEdges))
+               allocate(uTemp2D(nVertLevels,nEdges))
 
                ! Correction velocity    normalVelocityCorrection = (Flux - Sum(h u*))/H
                ! or, for the full latex version:
@@ -1155,20 +1159,20 @@ module ocn_time_integration_split
                do iEdge = 1, nEdges
                   ! velocity for normalVelocityCorrectionection is 
                   ! normalBarotropicVelocity + normalBaroclinicVelocity + uBolus
-                  uTemp(:,iEdge) = normalBarotropicVelocityNew(iEdge) + normalBaroclinicVelocityNew(:,iEdge)
+                  uTemp2D(:,iEdge) = normalBarotropicVelocityNew(iEdge) + normalBaroclinicVelocityNew(:,iEdge)
                end do ! iEdge
                
-               call ocn_mep_transportVelocity_update(uTemp)
+               call ocn_mep_transportVelocity_update(uTemp2D, mepPool)
                
                do iEdge = 1, nEdges
                   ! thicknessSum is initialized outside the loop because on land boundaries 
                   ! maxLevelEdgeTop=0, but I want to initialize thicknessSum with a 
                   ! nonzero value to avoid a NaN.
-                  normalThicknessFluxSum = layerThicknessEdge(1,iEdge) * uTemp(1,iEdge)
+                  normalThicknessFluxSum = layerThicknessEdge(1,iEdge) * uTemp2D(1,iEdge)
                   thicknessSum  = layerThicknessEdge(1,iEdge)
 
                   do k = 2, maxLevelEdgeTop(iEdge)
-                     normalThicknessFluxSum = normalThicknessFluxSum + layerThicknessEdge(k,iEdge) * uTemp(k,iEdge)
+                     normalThicknessFluxSum = normalThicknessFluxSum + layerThicknessEdge(k,iEdge) * uTemp2D(k,iEdge)
                      thicknessSum  =  thicknessSum + layerThicknessEdge(k,iEdge)
                   enddo
 
@@ -1187,10 +1191,10 @@ module ocn_time_integration_split
 
                end do ! iEdge
 
-               call ocn_mep_transportVelocity_update(normalTransportVelocity)
+               call ocn_mep_transportVelocity_update(normalTransportVelocity, mepPool)
                normalTransportVelocity(:,:) = edgeMask(:,:) * normalTransportVelocity(:,:)
 
-               deallocate(uTemp)
+               deallocate(uTemp2D)
 
                block => block % next
             end do  ! block
@@ -1210,6 +1214,7 @@ module ocn_time_integration_split
          block => domain % blocklist
          do while (associated(block))
             call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+            call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
             call mpas_pool_get_subpool(block % structs, 'verticalMesh', verticalMeshPool)
             call mpas_pool_get_subpool(block % structs, 'state', statePool)
             call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
@@ -1263,7 +1268,8 @@ module ocn_time_integration_split
             call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
             call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
             call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-            call ocn_tend_tracer(tendPool, statePool, forcingPool, diagnosticsPool, meshPool, scratchPool, dt, 2)
+            call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
+            call ocn_tend_tracer(tendPool, statePool, forcingPool, diagnosticsPool, meshPool, mepPool, scratchPool, dt, 2)
 
             block => block % next
          end do
@@ -1299,6 +1305,7 @@ module ocn_time_integration_split
             call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
             call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
             call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
+            call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
 
             call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
             call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
@@ -1393,7 +1400,7 @@ module ocn_time_integration_split
 
                ! Efficiency note: We really only need this to compute layerThicknessEdge, density, pressure, and SSH 
                ! in this diagnostics solve.
-               call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, 2)
+               call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, mepPool, 2)
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !
@@ -1480,6 +1487,7 @@ module ocn_time_integration_split
         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
         call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
+        call mpas_pool_get_subpool(block % structs, 'mepPool', mepPool)
 
         call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
         call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexSalinity)
@@ -1489,7 +1497,7 @@ module ocn_time_integration_split
 
         call mpas_pool_get_array(forcingPool, 'seaIceEnergy', seaIceEnergy)
 
-        call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, 2)
+        call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, mepPool, 2)
         call ocn_sea_ice_formation(meshPool, indexTemperature, indexSalinity, layerThicknessNew, &
                                    tracersGroupNew, seaIceEnergy, err)
         block => block % next
@@ -1502,6 +1510,7 @@ module ocn_time_integration_split
         call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
         call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+        call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
         call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
 
@@ -1511,12 +1520,12 @@ module ocn_time_integration_split
         ! be computed.  For kpp, more variables may be needed.  Either way, this
         ! could be made more efficient by only computing what is needed for the
         ! implicit vmix routine that follows.
-        call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, 2)
+        call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, mepPool, 2)
 
         ! Compute normalGMBolusVelocity; it will be added to the baroclinic modes in Stage 2 above.
-        call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
+        call ocn_mep_update(diagnosticsPool, meshPool, mepPool, scratchPool)
         
-        call ocn_vmix_implicit(dt, meshPool, diagnosticsPool, statePool, err, 2)
+        call ocn_vmix_implicit(dt, meshPool, diagnosticsPool, statePool, mepPool, err, 2)
 
         block => block % next
       end do
@@ -1553,6 +1562,7 @@ module ocn_time_integration_split
          call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
          call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+         call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
          call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
          call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
          call mpas_pool_get_subpool(block % structs, 'average', averagePool)
@@ -1591,13 +1601,13 @@ module ocn_time_integration_split
             layerThicknessNew(:,:) = layerThicknessCur(:,:)
          end if
 
-         call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, 2)
+         call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, mepPool, 2)
 
          ! Update the effective desnity in land ice if we're coupling to land ice
          call ocn_effective_density_in_land_ice_update(meshPool, forcingPool, statePool, scratchPool, err)
 
          ! Compute normalGMBolusVelocity; it will be added to normalVelocity in Stage 2 of the next cycle. 
-         call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
+         call ocn_mep_update(diagnosticsPool, meshPool, mepPool, scratchPool)
 
          call mpas_reconstruct(meshPool, normalVelocityNew,  &
                           velocityX, velocityY, velocityZ,   &
@@ -1615,10 +1625,10 @@ module ocn_time_integration_split
          SSHGradient(indexSSHGradientZonal, :) = gradSSHZonal(1, :)
          SSHGradient(indexSSHGradientMeridional, :) = gradSSHMeridional(1, :)
 
-         call ocn_time_average_accumulate(averagePool, statePool, diagnosticsPool, 2)
+         call ocn_time_average_accumulate(averagePool, statePool, diagnosticsPool, mepPool, 2)
          call ocn_time_average_coupled_accumulate(diagnosticsPool, statePool, forcingPool, 2)
 
-         call ocn_mep_reconstruct(diagnosticsPool, meshPool)
+         call ocn_mep_reconstruct(diagnosticsPool, meshPool, mepPool)
 
          block => block % next
       end do

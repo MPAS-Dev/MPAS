@@ -495,7 +495,7 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       real (kind=RKIND), intent(in) :: dt
       integer, intent(out) :: err
 
-      type (mpas_pool_type), pointer :: meshPool, averagePool, statePool, tracersPool
+      type (mpas_pool_type), pointer :: meshPool, averagePool, statePool, tracersPool, mepPool
       type (mpas_pool_type), pointer :: forcingPool, diagnosticsPool, scratchPool
       integer :: i, iEdge, iCell, k
       integer :: err1
@@ -526,6 +526,7 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', nVertLevels)
 
       call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+      call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
       call mpas_pool_get_subpool(block % structs, 'state', statePool)
       call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
       call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
@@ -582,7 +583,7 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       end if
 
       call mpas_timer_start("diagnostic solve", .false., initDiagSolveTimer)
-      call ocn_diagnostic_solve(dt,  statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool)
+      call ocn_diagnostic_solve(dt,  statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, mepPool)
       call mpas_timer_stop("diagnostic solve", initDiagSolveTimer)
 
       ! initialize velocities and active tracers on land to be zero.
@@ -613,10 +614,9 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       ! ------------------------------------------------------------------
       normalTransportVelocity(:,:) = normalVelocity(:,:)
 
-      ! Compute normalGMBolusVelocity, relativeSlope and RediDiffVertCoef if respective flags are turned on
-      call ocn_mep_update(diagnosticsPool, meshPool, scratchPool)
+      call ocn_mep_update(diagnosticsPool, meshPool, mepPool, scratchPool)
 
-      call ocn_mep_transportVelocity_update(normalTransportVelocity)
+      call ocn_mep_transportVelocity_update(normalTransportVelocity, mepPool)
       ! ------------------------------------------------------------------
       ! End: Accumulating various parametrizations of the transport velocity
       ! ------------------------------------------------------------------
@@ -636,7 +636,7 @@ end subroutine ocn_init_routines_compute_max_level!}}}
                        velocityMeridional    &
                       )
 
-      call ocn_mep_reconstruct(diagnosticsPool, meshPool)
+      call ocn_mep_reconstruct(diagnosticsPool, meshPool, mepPool)
 
       call mpas_pool_initialize_time_levels(statePool)
 

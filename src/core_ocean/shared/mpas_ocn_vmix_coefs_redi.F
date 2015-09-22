@@ -70,7 +70,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vmix_coefs_redi_build(meshPool, statePool, diagnosticsPool, err, timeLevelIn)!{{{
+   subroutine ocn_vmix_coefs_redi_build(meshPool, statePool, diagnosticsPool, mepPool, err, timeLevelIn)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -80,6 +80,8 @@ contains
 
       type (mpas_pool_type), intent(in) :: &
          meshPool          !< Input: mesh information
+      type (mpas_pool_type), intent(in) :: &
+         mepPool             !< Input/Output: mep information
 
       integer, intent(in), optional :: timeLevelIn !< Input: Time level for state pool
 
@@ -123,7 +125,7 @@ contains
       err = 0
 
       call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
-      call mpas_pool_get_array(diagnosticsPool, 'k33',k33)
+      call mpas_pool_get_array(mepPool, 'k33',k33)
 
       if (config_mep_Redi_enable) then
           call ocn_tracer_vmix_coefs_redi(meshPool, vertDiffTopOfCell, k33, err)

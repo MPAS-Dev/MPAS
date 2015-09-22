@@ -23,6 +23,8 @@ module ocn_mep
    use mpas_derived_types
    use mpas_pool_routines
    use ocn_constants
+   use ocn_mep_gm
+   use ocn_diagnostics
 
    implicit none
    private
@@ -41,8 +43,7 @@ module ocn_mep
    !--------------------------------------------------------------------
 
    public :: ocn_mep_update, &
-             ocn_mep_init, &
-             ...
+             ocn_mep_init
 
    !-------------------------------------------------------------------
    !
@@ -100,7 +101,8 @@ contains
       !
       !-----------------------------------------------------------------
 
-      character (len=StrKIND), pointer :: config_eos_type
+      logical, pointer :: config_mep_stdGM_enable, config_mep_twaDragGM_enable
+      logical, pointer :: config_mep_twaDragVertVisc_enable, config_mep_Redi_enable
 
       err = 0
 
@@ -141,7 +143,7 @@ contains
          write (stderrUnit,*) '  stdGM is incompatible with twaDragGM and with twaDragVertVisc.'
          err = 1
       end if
-      if (mepTWAdragGMOn .and. mepTWAdragVertViscOn)
+      if (mepTWAdragGMOn .and. mepTWAdragVertViscOn) then
          write (stderrUnit,*) 'Invalid combination of meso-scale eddy parameterizations:'
          write (stderrUnit,*) '  twaDragGM is incompatible with twaDragVertVisc.'
          err = 1
@@ -169,7 +171,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_update(diagnosticsPool, meshPool, scratchPool)!{{{
+   subroutine ocn_mep_update(diagnosticsPool, meshPool, mepPool, scratchPool)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -186,6 +188,7 @@ contains
       !-----------------------------------------------------------------
 
       type (mpas_pool_type), intent(inout) :: diagnosticsPool !< Input/Output: Diagnostics information
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: mepPool structure
       type (mpas_pool_type), intent(inout) :: scratchPool !< Input/Output: Scratch structure
 
       !-----------------------------------------------------------------
@@ -197,7 +200,7 @@ contains
       
       if (mepUseGMmodule) then
          ! might want to give the routine called here a more general name
-         call ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, scratchPool)
+         call ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, mepPool, scratchPool)
       end if
    
 
@@ -218,7 +221,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_transportVelocity_update(normalTransportVelocity)!{{{
+   subroutine ocn_mep_transportVelocity_update(normalTransportVelocity, mepPool)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -226,6 +229,7 @@ contains
       !
       !-----------------------------------------------------------------
       
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: mepPool structure
 
       !-----------------------------------------------------------------
       !
@@ -240,7 +244,12 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
+      real (kind=RKIND), dimension(:,:), pointer :: normalGMBolusVelocity
 
+
+      call mpas_pool_get_array(mepPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
+     
+      
       ! NOTE: This routine is called within block loops
       
       if (mepStdGMOn) then
@@ -263,7 +272,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_reconstruct(diagnosticsPool, meshPool)!{{{
+   subroutine ocn_mep_reconstruct(diagnosticsPool, meshPool, mepPool)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -272,6 +281,7 @@ contains
       !-----------------------------------------------------------------
       
       type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
+      type (mpas_pool_type), intent(in) :: mepPool !< Input: mesh information
       type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostic information
 
       !-----------------------------------------------------------------
@@ -290,7 +300,7 @@ contains
       ! NOTE: This routine is called within block loops
       
       if (mepUseGMmodule) then
-         call ocn_mep_reconstruct(diagnosticsPool, meshPool)
+         call ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool, mepPool)
       end if
    
 
