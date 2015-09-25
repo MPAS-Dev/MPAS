@@ -195,6 +195,10 @@ contains
       call mpas_pool_get_subpool(domain % blocklist % structs, 'mixedLayerDepthsAM', mixedLayerDepthsAMPool)
       call mpas_pool_get_subpool(domain % blocklist % structs, 'state', statePool)
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> vanroekel/ocean/CVMIX_SCM_test_update
       call mpas_pool_get_config(domain % configs, 'config_AM_mixedLayerDepths_Tthreshold', tThresholdFlag)
       call mpas_pool_get_config(domain % configs, 'config_AM_mixedLayerDepths_Dthreshold', dThresholdFlag)
       call mpas_pool_get_config(domain % configs, 'config_AM_mixedLayerDepths_Tgradient', tGradientFlag)
