@@ -1036,7 +1036,6 @@
 				runtime_format="single_file"
 				mode="init">
 
-<<<<<<< HEAD
 			<var name="windStressZonal"/>
 			<var name="windStressMeridional"/>
 			<var_struct name="tracersSurfaceRestoringFields"/>
@@ -1057,21 +1056,6 @@
                         <var name="shortWaveHeatFlux"/>
                         <var name="evaporationFlux"/>
                         <var name="rainFlux"/>
-=======
-				<var name="windStressZonal"/>
-				<var name="windStressMeridional"/>
-				<var_array name="activeTracersPistonVelocity" packages="activeTracersSurfaceRestoringPKG"/>
-				<var_array name="activeTracersSurfaceRestoringValue" packages="activeTracersSurfaceRestoringPKG"/>
-				<var_array name="activeTracersInteriorRestoringRate" packages="activeTracersInteriorRestoringPKG"/>
-				<var_array name="activeTracersInteriorRestoringValue" packages="activeTracersInteriorRestoringPKG"/>
-				<var_array name="debugTracersPistonVelocity" packages="debugTracersSurfaceRestoringPKG"/>
-				<var_array name="debugTracersSurfaceRestoringValue" packages="debugTracersSurfaceRestoringPKG"/>
-				<var name="latentHeatFlux"/>
-				<var name="sensibleHeatFlux"/>
-				<var name="shortWaveHeatFlux"/>
-				<var name="evaporationFlux"/>
-				<var name="rainFlux"/>
->>>>>>> vanroekel/ocean/CVMIX_SCM_test_update
 		</stream>
 
 		<!-- Forward mode streams -->
@@ -1245,7 +1229,6 @@
 				runtime_format="single_file"
 				mode="forward">
 
-<<<<<<< HEAD
 			<var name="windStressZonal"/>
 			<var name="windStressMeridional"/>
 			<var_struct name="tracersSurfaceRestoringFields"/>
@@ -1266,22 +1249,6 @@
                         <var name="shortWaveHeatFlux"/>
                         <var name="evaporationFlux"/>
                         <var name="rainFlux"/>
-=======
-				<var name="windStressZonal"/>
-				<var name="windStressMeridional"/>
-				<var_array name="activeTracersPistonVelocity" packages="activeTracersSurfaceRestoringPKG"/>
-				<var_array name="activeTracersSurfaceRestoringValue" packages="activeTracersSurfaceRestoringPKG"/>
-				<var_array name="activeTracersInteriorRestoringRate" packages="activeTracersInteriorRestoringPKG"/>
-				<var_array name="activeTracersInteriorRestoringValue" packages="activeTracersInteriorRestoringPKG"/>
-				<var_array name="debugTracersPistonVelocity" packages="debugTracersSurfaceRestoringPKG"/>
-				<var_array name="debugTracersSurfaceRestoringValue" packages="debugTracersSurfaceRestoringPKG"/>
-				<var name="latentHeatFlux"/>
-				<var name="sensibleHeatFlux"/>
-				<var name="shortWaveHeatFlux"/>
-				<var name="evaporationFlux"/>
-				<var name="rainFlux"/>
-
->>>>>>> vanroekel/ocean/CVMIX_SCM_test_update
 		</stream>
 
 		<!-- Diagnostics streams for forward mode -->
