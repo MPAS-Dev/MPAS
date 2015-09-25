@@ -248,6 +248,9 @@ contains
         do iCell = 1, nCellsSolve
            ! Set temperature and salinity
         
+           ! Loop from surface through surface layer depth
+ ! TDR - surface layer is typically used to denote the upper part of the mixed/boundary layer (say top 10%) - remove this line
+ ! TDR - here it is less clear. we loop over the "sfc_layer" but then next section add on a mixed layer jump - remove this line
            k=1
            do while (k .le. nVertLevels .and. refZMid(k) > - config_cvmix_WSwSBF_sfc_layer_depth_temperature)
               if ( associated(activeTracers) ) then
@@ -265,11 +268,15 @@ contains
               k = k + 1
            enddo
         
+           ! the value of k is now the first layer below the surface layer
            if ( k > 1 ) then
               if ( associated(activeTracers) ) then
                  temperature = activeTracers(index_temperature, k-1, iCell) + config_cvmix_WSwSBF_ML_temperature_change
                  activeTracers(index_temperature, k, iCell) = temperature
                  salinity = activeTracers(index_salinity, k-1, iCell) + config_cvmix_WSwSBF_ML_salinity_change
+ !TDR - line below was missing - remove this line
+                 activeTracers(index_salinity, k, iCell) = salinity
+ !TDR - line above was missing - remove this line
               endif
               BLdepth = refZMid(k)
            else
@@ -282,6 +289,7 @@ contains
 
            kML=k+1
 
+           ! now loop from the bottom of the mixed layer thru to the bottom of the domain
            do k = kML, nVertLevels
               if ( associated(activeTracers) ) then 
                  temperature = activeTracers(index_temperature, kML-1, iCell) + (refZMid(k) - BLdepth) * &

@@ -75,10 +75,13 @@
 					description="depth surface of isothermal layer"
 					possible_values="Any positive real number but must be less than bottom depth"
 		/>
+                // TDR - is this really the surface layer or the mixed layer? - remove this line
+                // TDR - the description says isohaline/isothermal .... but we are able to specify gradients in this region - remove this line
 		<nml_option name="config_cvmix_WSwSBF_sfc_layer_depth_salinity" type="real" default_value="0.0" units="m"
 					description="depth of surface isohaline layer"
 					possible_values="Any positive real number but less than bottom depth"
 		/>
+                // TDR - check units of all config_* options. - remove this line
 		<nml_option name="config_cvmix_WSwSBF_ML_temperature_change" type="real" default_value="0.0" units="m"
 					description="temperature jump across the mixed layer interface"
 					possible_values="Any real number"
