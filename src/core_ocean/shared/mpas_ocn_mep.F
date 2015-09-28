@@ -43,7 +43,10 @@ module ocn_mep
    !--------------------------------------------------------------------
 
    public :: ocn_mep_update, &
-             ocn_mep_init
+             ocn_mep_init, &
+             ocn_mep_transportVelocity_update, &
+             ocn_mep_reconstruct
+
 
    !-------------------------------------------------------------------
    !
@@ -307,6 +310,44 @@ contains
    end subroutine ocn_mep_reconstruct!}}}
 
 
+!***********************************************************************
+!
+!  routine ocn_mep_twa_drag_VertVisc_init
+!
+!> \brief  This routine interfaces the cell center reconstruction
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   17 September 2015
+!> \details 
+!>  This routine interfaces the cell center reconstruction for diagnostics
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_twa_drag_VertVisc_init(err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      err = 0 
+
+   end subroutine ocn_mep_twa_drag_VertVisc_init!}}}
 
 
 !***********************************************************************
