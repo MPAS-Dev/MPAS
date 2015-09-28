@@ -178,6 +178,7 @@ contains
       real (kind=RKIND), pointer ::  floatingIceArea, floatingIceVolume
       real (kind=RKIND), pointer ::  iceThicknessMax, iceThicknessMin, iceThicknessMean 
       real (kind=RKIND), pointer ::  totalSfcMassBal, totalBasalMassBal 
+      real (kind=RKIND), pointer ::  totalCalvingFlux 
 
       ! scalar sums over blocks
       real (kind=RKIND) ::  blockSumIceArea, blockSumIceVolume
@@ -185,6 +186,7 @@ contains
       real (kind=RKIND) ::  blockSumFloatingIceArea, blockSumFloatingIceVolume
       real (kind=RKIND) ::  blockThickMin, blockThickMax
       real (kind=RKIND) ::  blockSumSfcMassBal, blockSumBasalMassBal
+      real (kind=RKIND) ::  blockSumCalvingFlux
 
       ! local parameters
       real (kind=RKIND), parameter :: scyr = 31536000.0_RKIND  ! seconds per 365-day year
@@ -202,6 +204,7 @@ contains
       blockSumFloatingIceVolume = 0.0_RKIND
       blockSumSfcMassBal = 0.0_RKIND
       blockSumBasalMassBal = 0.0_RKIND
+      blockSumCalvingFlux = 0.0_RKIND
 
       ! initialize max, min, mean values to 0
       blockThickMin = 0.0_RKIND
@@ -223,6 +226,7 @@ contains
          call mpas_pool_get_array(geometryPool, 'cellMask', cellMask)
          call mpas_pool_get_array(geometryPool, 'sfcMassBal', sfcMassBal)
          call mpas_pool_get_array(geometryPool, 'basalMassBal', basalMassBal)
+!         call mpas_pool_get_array(geometryPool, 'calvingThickness', calvingThickness)
 
          ! get values from global stats pool
          call mpas_pool_get_array(globalStatsAMPool, 'totalIceArea', totalIceArea)
@@ -236,6 +240,7 @@ contains
          call mpas_pool_get_array(globalStatsAMPool, 'iceThicknessMean', iceThicknessMean)
          call mpas_pool_get_array(globalStatsAMPool, 'totalSfcMassBal', totalSfcMassBal)
          call mpas_pool_get_array(globalStatsAMPool, 'totalBasalMassBal', totalBasalMassBal)
+         call mpas_pool_get_array(globalStatsAMPool, 'totalCalvingFlux', totalCalvingFlux)
 
          ! loop over cells
          do iCell = 1,nCellsSolve
@@ -271,6 +276,11 @@ contains
             blockSumBasalMassBal = blockSumBasalMassBal + real(li_mask_is_ice_int(cellMask(iCell)),RKIND) &
                 * areaCell(iCell) * basalMassBal(iCell) * scyr
 
+            ! mass lass due do calving (kg yr^{-1})
+            !SFP: These calculations need to be tested still
+!            blockSumCavlingFlux = blockSumCalvingFlux + real(li_mask_is_floating_ice_int(cellMask(iCell)),RKIND) &
+!                * areaCell(iCell) * calvingThickness(iCell) * rho_ice     !! still needs to be divided by time step and converted to per year !!!
+
          end do ! end loop over cells
 
          block => block % next
@@ -286,6 +296,7 @@ contains
       call mpas_dmpar_sum_real(dminfo, blockSumFloatingIceVolume, floatingIceVolume)
       call mpas_dmpar_sum_real(dminfo, blockSumSfcMassBal, totalSfcMassBal) 
       call mpas_dmpar_sum_real(dminfo, blockSumBasalMassBal, totalBasalMassBal) 
+!      call mpas_dmpar_sum_real(dminfo, blockSumCalvingFlux, totalCalvingFlux) 
 
       ! find min, max, mean thickness over all procs
       call mpas_dmpar_min_real(dminfo, blockThickMin, iceThicknessMin)
