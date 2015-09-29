@@ -144,7 +144,9 @@ contains
       character (len=StrKIND), pointer :: config_pressure_gradient_type
 
       real (kind=RKIND), pointer :: config_flux_attenuation_coefficient
+      real (kind=RKIND), pointer :: config_flux_attenuation_coefficient_runoff
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficient
+      real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientRunoff
 
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
@@ -235,6 +237,7 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'indexSurfaceLayerDepth', indexSurfaceLayerDepth)
 
       call mpas_pool_get_array(diagnosticsPool, 'surfaceFluxAttenuationCoefficient', surfaceFluxAttenuationCoefficient)
+      call mpas_pool_get_array(diagnosticsPool, 'surfaceFluxAttenuationCoefficientRunoff', surfaceFluxAttenuationCoefficientRunoff)
       !
       ! Compute height on cell edges at velocity locations
       !   Namelist options control the order of accuracy of the reconstructed layerThicknessEdge value
@@ -668,6 +671,7 @@ contains
 
       ! compute the attenuation coefficient for surface fluxes
       surfaceFluxAttenuationCoefficient(:) = config_flux_attenuation_coefficient
+      surfaceFluxAttenuationCoefficientRunoff(:) = config_flux_attenuation_coefficient_runoff
 
       !
       !  compute fields needed to compute land-ice fluxes, either in the ocean model or in the coupler

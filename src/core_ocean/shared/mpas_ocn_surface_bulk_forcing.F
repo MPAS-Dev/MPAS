@@ -210,7 +210,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_surface_bulk_forcing_thick(meshPool, forcingPool, surfaceThicknessFlux, err)!{{{
+   subroutine ocn_surface_bulk_forcing_thick(meshPool, forcingPool, surfaceThicknessFlux, surfaceThicknessFluxRunoff, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -226,6 +226,7 @@ contains
       !-----------------------------------------------------------------
       type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
       real (kind=RKIND), dimension(:), intent(inout) :: surfaceThicknessFlux !< Input/Output: Array for surface thickness flux
+      real (kind=RKIND), dimension(:), intent(inout) :: surfaceThicknessFluxRunoff !< Input/Output: Array for surface thickness flux due to river runoff
 
       !-----------------------------------------------------------------
       !
@@ -267,8 +268,8 @@ contains
       ! Build surface fluxes at cell centers
       do iCell = 1, nCells
         surfaceThicknessFlux(iCell) = surfaceThicknessFlux(iCell) + ( snowFlux(iCell) + rainFlux(iCell) + evaporationFlux(iCell) &
-                                    + seaIceFreshWaterFlux(iCell) + iceRunoffFlux(iCell) &
-                                    + riverRunoffFlux(iCell) ) / rho_sw
+                                    + seaIceFreshWaterFlux(iCell) + iceRunoffFlux(iCell) ) / rho_sw
+        surfaceThicknessFluxRunoff(iCell) = riverRunoffFlux(iCell) / rho_sw
       end do
 
    end subroutine ocn_surface_bulk_forcing_thick!}}}

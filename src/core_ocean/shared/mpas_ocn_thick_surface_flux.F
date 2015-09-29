@@ -61,16 +61,17 @@ contains
 !
 !  routine ocn_thick_surface_flux_tend
 !
-!> \brief   Computes tendency term from horizontal advection of thickness
+!> \brief   Computes tendency term from surface thickness fluxes
 !> \author  Doug Jacobsen
 !> \date    15 September 2011
 !> \details 
-!>  This routine computes the horizontal advection tendency for
-!>  thicknes based on current state and user choices of forcings.
+!>  This routine computes the surface freshwater flux tendency for
+!>  thickness based on current state and user choices of forcings.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_thick_surface_flux_tend(meshPool, transmissionCoefficients, layerThickness, surfaceThicknessFlux, tend, err)!{{{
+   subroutine ocn_thick_surface_flux_tend(meshPool, transmissionCoefficients, transmissionCoefficientsRunoff, &
+              layerThickness, surfaceThicknessFlux, surfaceThicknessFluxRunoff, tend, err)!{{{
       !-----------------------------------------------------------------
       !
       ! input variables
@@ -81,13 +82,15 @@ contains
          meshPool              !< Input: mesh information
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
-         transmissionCoefficients !< Input: Coefficients for the transmission of surface fluxes
+         transmissionCoefficients,     &!< Input: Coefficients for the transmission of surface fluxes
+         transmissionCoefficientsRunoff !< Input: Coefficients for the transmission of surface fluxes due to runoff
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          layerThickness   !< Input: Layer thickness
 
       real (kind=RKIND), dimension(:), intent(in) :: &
-         surfaceThicknessFlux   !< Input: surface flux of thickness
+         surfaceThicknessFlux, &      !< Input: surface flux of thickness
+         surfaceThicknessFluxRunoff   !< Input: surface flux of thickness due to river runoff
 
 
       !-----------------------------------------------------------------
@@ -117,7 +120,7 @@ contains
       integer, pointer :: nCells, nVertLevels
       integer, dimension(:), pointer :: maxLevelCell
 
-      real (kind=RKIND) :: remainingFlux
+      real (kind=RKIND) :: remainingFlux, remainingFluxRunoff
 
       err = 0
 
@@ -129,14 +132,22 @@ contains
 
       do iCell = 1, nCells
         remainingFlux = 1.0_RKIND
+        remainingFluxRunoff = 1.0_RKIND
         do k = 1, maxLevelCell(iCell)
           remainingFlux = remainingFlux - transmissionCoefficients(k, iCell)
+          remainingFluxRunoff = remainingFluxRunoff - transmissionCoefficientsRunoff(k, iCell)
 
-          tend(k, iCell) = tend(k, iCell) + surfaceThicknessFlux(iCell) * transmissionCoefficients(k, iCell)
+          tend(k, iCell) = tend(k, iCell) + surfaceThicknessFlux(iCell) * transmissionCoefficients(k, iCell)  &
+                         + surfaceThicknessFluxRunoff(iCell) * transmissionCoefficientsRunoff(k, iCell)
         end do
 
         if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
           tend(maxLevelCell(iCell), iCell) = tend(maxLevelCell(iCell), iCell) + remainingFlux * surfaceThicknessFlux(iCell)
+        end if
+
+        if(maxLevelCell(iCell) > 0 .and. remainingFluxRunoff > 0.0_RKIND) then
+          tend(maxLevelCell(iCell), iCell) = tend(maxLevelCell(iCell), iCell) &
+                                           + remainingFluxRunoff * surfaceThicknessFluxRunoff(iCell)
         end if
       end do
 

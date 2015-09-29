@@ -112,8 +112,9 @@ contains
       type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
 
       real (kind=RKIND), dimension(:), pointer :: surfaceThicknessFlux
+      real (kind=RKIND), dimension(:), pointer :: surfaceThicknessFluxRunoff
       real (kind=RKIND), dimension(:,:), pointer :: layerThickness, layerThicknessEdge, &
-         vertAleTransportTop, tend_layerThickness, normalTransportVelocity, fractionAbsorbed
+         vertAleTransportTop, tend_layerThickness, normalTransportVelocity, fractionAbsorbed, fractionAbsorbedRunoff
 
       integer :: err
 
@@ -130,19 +131,22 @@ contains
       call mpas_pool_get_array(tendPool, 'layerThickness', tend_layerThickness)
 
       call mpas_pool_get_array(forcingPool, 'surfaceThicknessFlux', surfaceThicknessFlux)
+      call mpas_pool_get_array(forcingPool, 'surfaceThicknessFluxRunoff', surfaceThicknessFluxRunoff)
       call mpas_pool_get_array(forcingPool, 'fractionAbsorbed', fractionAbsorbed)
+      call mpas_pool_get_array(forcingPool, 'fractionAbsorbedRunoff', fractionAbsorbedRunoff)
                   
       !
       ! height tendency: start accumulating tendency terms
       !
       tend_layerThickness = 0.0
       surfaceThicknessFlux(:) = 0.0_RKIND
+      surfaceThicknessFluxRunoff(:) = 0.0_RKIND
 
       if(config_disable_thick_all_tend) return
 
       ! Build suface mass flux array from bulk
       call mpas_timer_start("bulk_thick", .false.)
-      call ocn_surface_bulk_forcing_thick(meshPool, forcingPool, surfaceThicknessFlux, err)
+      call ocn_surface_bulk_forcing_thick(meshPool, forcingPool, surfaceThicknessFlux, surfaceThicknessFluxRunoff, err)
       call mpas_timer_stop("bulk_thick")
 
       ! Build suface thickness flux array from land ice
@@ -173,7 +177,7 @@ contains
       ! surface flux tendency
       !
       call mpas_timer_start("surface flux", .false.)
-      call ocn_thick_surface_flux_tend(meshPool, fractionAbsorbed, layerThickness, surfaceThicknessFlux, tend_layerThickness, err)
+      call ocn_thick_surface_flux_tend(meshPool, fractionAbsorbed, fractionAbsorbedRunoff, layerThickness, surfaceThicknessFlux, surfaceThicknessFluxRunoff, tend_layerThickness, err)
       call mpas_timer_stop("surface flux")
 
       call mpas_timer_stop("ocn_tend_thick")
