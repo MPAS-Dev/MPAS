@@ -71,9 +71,11 @@ contains
 
     logical, pointer :: &
          config_use_advection, &
+         config_use_forcing,   &
          config_do_restart
 
     call MPAS_pool_get_config(domain % configs, "config_use_advection", config_use_advection)
+    call MPAS_pool_get_config(domain % configs, "config_use_forcing", config_use_forcing)
     call MPAS_pool_get_config(domain % configs, "config_do_restart", config_do_restart)
 
     block => domain % blocklist
@@ -92,7 +94,9 @@ contains
     call initialize_coupler_fields(domain)
 
     ! initialize forcing
-    call cice_forcing_init(domain)
+    if (config_use_forcing) then
+       call cice_forcing_init(domain)
+    endif
 
     ! init dynamics
     call cice_init_velocity_solver(domain)
