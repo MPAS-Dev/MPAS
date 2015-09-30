@@ -113,7 +113,8 @@ contains
       real (kind=RKIND), dimension(:), allocatable:: pTop, div_hu,div_huTransport,div_huGMBolus
 
       real (kind=RKIND), dimension(:), pointer :: &
-        bottomDepth, fVertex, dvEdge, dcEdge, areaCell, areaTriangle, ssh, seaSurfacePressure
+        bottomDepth, fVertex, dvEdge, dcEdge, areaCell, areaTriangle, ssh, seaSurfacePressure, atmosphericPressure, &
+        landIcePressure
       real (kind=RKIND), dimension(:,:), pointer :: &
         weightsOnEdge, kiteAreasOnVertex, layerThicknessEdge, layerThickness, normalVelocity, normalTransportVelocity, normalGMBolusVelocity, tangentialVelocity, pressure,&
         circulation, kineticEnergyCell, montgomeryPotential, vertAleTransportTop, zMid, zTop, divergence, &
@@ -139,7 +140,7 @@ contains
 
       integer :: timeLevel
       integer, pointer :: indexTemperature, indexSalinity
-      logical, pointer :: config_use_cvmix_kpp
+      logical, pointer :: config_use_cvmix_kpp, config_use_land_ice_fluxes
       real (kind=RKIND), pointer :: config_apvm_scale_factor,  config_coef_3rd_order, config_cvmix_kpp_surface_layer_averaging
       character (len=StrKIND), pointer :: config_pressure_gradient_type
 
@@ -158,6 +159,7 @@ contains
       call mpas_pool_get_config(ocnConfigs, 'config_cvmix_kpp_surface_layer_averaging', config_cvmix_kpp_surface_layer_averaging)
       call mpas_pool_get_config(ocnConfigs, 'config_use_cvmix_kpp', config_use_cvmix_kpp)
       call mpas_pool_get_config(ocnConfigs, 'config_flux_attenuation_coefficient', config_flux_attenuation_coefficient)
+      call mpas_pool_get_config(ocnConfigs, 'config_use_land_ice_fluxes', config_use_land_ice_fluxes)
 
       call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
       call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexSalinity)
@@ -221,6 +223,10 @@ contains
       call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
 
       call mpas_pool_get_array(forcingPool, 'seaSurfacePressure', seaSurfacePressure)
+      call mpas_pool_get_array(forcingPool, 'atmosphericPressure', atmosphericPressure)
+      if (config_use_land_ice_fluxes) then
+         call mpas_pool_get_array(forcingPool, 'landIcePressure', landIcePressure)
+      end if
                   
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
@@ -493,6 +499,12 @@ contains
       call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, 1, 'relative', displacedDensity, err, timeLevelIn=timeLevel)
 
       call mpas_timer_stop("equation of state", diagEOSTimer)
+
+      seaSurfacePressure(1:nCells) = atmosphericPressure(1:nCells)
+      if (config_use_land_ice_fluxes) then
+         seaSurfacePressure(1:nCells) = seaSurfacePressure(1:nCells) &
+            + landIcePressure(1:nCells)
+      end if
 
       !
       ! Pressure

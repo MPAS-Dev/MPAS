@@ -380,7 +380,7 @@ contains
 
       real (kind=RKIND) :: freshwaterFlux, heatFlux
 
-      real (kind=RKIND), dimension(:), pointer :: seaSurfacePressure, landIceFraction, &
+      real (kind=RKIND), dimension(:), pointer :: landIcePressure, landIceFraction, &
                                                   landIceSurfaceTemperature, &
                                                   landIceInterfaceTemperature, &
                                                   landIceInterfaceSalinity, landIceFrictionVelocity, &
@@ -415,7 +415,7 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'landIceSaltTransferVelocity', landIceSaltTransferVelocity)
       call mpas_pool_get_array(diagnosticsPool, 'landIceFrictionVelocity', landIceFrictionVelocity)
 
-      call mpas_pool_get_array(forcingPool, 'seaSurfacePressure', seaSurfacePressure)
+      call mpas_pool_get_array(forcingPool, 'landIcePressure', landIcePressure)
       call mpas_pool_get_array(forcingPool, 'landIceFraction', landIceFraction)
 
       call mpas_pool_get_array(forcingPool, 'landIceFreshwaterFlux', landIceFreshwaterFlux)
@@ -449,7 +449,7 @@ contains
             ! linearized equaiton for the S and p dependent potential freezing temperature
             landIceInterfaceTemperature(iCell) = Tf0 &
                                           + dTf_dS*landIceBoundaryLayerSalinity(iCell) &
-                                          + dTf_dp*seaSurfacePressure(iCell)
+                                          + dTf_dp*landIcePressure(iCell)
 
             ! using (3) and (4) from Hunter (2006)
             ! or (7) from Jenkins et al. (2001) if gamma constant
@@ -481,7 +481,7 @@ contains
                landIceHeatTransferVelocity, &
                landIceSaltTransferVelocity, &
                landIceSurfaceTemperature, &
-               seaSurfacePressure, &
+               landIcePressure, &
                landIceInterfaceSalinity, &
                landIceInterfaceTemperature, &
                landIceFreshwaterFlux, &
@@ -499,7 +499,7 @@ contains
                landIceBoundaryLayerSalinity, &
                landIceHeatTransferVelocity, &
                landIceSaltTransferVelocity, &
-               seaSurfacePressure, &
+               landIcePressure, &
                freezeInterfaceSalinity, &
                freezeInterfaceTemperature, &
                freezeFreshwaterFlux, &
@@ -524,7 +524,7 @@ contains
                landIceBoundaryLayerSalinity, &
                landIceHeatTransferVelocity, &
                landIceSaltTransferVelocity, &
-               seaSurfacePressure, &
+               landIcePressure, &
                landIceInterfaceSalinity, &
                landIceInterfaceTemperature, &
                landIceFreshwaterFlux, &

@@ -112,6 +112,7 @@ module ocn_core_interface
       logical, pointer :: splitTimeIntegratorActive
       logical, pointer :: windStressBulkPKGActive
       logical, pointer :: landIceFluxesPKGActive
+      logical, pointer :: landIcePressurePKGActive
       logical, pointer :: thicknessBulkPKGActive
       logical, pointer :: frazilIceActive
       logical, pointer :: inSituEOSActive
@@ -143,6 +144,7 @@ module ocn_core_interface
       logical, pointer :: config_use_bulk_wind_stress
       logical, pointer :: config_use_bulk_thickness_flux
       logical, pointer :: config_use_land_ice_fluxes
+      logical, pointer :: config_use_land_ice_pressure
 
        type (mpas_pool_iterator_type) :: groupItr
        character (len=StrKIND) :: tracerGroupName, configName, packageName
@@ -216,6 +218,15 @@ module ocn_core_interface
       call mpas_pool_get_config(configPool, 'config_use_land_ice_fluxes', config_use_land_ice_fluxes)
       if ( config_use_land_ice_fluxes ) then
          landIceFluxesPKGActive = .true.
+      end if
+
+      !
+      ! test for land ice pressure, landIcePressurePKG
+      !
+      call mpas_pool_get_package(packagePool, 'landIcePressurePKGActive', landIcePressurePKGActive)
+      call mpas_pool_get_config(configPool, 'config_use_land_ice_pressure', config_use_land_ice_pressure)
+      if ( config_use_land_ice_pressure ) then
+         landIcePressurePKGActive = .true.
       end if
 
       !
