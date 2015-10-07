@@ -12,4 +12,4 @@
 #include "Registry_eliassen_palm.xml"
 #include "Registry_mixed_layer_depths.xml"
 #include "Registry_time_series_stats.xml"
-#include "Registry_tracer_budget.xml"
+#include "Registry_tracers_budget.xml"
