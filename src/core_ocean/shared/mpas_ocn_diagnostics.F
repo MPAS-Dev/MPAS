@@ -113,7 +113,8 @@ contains
       real (kind=RKIND), dimension(:), allocatable:: pTop, div_hu,div_huTransport,div_huGMBolus
 
       real (kind=RKIND), dimension(:), pointer :: &
-        bottomDepth, fVertex, dvEdge, dcEdge, areaCell, areaTriangle, ssh, seaSurfacePressure
+        bottomDepth, fVertex, dvEdge, dcEdge, areaCell, areaTriangle, ssh, seaSurfacePressure, atmosphericPressure, &
+        landIcePressure
       real (kind=RKIND), dimension(:,:), pointer :: &
         weightsOnEdge, kiteAreasOnVertex, layerThicknessEdge, layerThickness, normalVelocity, normalTransportVelocity, normalGMBolusVelocity, tangentialVelocity, pressure,&
         circulation, kineticEnergyCell, montgomeryPotential, vertAleTransportTop, zMid, zTop, divergence, &
@@ -141,7 +142,7 @@ contains
       integer, pointer :: indexTemperature, indexSalinity
       logical, pointer :: config_use_cvmix_kpp
       real (kind=RKIND), pointer :: config_apvm_scale_factor,  config_coef_3rd_order, config_cvmix_kpp_surface_layer_averaging
-      character (len=StrKIND), pointer :: config_pressure_gradient_type
+      character (len=StrKIND), pointer :: config_pressure_gradient_type, config_land_ice_flux_mode
 
       real (kind=RKIND), pointer :: config_flux_attenuation_coefficient
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficient
@@ -158,6 +159,7 @@ contains
       call mpas_pool_get_config(ocnConfigs, 'config_cvmix_kpp_surface_layer_averaging', config_cvmix_kpp_surface_layer_averaging)
       call mpas_pool_get_config(ocnConfigs, 'config_use_cvmix_kpp', config_use_cvmix_kpp)
       call mpas_pool_get_config(ocnConfigs, 'config_flux_attenuation_coefficient', config_flux_attenuation_coefficient)
+      call mpas_pool_get_config(ocnConfigs, 'config_land_ice_flux_mode', config_land_ice_flux_mode)
 
       call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
       call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexSalinity)
@@ -221,6 +223,10 @@ contains
       call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
 
       call mpas_pool_get_array(forcingPool, 'seaSurfacePressure', seaSurfacePressure)
+      call mpas_pool_get_array(forcingPool, 'atmosphericPressure', atmosphericPressure)
+      if (trim(config_land_ice_flux_mode) .ne. 'off') then
+         call mpas_pool_get_array(forcingPool, 'landIcePressure', landIcePressure)
+      end if
                   
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
@@ -493,6 +499,12 @@ contains
       call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, 1, 'relative', displacedDensity, err, timeLevelIn=timeLevel)
 
       call mpas_timer_stop("equation of state", diagEOSTimer)
+
+      seaSurfacePressure(1:nCells) = atmosphericPressure(1:nCells)
+      if (trim(config_land_ice_flux_mode) .ne. 'off') then
+         seaSurfacePressure(1:nCells) = seaSurfacePressure(1:nCells) &
+            + landIcePressure(1:nCells)
+      end if
 
       !
       ! Pressure
@@ -1336,8 +1348,7 @@ contains
 
       integer, pointer :: indexT, indexS
 
-      character (len=StrKIND), pointer :: config_land_ice_flux_formulation
-      logical, pointer :: config_use_land_ice_fluxes
+      character (len=StrKIND), pointer :: config_land_ice_flux_formulation, config_land_ice_flux_mode
 
       real (kind=RKIND), pointer :: config_land_ice_flux_boundaryLayerThickness, &
                                     config_land_ice_flux_boundaryLayerNeighborWeight, &
@@ -1376,8 +1387,12 @@ contains
          xiN = 0.052_RKIND              ! dimensionless planetary boundary layer constant
 
 
-      call mpas_pool_get_config(ocnConfigs, 'config_use_land_ice_fluxes', config_use_land_ice_fluxes)
-      if(.not. config_use_land_ice_fluxes) return
+      call mpas_pool_get_config(ocnConfigs, 'config_land_ice_flux_mode', config_land_ice_flux_mode)
+      if ( (trim(config_land_ice_flux_mode) .ne. 'standalone')  &
+           .and. (trim(config_land_ice_flux_mode) .ne. 'coupled') ) then
+         return
+      end if
+
 
       jenkinsOn = .false.
       hollandJenkinsOn = .false.
