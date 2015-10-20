@@ -165,19 +165,9 @@ contains
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: diagnosticsPool
-      type (mpas_pool_type), intent(inout) :: tendPool ! mv added
-      type (mpas_pool_type), intent(inout) :: forcingPool ! mv added
+      type (mpas_pool_type), intent(inout) :: tendPool
+      type (mpas_pool_type), intent(inout) :: forcingPool
 
-      ! Here are some example variables which may be needed for your analysis member
-      integer, pointer :: nVertLevels, nCellsSolve, nEdgesSolve, nVerticesSolve, num_tracers
-      integer :: iTracer, k, iCell
-      integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeTop, maxLevelVertexBot
-      integer, intent(in), optional :: timeLevelIn ! mv added
-
-      real (kind=RKIND), dimension(:), pointer ::  areaCell, dcEdge, dvEdge
-      real (kind=RKIND), intent(in) :: dt ! mv added
-
-!!!!! mv added the following: check what's needed and what not:
       !
       ! additional pools
       !
@@ -190,12 +180,19 @@ contains
       type (mpas_pool_type), pointer :: tracersTTDFieldsPool                    ! transit time distribution
 
       ! scalar pointers
-      integer :: nTracerGroup
+      integer :: nTracerGroup, iEdge, k
+!      integer :: iTracer, iCell
       integer, pointer :: nVertLevels, nEdges, nCellsSolve, indexTemperature
+! nEdgesSolve, nVerticesSolve
       logical, pointer :: config_disable_tr_all_tend, config_use_cvmix_kpp
       logical, pointer :: config_use_tracerGroup, config_use_tracerGroup_surface_bulk_forcing, config_use_tracerGroup_surface_restoring, &
                           config_use_tracerGroup_interior_restoring, config_use_tracerGroup_exponential_decay, config_use_tracerGroup_idealAge_forcing, &
                           config_use_tracerGroup_ttd_forcing
+
+      ! time step
+      type (MPAS_timeInterval_type) :: timeStep
+      real (kind=RKIND) :: dt
+      character(len=StrKIND), pointer :: config_dt
 
       ! iterator for tracer categories
       type (mpas_pool_iterator_type) :: groupItr
@@ -205,9 +202,11 @@ contains
       !
       ! one dimensional pointers
       !
+      integer, dimension(:), pointer :: maxLevelCell
+!, maxLevelEdgeTop, maxLevelVertexBot
       real (kind=RKIND), dimension(:), pointer :: penetrativeTemperatureFlux
       real (kind=RKIND), dimension(:), pointer :: tracerGroupExponentialDecayRate
-      integer, dimension(:), pointer :: maxLevelCell
+!      real (kind=RKIND), dimension(:), pointer ::  areaCell, dcEdge, dvEdge
 
       !
       ! two dimensional pointers
@@ -234,12 +233,6 @@ contains
       !
       type (field2DReal), pointer :: normalThicknessFluxField
 
-      !
-      ! local integers/reals/logicals
-      !
-      integer :: err, iEdge, k, timeLevel
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! mv: from ocn_tend_tracer routine. Check where this should go!:
       !
@@ -248,19 +241,14 @@ contains
       call mpas_timer_start("ocn_tend_tracer")
 
 
-! mv: need dt and timeLevelIn (probably): check where to get it from
-
-      !
-      ! set time level of optional argument is present
-      !
-      if (present(timeLevelIn)) then
-         timeLevel = timeLevelIn
-      else
-         timeLevel = 1
-      end if
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       err = 0
+
+      ! get dt
+      call mpas_pool_get_config(domain % configs, 'config_dt', config_dt)
+      call mpas_set_timeInterval(timeStep, timeString=config_dt, ierr=err)
+      call mpas_get_timeInterval(timeStep, dt=dt)
 
       dminfo = domain % dminfo
 
@@ -279,45 +267,41 @@ contains
          call mpas_pool_get_subpool(tendPool, 'tracersTend', tracersTendPool)
          call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux', tracersSurfaceFluxPool)
          call mpas_pool_get_subpool(block % structs, 'tracersBudgetAM', tracersBudgetAMPool)
-         call mpas_pool_get_subpool(block % structs, 'tracersBudgetSratch', tracersBudgetScratchPool)
 
          !
          ! get dimensions
          !
-         ! Here are some example variables which may be needed for your analysis member
          !call mpas_pool_get_dimension(statePool, 'num_tracers', num_tracers)
          call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', nVertLevels)
          call mpas_pool_get_dimension(block % dimensions, 'nEdges', nEdges)
          call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
-         call mpas_pool_get_dimension(block % dimensions, 'nEdgesSolve', nEdgesSolve)
-         call mpas_pool_get_dimension(block % dimensions, 'nVerticesSolve', nVerticesSolve)
+!         call mpas_pool_get_dimension(block % dimensions, 'nEdgesSolve', nEdgesSolve)
+!         call mpas_pool_get_dimension(block % dimensions, 'nVerticesSolve', nVerticesSolve)
          call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
 
          !
          ! get arrays
          !
-         call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
-         call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
-         call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
+!         call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
+!         call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
+!         call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
+!         call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
+!         call mpas_pool_get_array(meshPool, 'maxLevelVertexBot', maxLevelVertexBot)
+         call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
+         call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
+         call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
+         call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
+         call mpas_pool_get_array(diagnosticsPool, 'vertAleTransportTop', vertAleTransportTop)
+         call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
+         call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfEdge', relativeSlopeTopOfEdge)
+         call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTapering', relativeSlopeTapering)
+         call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTaperingCell', relativeSlopeTaperingCell)
+         call mpas_pool_get_array(diagnosticsPool, 'vertNonLocalFlux', vertNonLocalFlux)
+         call mpas_pool_get_array(forcingPool, 'penetrativeTemperatureFlux', penetrativeTemperatureFlux)
+         call mpas_pool_get_array(forcingPool, 'fractionAbsorbed', fractionAbsorbed)
+         call mpas_pool_get_array(tendPool, 'layerThickness', tend_layerThickness)
          call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-         call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-         call mpas_pool_get_array(meshPool, 'maxLevelVertexBot', maxLevelVertexBot)
-         !call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
-         !call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
-         !call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
-         !call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
-         !call mpas_pool_get_array(diagnosticsPool, 'vertAleTransportTop', vertAleTransportTop)
-         !call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
-         !call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfEdge', relativeSlopeTopOfEdge)
-         !call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTapering', relativeSlopeTapering)
-         !call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTaperingCell', relativeSlopeTaperingCell)
-         !call mpas_pool_get_array(diagnosticsPool, 'vertNonLocalFlux', vertNonLocalFlux)
-         !call mpas_pool_get_array(forcingPool, 'penetrativeTemperatureFlux', penetrativeTemperatureFlux)
-         !call mpas_pool_get_array(forcingPool, 'fractionAbsorbed', fractionAbsorbed)
-         !call mpas_pool_get_array(tendPool, 'layerThickness', tend_layerThickness)
-         !call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mv: from ocn_tracer_advection_tend routine:
          !
          ! get configure options
          !
@@ -326,24 +310,19 @@ contains
 
 
          call mpas_pool_get_field(scratchPool, 'normalThicknessFlux', normalThicknessFluxField)
-         call mpas_pool_get_field(tracersBudgetScratchPool, 'scratchTracerTend', scratchTracerTendField)
-
          call mpas_allocate_scratch_field(normalThicknessFluxField, .true.)
-         call mpas_allocate_scratch_field(scratchTracerTendField, .true.)
-
          normalThicknessFlux => normalThicknessFluxField % array
-         scratchTracerTend => scratchTracerTendField % array
 
          if(config_disable_tr_all_tend) return
 
          !
          ! transport velocity for the tracer.
          !
-         !do iEdge = 1, nEdges
-         !   do k = 1, nVertLevels
-         !      normalThicknessFlux(k, iEdge) = normalTransportVelocity(k, iEdge) * layerThicknessEdge(k, iEdge)
-         !   end do
-         !end do
+         do iEdge = 1, nEdges
+            do k = 1, nVertLevels
+               normalThicknessFlux(k, iEdge) = normalTransportVelocity(k, iEdge) * layerThicknessEdge(k, iEdge)
+            end do
+         end do
 
          !
          ! begin iterate over tracer categories
@@ -384,12 +363,26 @@ contains
                  modifiedGroupName = trim(groupItr % memberName) // "SurfaceFlux"
                  call mpas_pool_get_array(tracersSurfaceFluxPool, trim(modifiedGroupName), tracerGroupSurfaceFlux)
 
+                 ! Get tracer budget arrays
+                 modifiedGroupName = trim(groupItr % memberName) // "BudgetHadv"
+                 call mpas_pool_get_array(tracersBudgetAMPool, trim(modifiedGroupName), tracerGroupBudgetHadv)
+                 !modifiedGroupName = trim(groupItr % memberName) // "BudgetVadv"
+                 !call mpas_pool_get_array(tracersBudgetAMPool, trim(modifiedGroupName), tracerGroupBudgetVadv)
+!                 modifiedGroupName = trim(groupItr % memberName) // "BudgetHdif"
+!                 call mpas_pool_get_array(tracersBudgetAMPool, trim(modifiedGroupName), tracerGroupBudgetHdif)
+!                 modifiedGroupName = trim(groupItr % memberName) // "BudgetVdif"
+!                 call mpas_pool_get_array(tracersBudgetAMPool, trim(modifiedGroupName), tracerGroupBudgetVdif)
+!                 modifiedGroupName = trim(groupItr % memberName) // "BudgetForc"
+!                 call mpas_pool_get_array(tracersBudgetAMPool, trim(modifiedGroupName), tracerGroupBudgetForc)
+!                 modifiedGroupName = trim(groupItr % memberName) // "BudgetRate"
+!                 call mpas_pool_get_array(tracersBudgetAMPool, trim(modifiedGroupName), tracerGroupBudgetRate)
+
                  !
                  ! initialize tracer surface flux and tendencies to zero.
                  !
                  tracerGroupTend(:,:,:) = 0.0
                  tracerGroupSurfaceFlux(:,:) = 0.0
-               tracerGroupBudgetHadv(:,:,:) = 0.0
+                 tracerGroupBudgetHadv(:,:,:) = 0.0
                  !tracerGroupBudgetVadv(:,:,:) = 0.0
                  !tracerGroupBudgetHdif(:,:,:) = 0.0
                  !tracerGroupBudgetVdif(:,:,:) = 0.0
@@ -491,13 +484,11 @@ contains
                  ! tracer tendency: horizontal advection term -div( layerThickness \phi u)
                  !
                  ! Monotonic Advection, or standard advection
-                 scratchTracerTend(:,:,:) = 0.0
                  call mpas_timer_start("adv", .false., tracerHadvTimer)
                  call ocn_tracer_advection_tend(tracerGroup, normalThicknessFlux, vertAleTransportTop, &
-                    layerThickness, layerThickness, dt, meshPool, tend_layerThickness, scratchTracerTend)
+                    layerThickness, layerThickness, dt, meshPool, tend_layerThickness, tracerGroupBudgetHadv)
 !                  tracerGroupBudgetHadv, tracerGroupBudgetVadv)
                  call mpas_timer_stop("adv", tracerHadvTimer)
-                 tracerGroupBudgetHadv = scratchTracerTend
 
                  !
                  ! tracer tendency: del2 horizontal tracer diffusion, div(h \kappa_2 \nabla \phi)
@@ -505,7 +496,7 @@ contains
 !                call mpas_timer_start("hmix", .false., tracerHmixTimer)
 !                call ocn_tracer_hmix_tend(meshPool, scratchPool, layerThickness, layerThicknessEdge, zMid, tracerGroup, &
 !                   relativeSlopeTopOfEdge, relativeSlopeTapering, relativeSlopeTaperingCell, tracerGroupTend, &
-!                   tracerGroupBudgetAMHdif, err)
+!                   tracerGroupBudgetHdif, err)
 !                call mpas_timer_stop("hmix", tracerHmixTimer)
 !
 !                 !
@@ -544,7 +535,6 @@ contains
          ! deallocate workspace
          !
          call mpas_deallocate_scratch_field(normalThicknessFluxField, .true.)
-         call mpas_deallocate_scratch_field(scratchTracerTendField, .true.)
 
          !
          ! stop timer
@@ -553,34 +543,16 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-         ! Computations which are functions of nCells, nEdges, or nVertices
-         ! must be placed within this block loop
-         ! Here are some example loops
-         do iCell = 1,nCellsSolve
-            do k = 1, maxLevelCell(iCell)
-               do iTracer = 1, num_tracers
-               ! computations on tracers(iTracer,k, iCell)
-               end do
-            end do
-         end do
-
-         block => block % next
-      end do
-
-      ! mpi gather/scatter calls may be placed here.
-      ! Here are some examples.  See mpas_oac_global_stats.F for further details.
-!      call mpas_dmpar_sum_real_array(dminfo, nVariables, sumSquares(1:nVariables), reductions(1:nVariables))
-!      call mpas_dmpar_min_real_array(dminfo, nMins, mins(1:nMins), reductions(1:nMins))
-!      call mpas_dmpar_max_real_array(dminfo, nMaxes, maxes(1:nMaxes), reductions(1:nMaxes))
-
-      ! Even though some variables do not include an index that is decomposed amongst
-      ! domain partitions, we assign them within a block loop so that all blocks have the
-      ! correct values for writing output.
-      block => domain % blocklist
-      do while (associated(block))
-         call mpas_pool_get_subpool(block % structs, 'tracerGroupBudgetAM', tracerGroupBudgetAMPool)
-
-         ! assignment of final tracerGroupBudgetAM variables could occur here.
+!         ! Computations which are functions of nCells, nEdges, or nVertices
+!         ! must be placed within this block loop
+!         ! Here are some example loops
+!         do iCell = 1,nCellsSolve
+!            do k = 1, maxLevelCell(iCell)
+!               do iTracer = 1, num_tracers
+!               ! computations on tracers(iTracer,k, iCell)
+!               end do
+!            end do
+!         end do
 
          block => block % next
       end do

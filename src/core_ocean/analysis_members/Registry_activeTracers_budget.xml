@@ -23,49 +23,51 @@
 	<packages>
 		<package name="activeTracersBudgetAMPKG" description="This package includes variables required for the active tracers budget analysis member."/>
 	</packages>
-        <var_struct name="tracersBudgetScratch" time_levs="1">
-		<var name="scratchTracerTend"
-			 persistence="scratch"
-			 type="real"
-			 dimensions="nVertLevels nCells Time"
-			 units="C s^{-1}"
-			 description="Temporary tracer budget term to be initialized to zero before each budget term computation"
-		/>
-	</var_struct>
 	<var_struct name="tracersBudgetAM" time_levs="1">
-	        <var_array name="activeTracersBudget" dimensions="nVertLevels nCells Time" type="real" packages="activeTracersBudgetAMPKG">
-		        <var name="temperatureBudgetHadv" array_group="activeGRP" units="C s^{-1}"
-			         description="Horizontal advection term of the temperature budget equation (full 3D field)"
-		        />
-		        <var name="temperatureBudgetVadv" array_group="activeGRP" units="C s^{-1}"
-              		 	 description="Vertical advection term of the temperature budget equation (full 3D field)"
-		        />
-		        <var name="temperatureBudgetHdif" array_group="activeGRP" units="C s^{-1}"
-			         description="Horizontal diffusion term of the temperature budget equation (full 3D field)"
-		        />
-		        <var name="temperatureBudgetVdif" array_group="activeGRP" units="C s^{-1}"
-			         description="Vertical diffusion term of the temperature budget equation (full 3D field)"
-		        />
-		        <var name="temperatureBudgetForc" array_group="activeGRP" units="C s^{-1}"
-		 	         description="Forcing term of the temperature budget equation (full 3D field)"
-		        />
-			<var name="temperatureBudgetRate" array_group="activeGRP" units="C s^{-1}"
-				 description="Time rate of change term of the temperature budget equation (full 3D field)"
-		        />
+		<var_array name="activeTracersBudgetHadv" dimensions="nVertLevels nCells Time" type="real" packages="activeTracersBudgetAMPKG">
+			<var name="temperatureBudgetHadv" array_group="activeGRP" units="C s^{-1}"
+				 description="Horizontal advection term of the temperature budget equation (full 3D field)"
+			/>
 			<var name="salinityBudgetHadv" array_group="activeGRP" units="PSU s^{-1}"
 				 description="Horizontal advection term of the salinity budget equation (full 3D field)"
+			/>
+		</var_array>
+<!-- 		<var_array name="activeTracersBudgetVadv" dimensions="nVertLevels nCells Time" type="real" packages="activeTracersBudgetAMPKG">
+			<var name="temperatureBudgetVadv" array_group="activeGRP" units="C s^{-1}"
+				 description="Vertical advection term of the temperature budget equation (full 3D field)"
 			/>
 			<var name="salinityBudgetVadv" array_group="activeGRP" units="PSU s^{-1}"
 				 description="Vertical advection term of the salinity budget equation (full 3D field)"
 			/>
+		</var_array>
+-->
+		<var_array name="activeTracersBudgetHdif" dimensions="nVertLevels nCells Time" type="real" packages="activeTracersBudgetAMPKG">
+			<var name="temperatureBudgetHdif" array_group="activeGRP" units="C s^{-1}"
+				 description="Horizontal diffusion term of the temperature budget equation (full 3D field)"
+			/>
 			<var name="salinityBudgetHdif" array_group="activeGRP" units="PSU s^{-1}"
 				 description="Horizontal diffusion term of the salinity budget equation (full 3D field)"
+			/>
+		</var_array>
+		<var_array name="activeTracersBudgetVdif" dimensions="nVertLevels nCells Time" type="real" packages="activeTracersBudgetAMPKG">
+			<var name="temperatureBudgetVdif" array_group="activeGRP" units="C s^{-1}"
+				 description="Vertical diffusion term of the temperature budget equation (full 3D field)"
 			/>
 			<var name="salinityBudgetVdif" array_group="activeGRP" units="PSU s^{-1}"
 				 description="Vertical diffusion term of the salinity budget equation (full 3D field)"
 			/>
+		</var_array>
+		<var_array name="activeTracersBudgetForc" dimensions="nVertLevels nCells Time" type="real" packages="activeTracersBudgetAMPKG">
+			<var name="temperatureBudgetForc" array_group="activeGRP" units="C s^{-1}"
+				 description="Forcing term of the temperature budget equation (full 3D field)"
+			/>
 			<var name="salinityBudgetForc" array_group="activeGRP" units="PSU s^{-1}"
 				 description="Forcing term of the salinity budget equation (full 3D field)"
+			/>
+		</var_array>
+		<var_array name="activeTracersBudgetRate" dimensions="nVertLevels nCells Time" type="real" packages="activeTracersBudgetAMPKG">
+			<var name="temperatureBudgetRate" array_group="activeGRP" units="C s^{-1}"
+				 description="Time rate of change term of the temperature budget equation (full 3D field)"
 			/>
 			<var name="salinityBudgetRate" array_group="activeGRP" units="PSU s^{-1}"
 				 description="Time rate of change term of the salinity budget equation (full 3D field)"
@@ -86,13 +88,13 @@
 
 			<var name="xtime"/> 
 			<var name="temperatureBudgetHadv"/> 
-			<var name="temperatureBudgetVadv"/> 
+<!-- 			<var name="temperatureBudgetVadv"/> -->
 			<var name="temperatureBudgetHdif"/> 
 			<var name="temperatureBudgetVdif"/> 
 			<var name="temperatureBudgetForc"/> 
 			<var name="temperatureBudgetRate"/> 
 			<var name="temperatureBudgetHadv"/> 
-			<var name="salinityBudgetVadv"/> 
+<!-- 			<var name="salinityBudgetVadv"/> -->
 			<var name="salinityBudgetHdif"/> 
 			<var name="salinityBudgetVdif"/> 
 			<var name="salinityBudgetForc"/> 
