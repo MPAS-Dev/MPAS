@@ -164,10 +164,12 @@ contains
 
       ! arrays, vars needed from other pools for calculations here
       real (kind=RKIND), pointer ::  config_ice_density
+      real (kind=RKIND), pointer ::  deltat
       real (kind=RKIND), dimension(:), pointer ::  areaCell
       real (kind=RKIND), dimension(:), pointer ::  thickness 
       real (kind=RKIND), dimension(:), pointer ::  sfcMassBal  
       real (kind=RKIND), dimension(:), pointer ::  basalMassBal
+      real (kind=RKIND), dimension(:), pointer ::  calvingThickness
 
       integer, dimension(:), pointer :: cellMask 
       integer, pointer :: nCellsSolve
@@ -223,6 +225,7 @@ contains
          ! get values and arrays from standard pools
          call mpas_pool_get_config(liConfigs, 'config_ice_density', config_ice_density)
          call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
+         call mpas_pool_get_array(meshPool, 'deltat', deltat)
          call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
          call mpas_pool_get_array(geometryPool, 'thickness', thickness)
          call mpas_pool_get_array(geometryPool, 'cellMask', cellMask)
@@ -280,8 +283,8 @@ contains
 
             ! mass lass due do calving (kg yr^{-1})
             !SFP: These calculations need to be tested still
-            blockSumCavlingFlux = blockSumCalvingFlux + real(li_mask_is_floating_ice_int(cellMask(iCell)),RKIND) &
-                * areaCell(iCell) * calvingThickness(iCell) !* config_ice_density     !! still needs to be divided by time step and converted to per year !!!
+            blockSumCalvingFlux = blockSumCalvingFlux + real(li_mask_is_floating_ice_int(cellMask(iCell)),RKIND) &
+                * areaCell(iCell) * calvingThickness(iCell) * config_ice_density / ( deltat * scyr )     
 
          end do ! end loop over cells
 
