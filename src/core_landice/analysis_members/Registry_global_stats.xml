@@ -83,5 +83,6 @@
 			<var name="iceThicknessMean"/>
 			<var name="totalSfcMassBal"/> 
 			<var name="totalBasalMassBal"/>
+			<var name="totalCalvingFlux"/>
 		</stream>
 	</streams>

@@ -228,7 +228,7 @@ contains
          call mpas_pool_get_array(geometryPool, 'cellMask', cellMask)
          call mpas_pool_get_array(geometryPool, 'sfcMassBal', sfcMassBal)
          call mpas_pool_get_array(geometryPool, 'basalMassBal', basalMassBal)
-!         call mpas_pool_get_array(geometryPool, 'calvingThickness', calvingThickness)
+         call mpas_pool_get_array(geometryPool, 'calvingThickness', calvingThickness)
 
          ! get values from global stats pool
          call mpas_pool_get_array(globalStatsAMPool, 'totalIceArea', totalIceArea)
@@ -280,8 +280,8 @@ contains
 
             ! mass lass due do calving (kg yr^{-1})
             !SFP: These calculations need to be tested still
-!            blockSumCavlingFlux = blockSumCalvingFlux + real(li_mask_is_floating_ice_int(cellMask(iCell)),RKIND) &
-!                * areaCell(iCell) * calvingThickness(iCell) * config_ice_density     !! still needs to be divided by time step and converted to per year !!!
+            blockSumCavlingFlux = blockSumCalvingFlux + real(li_mask_is_floating_ice_int(cellMask(iCell)),RKIND) &
+                * areaCell(iCell) * calvingThickness(iCell) !* config_ice_density     !! still needs to be divided by time step and converted to per year !!!
 
          end do ! end loop over cells
 
@@ -298,7 +298,7 @@ contains
       call mpas_dmpar_sum_real(dminfo, blockSumFloatingIceVolume, floatingIceVolume)
       call mpas_dmpar_sum_real(dminfo, blockSumSfcMassBal, totalSfcMassBal) 
       call mpas_dmpar_sum_real(dminfo, blockSumBasalMassBal, totalBasalMassBal) 
-!      call mpas_dmpar_sum_real(dminfo, blockSumCalvingFlux, totalCalvingFlux) 
+      call mpas_dmpar_sum_real(dminfo, blockSumCalvingFlux, totalCalvingFlux) 
 
       ! find min, max, mean thickness over all procs
       call mpas_dmpar_min_real(dminfo, blockThickMin, iceThicknessMin)
