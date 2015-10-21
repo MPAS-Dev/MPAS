@@ -233,16 +233,6 @@ contains
       !
       type (field2DReal), pointer :: normalThicknessFluxField
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! mv: from ocn_tend_tracer routine. Check where this should go!:
-      !
-      ! start timers
-      !
-      call mpas_timer_start("ocn_tend_tracer")
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
       err = 0
 
       ! get dt
@@ -393,23 +383,19 @@ contains
                  ! fill components of surface tracer flux
                  !
                  !if (config_use_tracerGroup_surface_bulk_forcing) then
-                 !   call mpas_timer_start("bulk_" // trim(groupItr % memberName), .false.)
                  !   call ocn_surface_bulk_forcing_tracers(meshPool, groupItr % memberName, forcingPool, tracerGroupSurfaceFlux, err)
-                 !   call mpas_timer_stop("bulk_" // trim(groupItr % memberName))
                  !end if
 
                  !
                  ! ocean surface restoring
                  !
                  !if (config_use_tracerGroup_surface_restoring) then 
-                 !    call mpas_timer_start("surface_restoring_" // trim(groupItr % memberName), .false.)
                  !    call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceRestoringFields', tracersSurfaceRestoringFieldsPool)
                  !    modifiedGroupName = trim(groupItr % memberName) // "PistonVelocity"
                  !    call mpas_pool_get_array(tracersSurfaceRestoringFieldsPool, trim(modifiedGroupName), tracerGroupPistonVelocity)
                  !    modifiedGroupName = trim(groupItr % memberName) // "SurfaceRestoringValue"
                  !    call mpas_pool_get_array(tracersSurfaceRestoringFieldsPool, trim(modifiedGroupName), tracerGroupSurfaceRestoringValue)
                  !    call ocn_tracer_surface_restoring_compute(nTracerGroup, nCellsSolve, tracerGroup, tracerGroupPistonVelocity, tracerGroupSurfaceRestoringValue, tracerGroupSurfaceFlux, err)
-                 !    call mpas_timer_stop("surface_restoring_" // trim(groupItr % memberName))
                  !endif
 
                  ! land-ice / ocean interface flux
@@ -430,7 +416,6 @@ contains
                  ! interior restoring forcing tendency
                  !
                  !if (config_use_tracerGroup_interior_restoring) then
-                 !    call mpas_timer_start("interior_restoring_" // trim(groupItr % memberName), .false.)
                  !    call mpas_pool_get_subpool(forcingPool, 'tracersInteriorRestoringFields', tracersInteriorRestoringFieldsPool)
                  !    modifiedGroupName = trim(groupItr % memberName) // "InteriorRestoringRate"
                  !    call mpas_pool_get_array(tracersInteriorRestoringFieldsPool, trim(modifiedGroupName), tracerGroupInteriorRestoringRate)
@@ -438,7 +423,6 @@ contains
                  !    call mpas_pool_get_array(tracersInteriorRestoringFieldsPool, trim(modifiedGroupName),tracerGroupInteriorRestoringValue)
                  !    call ocn_tracer_interior_restoring_compute(nTracerGroup, nCellsSolve, maxLevelCell, layerThickness, &
                  !       tracerGroup, tracerGroupInteriorRestoringRate, tracerGroupInteriorRestoringValue, tracerGroupTend, err)
-                 !    call mpas_timer_stop("interior_restoring_" // trim(groupItr % memberName))
                  !endif
 
                  !
@@ -484,44 +468,34 @@ contains
                  ! tracer tendency: horizontal advection term -div( layerThickness \phi u)
                  !
                  ! Monotonic Advection, or standard advection
-                 call mpas_timer_start("adv", .false., tracerHadvTimer)
                  call ocn_tracer_advection_tend(tracerGroup, normalThicknessFlux, vertAleTransportTop, &
                     layerThickness, layerThickness, dt, meshPool, tend_layerThickness, tracerGroupBudgetHadv)
 !                  tracerGroupBudgetHadv, tracerGroupBudgetVadv)
-                 call mpas_timer_stop("adv", tracerHadvTimer)
 
                  !
                  ! tracer tendency: del2 horizontal tracer diffusion, div(h \kappa_2 \nabla \phi)
                  !
-!                call mpas_timer_start("hmix", .false., tracerHmixTimer)
 !                call ocn_tracer_hmix_tend(meshPool, scratchPool, layerThickness, layerThicknessEdge, zMid, tracerGroup, &
 !                   relativeSlopeTopOfEdge, relativeSlopeTapering, relativeSlopeTaperingCell, tracerGroupTend, &
 !                   tracerGroupBudgetHdif, err)
-!                call mpas_timer_stop("hmix", tracerHmixTimer)
 !
 !                 !
 !                 ! convert the surface tracer flux into a tracer tendency by distributing the flux across some number of surface layers
 !                 !
-!                 call mpas_timer_start("surface_tracer_flux", .false.)
 !                 call ocn_tracer_surface_flux_tend(meshPool, fractionAbsorbed, layerThickness, tracerGroupSurfaceFlux, tracerGroupTend, err)
-!                 call mpas_timer_stop("surface_tracer_flux")
 !
 !                 !
 !                 ! Performing shortwave absorption
 !                 !
 !                 if ( trim(groupItr % memberName) == 'activeTracers' ) then
-!                    call mpas_timer_start("short wave", .false.)
 !                    call ocn_tracer_short_wave_absorption_tend(meshPool, indexTemperature, layerThickness, penetrativeTemperatureFlux, tracerGroupTend, err)
-!                    call mpas_timer_stop("short wave")
 !                 endif
 !
 !                 !
 !                 ! Compute tracer tendency due to non-local flux computed in KPP
 !                 !
 !                 if (config_use_cvmix_kpp) then
-!                   call mpas_timer_start("non-local flux from KPP", .false.)
 !                   call ocn_tracer_nonlocalflux_tend(meshPool, vertNonLocalFlux, tracerGroupSurfaceFlux, tracerGroupTend, err)
-!                   call mpas_timer_stop("non-local flux from KPP")
 !                 end if
               end if
            end if
@@ -535,13 +509,6 @@ contains
          ! deallocate workspace
          !
          call mpas_deallocate_scratch_field(normalThicknessFluxField, .true.)
-
-         !
-         ! stop timer
-         !
-         call mpas_timer_stop("ocn_tend_tracer")
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 
 !         ! Computations which are functions of nCells, nEdges, or nVertices
 !         ! must be placed within this block loop
