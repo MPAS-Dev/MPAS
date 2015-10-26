@@ -33,6 +33,17 @@ module ocn_tracers_budget
 
    use ocn_constants
    use ocn_diagnostics_routines
+   use ocn_tracer_hmix
+   use ocn_high_freq_thickness_hmix_del2
+   use ocn_tracer_advection
+   use ocn_tracer_short_wave_absorption
+   use ocn_tracer_nonlocalflux
+   use ocn_tracer_surface_restoring
+   use ocn_tracer_interior_restoring
+   use ocn_tracer_exponential_decay
+   use ocn_tracer_ideal_age
+   use ocn_tracer_TTD
+   use ocn_tracer_surface_flux_to_tend
 
    implicit none
    private
@@ -165,8 +176,8 @@ contains
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: diagnosticsPool
-      type (mpas_pool_type), intent(inout) :: tendPool
-      type (mpas_pool_type), intent(inout) :: forcingPool
+      type (mpas_pool_type), pointer :: tendPool
+      type (mpas_pool_type), pointer :: forcingPool
 
       !
       ! additional pools
@@ -469,7 +480,7 @@ contains
                  !
                  ! Monotonic Advection, or standard advection
                  call ocn_tracer_advection_tend(tracerGroup, normalThicknessFlux, vertAleTransportTop, &
-                    layerThickness, layerThickness, dt, meshPool, tend_layerThickness, tracerGroupBudgetHadv)
+                    layerThickness, layerThickness, dt, meshPool, scratchPool, tend_layerThickness, tracerGroupBudgetHadv)
 !                  tracerGroupBudgetHadv, tracerGroupBudgetVadv)
 
                  !
