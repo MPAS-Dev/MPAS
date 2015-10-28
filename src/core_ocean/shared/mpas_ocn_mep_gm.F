@@ -41,14 +41,8 @@ module ocn_mep_gm
    private :: tridiagonal_solve
 
    ! Config options
-<<<<<<< HEAD
-   real (kind=RKIND), pointer :: config_gravWaveSpeed_trunc, config_standardGM_tracer_kappa, &
-     config_max_relative_slope, config_Redi_kappa
-   logical, pointer :: config_use_standardGM
-=======
    real (kind=RKIND), pointer :: config_mep_gravWaveSpeed_trunc, config_mep_GM_tracer_kappa, config_density0, &
      config_mep_max_relative_slope, config_mep_Redi_kappa
->>>>>>> changed eddy param namelist records
    logical, pointer :: config_disable_redi_k33
 
    real (kind=RKIND), parameter :: epsGM = 1.0e-12
@@ -390,46 +384,27 @@ contains
             k = 2       
             BruntVaisalaFreqTopEdge = 0.5_RKIND * (BruntVaisalaFreqTop(k,cell1) + BruntVaisalaFreqTop(k,cell2))
             BruntVaisalaFreqTopEdge = max(BruntVaisalaFreqTopEdge, 0.0_RKIND)
-<<<<<<< HEAD
-            tridiagB(k-1) = - 2.0_RKIND * config_gravWaveSpeed_trunc**2/(layerThicknessEdge(k-1,iEdge)*layerThicknessEdge(k,iEdge)) - BruntVaisalaFreqTopEdge
-            tridiagC(k-1) = 2.0_RKIND * config_gravWaveSpeed_trunc**2/layerThicknessEdge(k,iEdge)/(layerThicknessEdge(k-1,iEdge)+layerThicknessEdge(k,iEdge))
-            rightHandSide(k-1) = config_standardGM_tracer_kappa * gravity / rho_sw * gradDensityConstZTopOfEdge(k,iEdge)
-=======
             tridiagB(k-1) = - 2.0_RKIND * config_mep_gravWaveSpeed_trunc**2/(layerThicknessEdge(k-1,iEdge)*layerThicknessEdge(k,iEdge)) - BruntVaisalaFreqTopEdge
             tridiagC(k-1) = 2.0_RKIND * config_mep_gravWaveSpeed_trunc**2/layerThicknessEdge(k,iEdge)/(layerThicknessEdge(k-1,iEdge)+layerThicknessEdge(k,iEdge))
             rightHandSide(k-1) = config_mep_GM_tracer_kappa * gravity / config_density0 * gradDensityConstZTopOfEdge(k,iEdge)
->>>>>>> changed eddy param namelist records
 
             ! Second to next to the last rows
             do k = 3, maxLevelEdgeTop(iEdge)-1
                BruntVaisalaFreqTopEdge = 0.5_RKIND * (BruntVaisalaFreqTop(k,cell1) + BruntVaisalaFreqTop(k,cell2))
                BruntVaisalaFreqTopEdge = max(BruntVaisalaFreqTopEdge, 0.0_RKIND)
-<<<<<<< HEAD
-               tridiagA(k-2) = 2.0_RKIND * config_gravWaveSpeed_trunc**2/layerThicknessEdge(k-1,iEdge)/(layerThicknessEdge(k-1,iEdge)+layerThicknessEdge(k,iEdge))
-               tridiagB(k-1) = - 2.0_RKIND * config_gravWaveSpeed_trunc**2/(layerThicknessEdge(k-1,iEdge)*layerThicknessEdge(k,iEdge)) - BruntVaisalaFreqTopEdge
-               tridiagC(k-1) = 2.0_RKIND * config_gravWaveSpeed_trunc**2/layerThicknessEdge(k,iEdge)/(layerThicknessEdge(k-1,iEdge)+layerThicknessEdge(k,iEdge))
-               rightHandSide(k-1) = config_standardGM_tracer_kappa * gravity / rho_sw * gradDensityConstZTopOfEdge(k,iEdge)
-=======
                tridiagA(k-2) = 2.0_RKIND * config_mep_gravWaveSpeed_trunc**2/layerThicknessEdge(k-1,iEdge)/(layerThicknessEdge(k-1,iEdge)+layerThicknessEdge(k,iEdge))
                tridiagB(k-1) = - 2.0_RKIND * config_mep_gravWaveSpeed_trunc**2/(layerThicknessEdge(k-1,iEdge)*layerThicknessEdge(k,iEdge)) - BruntVaisalaFreqTopEdge
                tridiagC(k-1) = 2.0_RKIND * config_mep_gravWaveSpeed_trunc**2/layerThicknessEdge(k,iEdge)/(layerThicknessEdge(k-1,iEdge)+layerThicknessEdge(k,iEdge))
                rightHandSide(k-1) = config_mep_GM_tracer_kappa * gravity / config_density0 * gradDensityConstZTopOfEdge(k,iEdge)
->>>>>>> changed eddy param namelist records
             end do
 
             ! Last row
             k = maxLevelEdgeTop(iEdge)                
             BruntVaisalaFreqTopEdge = 0.5_RKIND * (BruntVaisalaFreqTop(k,cell1) + BruntVaisalaFreqTop(k,cell2))
             BruntVaisalaFreqTopEdge = max(BruntVaisalaFreqTopEdge, 0.0_RKIND)
-<<<<<<< HEAD
-            tridiagA(k-2) = 2.0_RKIND * config_gravWaveSpeed_trunc**2/layerThicknessEdge(k-1,iEdge)/(layerThicknessEdge(k-1,iEdge)+layerThicknessEdge(k,iEdge))
-            tridiagB(k-1) = - 2.0_RKIND * config_gravWaveSpeed_trunc**2/(layerThicknessEdge(k-1,iEdge)*layerThicknessEdge(k,iEdge)) - BruntVaisalaFreqTopEdge
-            rightHandSide(k-1) = config_standardGM_tracer_kappa * gravity / rho_sw * gradDensityConstZTopOfEdge(k,iEdge)
-=======
             tridiagA(k-2) = 2.0_RKIND * config_mep_gravWaveSpeed_trunc**2/layerThicknessEdge(k-1,iEdge)/(layerThicknessEdge(k-1,iEdge)+layerThicknessEdge(k,iEdge))
             tridiagB(k-1) = - 2.0_RKIND * config_mep_gravWaveSpeed_trunc**2/(layerThicknessEdge(k-1,iEdge)*layerThicknessEdge(k,iEdge)) - BruntVaisalaFreqTopEdge
             rightHandSide(k-1) = config_mep_GM_tracer_kappa * gravity / config_density0 * gradDensityConstZTopOfEdge(k,iEdge)
->>>>>>> changed eddy param namelist records
 
             ! Total number of rows
             N = maxLevelEdgeTop(iEdge) - 1
@@ -569,19 +544,11 @@ contains
 
       err = 0
 
-<<<<<<< HEAD
-      call mpas_pool_get_config(ocnConfigs, 'config_gravWaveSpeed_trunc',config_gravWaveSpeed_trunc)
-      call mpas_pool_get_config(ocnConfigs, 'config_standardGM_tracer_kappa',config_standardGM_tracer_kappa)
-      call mpas_pool_get_config(ocnConfigs, 'config_max_relative_slope',config_max_relative_slope)
-      call mpas_pool_get_config(ocnConfigs, 'config_Redi_kappa', config_Redi_kappa)
-      call mpas_pool_get_config(ocnConfigs, 'config_use_standardGM',config_use_standardGM)
-=======
       call mpas_pool_get_config(ocnConfigs, 'config_mep_gravWaveSpeed_trunc',config_mep_gravWaveSpeed_trunc)
       call mpas_pool_get_config(ocnConfigs, 'config_mep_GM_tracer_kappa',config_mep_GM_tracer_kappa)
       call mpas_pool_get_config(ocnConfigs, 'config_mep_max_relative_slope',config_mep_max_relative_slope)
       call mpas_pool_get_config(ocnConfigs, 'config_density0',config_density0)
       call mpas_pool_get_config(ocnConfigs, 'config_mep_Redi_kappa', config_mep_Redi_kappa)
->>>>>>> changed eddy param namelist records
       call mpas_pool_get_config(ocnConfigs, 'config_disable_redi_k33',config_disable_redi_k33)
 
    end subroutine ocn_gm_init!}}}
