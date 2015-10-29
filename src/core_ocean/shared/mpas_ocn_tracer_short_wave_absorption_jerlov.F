@@ -83,6 +83,10 @@ contains
       !
       !-----------------------------------------------------------------
 
+      ! LPV for spatially variable, will also need hooks to the forcingPool to get the extinction coefficients for the blue and red
+      ! bands (extinction_coeffs_red and extinction_coeffs_bg)
+      ! This will have to be updated with times.  It should be okay to just update immediately between months.
+
       type (mpas_pool_type), intent(in) :: &
          meshPool          !< Input: mesh information
 
@@ -152,6 +156,8 @@ contains
            end do
          end do
       else
+         ! it looks like this could be used to call a similar function for spatially variable coefficients.  Perhaps the fortran
+         ! interface could work here
          do iCell = 1, nCells
            depth = 0.0_RKIND
            do k = 1, maxLevelCell(iCell)
@@ -193,6 +199,8 @@ contains
 
       call mpas_pool_get_config(ocnConfigs, 'config_sw_absorption_type', config_sw_absorption_type)
 
+!    will need to flip the command below to account for a non-jerlov type, maybe called variable_clarity
+
       if ( trim( config_sw_absorption_type ) .ne. 'jerlov') then
         write(stderrUnit,*) 'Incorrect option for config_sw_absorption_type. Options are: jerlov'
         err = 1
@@ -231,9 +239,17 @@ contains
 !
 !-----------------------------------------------------------------------
 
+!  
+! LPV   for spatially variable coefficients, seems like the structure would best pass in just the one coefficient value
+!
+!   real(kind=RKIND),intent(in) :: extinction_coeff_red, extinction_coeff_bg
+
+!
       integer :: k, nVertLevels
       integer,  parameter :: num_water_types = 5  ! max number of different water types
    
+      ! I don't understand what the previous two lines are for.  They appear unnecessary
+
       real (kind=RKIND), parameter :: depth_cutoff = -200.0_RKIND
 
       integer, pointer :: config_jerlov_water_type
@@ -244,6 +260,9 @@ contains
 !
 !-----------------------------------------------------------------------
 
+! LPV if spatially variable could have two different weight calculations or merge to one and change the table at the top to have
+! coefficients and not depths 
+
       call mpas_pool_get_config(ocnConfigs, 'config_jerlov_water_type', config_jerlov_water_type)
 
       if (-depth < depth_cutoff) then
@@ -251,6 +270,9 @@ contains
       else
          weight = rfac(config_jerlov_water_type) * exp(-depth/depth1(config_jerlov_water_type)) &
                   + (1.0_RKIND - rfac(config_jerlov_water_type)) * exp(-depth/depth2(config_jerlov_water_type))
+
+          ! LPV i think the weight calculation would look like
+          ! weight = 0.52_RKIND*exp(-depth*2.28_RKIND)+0.24*exp(-depth*extinction_coeff_red) + 0.24*exp(-extinction_coeff_bg*depth)
       endif
    end subroutine ocn_get_jerlov_fraction!}}}
 

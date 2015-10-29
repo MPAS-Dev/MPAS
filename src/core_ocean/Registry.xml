@@ -2372,8 +2372,13 @@
 		<var name="windStressMeridional" type="real" dimensions="nCells Time" units="N m^{-2}"
 			 description="Meridional (northward) component of wind stress at cell centers from coupler. Positive northward."
 			 packages="windStressBulkPKG"
-		/>
-
+			 />
+               <var name="extinction_coeffs_red" type="real" dimensions="nCells Time" units="m^{-1}"
+                         description="solar radiation extinction coefficient for the red wavelengths"
+			 />
+               <var name="extinction_coeffs_bg" type="real" dimensions="nCells Time" units="m^{-1}"
+		       description="solar radiation extinction coefficient for the blue-green wavelengths"
+		       />
 		<!-- *********************************************************************
 
 				The fields listed below are constituent fields for coupling.
