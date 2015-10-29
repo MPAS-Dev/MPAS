@@ -1487,7 +1487,7 @@ module ocn_time_integration_split
         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
         call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
-        call mpas_pool_get_subpool(block % structs, 'mepPool', mepPool)
+        call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
 
         call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
         call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexSalinity)
