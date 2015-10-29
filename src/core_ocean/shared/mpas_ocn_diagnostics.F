@@ -84,7 +84,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, timeLevelIn)!{{{
+   subroutine ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, timeLevelIn)!{{{
 
       real (kind=RKIND), intent(in) :: dt !< Input: Time step
       type (mpas_pool_type), intent(in) :: statePool !< Input: State information
@@ -92,6 +92,7 @@ contains
       type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
       type (mpas_pool_type), intent(inout) :: diagnosticsPool  !< Input: diagnostic fields derived from State
       type (mpas_pool_type), intent(in) :: scratchPool !< Input: scratch variables
+      type (mpas_pool_type), intent(in) :: tracersPool !< Input: tracer fields
       integer, intent(in), optional :: timeLevelIn !< Input: Time level in state
 
       integer :: iEdge, iCell, iVertex, k, cell1, cell2, vertex1, vertex2, eoe, i, j
@@ -124,7 +125,7 @@ contains
         vorticityGradientNormalComponent, vorticityGradientTangentialComponent, gradSSH, RiTopOfCell, &
         inSituThermalExpansionCoeff, inSituSalineContractionCoeff
 
-      real (kind=RKIND), dimension(:,:,:), pointer :: tracers, derivTwo
+      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers, derivTwo
       character :: c1*6
 
       real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue
@@ -139,8 +140,11 @@ contains
       integer :: timeLevel
       integer, pointer :: indexTemperature, indexSalinity
       logical, pointer :: config_use_cvmix_kpp
-      real (kind=RKIND), pointer :: config_density0, config_apvm_scale_factor,  config_coef_3rd_order, config_cvmix_kpp_surface_layer_averaging
+      real (kind=RKIND), pointer :: config_apvm_scale_factor,  config_coef_3rd_order, config_cvmix_kpp_surface_layer_averaging
       character (len=StrKIND), pointer :: config_pressure_gradient_type
+
+      real (kind=RKIND), pointer :: config_flux_attenuation_coefficient
+      real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficient
 
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
@@ -148,19 +152,19 @@ contains
          timeLevel = 1
       end if
 
-      call mpas_pool_get_config(ocnConfigs, 'config_density0', config_density0)
       call mpas_pool_get_config(ocnConfigs, 'config_apvm_scale_factor', config_apvm_scale_factor)
       call mpas_pool_get_config(ocnConfigs, 'config_pressure_gradient_type', config_pressure_gradient_type)
       call mpas_pool_get_config(ocnConfigs, 'config_coef_3rd_order', config_coef_3rd_order)
       call mpas_pool_get_config(ocnConfigs, 'config_cvmix_kpp_surface_layer_averaging', config_cvmix_kpp_surface_layer_averaging)
       call mpas_pool_get_config(ocnConfigs, 'config_use_cvmix_kpp', config_use_cvmix_kpp)
+      call mpas_pool_get_config(ocnConfigs, 'config_flux_attenuation_coefficient', config_flux_attenuation_coefficient)
 
-      call mpas_pool_get_dimension(statePool, 'index_temperature', indexTemperature)
-      call mpas_pool_get_dimension(statePool, 'index_salinity', indexSalinity)
+      call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
+      call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexSalinity)
 
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
-      call mpas_pool_get_array(statePool, 'tracers', tracers, timeLevel)
+      call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, timeLevel)
       call mpas_pool_get_array(statePool, 'ssh', ssh, timeLevel)
 
       call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
@@ -230,6 +234,7 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'normalVelocitySurfaceLayer', normalVelocitySurfaceLayer)
       call mpas_pool_get_array(diagnosticsPool, 'indexSurfaceLayerDepth', indexSurfaceLayerDepth)
 
+      call mpas_pool_get_array(diagnosticsPool, 'surfaceFluxAttenuationCoefficient', surfaceFluxAttenuationCoefficient)
       !
       ! Compute height on cell edges at velocity locations
       !   Namelist options control the order of accuracy of the reconstructed layerThicknessEdge value
@@ -253,8 +258,8 @@ contains
       !
       normalVelocity(:,nEdges+1) = -1e34
       layerThickness(:,nCells+1) = -1e34
-      tracers(indexTemperature,:,nCells+1) = -1e34
-      tracers(indexSalinity,:,nCells+1) = -1e34
+      activeTracers(indexTemperature,:,nCells+1) = -1e34
+      activeTracers(indexSalinity,:,nCells+1) = -1e34
 
       divergence(:,:) = 0.0
       vertVelocityTop(:,:)=0.0
@@ -560,7 +565,7 @@ contains
       !
       ! Brunt-Vaisala frequency (this has units of s^{-2})
       !
-      coef = -gravity / config_density0
+      coef = -gravity / rho_sw
       do iCell = 1, nCells
          BruntVaisalaFreqTop(1,iCell) = 0.0
          do k = 2, maxLevelCell(iCell)
@@ -595,7 +600,10 @@ contains
       ! this eventually be a modelled process
       ! at present, just copy k=1 tracer values onto surface values
       ! field will be updated below is better approximations are available
-      tracersSurfaceValue(:,:) = tracers(:,1,:)
+
+!TDR need to consider how to handel tracersSurfaceValues
+
+      tracersSurfaceValue(:,:) = activeTracers(:,1,:)
       normalVelocitySurfaceLayer(:) = normalVelocity(1,:)
 
       !
@@ -617,10 +625,10 @@ contains
            endif
           end do
           do k=1,int(rSurfaceLayer)
-            tracersSurfaceLayerValue(:,iCell) = tracersSurfaceLayerValue(:,iCell) + tracers(:,k,iCell)*layerThickness(k,iCell)
+            tracersSurfaceLayerValue(:,iCell) = tracersSurfaceLayerValue(:,iCell) + activeTracers(:,k,iCell)*layerThickness(k,iCell)
           enddo
           k=int(rSurfaceLayer)+1
-          tracersSurfaceLayerValue(:,iCell) = tracersSurfaceLayerValue(:,iCell) + fraction(rSurfaceLayer)*tracers(:,k,iCell)*layerThickness(k,iCell)
+          tracersSurfaceLayerValue(:,iCell) = tracersSurfaceLayerValue(:,iCell) + fraction(rSurfaceLayer)*activeTracers(:,k,iCell)*layerThickness(k,iCell)
           tracersSurfaceLayerValue(:,iCell) = tracersSurfaceLayerValue(:,iCell) / surfaceLayerDepth
         enddo
 
@@ -655,15 +663,27 @@ contains
 
         !
         !  compute fields used as intent(in) to CVMix/KPP
-        call computeKPPInputFields(statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, timeLevel)
+        call ocn_compute_KPP_input_fields(statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, timeLevel)
       endif
 
-      do iEdge = 1, nEdgesSolve
+      ! compute the attenuation coefficient for surface fluxes
+      surfaceFluxAttenuationCoefficient(:) = config_flux_attenuation_coefficient
+
+      !
+      !  compute fields needed to compute land-ice fluxes, either in the ocean model or in the coupler
+      call mpas_timer_start("land_ice_diagnostic_fields", .false.)
+      call ocn_compute_land_ice_flux_input_fields(meshPool, statePool, forcingPool, scratchPool, &
+                                         diagnosticsPool, timeLevel)
+      call mpas_timer_stop("land_ice_diagnostic_fields")
+
+      do iEdge = 1, nEdges
          cell1 = cellsOnEdge(1, iEdge)
          cell2 = cellsOnEdge(2, iEdge)
 
          gradSSH(1, iEdge) = (ssh(cell2) - ssh(cell1)) / dcEdge(iEdge)
       end do
+
+
 
    end subroutine ocn_diagnostic_solve!}}}
 
@@ -1066,7 +1086,7 @@ contains
 
 !***********************************************************************
 !
-!  routine computeKPPInputFields
+!  routine ocn_compute_KPP_input_fields
 !
 !> \brief   
 !>    Compute fields necessary to drive the CVMix KPP module
@@ -1082,7 +1102,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-    subroutine computeKPPInputFields(statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, timeLevelIn)!{{{
+    subroutine ocn_compute_KPP_input_fields(statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, timeLevelIn)!{{{
 
       type (mpas_pool_type), intent(in) :: statePool !< Input/Output: State information
       type (mpas_pool_type), intent(in) :: forcingPool !< Input: Forcing information
@@ -1090,6 +1110,9 @@ contains
       type (mpas_pool_type), intent(inout) :: diagnosticsPool !< Diagnostics information derived from State
       type (mpas_pool_type), intent(in) :: scratchPool !< Input: scratch variables
       integer, intent(in), optional :: timeLevelIn
+
+      ! pool pointers
+      type (mpas_pool_type), pointer :: tracersSurfaceFluxPool
 
       ! scalars
       integer, pointer :: nCells, nVertLevels
@@ -1103,10 +1126,10 @@ contains
       real (kind=RKIND), dimension(:), pointer :: penetrativeTemperatureFlux, surfaceThicknessFlux, &
            surfaceBuoyancyForcing, surfaceFrictionVelocity, penetrativeTemperatureFluxOBL, &
            normalVelocitySurfaceLayer
-      real (kind=RKIND), dimension(:), pointer :: surfaceWindStress, surfaceWindStressMagnitude
+      real (kind=RKIND), dimension(:), pointer :: surfaceStress, surfaceStressMagnitude
       real (kind=RKIND), dimension(:,:), pointer ::  &
-           layerThickness, zMid, zTop, tracersSurfaceValues, densitySurfaceDisplaced, density, &
-           normalVelocity, surfaceTracerFlux, thermalExpansionCoeff, salineContractionCoeff
+           layerThickness, zMid, zTop, densitySurfaceDisplaced, density, &
+           normalVelocity, activeTracersSurfaceFlux, thermalExpansionCoeff, salineContractionCoeff
 
       real (kind=RKIND), dimension(:), pointer :: &
            indexSurfaceLayerDepth
@@ -1122,7 +1145,6 @@ contains
       real (kind=RKIND), dimension(:), allocatable :: buoySmoothed, shearSmoothed
 
       type (field2DReal), pointer :: densitySurfaceDisplacedField, thermalExpansionCoeffField, salineContractionCoeffField
-      real (kind=RKIND), pointer :: config_density0
 
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
@@ -1130,7 +1152,7 @@ contains
          timeLevel = 1
       end if
 
-      call mpas_pool_get_config(ocnConfigs, 'config_density0', config_density0)
+      call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux', tracersSurfaceFluxPool)
 
       ! set the parameter turbulentVelocitySquared
       turbulentVelocitySquared = 0.001_RKIND
@@ -1138,8 +1160,8 @@ contains
       ! set scalar values
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-      call mpas_pool_get_dimension(forcingPool, 'index_surfaceTemperatureFlux', indexTempFlux)
-      call mpas_pool_get_dimension(forcingPool, 'index_surfaceSalinityFlux', indexSaltFlux)
+      call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_temperatureSurfaceFlux', indexTempFlux)
+      call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_salinitySurfaceFlux', indexSaltFlux)
 
       ! set pointers into state, mesh, diagnostics and scratch
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
@@ -1155,7 +1177,6 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
       call mpas_pool_get_array(diagnosticsPool, 'zTop', zTop)
       call mpas_pool_get_array(diagnosticsPool, 'density', density)
-      call mpas_pool_get_array(diagnosticsPool, 'tracersSurfaceValue ', tracersSurfaceValues)
       call mpas_pool_get_array(diagnosticsPool, 'surfaceFrictionVelocity', surfaceFrictionVelocity)
       call mpas_pool_get_array(diagnosticsPool, 'penetrativeTemperatureFluxOBL', penetrativeTemperatureFluxOBL)
       call mpas_pool_get_array(diagnosticsPool, 'bulkRichardsonNumberBuoy', bulkRichardsonNumberBuoy)
@@ -1165,10 +1186,11 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'normalVelocitySurfaceLayer', normalVelocitySurfaceLayer)
 
       call mpas_pool_get_array(forcingPool, 'surfaceThicknessFlux', surfaceThicknessFlux)
-      call mpas_pool_get_array(forcingPool, 'surfaceTracerFlux', surfaceTracerFlux)
       call mpas_pool_get_array(forcingPool, 'penetrativeTemperatureFlux', penetrativeTemperatureFlux)
-      call mpas_pool_get_array(forcingPool, 'surfaceWindStress', surfaceWindStress)
-      call mpas_pool_get_array(forcingPool, 'surfaceWindStressMagnitude', surfaceWindStressMagnitude)
+      call mpas_pool_get_array(forcingPool, 'surfaceStress', surfaceStress)
+      call mpas_pool_get_array(forcingPool, 'surfaceStressMagnitude', surfaceStressMagnitude)
+
+      call mpas_pool_get_array(tracersSurfaceFluxPool, 'activeTracersSurfaceFlux', activeTracersSurfaceFlux)
 
       ! allocate scratch space displaced density computation
       call mpas_pool_get_field(scratchPool, 'densitySurfaceDisplaced', densitySurfaceDisplacedField)
@@ -1198,35 +1220,35 @@ contains
        ! everything below should be consistent with the CVMix/KPP documentation: https://www.dropbox.com/s/6hqgc0rsoa828nf/cvmix_20aug2013.pdf
        !
        !    surfaceThicknessFlux: surface mass flux, m/s, positive into ocean
-       !    surfaceTracerFlux(indexTempFlux): non-penetrative temperature flux, C m/s, positive into ocean
+       !    activeTracersSurfaceFlux(indexTempFlux): non-penetrative temperature flux, C m/s, positive into ocean
        !    penetrativeTemperatureFlux: penetrative surface temperature flux at ocean surface, positive into ocean
-       !    surfaceTracerFlux(indexSaltFlux): salinity flux, PSU m/s, positive into ocean
+       !    activeTracersSurfaceFlux(indexSaltFlux): salinity flux, PSU m/s, positive into ocean
        !    penetrativeTemperatureFluxOBL: penetrative temperature flux computed at z=OBL, positive down
        !
        ! note: the following fields used the CVMix/KPP computation of buoyancy forcing are not included here
        !    1. Tm: temperature associated with surfaceThicknessFlux, C  (here we assume Tm == temperatureSurfaceValue)
-       !    2. Sm: salinity associated with surfaceThicknessFlux, PSU (here we assume Sm == salinitySurfaceValue and account for salinity flux in surfaceTracerFlux array)
+       !    2. Sm: salinity associated with surfaceThicknessFlux, PSU (here we assume Sm == salinitySurfaceValue and account for salinity flux in activeTracersSurfaceFlux array)
        !
          surfaceBuoyancyForcing(iCell) =  thermalExpansionCoeff (1,iCell) *  &
-               (surfaceTracerFlux(indexTempFlux,iCell) + penetrativeTemperatureFlux(iCell) - penetrativeTemperatureFluxOBL(iCell)) &
-              - salineContractionCoeff(1,iCell) *  surfaceTracerFlux(indexSaltFlux,iCell)
+               (activeTracersSurfaceFlux(indexTempFlux,iCell) + penetrativeTemperatureFlux(iCell) - penetrativeTemperatureFluxOBL(iCell)) &
+              - salineContractionCoeff(1,iCell) *  activeTracersSurfaceFlux(indexSaltFlux,iCell)
         
        ! at this point, surfaceBuoyancyForcing has units of m/s 
        ! change into units of m^2/s^3 (which can be thought of as the flux of buoyancy, units of buoyancy * velocity )
          surfaceBuoyancyForcing(iCell) = surfaceBuoyancyForcing(iCell) * gravity
 
-       ! compute magnitude of surface windstress
+       ! compute magnitude of surface stress
         deltaVelocitySquared = 0.0
         do i = 1, nEdgesOnCell(iCell)
           iEdge = edgesOnCell(i, iCell)
           factor = 0.5 * dcEdge(iEdge) * dvEdge(iEdge) * invAreaCell
-          delU2 =  (surfaceWindStress(iEdge))**2
+          delU2 =  (surfaceStress(iEdge))**2
           deltaVelocitySquared = deltaVelocitySquared + factor * delU2
         enddo
-        surfacewindStressMagnitude(iCell) = sqrt(deltaVelocitySquared)
+        surfaceStressMagnitude(iCell) = sqrt(deltaVelocitySquared)
 
        ! compute surface friction velocity
-         surfaceFrictionVelocity(iCell) = sqrt(surfacewindStressMagnitude(iCell) / config_density0)
+         surfaceFrictionVelocity(iCell) = sqrt(surfaceStressMagnitude(iCell) / rho_sw)
 
        ! zero the bulk Richardson number within the ocean surface layer
        ! this prevent CVMix/KPP from mis-diagnosing the OBL to be within the surface layer
@@ -1245,7 +1267,7 @@ contains
            deltaVelocitySquared = deltaVelocitySquared + factor * delU2
          enddo
 
-         buoyContribution = gravity * (density(k,iCell) - densitySurfaceDisplaced(k,iCell)) / config_density0
+         buoyContribution = gravity * (density(k,iCell) - densitySurfaceDisplaced(k,iCell)) / rho_sw
          shearContribution = max(deltaVelocitySquared,1.0e-15_RKIND)
 
          ! store the buoyancy and resolved shear contributions to bulk Richardson number
@@ -1271,7 +1293,254 @@ contains
       deallocate(buoySmoothed)
       deallocate(shearSmoothed)
 
-    end subroutine computeKPPInputFields!}}}
+    end subroutine ocn_compute_KPP_input_fields!}}}
+
+
+!***********************************************************************
+!
+!  routine ocn_compute_land_ice_flux_input_fields
+!
+!> \brief Builds the forcing array for land-ice forcing
+!> \author Xylar Asay-Davis
+!> \date   09/14/2015
+!> \details
+!>  This routine builds surface flux arrays related to land-ice forcing.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_compute_land_ice_flux_input_fields(meshPool, statePool, &
+      forcingPool, scratchPool, diagnosticsPool, timeLevel)!{{{
+
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
+      type (mpas_pool_type), intent(in) :: statePool !< Input: State information
+      type (mpas_pool_type), intent(in) :: forcingPool !< Input: Forcing information
+      type (mpas_pool_type), intent(in) :: scratchPool !< Input/Output: scratch variables
+      type (mpas_pool_type), intent(inout) :: diagnosticsPool !< Input/Output: Diagnostics information
+
+      integer, intent(in) :: timeLevel
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), pointer :: tracersPool
+
+      integer :: iCell, iEdge, cell1, cell2, iLevel, i
+      integer, pointer :: nCells, nEdges
+
+      integer, dimension(:,:), pointer :: cellsOnCell, cellsOnEdge
+
+      integer, dimension(:), pointer :: maxLevelCell, nEdgesOnCell
+
+      integer, pointer :: indexT, indexS
+
+      character (len=StrKIND), pointer :: config_land_ice_flux_formulation
+      logical, pointer :: config_use_land_ice_fluxes
+
+      real (kind=RKIND), pointer :: config_land_ice_flux_boundaryLayerThickness, &
+                                    config_land_ice_flux_boundaryLayerNeighborWeight, &
+                                    config_land_ice_flux_topDragCoeff, &
+                                    config_land_ice_flux_rms_tidal_velocity, &
+                                    config_land_ice_flux_jenkins_heat_transfer_coefficient, &
+                                    config_land_ice_flux_jenkins_salt_transfer_coefficient, &
+                                    config_land_ice_flux_attenuation_coefficient
+
+      real (kind=RKIND) :: blThickness, dz, blWeightSum, h_nu, Gamma_turb, landIceEdgeFraction, velocityMagnitude
+
+      real (kind=RKIND), dimension(:), pointer :: landIceFraction, &
+                                                  landIceFrictionVelocity, &
+                                                  landIceBoundaryLayerTemperature, &
+                                                  landIceBoundaryLayerSalinity, &
+                                                  landIceHeatTransferVelocity, &
+                                                  landIceSaltTransferVelocity, &
+                                                  topDrag, &
+                                                  topDragMagnitude, &
+                                                  fCell, &
+                                                  blTempScratch, blSaltScratch, &
+                                                  surfaceFluxAttenuationCoefficient
+
+      real (kind=RKIND), dimension(:,:), pointer :: kineticEnergyCell, layerThickness, normalVelocity
+      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
+      type (field1DReal), pointer :: boundaryLayerTemperatureField, boundaryLayerSalinityField
+
+      logical :: jenkinsOn, hollandJenkinsOn
+
+      ! constants for Holland and Jenkins 1999 parameterization of the boundary layer
+      real (kind=RKIND), parameter :: &
+         Pr = 13.8_RKIND, &             ! the Prandtl number
+         Sc = 2432.0_RKIND, &           ! the Schmidt number
+         nuSaltWater = 1.95e-6_RKIND, & ! molecular viscosity of sea water (m^2/s)
+         kVonKarman = 0.4_RKIND, &      ! the von Karman constant
+         xiN = 0.052_RKIND              ! dimensionless planetary boundary layer constant
+
+
+      call mpas_pool_get_config(ocnConfigs, 'config_use_land_ice_fluxes', config_use_land_ice_fluxes)
+      if(.not. config_use_land_ice_fluxes) return
+
+      jenkinsOn = .false.
+      hollandJenkinsOn = .false.
+      call mpas_pool_get_config(ocnConfigs, 'config_land_ice_flux_formulation', config_land_ice_flux_formulation)
+      if ( trim(config_land_ice_flux_formulation) == 'Jenkins' ) then
+         jenkinsOn = .true.
+      else if ( trim(config_land_ice_flux_formulation) == 'HollandJenkins' ) then
+         hollandJenkinsOn = .true.
+      end if
+
+      call mpas_pool_get_config(ocnConfigs, 'config_land_ice_flux_topDragCoeff', config_land_ice_flux_topDragCoeff)
+      call mpas_pool_get_config(ocnConfigs, 'config_land_ice_flux_boundaryLayerThickness', config_land_ice_flux_boundaryLayerThickness)
+      call mpas_pool_get_config(ocnConfigs, 'config_land_ice_flux_boundaryLayerNeighborWeight', config_land_ice_flux_boundaryLayerNeighborWeight)
+      call mpas_pool_get_config(ocnConfigs, 'config_land_ice_flux_rms_tidal_velocity', config_land_ice_flux_rms_tidal_velocity)
+      call mpas_pool_get_config(ocnConfigs, 'config_land_ice_flux_attenuation_coefficient', config_land_ice_flux_attenuation_coefficient)
+
+      if(jenkinsOn) then
+         call mpas_pool_get_config(ocnConfigs, 'config_land_ice_flux_jenkins_heat_transfer_coefficient', config_land_ice_flux_jenkins_heat_transfer_coefficient)
+         call mpas_pool_get_config(ocnConfigs, 'config_land_ice_flux_jenkins_salt_transfer_coefficient', config_land_ice_flux_jenkins_salt_transfer_coefficient)
+      end if
+
+      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
+
+      call mpas_pool_get_array(meshPool, 'cellsOnCell', cellsOnCell)
+      call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
+      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+      call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
+
+      call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
+      call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
+      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+      call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, timeLevel)
+      call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexT)
+      call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexS)
+
+      call mpas_pool_get_array(forcingPool, 'landIceFraction', landIceFraction)
+
+      call mpas_pool_get_array(diagnosticsPool, 'kineticEnergyCell', kineticEnergyCell)
+
+      call mpas_pool_get_array(diagnosticsPool, 'landIceFrictionVelocity', landIceFrictionVelocity)
+      call mpas_pool_get_array(diagnosticsPool, 'landIceBoundaryLayerTemperature', landIceBoundaryLayerTemperature)
+      call mpas_pool_get_array(diagnosticsPool, 'landIceBoundaryLayerSalinity', landIceBoundaryLayerSalinity)
+      call mpas_pool_get_array(diagnosticsPool, 'topDrag', topDrag)
+      call mpas_pool_get_array(diagnosticsPool, 'topDragMagnitude', topDragMagnitude)
+      if(jenkinsOn .or. hollandJenkinsOn) then
+        call mpas_pool_get_array(diagnosticsPool, 'landIceHeatTransferVelocity', landIceHeatTransferVelocity)
+        call mpas_pool_get_array(diagnosticsPool, 'landIceSaltTransferVelocity', landIceSaltTransferVelocity)
+      end if
+      call mpas_pool_get_array(diagnosticsPool, 'surfaceFluxAttenuationCoefficient', surfaceFluxAttenuationCoefficient)
+
+      call mpas_pool_get_field(scratchPool, 'boundaryLayerTemperatureScratch', boundaryLayerTemperatureField)
+      call mpas_pool_get_field(scratchPool, 'boundaryLayerSalinityScratch', boundaryLayerSalinityField)
+      call mpas_allocate_scratch_field(boundaryLayerTemperatureField, .true.)
+      call mpas_allocate_scratch_field(boundaryLayerSalinityField, .true.)
+      blTempScratch => boundaryLayerTemperatureField % array
+      blSaltScratch => boundaryLayerSalinityField % array
+      if(hollandJenkinsOn) then
+         call mpas_pool_get_array(meshPool, 'fCell', fCell)
+      end if
+
+      ! Compute top drag
+      do iEdge = 1, nEdges
+         cell1 = cellsOnEdge(1, iEdge)
+         cell2 = cellsOnEdge(2, iEdge)
+
+         ! top drag tau = - CD*|u|*u, where |u| = sqrt(2*KE) = sqrt(KE1 + KE2) from the neighboring cells
+         velocityMagnitude = sqrt(kineticEnergyCell(1,cell1) + kineticEnergyCell(1,cell2))
+         landIceEdgeFraction = 0.5_RKIND*(landIceFraction(cell1)+landIceFraction(cell2))
+
+         topDrag(iEdge) = - rho_sw * landIceEdgeFraction * config_land_ice_flux_topDragCoeff &
+                          * velocityMagnitude * normalVelocity(1,iEdge)
+
+      end do
+
+      ! compute top drag magnitude and friction velocity at cell centers
+      do iCell = 1, nCells
+         ! the magnitude of the top drag is CD*u**2 = CD*(2*KE)
+         topDragMagnitude(iCell) = rho_sw * landIceFraction(iCell) &
+                                   * 2.0_RKIND * config_land_ice_flux_topDragCoeff *  kineticEnergyCell(1,iCell)
+
+         ! the friction velocity is the square root of the top drag + variance of tidal velocity (computed regardless of land-ice coverage)
+         landIceFrictionVelocity(iCell) = sqrt(config_land_ice_flux_topDragCoeff* (2.0_RKIND * kineticEnergyCell(1,iCell) &
+                                   + config_land_ice_flux_rms_tidal_velocity))
+      end do
+
+
+
+      ! average temperature and salinity over horizontal neighbors and the sub-ice-shelf boundary layer
+      do iCell = 1, nCells
+         blThickness = 0.0_RKIND
+         blTempScratch(iCell) = 0.0_RKIND
+         blSaltScratch(iCell) = 0.0_RKIND
+         do iLevel = 1, maxLevelCell(iCell)
+            dz = min(layerThickness(iLevel,iCell),config_land_ice_flux_boundaryLayerThickness-blThickness)
+            if(dz <= 0.0_RKIND) exit
+            blTempScratch(iCell) = blTempScratch(iCell) + activeTracers(indexT, iLevel, iCell)*dz
+            blSaltScratch(iCell) = blSaltScratch(iCell) + activeTracers(indexS, iLevel, iCell)*dz
+            blThickness = blThickness + dz
+         end do
+         if(blThickness > 0.0_RKIND) then
+           blTempScratch(iCell) = blTempScratch(iCell)/blThickness
+           blSaltScratch(iCell) = blSaltScratch(iCell)/blThickness
+         end if
+      end do
+      do iCell = 1, nCells
+         landIceBoundaryLayerTemperature(iCell) = blTempScratch(iCell)
+         landIceBoundaryLayerSalinity(iCell) = blSaltScratch(iCell)
+         if(config_land_ice_flux_boundaryLayerNeighborWeight > 0.0_RKIND) then
+            blWeightSum = 1.0_RKIND
+            do i = 1, nEdgesOnCell(iCell)
+               cell2 = cellsOnCell(i,iCell)
+               if(cell2 <= 0 .or. cell2 > nCells) cycle
+
+               landIceBoundaryLayerTemperature(iCell) = landIceBoundaryLayerTemperature(iCell) &
+                 + config_land_ice_flux_boundaryLayerNeighborWeight*blTempScratch(cell2)
+               landIceBoundaryLayerSalinity(iCell) = landIceBoundaryLayerSalinity(iCell) &
+                 + config_land_ice_flux_boundaryLayerNeighborWeight*blSaltScratch(cell2)
+               blWeightSum = blWeightSum + config_land_ice_flux_boundaryLayerNeighborWeight
+            end do
+            if(blWeightSum > 0.0_RKIND) then
+               landIceBoundaryLayerTemperature(iCell) = landIceBoundaryLayerTemperature(iCell)/blWeightSum
+               landIceBoundaryLayerSalinity(iCell) = landIceBoundaryLayerSalinity(iCell)/blWeightSum
+            end if
+         end if
+      end do
+
+      if(jenkinsOn) then
+         do iCell = 1, nCells
+            ! transfer coefficients from namelist
+            landIceHeatTransferVelocity(iCell) = landIceFrictionVelocity(iCell)*config_land_ice_flux_jenkins_heat_transfer_coefficient
+            landIceSaltTransferVelocity(iCell) = landIceFrictionVelocity(iCell)*config_land_ice_flux_jenkins_salt_transfer_coefficient
+         end do
+      else if(hollandJenkinsOn) then
+         do iCell = 1, nCells
+            ! friction-velocity dependent non-dimensional transfer coefficients from
+            ! Holland and Jenkins 1999, (14)-(16) with eta_* = 1
+            h_nu = 5.0_RKIND*nuSaltWater/landIceFrictionVelocity(iCell) ! uStar should never be zero because of tidal term
+      
+            Gamma_turb = 1.0_RKIND/(2.0_RKIND*xiN) - 1.0_RKIND/kVonKarman
+            if(abs(fCell(iCell)) > 0.0_RKIND) then
+              Gamma_turb = Gamma_turb + 1.0_RKIND/kVonKarman*log(landIceFrictionVelocity(iCell) &
+                *xiN/(abs(fCell(iCell))*h_nu))
+            end if
+     
+            landIceHeatTransferVelocity(iCell) = 1.0_RKIND/(Gamma_turb + 12.5_RKIND*Pr**(2.0_RKIND/3.0_RKIND) - 6.0_RKIND)
+            landIceSaltTransferVelocity(iCell) = 1.0_RKIND/(Gamma_turb + 12.5_RKIND*Sc**(2.0_RKIND/3.0_RKIND) - 6.0_RKIND)
+         end do
+      end if
+
+      call mpas_deallocate_scratch_field(boundaryLayerTemperatureField, .true.)
+      call mpas_deallocate_scratch_field(boundaryLayerSalinityField, .true.)
+
+      ! recompute the spatially-varying attenuation coefficient based on landIceFraction
+      do iCell = 1, nCells
+        surfaceFluxAttenuationCoefficient(iCell) = landIceFraction(iCell)*config_land_ice_flux_attenuation_coefficient &
+           + (1.0_RKIND - landIceFraction(iCell))*surfaceFluxAttenuationCoefficient(iCell)
+      end do
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_compute_land_ice_flux_input_fields!}}}
+
 
 !***********************************************************************
 !
@@ -1285,7 +1554,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool)
+   subroutine ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool) !{{{
 
       type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
       type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostic information
