@@ -30,6 +30,7 @@ module li_time_integration_fe
    use li_velocity, only: li_velocity_solve
    use li_tendency
    use li_calving, only: li_calve_ice, li_restore_calving_front
+   use li_thermal, only: li_thermal_solver
    use li_diagnostic_vars
    use li_setup
 
@@ -108,7 +109,11 @@ module li_time_integration_fe
 !!!      procVertexMaskChanged = 0
 
 ! === Implicit column physics (vertical temperature diffusion) ===========
-      !call ()
+
+      call mpas_timer_start("calculate vertical therm")
+      call li_thermal_solver(domain, deltat, err_tmp)
+      err = ior(err, err_tmp)
+      call mpas_timer_stop("calculate vertical therm")
 
 ! === Calculate Tendencies ========================
       call mpas_timer_start("calculate tendencies")
@@ -124,7 +129,7 @@ module li_time_integration_fe
       call mpas_timer_stop("calc. new prognostic vars")
 
 ! === Calve ice ========================                                                                                                                                             
-      call mpas_timer_start("calve_ice")
+      call mpas_timer_start("calculate calving")
 
       if (config_restore_calving_front) then
 
@@ -140,7 +145,7 @@ module li_time_integration_fe
 
       endif
 
-      call mpas_timer_stop("calve_ice")
+      call mpas_timer_stop("calculate calving")
 
 ! === Calculate diagnostic variables for new state =====================
 
