@@ -111,13 +111,19 @@ contains
       real (kind=RKIND), pointer :: config_soma_phi
       real (kind=RKIND), pointer :: config_soma_ref_density
       real (kind=RKIND), pointer :: config_soma_density_difference
+      real (kind=RKIND), pointer :: config_soma_runoff_magnitude
+      real (kind=RKIND), pointer :: config_soma_precip_magnitude
+      real (kind=RKIND), pointer :: config_soma_evap_magnitude
 
       ! Define dimension pointers
       integer, pointer :: nVertLevels, nCells, nVertLevelsP1
       integer, pointer :: index_temperature, index_salinity, index_tracer1
+      integer, pointer :: config_soma_runoff_cell_number
       
       ! Define variable pointers
       logical, pointer :: on_a_sphere
+      logical, pointer :: config_soma_use_FW_flux
+
       integer, dimension(:), pointer :: maxLevelCell
       real (kind=RKIND), dimension(:), pointer :: refBottomDepth, bottomCell, refZMid
       real (kind=RKIND), dimension(:,:), pointer :: layerThickness, restingThickness
@@ -126,6 +132,7 @@ contains
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers, debugTracers
       real (kind=RKIND), dimension(:), pointer :: sensibleHeatFlux
       real (kind=RKIND), dimension(:), pointer :: windStressZonal, windStressMeridional
+      real (kind=RKIND), dimension(:), pointer :: riverRunoffFlux, rainFlux, evaporationFlux
       real (kind=RKIND), dimension(:, :), pointer ::    activeTracersPistonVelocity, activeTracersSurfaceRestoringValue
       real (kind=RKIND), dimension(:, :, :), pointer :: activeTracersInteriorRestoringValue, activeTracersInteriorRestoringRate
 
@@ -153,6 +160,12 @@ contains
       call mpas_pool_get_config(domain % configs, 'config_soma_phi', config_soma_phi)
       call mpas_pool_get_config(domain % configs, 'config_soma_ref_density', config_soma_ref_density)
       call mpas_pool_get_config(domain % configs, 'config_soma_density_difference', config_soma_density_difference)
+
+      call mpas_pool_get_config(domain % configs, 'config_soma_runoff_magnitude', config_soma_runoff_magnitude)
+      call mpas_pool_get_config(domain % configs, 'config_soma_precip_magnitude', config_soma_precip_magnitude)
+      call mpas_pool_get_config(domain % configs, 'config_soma_evap_magnitude', config_soma_evap_magnitude)
+      call mpas_pool_get_config(domain % configs, 'config_soma_use_FW_flux', config_soma_use_FW_flux)
+      call mpas_pool_get_config(domain % configs, 'config_soma_runoff_cell_number', config_soma_runoff_cell_number)
 
       call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
@@ -302,6 +315,9 @@ contains
         call mpas_pool_get_array(forcingPool, 'sensibleHeatFlux', sensibleHeatFlux)
         call mpas_pool_get_array(forcingPool, 'windStressZonal', windStressZonal)
         call mpas_pool_get_array(forcingPool, 'windStressMeridional', windStressMeridional, 1)
+        call mpas_pool_get_array(forcingPool, 'riverRunoffFlux', riverRunoffFlux, 1)
+        call mpas_pool_get_array(forcingPool, 'rainFlux', rainFlux, 1)
+        call mpas_pool_get_array(forcingPool, 'evaporationFlux', evaporationFlux, 1)
         call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceRestoringFields', tracersSurfaceRestoringFieldsPool)
         call mpas_pool_get_subpool(forcingPool, 'tracersInteriorRestoringFields', tracersInteriorRestoringFieldsPool)
         call mpas_pool_get_array(tracersSurfaceRestoringFieldsPool, 'activeTracersPistonVelocity', activeTracersPistonVelocity, 1)
@@ -341,6 +357,7 @@ contains
         end do ! iCell = 1, nCells
 
         ! Set wind stress
+        ! Set freshwater fluxes: rain and evap have the same functional form as windstress but different magnitudes
         do iCell = 1, nCells
            lonCurrent = lonCell(iCell)
            latCurrent = latCell(iCell)
@@ -352,8 +369,22 @@ contains
 
            windStressZonal(iCell) = windStress
            windStressMeridional(iCell) = 0.0_RKIND
+   
+           if (config_soma_use_FW_flux) then
+              rainFlux(iCell) = 10.0_RKIND * config_soma_precip_magnitude * (0.1_RKIND + windstress)
+              evaporationFlux(iCell) = -10.0_RKIND * config_soma_evap_magnitude * (0.1_RKIND + windstress)
+           else
+              rainFlux(iCell) = 0.0_RKIND
+              evaporationFlux(iCell) = 0.0_RKIND
+           end if
 
         end do
+
+        ! Set river runoff in specified cell is including FW fluxes
+!maltrud NOTE:  make sure cell_number <= nCells
+!maltrud NOTE:  make sure runoff_magnitude >= 0.
+        riverRunoffFlux(:) = 0.0_RKIND
+        if (config_soma_use_FW_flux) riverRunoffFlux(config_soma_runoff_cell_number) = config_soma_runoff_magnitude
 
         block_ptr => block_ptr % next
       end do
