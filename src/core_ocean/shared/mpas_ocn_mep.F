@@ -45,6 +45,7 @@ module ocn_mep
    public :: ocn_mep_update, &
              ocn_mep_init, &
              ocn_mep_transportVelocity_update, &
+             ocn_mep_vel_tend, &
              ocn_mep_reconstruct
 
 
@@ -261,6 +262,188 @@ contains
    
 
    end subroutine ocn_mep_transportVelocity_update!}}}
+
+mepTWAdragGMOn
+
+!***********************************************************************
+!
+!  routine ocn_mep_vel_tend
+!
+!> \brief  This routine increments tend by the time tendency by eddy forces.
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   October, 2015
+!> \details 
+!>  This routine increments tend by the time tendency by eddy forces.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_vel_tend(diagnosticsPool, meshPool, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: meshPool        !< Input: Mesh information
+      type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostic information
+
+      !jas issue: it might be that only need uBolus or normalBolusGM, 
+      !not entire diagnostics?
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend          !< Input/Output: normal velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+
+      if (mepTWAdragGMOn) then
+         call ocn_mep_twa_drag_GM(diagnosticsPool, meshPool, tend, err)
+      end if
+
+   end subroutine ocn_mep_vel_tend!}}}
+
+
+!***********************************************************************
+!
+!  routine ocn_mep_twa_drag_GM
+!
+!> \brief  This routine increments tend by the time tendency by eddy forces.
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   October, 2015
+!> \details 
+!>  This routine increments tend by the time tendency by eddy forces.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_twa_drag_GM(diagnosticsPool, meshPool, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: meshPool            !< Input: Mesh information
+      type (mpas_pool_type), intent(in) :: diagnosticsPool  !< Input: Diagnostic information
+
+      !jas issue: it might be that only need uBolus or normalBolusGM, 
+      !not entire diagnostics?
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend          !< Input/Output: normal velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      logical  :: includeHalo
+      integer :: iEdge, kLevel
+      integer, pointer :: nVertLevels, nCells, nEdges
+
+      integer, dimension(:,:), pointer :: edgeMask
+      real (kIND=RKIND), dimension(:),   pointer :: fEdge
+      real (kind=RKIND), dimension(:,:), pointer :: edgeTangentVectors
+      real (kind=RKIND), dimension(:,:), pointer :: tend_vel_eddy_param
+      real (kind=RKIND), dimension(:,:), pointer :: xGMBolusVelocity
+      real (kind=RKIND), dimension(:,:), pointer :: yGMBolusVelocity
+      real (kind=RKIND), dimension(:,:), pointer :: zGMBolusVelocity
+      
+      real (kind=RKIND), dimension(:,:),   allocatable :: normalBolusEdge
+      real (kind=RKIND), dimension(:,:),   allocatable :: tangentBolusEdge
+      real (kind=RKIND), dimension(:,:,:), allocatable :: bolusCell
+
+
+      err = 0
+
+
+      call mpas_pool_get_dimension(meshPool, 'nCells', nCells) ! includes halos
+      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges) ! includes halos
+      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+
+      call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
+      call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
+      call mpas_pool_get_array(meshPool, 'edgeTangentVectors', edgeTangentVectors)
+
+      
+      allocate(normalBolusEdge(nVertLevels,nEdges))
+      allocate(tangentBolusEdge(nVertLevels,nEdges))
+      allocate(bolusCell(3,nVertLevels,nCells+1))
+
+
+      includeHalo = .true.
+
+      call mpas_pool_get_array(diagnosticsPool, 'tend_vel_mep', tend_vel_mep);
+      tend_vel_eddy_param = 0.0
+
+
+      !retrieve x,y,z bolus velocity at cell centers
+      call mpas_pool_get_array(diagnosticsPool, 'xGMBolusVelocity', xGMBolusVelocity);
+      call mpas_pool_get_array(diagnosticsPool, 'yGMBolusVelocity', yGMBolusVelocity);
+      call mpas_pool_get_array(diagnosticsPool, 'zGMBolusVelocity', zGMBolusVelocity);
+
+      bolusCell(1,:,:) = xGMBolusVelocity
+      bolusCell(2,:,:) = yGMBolusVelocity
+      bolusCell(3,:,:) = zGMBolusVelocity
+
+      !interpolate bolus velocity at cell centers, mid layers, to Edges
+      !make sure to average the x,y,z components, not lat/lon components.
+      call mpas_vector_R3Cell_to_2DEdge(bolusCell, meshPool, edgeTangentVectors, &
+        includeHalo, normalBolusEdge, tangentBolusEdge)
+
+      !calculate tendency = -dE3i/dz dot ni = - f*uBolus_tangent
+      do iEdge = 1, nEdges
+        do kLevel = 1,nVertLevels
+          tend_vel_eddy_param(kLevel,iEdge) = &
+              -fEdge(iEdge) * tangentBolusEdge(kLevel,iEdge) * edgeMask(kLevel, iEdge)
+        end do
+      end do
+
+      !update tendency with div EPFT parameterized with GM
+      if (.not. eddyParamPassiveOn) then
+        tend = tend + tend_vel_eddy_param
+      end if
+
+
+      deallocate(normalBolusEdge)
+      deallocate(tangentBolusEdge)
+      deallocate(bolusCell)
+    
+    end subroutine ocn_mep_twa_drag_GM!}}}
 
 
 !***********************************************************************

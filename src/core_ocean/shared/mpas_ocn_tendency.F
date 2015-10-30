@@ -338,7 +338,14 @@ contains
       !
       call mpas_timer_stop("ocn_tend_vel")
 
-   end subroutine ocn_tend_vel!}}}
+      !
+      ! velocity tendency: eddy parameterization
+      !
+      call mpas_timer_start("???", .false., ???)
+      call ocn_mep_vel_tend(diagnosticsPool, meshPool, tend, err)
+      call mpas_timer_stop("???", ???)
+    
+    end subroutine ocn_tend_vel!}}}
 
 !***********************************************************************
 !
