@@ -116,9 +116,11 @@
 		<nml_option name="config_thermal_solver" type="character" default_value="none" units="unitless"
 		            description="Selection of the method for the vertical thermal solver."
 		            possible_values="'none', 'temperature', 'enthalpy'"
+		/>
 		<nml_option name="config_thermal_init" type="character" default_value="linear" units="unitless"
-		            description="Selection of the method for initializing temperature/enthalpy."
+		            description="Selection of the method for initializing the ice temperature."
 		            possible_values="'linear', 'file'"
+		/>
 		<nml_option name="config_thermal_thickness" type="real" default_value="1.0" units="m of ice"
 		            description="Defines the minimum thickness for thermal calculations"
 		            possible_values="Any positive real value"

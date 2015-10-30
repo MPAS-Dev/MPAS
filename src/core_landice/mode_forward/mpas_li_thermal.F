@@ -118,12 +118,16 @@ module li_thermal
            config_do_restart
 
       character(len=StrKIND), pointer :: &
-           config_thermal_init,  &     ! initialization option ('linear' or 'file')
-           config_thermal_solver       ! solver option ('temperature' or 'enthalpy')
+           config_thermal_solver,    & ! solver option ('temperature' or 'enthalpy')
+           config_thermal_init         ! initialization option ('linear' or 'file')
 
       real (kind=RKIND), pointer ::  &
            config_ice_density,       & ! ice density
            config_ocean_density        ! ocean density
+
+      integer, pointer :: &
+           index_temperature,  &
+           index_waterfrac
 
       integer, pointer :: &
            nCellsSolve,              & ! number of locally owned cells
@@ -136,16 +140,18 @@ module li_thermal
       real (kind=RKIND), dimension(:), pointer :: &
            thickness                   ! ice thickness
 
-      real (kind=RKIND), dimension(:), pointer :: &
-           surfaceTemperature,       & ! surface ice temperature (K)
-           basalTemperature,         & ! basal ice temperature (K)
-           surfaceAirTemperature       ! surface air temperature (K)
+      real (kind=RKIND), dimension(:,:,:), pointer :: tracers
 
       real (kind=RKIND), dimension(:,:), pointer :: &
            temperature,              & ! interior ice temperature (K)
            waterfrac,                & ! interior water fraction (unitless)
            enthalpy                    ! interior ice enthalpy (J m^{-3})
       
+      real (kind=RKIND), dimension(:), pointer :: &
+           surfaceTemperature,       & ! surface ice temperature (K)
+           basalTemperature,         & ! basal ice temperature (K)
+           surfaceAirTemperature       ! surface air temperature (K)
+
       ! Note: The following fields are needed for halo updates
       ! TODO - Are halo updates needed at initialization?
       type (field1DReal), pointer :: &
@@ -166,7 +172,7 @@ module li_thermal
            pmpt_offset = 2.0_RKIND     ! offset of initial Tbed from pressure melting point temperature (K)
                                        ! Note: pmtp_offset is positive for T < Tpmp
 
-      integer :: k
+      integer :: k, iLayer
 
       integer :: iCell
 
@@ -179,15 +185,12 @@ module li_thermal
 
       err = 0
 
-      ! get dimensions
-      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-
       ! get config options
-      call mpas_pool_get_config(liConfigs, 'config_thermal_init', config_thermal_init)
       call mpas_pool_get_config(liConfigs, 'config_thermal_solver', config_thermal_solver)
+      call mpas_pool_get_config(liConfigs, 'config_thermal_init', config_thermal_init)
       call mpas_pool_get_config(liConfigs, 'config_print_thermal_info', config_print_thermal_info)
       call mpas_pool_get_config(liConfigs, 'config_do_restart', config_do_restart)
-
+            
       ! set some physical constants
       ! (to avoid calling mpas_pool_get_config repeatedly in this module)
       call mpas_pool_get_config(liConfigs, 'config_ice_density', config_ice_density)
@@ -199,14 +202,18 @@ module li_thermal
       block => domain % blocklist
       do while (associated(block))
 
+         write(stderrUnit,*) 'Get pools'
+
          ! get pools
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block % structs, 'geometry', geometryPool)
          call mpas_pool_get_subpool(block % structs, 'thermal', thermalPool)
 
          ! get dimensions
-         call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
          call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+         call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
+         call mpas_pool_get_dimension(thermalPool, 'index_temperature', index_temperature)
+         call mpas_pool_get_dimension(thermalPool, 'index_waterfrac', index_waterfrac)
 
          ! get fields from the mesh pool
          call mpas_pool_get_array(meshPool, 'layerCenterSigma', layerCenterSigma)
@@ -216,13 +223,23 @@ module li_thermal
          call mpas_pool_get_array(geometryPool, 'thickness', thickness)
 
          ! get fields from the thermal pool
+         call mpas_pool_get_array(thermalPool, 'tracers', tracers)
+!         call mpas_pool_get_array(thermalPool, 'temperature', temperature)
+!         call mpas_pool_get_array(thermalPool, 'waterfrac',   waterfrac)
          call mpas_pool_get_array(thermalPool, 'surfaceAirTemperature', surfaceAirTemperature)
          call mpas_pool_get_array(thermalPool, 'surfaceTemperature', surfaceTemperature)
          call mpas_pool_get_array(thermalPool, 'basalTemperature',   basalTemperature)
-         call mpas_pool_get_array(thermalPool, 'temperature', temperature)
-         call mpas_pool_get_array(thermalPool, 'waterfrac',   waterfrac)
+
+         ! temporary init for surfaceAirTemperature
+         !TODO - Read surfaceAirTemperature from a file or create a simple field
+         surfaceAirTemperature(:) = kelvin_to_celsius   ! 273.15
+
+         !TODO - Is there a better way to access the temperature and waterfrac arrays?
+         temperature => tracers(index_temperature,:,:)
+         waterfrac => tracers(index_waterfrac,:,:)
 
          if (config_print_thermal_info) then
+
             write(stderrUnit,*) 'Initialize thermal solver, config_thermal_init =', trim(config_thermal_init)
 
             !WHL - temporary debugging code - for circular shelf test case
@@ -315,8 +332,9 @@ module li_thermal
             allocate(pmptemp(nVertLevels))
 
             ! initialize T = 273.15 K = 0 C everywhere
+
             temperature(:,:) = kelvin_to_celsius    ! = 273.15                                              
-                   
+
             do iCell = 1, nCellsSolve
 
                ! set surface temperature to the air temperature (or 273.15, whichever is less)
@@ -338,7 +356,7 @@ module li_thermal
                ! make sure T <= Tpmp - pmpt_offset in column interior
 
                temperature(:,iCell) = surfaceTemperature(iCell) +  &
-                                      (basalTemperature(iCell) - surfaceTemperature(iCell)) * layerCenterSigma(:)
+                                     (basalTemperature(iCell) - surfaceTemperature(iCell)) * layerCenterSigma(:)
                
                temperature(:,iCell) = min(temperature(:,iCell), pmptemp(:) - pmpt_offset)
 
@@ -363,8 +381,6 @@ module li_thermal
       !       E.g., make sure the temperature read from a file is in Kelvin and not Celsius
 
       ! halo updates
-      call mpas_pool_get_field(thermalPool, 'temperature', temperatureField)
-      call mpas_dmpar_exch_halo_field(temperatureField)
 
       call mpas_pool_get_field(thermalPool, 'surfaceTemperature', surfaceTemperatureField)
       call mpas_dmpar_exch_halo_field(surfaceTemperatureField)
@@ -372,9 +388,13 @@ module li_thermal
       call mpas_pool_get_field(thermalPool, 'basalTemperature', basalTemperatureField)
       call mpas_dmpar_exch_halo_field(basalTemperatureField)
 
+      !TODO - Halo updates for components of the tracer array
+!!      call mpas_pool_get_field(thermalPool, 'temperature', temperatureField)
+!!      call mpas_dmpar_exch_halo_field(temperatureField)
+
       if (trim(config_thermal_solver) == 'enthalpy') then
-         call mpas_pool_get_field(thermalPool, 'waterfrac', waterfracField)
-         call mpas_dmpar_exch_halo_field(waterfracField)
+!!         call mpas_pool_get_field(thermalPool, 'waterfrac', waterfracField)
+!!         call mpas_dmpar_exch_halo_field(waterfracField)
       endif
 
       ! === error check
@@ -520,6 +540,8 @@ module li_thermal
       integer, parameter :: nRows = 46
       integer :: i, iRow
 
+      err = 0
+
       ! block loop
       block => domain % blocklist
       do while (associated(block))
@@ -570,7 +592,7 @@ module li_thermal
          call mpas_pool_get_config(liConfigs, 'config_stats_cell_ID', config_stats_cell_ID)
 
          if (config_print_thermal_info) then
-            write(stderrUnit,*) 'Solving for temperature, config_thermal_solver =', config_thermal_solver
+            write(stderrUnit,*) 'Solving for temperature, config_thermal_solver = ', config_thermal_solver
 
             !WHL - debug - for circular shelf test case
 !            write(stderrUnit,*) 'Surface ice temperature before thermal calc'
@@ -1004,18 +1026,19 @@ module li_thermal
 
       ! halo updates
 
-      call mpas_pool_get_field(thermalPool, 'temperature', temperatureField)
-      call mpas_dmpar_exch_halo_field(temperatureField)
-
       call mpas_pool_get_field(thermalPool, 'surfaceTemperature', surfaceTemperatureField)
       call mpas_dmpar_exch_halo_field(surfaceTemperatureField)
 
       call mpas_pool_get_field(thermalPool, 'basalTemperature', basalTemperatureField)
       call mpas_dmpar_exch_halo_field(basalTemperatureField)
 
+      !TODO - Halo updates for components of the tracer array
+!!      call mpas_pool_get_field(thermalPool, 'temperature', temperatureField)
+!!      call mpas_dmpar_exch_halo_field(temperatureField)
+
       if (trim(config_thermal_solver) == 'enthalpy') then
-         call mpas_pool_get_field(thermalPool, 'waterfrac', waterfracField)
-         call mpas_dmpar_exch_halo_field(waterfracField)
+!!         call mpas_pool_get_field(thermalPool, 'waterfrac', waterfracField)
+!!         call mpas_dmpar_exch_halo_field(waterfracField)
       endif
 
       ! === error check

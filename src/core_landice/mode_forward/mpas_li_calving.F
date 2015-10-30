@@ -29,6 +29,7 @@ module li_calving
    use li_mask
    use li_constants
 
+
    implicit none
    private
 
@@ -217,7 +218,6 @@ module li_calving
          call mpas_pool_get_array(geometryPool, 'cellMask', cellMask)
 
          if (config_print_calving_info) then
-
             write(stderrUnit,*) 'Do ice calving, option = ', trim(config_calving)
             write(stderrUnit,*) 'Calving timscale (yr) = ', config_calving_timescale / scyr
 
@@ -340,12 +340,10 @@ module li_calving
                   ! check whether any neighbor cells are active
                   do iCellOnCell = 1, nEdgesOnCell(iCell)    
                      iCellNeighbor = cellsOnCell(iCellOnCell,iCell)
-                     if (iCellNeighbor >= 1 .and. iCellNeighbor <= nCells) then   ! neighbor cell exists
-                        if (activeForCalvingMask(iCellNeighbor) == 1) then  ! neighbor cell is active
-                           inactiveMarginMask(iCell) = 1
-                           exit
-                        endif
-                     endif   ! neighbor cell exists
+                     if (activeForCalvingMask(iCellNeighbor) == 1) then  ! neighbor cell is active
+                        inactiveMarginMask(iCell) = 1
+                        exit
+                     endif
                   enddo   ! iCellOnCell
 
                endif   ! inactive
