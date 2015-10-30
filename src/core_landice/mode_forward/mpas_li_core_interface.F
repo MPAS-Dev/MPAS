@@ -13,6 +13,7 @@ module li_core_interface
    use mpas_constants
    use mpas_io_units
    use li_core
+   use li_analysis_driver
 
    public
 
@@ -48,7 +49,7 @@ module li_core_interface
 
       core % Conventions = 'MPAS'
       core % source = 'MPAS'
-#include "inc/core_variables.inc"
+#include "../inc/core_variables.inc"
 
    end subroutine li_setup_core!}}}
 
@@ -68,7 +69,7 @@ module li_core_interface
    subroutine li_setup_domain(domain)!{{{
       type (domain_type), pointer :: domain
 
-#include "inc/domain_variables.inc"
+#include "../inc/domain_variables.inc"
 
    end subroutine li_setup_domain!}}}
 
@@ -94,7 +95,39 @@ module li_core_interface
       type (mpas_io_context_type), intent(inout) :: iocontext
       integer :: ierr
 
+      ! Local variables
+      character (len=StrKIND), pointer :: config_velocity_solver
+      logical, pointer :: config_adaptive_timestep_include_DCFL
+
+      logical, pointer :: higherOrderVelocityActive
+      logical, pointer :: SIAvelocityActive
+      logical, pointer :: calcDiffusivityActive
+
       ierr = 0
+
+      call mpas_pool_get_config(configPool, 'config_velocity_solver', config_velocity_solver)
+      call mpas_pool_get_config(configPool, 'config_adaptive_timestep_include_DCFL', config_adaptive_timestep_include_DCFL)
+
+      call mpas_pool_get_package(packagePool, 'SIAvelocityActive', SIAvelocityActive)
+      call mpas_pool_get_package(packagePool, 'higherOrderVelocityActive', higherOrderVelocityActive)
+      call mpas_pool_get_package(packagePool, 'calcDiffusivityActive', calcDiffusivityActive)
+
+      if (trim(config_velocity_solver) == 'sia') then
+         SIAvelocityActive = .true.
+         write (stdoutUnit,*) 'The SIAVelocity package and associated variables and streams has been enabled because the SIA velocity solver is selected.'
+      else
+         higherOrderVelocityActive = .true.
+         write (stdoutUnit,*) "The 'higherOrderVelocity' package and associated variables have been enabled because a higher-order velocity solver is selected."
+      end if
+
+      if (config_adaptive_timestep_include_DCFL) then
+         calcDiffusivityActive = .true.
+         write (stdoutUnit,*) "The 'calcDiffusivity' package and associated variables have been enabled because 'config_adaptive_timestep_include_DCFL' is set to .true."
+      endif
+
+      ! call setup packages in analysis driver
+      call li_analysis_setup_packages(configPool, packagePool, ierr) 
+
 
    end function li_setup_packages
 
@@ -228,17 +261,17 @@ module li_core_interface
       call li_generate_structs(block, block % structs, block % dimensions, block % packages)
    end function li_setup_block!}}}
 
-#include "inc/setup_immutable_streams.inc"
+#include "../inc/setup_immutable_streams.inc"
 
-#include "inc/block_dimension_routines.inc"
+#include "../inc/block_dimension_routines.inc"
 
-#include "inc/define_packages.inc"
+#include "../inc/define_packages.inc"
 
-#include "inc/structs_and_variables.inc"
+#include "../inc/structs_and_variables.inc"
 
-#include "inc/namelist_call.inc"
+#include "../inc/namelist_call.inc"
 
-#include "inc/namelist_defines.inc"
+#include "../inc/namelist_defines.inc"
 
 end module li_core_interface
 

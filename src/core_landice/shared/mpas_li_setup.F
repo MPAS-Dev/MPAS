@@ -95,7 +95,6 @@ contains
       !-----------------------------------------------------------------
       ! local variables
       !-----------------------------------------------------------------
-      integer, pointer :: config_year_digits
 
       err = 0
 
@@ -106,9 +105,6 @@ contains
       ! Config-specific setup occurs below
       ! ---
 
-      ! Adjust number of digits representing the year
-      call mpas_pool_get_config(liConfigs, 'config_year_digits', config_year_digits)
-      call mpas_timekeeping_set_year_width(config_year_digits)
 
    !--------------------------------------------------------------------
    end subroutine li_setup_config_options
@@ -127,7 +123,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine li_setup_vertical_grid(meshPool, err)
+   subroutine li_setup_vertical_grid(meshPool, geometryPool, err)
 
       !-----------------------------------------------------------------
       !
@@ -135,13 +131,13 @@ contains
       !
       !-----------------------------------------------------------------
 
-
       !-----------------------------------------------------------------
       !
       ! input/output variables
       !
       !-----------------------------------------------------------------
       type (mpas_pool_type), intent(inout) :: meshPool  !< Input/Output: mesh object
+      type (mpas_pool_type), intent(inout) :: geometryPool  !< Input/Output: geometry object
 
       !-----------------------------------------------------------------
       !
@@ -159,6 +155,8 @@ contains
       ! Pool pointers
       integer, pointer :: nVertLevels ! Dimensions
       real (kind=RKIND), dimension(:), pointer :: layerThicknessFractions, layerCenterSigma, layerInterfaceSigma
+      real (kind=RKIND), dimension(:), pointer :: thickness
+      real (kind=RKIND), dimension(:,:), pointer :: layerThickness1, layerThickness2
       ! Truly locals
       integer :: k
       real (kind=RKIND) :: fractionTotal
@@ -169,17 +167,19 @@ contains
       call mpas_pool_get_array(meshPool, 'layerThicknessFractions', layerThicknessFractions)
       call mpas_pool_get_array(meshPool, 'layerCenterSigma', layerCenterSigma)
       call mpas_pool_get_array(meshPool, 'layerInterfaceSigma', layerInterfaceSigma)
+      call mpas_pool_get_array(geometryPool, 'thickness', thickness)
+      call mpas_pool_get_array(geometryPool, 'layerThickness', layerThickness1, timeLevel=1)
+      call mpas_pool_get_array(geometryPool, 'layerThickness', layerThickness2, timeLevel=2)
 
       ! Check that layerThicknessFractions are valid
       ! TODO - switch to having the user input the sigma levels instead???
       fractionTotal = sum(layerThicknessFractions)
       if (fractionTotal /= 1.0_RKIND) then
          if (abs(fractionTotal - 1.0_RKIND) > 0.001_RKIND) then
-            write(0,*) 'Error: The sum of layerThicknessFractions is different from 1.0 by more than 0.001.'
+            write(stderrUnit,*) 'Error: The sum of layerThicknessFractions is different from 1.0 by more than 0.001.'
             err = 1
          end if
-         write (6,*), 'Adjusting upper layerThicknessFrac by small amount because sum of layerThicknessFractions is slightly different from 1.0.'
-         ! TODO - distribute the residual amongst all layers (and then put the residual of that in a single layer
+         write (stdoutUnit,*) 'Adjusting upper layerThicknessFrac by small amount because sum of layerThicknessFractions is slightly different from 1.0.'
          layerThicknessFractions(1) = layerThicknessFractions(1) - (fractionTotal - 1.0_RKIND)
       endif
 
@@ -193,6 +193,12 @@ contains
          layerInterfaceSigma(k) = layerInterfaceSigma(k-1) + layerThicknessFractions(k-1)
       end do
       layerInterfaceSigma(nVertLevels+1) = 1.0_RKIND
+
+      ! Also, initialize the layerThickness field
+      do k = 1, nVertLevels
+         layerThickness1(k,:) = thickness(:) * layerThicknessFractions(k)
+      enddo
+      layerThickness2 = layerThickness1
 
    !--------------------------------------------------------------------
    end subroutine li_setup_vertical_grid
@@ -217,13 +223,13 @@ contains
       ! input variables
       !
       !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: meshPool  !< Input: mesh object
 
       !-----------------------------------------------------------------
       !
       ! input/output variables
       !
       !-----------------------------------------------------------------
-      type (mpas_pool_type), intent(inout) :: meshPool  !< Input/Output: mesh object
 
       !-----------------------------------------------------------------
       !
@@ -246,7 +252,6 @@ contains
 
       ! Get pool stuff
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
-      ! layerThicknessFractions is provided by input
       call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
       call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
       call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)

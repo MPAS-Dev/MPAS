@@ -27,7 +27,7 @@ module li_tendency
    use mpas_constants
    use mpas_dmpar
    use li_setup
-!!!   use li_mask
+   use li_mask
 !!!   use mpas_tracer_advection
 
    implicit none
@@ -73,7 +73,7 @@ module li_tendency
 !
 !-----------------------------------------------------------------------
 
-   subroutine li_tendency_thickness(meshPool, statePool, layerThickness_tend, dt, dminfo, allowableDt, err)
+   subroutine li_tendency_thickness(meshPool, velocityPool, geometryPool, layerThickness_tend, dt, dminfo, allowableDt, err)
 
       !-----------------------------------------------------------------
       !
@@ -83,6 +83,9 @@ module li_tendency
 
       type (mpas_pool_type), intent(in) :: &
          meshPool          !< Input: mesh information
+
+      type (mpas_pool_type), intent(in) :: &
+         velocityPool      !< Input: velocity information
 
       real (kind=RKIND), intent(in) :: &
          dt       !< Input: dt
@@ -97,8 +100,7 @@ module li_tendency
       !-----------------------------------------------------------------
 
       type (mpas_pool_type), intent(inout) :: &
-         statePool         !< Input: state to use to calculate tendency (old time level)
-         ! Note: state needs to be inout (rather than just in) so that adjust_marine_boundary_fluxes can modify it.
+         geometryPool         !< Input: geometry information to be updated
 
       real (kind=RKIND), dimension(:,:), pointer, intent(inout) :: &
          layerThickness_tend         !< Input/Output: layer thickness tendency
@@ -123,8 +125,10 @@ module li_tendency
       !-----------------------------------------------------------------
       integer, pointer :: nVertLevels
       real (kind=RKIND), dimension(:), pointer :: sfcMassBal
+      real (kind=RKIND), dimension(:), pointer :: basalMassBal
+      real (kind=RKIND), dimension(:), pointer :: groundedBasalMassBal
+      real (kind=RKIND), dimension(:), pointer :: floatingBasalMassBal
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, layerThicknessEdge
-!!!      real (kind=RKIND), dimension(:), pointer :: iceArea, areaCell, marineBasalMassBal
       integer, dimension(:), pointer :: cellMask, edgeMask
       character (len=StrKIND), pointer :: config_thickness_advection
       real (kind=RKIND), pointer :: config_ice_density
@@ -135,15 +139,15 @@ module li_tendency
       err_tmp = 0
 
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-      call mpas_pool_get_array(meshPool, 'sfcMassBal', sfcMassBal)
+      call mpas_pool_get_array(geometryPool, 'sfcMassBal', sfcMassBal)
+      call mpas_pool_get_array(geometryPool, 'basalMassBal', basalMassBal)
+      call mpas_pool_get_array(geometryPool, 'groundedBasalMassBal', groundedBasalMassBal)
+      call mpas_pool_get_array(geometryPool, 'floatingBasalMassBal', floatingBasalMassBal)
       ! Assuming tendency will always be calculated using time level 1!
-      call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel=1)
-      call mpas_pool_get_array(statePool, 'layerThicknessEdge', layerThicknessEdge, timeLevel=1)
-      call mpas_pool_get_array(statePool, 'cellMask', cellMask, timeLevel=1)
-      call mpas_pool_get_array(statePool, 'edgeMask', edgeMask, timeLevel=1)
-!!!     marineBasalMassBal => mesh % marineBasalMassBal % array
-!!!     iceArea => state % iceArea % array
-!!!     areaCell => mesh % areaCell % array
+      call mpas_pool_get_array(velocityPool, 'normalVelocity', normalVelocity)
+      call mpas_pool_get_array(geometryPool, 'layerThicknessEdge', layerThicknessEdge)
+      call mpas_pool_get_array(geometryPool, 'cellMask', cellMask)
+      call mpas_pool_get_array(geometryPool, 'edgeMask', edgeMask)
       call mpas_pool_get_config(liConfigs, 'config_thickness_advection', config_thickness_advection)
       call mpas_pool_get_config(liConfigs, 'config_ice_density', config_ice_density)
 
@@ -191,7 +195,7 @@ module li_tendency
       case ('none')  !===================================================
         ! Do nothing
       case default  !===================================================
-        write(0,*) trim(config_thickness_advection), ' is not a valid thickness advection option.'
+        write(stderrUnit,*) trim(config_thickness_advection), ' is not a valid thickness advection option.'
         err_tmp = 1
       end select  !===================================================
       err = ior(err,err_tmp)
@@ -202,41 +206,39 @@ module li_tendency
       case ('None')  !===================================================
         ! Do nothing - don't add the MB
       case default
-! Commenting BMB out for now.
-!!!        ! Make some potential adjustments to BMB before applying them.
-!!!        !    It's ok to overwrite the values with 0's here, because each time step
-!!!        !    we get a fresh copy of the array from the annual_forcing subroutine.
-!!!        ! 1. make adjustments for where the ice is grounded and floating.
-!!!        !    TODO: more complicated treatment at GL?
-!!!        where ( li_mask_is_grounded_ice(cellMask) )
-!!!           ! Apply marineBasalMassBal to floating ice only.  
-!!!           marineBasalMassBal = 0.0_RKIND
-!!!        elsewhere ( li_mask_is_floating_ice(cellMask) )
-!!!           ! Currently, floating and grounded ice are mutually exclusive.
-!!!           ! This could change if the GL is parameterized, in which case this logic may need adjustment.
-!!!           ! Grounded BMB should come from the temperature solver.
-!!!           ! < PLACEHOLDER >
-!!!        elsewhere ( .not. (li_mask_is_ice(cellMask) )
-!!!              ! We don't allow a positive BMB where ice is not already present.
-!!!              mesh % marineBasalMassBal % array = 0.0_RKIND
-!!!        end where
+
+        ! Combine various basal mass balnce fields based on mask
+        ! 1. make adjustments for where the ice is grounded and floating.
+        !    TODO: more complicated treatment at GL?
+        where ( li_mask_is_grounded_ice(cellMask) )
+           ! Apply marineBasalMassBal to floating ice only.
+           basalMassBal = groundedBasalMassBal
+        elsewhere ( li_mask_is_floating_ice(cellMask) )
+           ! Currently, floating and grounded ice are mutually exclusive.
+           ! This could change if the GL is parameterized, in which case this logic may need adjustment.
+           ! Grounded BMB should come from the temperature solver.
+           basalMassBal = floatingBasalMassBal
+        elsewhere ( .not. (li_mask_is_ice(cellMask) ) )
+           ! We don't allow a positive BMB where ice is not already present.
+           basalMassBal = 0.0_RKIND
+        end where
 
         ! Add surface mass balance to tendency
         ! TODO: Need to decide how to deal with negative SMB that eliminates top layer or all ice (check for negative thickness?)
         layerThickness_tend(1,:) = layerThickness_tend(1,:) + sfcMassBal / config_ice_density  ! (tendency in meters per year)
         ! TODO THIS MIGHT RESULT IN  NEGATIVE LAYER THICKNESS!
 
-!!!        ! Add basal mass balance to tendency
-!!!        ! TODO: Need to decide how to deal with negative BMB that eliminates top layer or all ice (check for negative thickness?)
-!!!        layerThickness_tend(nVertLevels,:) = layerThickness_tend(nVertLevels,:) &
-!!!                                    + mesh % marineBasalMassBal % array    ! (tendency in meters per year)
-!!!        ! TODO Add in grounded ice basal mass balance once temperature diffusion is calculated
-!!!        ! TODO THIS MIGHT RESULT IN  NEGATIVE LAYER THICKNESS!
+        ! Add basal mass balance to tendency
+        ! TODO: Need to decide how to deal with negative BMB that eliminates top layer or all ice (check for negative thickness?)
+        layerThickness_tend(nVertLevels,:) = layerThickness_tend(nVertLevels,:) &
+                                    + basalMassBal / config_ice_density    ! (tendency in meters per year)
+        ! TODO THIS MIGHT RESULT IN  NEGATIVE LAYER THICKNESS!
+
       end select
 
       ! === error check
       if (err > 0) then
-         write (0,*) "An error has occurred in li_tendency_thickness."
+         write (stderrUnit,*) "An error has occurred in li_tendency_thickness."
       endif
 
    !--------------------------------------------------------------------
@@ -258,7 +260,7 @@ module li_tendency
 !
 !-----------------------------------------------------------------------
 
-   subroutine li_tendency_tracers(meshPool, statePool, layerThickness_tend, tracer_tendency, dt, dminfo, err)
+   subroutine li_tendency_tracers(meshPool, velocityPool, geometryPool, thermalPool, layerThickness_tend, tracer_tendency, dt, dminfo, err)
 
       !-----------------------------------------------------------------
       !
@@ -270,10 +272,16 @@ module li_tendency
          meshPool          !< Input: mesh information
 
       type (mpas_pool_type), intent(in) :: &
-         statePool         !< Input: state to use to calculate tendency
+         velocityPool         !< Input: velocity information
+
+      type (mpas_pool_type), intent(in) :: &
+         geometryPool         !< Input: geometry information
+
+      type (mpas_pool_type), intent(in) :: &
+         thermalPool         !< Input: thermal information
 
       real (kind=RKIND), dimension(:,:), pointer, intent(in) :: &
-         layerThickness_tend         !< Input/Output: layer thickness tendency
+         layerThickness_tend         !< Input: layer thickness tendency
 
       real (kind=RKIND), intent(in) :: &
          dt       !< Input: dt
@@ -384,8 +392,8 @@ module li_tendency
 !!!     case ('None')  !===================================================
 !!!        ! Do nothing
 !!!     case default  !===================================================
-!!!        write(0,*) trim(config_tracer_advection), ' is not a valid tracer advection option.'
-!!!        call mpas_dmpar_abort(dminfo)
+!!!        write(stderrUnit,*) trim(config_tracer_advection), ' is not a valid tracer advection option.'
+!!!        call mpas_dmpar_global_abort(dminfo)
 !!!     end select  !===================================================
 
    !--------------------------------------------------------------------
@@ -405,7 +413,7 @@ module li_tendency
 !> marine-terminating ice.
 !
 !-----------------------------------------------------------------------
-   subroutine li_apply_calving(meshPool, statePool, err)!{{{
+   subroutine li_apply_calving(meshPool, geometryPool, thermalPool, err)
 
       !-----------------------------------------------------------------
       !
@@ -422,8 +430,11 @@ module li_tendency
       !
       !-----------------------------------------------------------------
 
+      type (mpas_pool_type), intent(in) :: &
+         geometryPool          !< Input/Output: geometry information
+
       type (mpas_pool_type), intent(inout) :: &
-         statePool         !< Input/Output: state for which to update diagnostic variables
+         thermalPool         !< Input/Output: thermal information
 
       !-----------------------------------------------------------------
       !
@@ -483,7 +494,7 @@ module li_tendency
 !!!               ! Convert to physical thickness - only needed if CFBC is on but this is always defined.
 !!!               physicalThickness = thickness(iCell) * areaCell(iCell) / iceArea(iCell)  ! iceArea should always be > 0 since we are only checking on ice cells.
 !!!               if (iceArea(iCell) == 0.0) then
-!!!                  write(0,*) 'iceArea is 0 on a cell with ice!'
+!!!                  write(stderrUnit,*) 'iceArea is 0 on a cell with ice!'
 !!!                  err = 1
 !!!               endif
 !!!               if (physicalThickness <= config_calving_critical_thickness) then
@@ -563,7 +574,7 @@ module li_tendency
 !>  results.  
 !
 !-----------------------------------------------------------------------
-   subroutine tend_layerThickness_fo_upwind(meshPool, normalVelocity, layerThicknessEdge, edgeMask, tend, dt, MinOfMaxAllowableDt, err)!{{{
+   subroutine tend_layerThickness_fo_upwind(meshPool, normalVelocity, layerThicknessEdge, edgeMask, tend, dt, MinOfMaxAllowableDt, err)
 
       use mpas_timekeeping
 
@@ -616,10 +627,9 @@ module li_tendency
       integer, dimension(:), pointer :: nEdgesOnCell
       real (kind=RKIND), dimension(:), pointer :: dvEdge, areaCell, dcEdge
       logical, pointer :: config_print_thickness_advection_info
-      real (kind=RKIND) :: invAreaCell, flux, maxAllowableDt
+      real (kind=RKIND) :: invAreaCell, flux, maxAllowableDt, layerNormalVelocity
       integer :: iEdge, iCell, i, k
-      type (MPAS_TimeInterval_type) :: allowableDtMinStringInterval
-      character (len=StrKIND) :: allowableDtMinString
+      real (kind=RKIND), parameter :: bigNumber = 1.0e16_RKIND  ! This is ~300 million years in seconds, but it is small enough not too overflow
       integer :: err_tmp
 
       ! Only needed for optional check for mass conservation
@@ -635,9 +645,8 @@ module li_tendency
       call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
       call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
       call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
-      call mpas_pool_get_config(liConfigs, 'config_print_thickness_advection_info', config_print_thickness_advection_info)
 
-      MinOfMaxAllowableDt = 1.0e36_RKIND
+      MinOfMaxAllowableDt = bigNumber
 
       do iCell = 1, nCells
         invAreaCell = 1.0 / areaCell(iCell)
@@ -645,38 +654,27 @@ module li_tendency
           iEdge = edgesOnCell(i, iCell)
           do k = 1, nVertLevels
 
-            if (abs(normalVelocity(k, iEdge)) > 0.0_RKIND) then
-               maxAllowableDt = (0.5_RKIND * dcEdge(iEdge)) / abs(normalVelocity(k, iEdge))  ! in years 
+            ! Average native velocities from layer interfaces to layer midpoints for advection
+            ! TODO This may make more sense to calculate as a 3d field somewhere else so it can also be used for tracer advection, output visualization, etc.
+            layerNormalVelocity = 0.5_RKIND * (normalVelocity(k, iEdge) + normalVelocity(k+1, iEdge))
+
+            if (abs(layerNormalVelocity) > 0.0_RKIND) then
+               maxAllowableDt = (0.5_RKIND * dcEdge(iEdge)) / abs(layerNormalVelocity)
             else
-               maxAllowableDt = 1.0e36_RKIND
+               maxAllowableDt = bigNumber
             endif
             if ( maxAllowableDt < dt ) then
-                 !write(0,*) 'CFL violation at level, edge', k, iEdge                      
+                 !write(stderrUnit,*) 'CFL violation at level, edge', k, iEdge                      
                  err = err + 1
             endif
             MinOfMaxAllowableDt = min(MinOfMaxAllowableDt, maxAllowableDt)
 
-            flux = normalVelocity(k, iEdge) * dvEdge(iEdge) * layerThicknessEdge(k, iEdge)
+            flux = layerNormalVelocity * dvEdge(iEdge) * layerThicknessEdge(k, iEdge)
             tend(k, iCell) = tend(k, iCell) + edgeSignOnCell(i, iCell) * flux * invAreaCell
           end do
         end do
       end do
 
-      ! Build a time string of the maximum allowable dt calculated 
-      ! (We only need this if a CFL violation occurred or config_print_thickness_advection_info is true)
-      call mpas_set_timeInterval(allowableDtMinStringInterval, dt=MinOfMaxAllowableDt, ierr=err_tmp)
-      err = ior(err,err_tmp)
-      call mpas_get_timeInterval(allowableDtMinStringInterval, timeString=allowableDtMinString, ierr=err_tmp)
-      err = ior(err,err_tmp)
-
-      if (err > 0) then
-         write(0,*) 'CFL violation on this processor on ', err, ' level-edges!  Maximum allowable time step (seconds) for this processor is (Days_hhh:mmm:sss): ' // trim(allowableDtMinString)
-         err = 1
-      endif
-
-      if (config_print_thickness_advection_info) then
-         write(6,*) '  Maximum allowable time step (s) on THIS processor is (Days_hhh:mmm:sss):   ' // trim(allowableDtMinString)
-      endif
 
       ! Optional check for mass conservation
       !tendVolSum = 0.0_RKIND
@@ -687,7 +685,7 @@ module li_tendency
 
       ! === error check
       if (err > 0) then
-          write (0,*) "An error has occurred in tend_layerThickness_fo_upwind."
+          write (stderrUnit,*) "An error has occurred in tend_layerThickness_fo_upwind."
       endif
 
    !--------------------------------------------------------------------
@@ -913,7 +911,7 @@ module li_tendency
 !                 ubar = flux / thickness(cellUpwind)
 !                 if ( (abs(ubar) * dt/SecondsInYear) .gt. (0.5 * dcEdge(iEdge))) then
 !                      !maxAllowableDt = min(maxAllowableDt, (0.5 * dcEdge)/ubar )
-!                      write(0,*) 'CFL violation at edge', iEdge
+!                      write(stderrUnit,*) 'CFL violation at edge', iEdge
 !                      err = err + 1
 !                 endif
 !                 thickness_tend(cellUpwind) = thickness_tend(cellUpwind) - flux * dvEdge(iEdge) / areaCell(cellUpwind)
@@ -922,7 +920,7 @@ module li_tendency
 !      end do
 
 !      if (err .gt. 0) then
-!         write(6,*) 'CFL violation at ', err, ' edges!  Maximum time step should be ', maxAllowableDt
+!         write(stdoutUnit,*) 'CFL violation at ', err, ' edges!  Maximum time step should be ', maxAllowableDt
 !         err = 1
 !      endif
 !   !--------------------------------------------------------------------

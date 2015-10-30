@@ -124,6 +124,8 @@ contains
 
    subroutine li_sia_block_init(block, err)
 
+      use mpas_geometry_utils, only: mpas_calculate_barycentric_weights_for_points
+
       !-----------------------------------------------------------------
       !
       ! input variables
@@ -151,9 +153,58 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
+      type (mpas_pool_type), pointer :: meshPool
+      type (mpas_pool_type), pointer :: scratchPool
+      integer :: iCell, iLevel, i, iVertex, err_tmp
+      integer, pointer :: nVertices
+      character (len=StrKIND), pointer :: config_sia_tangent_slope_calculation
+      integer, dimension(:,:), pointer :: baryCellsOnVertex
+      real (kind=RKIND), dimension(:,:), pointer :: baryWeightsOnVertex
+      real (kind=RKIND), dimension(:), pointer :: xVertex, yVertex, zVertex
+      type (field1dInteger), pointer :: vertexIndicesField
 
       ! No block init needed.
       err = 0
+      err_tmp = 0
+
+      call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+      call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
+      call mpas_pool_get_array(meshPool, 'baryCellsOnVertex', baryCellsOnVertex)
+      call mpas_pool_get_array(meshPool, 'baryWeightsOnVertex', baryWeightsOnVertex)
+      call mpas_pool_get_array(meshPool, 'xVertex', xVertex)
+      call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
+      call mpas_pool_get_array(meshPool, 'zVertex', zVertex)
+      call mpas_pool_get_config(liConfigs, 'config_sia_tangent_slope_calculation', config_sia_tangent_slope_calculation)
+      call mpas_pool_get_field(scratchPool, 'vertexIndices', vertexIndicesField)
+      call mpas_pool_get_dimension(meshPool, 'nVertices', nVertices)
+
+      ! The SIA solver may need to setup these weights for calculating upperSurfaceVertex
+      if (trim(config_sia_tangent_slope_calculation) == 'from_vertex_barycentric') then
+         call mpas_allocate_scratch_field(vertexIndicesField, .true.)
+         do iVertex = 1, nVertices
+            vertexIndicesField % array(iVertex) = iVertex
+         enddo
+         call mpas_calculate_barycentric_weights_for_points(meshPool, &
+                xVertex(1:nVertices), yVertex(1:nVertices), zVertex(1:nVertices), &
+                vertexIndicesField % array(1:nVertices), &
+                baryCellsOnVertex(:, 1:nVertices), baryWeightsOnVertex(:, 1:nVertices), err_tmp)
+         ! TODO: Until framework can handle periodic meshs gracefully, this will return an error
+         ! for periodic meshes.  This error means that the velocity solver will be very wrong across
+         ! the periodicity, but it will be fine everywhere else.  For now, just print a warning but
+         ! don't make this a fatal error.
+         !err = ior(err, err_tmp)
+         if (err_tmp > 0) then
+            write (stderrUnit,*) "Warning: The 'from_vertex_barycentric' option for 'config_sia_tangent_slope_calculation' " &
+                 // "does NOT work across the periodicity in periodic meshes.  However, it does work within the interior " &
+                 // "of the mesh."
+         endif
+         call mpas_deallocate_scratch_field(vertexIndicesField, .true.)
+      endif
+
+      ! === error check
+      if (err > 0) then
+          write (stderrUnit,*) "An error has occurred in li_sia_block_init."
+      endif
 
    !--------------------------------------------------------------------
    end subroutine li_sia_block_init
@@ -173,7 +224,7 @@ contains
 !>  on an edge using the average of the two neighboring cells (2nd order).
 !
 !-----------------------------------------------------------------------
-   subroutine li_sia_solve(meshPool, statePool, timeLevel, err)
+   subroutine li_sia_solve(meshPool, geometryPool, velocityPool, err)
       use mpas_constants, only: gravity
 
       !-----------------------------------------------------------------
@@ -185,8 +236,8 @@ contains
       type (mpas_pool_type), intent(in) :: &
          meshPool          !< Input: mesh information
 
-      integer, intent(in) :: &
-         timeLevel     !< Input: time level from which to calculate velocity
+      type (mpas_pool_type), intent(in) :: &
+         geometryPool          !< Input: geometry information
 
       !-----------------------------------------------------------------
       !
@@ -195,7 +246,7 @@ contains
       !-----------------------------------------------------------------
 
       type (mpas_pool_type), intent(inout) :: &
-         statePool          !< Input: state information 
+         velocityPool          !< Input/Output: velocity information 
 
       !-----------------------------------------------------------------
       !
@@ -211,79 +262,86 @@ contains
       !
       !-----------------------------------------------------------------
 
-      real (kind=RKIND), dimension(:), pointer :: thickness, layerCenterSigma, dcEdge, dvEdge, upperSurface, upperSurfaceVertex
-      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity
-      integer, dimension(:,:), pointer :: cellsOnEdge, verticesOnEdge
-      integer, dimension(:), pointer :: edgeMask
-      integer, pointer :: nVertLevels, nEdges, nVertices, vertexDegree
-      integer :: iLevel, iEdge, iCell, iVertex, cell1, cell2, cellIndex
-      real (kind=RKIND) :: basalVelocity, slopeOnEdge, &
-               normalSlopeOnEdge, tangentSlopeOnEdge,  &
-               layerCenterHeightOnEdge, thicknessEdge, hVertexAccum
+      real (kind=RKIND), dimension(:), pointer :: thickness, layerInterfaceSigma
+      real (kind=RKIND), dimension(:), pointer :: slopeEdge, normalSlopeEdge
+      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, flowParamA
+      integer, dimension(:,:), pointer :: cellsOnEdge
+      integer, dimension(:), pointer :: edgeMask, cellMask
+      integer, pointer :: nVertInterfaces, nEdgesSolve
+      integer :: iLevel, iEdge
+      integer :: cell1, cell2
+      real (kind=RKIND) :: thicknessEdge, flwaLevelEdge
+      real (kind=RKIND) :: positionIndependentFactor ! The portion of the velocity calculation that is completely independent of position
+      real (kind=RKIND) :: levelIndependentFactor ! The portion of the velocity calculation that depends on horizontal location but not vertical position
       real (kind=RKIND), pointer :: rhoi         ! ice density
-      real (kind=RKIND), pointer :: ratefactor   ! flow law parameter, A
       real (kind=RKIND), pointer :: n            ! flow law exponent, n
+      integer :: cell1_is_dynamic, cell2_is_dynamic
 
       err = 0
 
       ! Set needed variables and pointers
-      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
-      call mpas_pool_get_dimension(meshPool, 'nVertices', nVertices)
-      call mpas_pool_get_dimension(meshPool, 'vertexDegree', vertexDegree)
+      call mpas_pool_get_dimension(meshPool, 'nVertInterfaces', nVertInterfaces)
+      call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
 
-      call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
-      call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
       call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
-      call mpas_pool_get_array(meshPool, 'layerCenterSigma', layerCenterSigma)
-      call mpas_pool_get_array(meshPool, 'verticesOnEdge', verticesOnEdge)
+      call mpas_pool_get_array(meshPool, 'layerInterfaceSigma', layerInterfaceSigma)
 
-      call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel=timeLevel)
-      call mpas_pool_get_array(statePool, 'thickness', thickness, timeLevel=timeLevel)
-      call mpas_pool_get_array(statePool, 'edgeMask', edgeMask, timeLevel=timeLevel)
-      call mpas_pool_get_array(statePool, 'upperSurface', upperSurface, timeLevel=timeLevel)
-      call mpas_pool_get_array(statePool, 'upperSurfaceVertex', upperSurfaceVertex, timeLevel=timeLevel)
+      call mpas_pool_get_array(velocityPool, 'normalVelocity', normalVelocity)
+      call mpas_pool_get_array(velocityPool, 'flowParamA', flowParamA)
+      call mpas_pool_get_array(geometryPool, 'thickness', thickness)
+      call mpas_pool_get_array(geometryPool, 'edgeMask', edgeMask)
+      call mpas_pool_get_array(geometryPool, 'cellMask', cellMask)
+      call mpas_pool_get_array(geometryPool, 'slopeEdge', slopeEdge)
+      call mpas_pool_get_array(geometryPool, 'normalSlopeEdge', normalSlopeEdge)
 
 
       ! Get parameters specified in the namelist
       call mpas_pool_get_config(liConfigs, 'config_ice_density', rhoi)
       call mpas_pool_get_config(liConfigs, 'config_flowLawExponent', n)
-      call mpas_pool_get_config(liConfigs, 'config_default_flowParamA', ratefactor)  ! units of s^{-1} Pa^{-n}
-      ! Calculate ratefactor (A) at edge - TODO This should be calculated external to this subroutine and as a function of temperature
 
-      basalVelocity = 0.0_RKIND  ! Assume no sliding
+      positionIndependentFactor = -0.5_RKIND * (rhoi * gravity)**n  ! could be calculated once on init
 
       ! Loop over edges
-      do iEdge = 1, nEdges
+      do iEdge = 1, nEdgesSolve
+
          ! Only calculate velocity for edges that are part of the dynamic ice sheet.(thick ice)
          ! Also, the velocity calculation should be valid for non-ice edges (i.e. returns 0).
          if ( li_mask_is_dynamic_ice(edgeMask(iEdge)) ) then
              cell1 = cellsOnEdge(1,iEdge)
              cell2 = cellsOnEdge(2,iEdge)
-             ! Calculate slope at edge
-             ! This could/should be calculated externally to this subroutine
-             normalSlopeOnEdge = (upperSurface(cell1) - upperSurface(cell2) ) / dcEdge(iEdge) 
-             tangentSlopeOnEdge = ( upperSurfaceVertex(verticesOnEdge(1,iEdge)) - upperSurfaceVertex(verticesOnEdge(2,iEdge)) ) / dvEdge(iEdge)
-             slopeOnEdge = (normalSlopeOnEdge**2 + tangentSlopeOnEdge**2)**0.5
+             cell1_is_dynamic = li_mask_is_dynamic_ice_int(cellMask(cell1))
+             cell2_is_dynamic = li_mask_is_dynamic_ice_int(cellMask(cell2))
+
              ! Calculate thickness on edge - 2nd order
              thicknessEdge = (thickness(cell1) + thickness(cell2) ) * 0.5_RKIND
-             ! Loop over layers
-             do iLevel = 1, nVertLevels
-                ! Determine the height of each layer above the bed
-                layerCenterHeightOnEdge = thicknessEdge * (1.0_RKIND - layerCenterSigma(iLevel) )
-                ! Calculate SIA velocity
-                normalVelocity(iLevel,iEdge) = basalVelocity + &
-                    0.5_RKIND * ratefactor * (rhoi * gravity)**n * slopeOnEdge**(n-1) * normalSlopeOnEdge * &
-                    (thicknessEdge**(n+1) - (thicknessEdge - layerCenterHeightOnEdge)**(n+1))
-             end do  ! Levels
+!             thicknessEdge = (thickness(cell1) * cell1_is_dynamic + thickness(cell2) * cell2_is_dynamic) / (cell1_is_dynamic + cell2_is_dynamic)  ! this version does an upwind thickness on margin edges only.  Most Halfar error stats are higher by about 10-20%
+             ! Also tried upwind everywhere [for dome can be hacked with: thicknessEdge = max(thickness(cell1), thickness(cell2) ]  This results in Halfar errors that are about 5x larger than centered difference
+
+             levelIndependentFactor = slopeEdge(iEdge)**(n-1) * normalSlopeEdge(iEdge) * thicknessEdge**(n+1)
+
+             normalVelocity(nVertInterfaces, iEdge) = 0.0_RKIND  ! Assume no sliding
+
+             do iLevel = nVertInterfaces-1, 1, -1  ! Loop upwards from second lowest level to surface
+                ! Calculate flwa on edge for this level - 2nd order, except can't do centered difference into areas where flwa may not be valid, so excluding the downwind flwa value in non-dynamic cells
+!                flwaLevelEdge = (flowParamA(iLevel, cell1) + flowParamA(iLevel, cell2) ) * 0.5_RKIND
+                flwaLevelEdge = (flowParamA(iLevel, cell1) * cell1_is_dynamic +  &
+                   flowParamA(iLevel, cell2) * cell2_is_dynamic) / &
+                   (cell1_is_dynamic + cell2_is_dynamic)
+
+                ! Calculate SIA velocity for this layer interface by adding on incremental velocity for the layer below
+                ! (This requires that flwa be constant over that layer, which it is.)
+                normalVelocity(iLevel, iEdge) = normalVelocity(iLevel+1, iEdge) +  &
+                   positionIndependentFactor * levelIndependentFactor * flwaLevelEdge *  &
+                   ( (layerInterfaceSigma(iLevel))**(n+1) - (layerInterfaceSigma(iLevel+1))**(n+1) )
+             end do
          else
-             normalVelocity(:,iEdge) = 0.0_RKIND
+             normalVelocity(:,iEdge) = 0.0_RKIND  ! zero velocity on non-dynamic edges
          endif
-      end do  ! edges  
+      end do  ! edges
 
      ! === error check
      if (err > 0) then
-         write (0,*) "An error has occurred in li_sia_solve."
+         write (stderrUnit,*) "An error has occurred in li_sia_solve."
      endif
 
    !--------------------------------------------------------------------
