@@ -51,6 +51,7 @@ module ocn_tendency
    use ocn_vel_vadv
    use ocn_vel_hmix
    use ocn_vel_forcing
+   use ocn_mep
    use ocn_vmix
 
    implicit none
@@ -59,6 +60,7 @@ module ocn_tendency
 
    type (timer_node), pointer :: thickHadvTimer, thickVadvTimer
    type (timer_node), pointer :: velCorTimer, velVadvTimer, velPgradTimer, velHmixTimer, velForceTimer
+   type (timer_node), pointer :: velMEPtendTimer
    type (timer_node), pointer :: tracerHadvTimer, tracerVadvTimer, tracerHmixTimer, tracerRestoringTimer
 
    !--------------------------------------------------------------------
@@ -334,17 +336,17 @@ contains
       call mpas_timer_stop("forcings", velForceTimer)
 
       !
+      ! velocity tendency: eddy parameterization
+      !
+      call mpas_timer_start("mep", .false., velMEPtendTimer)
+      call ocn_mep_vel_tend(diagnosticsPool, meshPool, tend_normalVelocity, err)
+      call mpas_timer_stop("mep", velMEPtendTimer)
+    
+      !
       ! velocity tendency: vertical mixing d/dz( nu_v du/dz))
       !
       call mpas_timer_stop("ocn_tend_vel")
 
-      !
-      ! velocity tendency: eddy parameterization
-      !
-      call mpas_timer_start("???", .false., ???)
-      call ocn_mep_vel_tend(diagnosticsPool, meshPool, tend, err)
-      call mpas_timer_stop("???", ???)
-    
     end subroutine ocn_tend_vel!}}}
 
 !***********************************************************************

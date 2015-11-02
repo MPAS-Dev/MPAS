@@ -25,6 +25,7 @@ module ocn_mep
    use ocn_constants
    use ocn_mep_gm
    use ocn_diagnostics
+   use mpas_vector_operations
 
    implicit none
    private
@@ -263,7 +264,6 @@ contains
 
    end subroutine ocn_mep_transportVelocity_update!}}}
 
-mepTWAdragGMOn
 
 !***********************************************************************
 !
@@ -288,8 +288,7 @@ mepTWAdragGMOn
       type (mpas_pool_type), intent(in) :: meshPool        !< Input: Mesh information
       type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostic information
 
-      !jas issue: it might be that only need uBolus or normalBolusGM, 
-      !not entire diagnostics?
+      !jas issue: it might be that only need uBolus or normalBolusGM, not entire diagnostics?
 
       !-----------------------------------------------------------------
       !
@@ -342,8 +341,8 @@ mepTWAdragGMOn
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(in) :: meshPool            !< Input: Mesh information
       type (mpas_pool_type), intent(in) :: diagnosticsPool  !< Input: Diagnostic information
+      type (mpas_pool_type), intent(in) :: meshPool            !< Input: Mesh information
 
       !jas issue: it might be that only need uBolus or normalBolusGM, 
       !not entire diagnostics?
@@ -354,8 +353,7 @@ mepTWAdragGMOn
       !
       !-----------------------------------------------------------------
 
-      real (kind=RKIND), dimension(:,:), intent(inout) :: &
-         tend          !< Input/Output: normal velocity tendency
+      real (kind=RKIND), dimension(:,:), intent(inout) :: tend          !< Input/Output: normal velocity tendency
 
       !-----------------------------------------------------------------
       !
@@ -378,7 +376,7 @@ mepTWAdragGMOn
       integer, dimension(:,:), pointer :: edgeMask
       real (kIND=RKIND), dimension(:),   pointer :: fEdge
       real (kind=RKIND), dimension(:,:), pointer :: edgeTangentVectors
-      real (kind=RKIND), dimension(:,:), pointer :: tend_vel_eddy_param
+      real (kind=RKIND), dimension(:,:), pointer :: tend_vel_mep
       real (kind=RKIND), dimension(:,:), pointer :: xGMBolusVelocity
       real (kind=RKIND), dimension(:,:), pointer :: yGMBolusVelocity
       real (kind=RKIND), dimension(:,:), pointer :: zGMBolusVelocity
@@ -407,14 +405,14 @@ mepTWAdragGMOn
 
       includeHalo = .true.
 
-      call mpas_pool_get_array(diagnosticsPool, 'tend_vel_mep', tend_vel_mep);
-      tend_vel_eddy_param = 0.0
+      call mpas_pool_get_array(diagnosticsPool, 'tend_vel_mep', tend_vel_mep)
+      tend_vel_mep = 0.0
 
 
       !retrieve x,y,z bolus velocity at cell centers
-      call mpas_pool_get_array(diagnosticsPool, 'xGMBolusVelocity', xGMBolusVelocity);
-      call mpas_pool_get_array(diagnosticsPool, 'yGMBolusVelocity', yGMBolusVelocity);
-      call mpas_pool_get_array(diagnosticsPool, 'zGMBolusVelocity', zGMBolusVelocity);
+      call mpas_pool_get_array(diagnosticsPool, 'xGMBolusVelocity', xGMBolusVelocity)
+      call mpas_pool_get_array(diagnosticsPool, 'yGMBolusVelocity', yGMBolusVelocity)
+      call mpas_pool_get_array(diagnosticsPool, 'zGMBolusVelocity', zGMBolusVelocity)
 
       bolusCell(1,:,:) = xGMBolusVelocity
       bolusCell(2,:,:) = yGMBolusVelocity
@@ -428,15 +426,13 @@ mepTWAdragGMOn
       !calculate tendency = -dE3i/dz dot ni = - f*uBolus_tangent
       do iEdge = 1, nEdges
         do kLevel = 1,nVertLevels
-          tend_vel_eddy_param(kLevel,iEdge) = &
+          tend_vel_mep(kLevel,iEdge) = &
               -fEdge(iEdge) * tangentBolusEdge(kLevel,iEdge) * edgeMask(kLevel, iEdge)
         end do
       end do
 
       !update tendency with div EPFT parameterized with GM
-      if (.not. eddyParamPassiveOn) then
-        tend = tend + tend_vel_eddy_param
-      end if
+      tend = tend + tend_vel_mep
 
 
       deallocate(normalBolusEdge)
