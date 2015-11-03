@@ -1788,6 +1788,10 @@
 			 description="time tendency of low frequency-filtered divergence"
 			 packages="thicknessFilter"
 		/>
+		<var name="tendNormalVelocityMEP" type="real" dimensions="nVertLevels nEdges Time" units="m s^{-2}" name_in_code="normalVelocityMEP"
+			 description="time tendency of normal component of velocity due to mesoscale eddy parameterization"
+			 packages="forwardMode"
+		/>
 	</var_struct>
 	<var_struct name="diagnostics" time_levs="1">
 		<var name="xtime" type="text" dimensions="Time" units="unitless"

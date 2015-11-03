@@ -277,7 +277,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vel_tend(diagnosticsPool, meshPool, tend, err)!{{{
+   subroutine ocn_mep_vel_tend(tendPool, diagnosticsPool, meshPool, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -296,6 +296,7 @@ contains
       !
       !-----------------------------------------------------------------
 
+      type (mpas_pool_type), intent(inout) :: tendPool !< Input/Output: Tendency structure
       real (kind=RKIND), dimension(:,:), intent(inout) :: &
          tend          !< Input/Output: normal velocity tendency
 
@@ -315,7 +316,7 @@ contains
 
 
       if (mepTWAdragGMOn) then
-         call ocn_mep_twa_drag_GM(diagnosticsPool, meshPool, tend, err)
+         call ocn_mep_twa_drag_GM(tendPool, diagnosticsPool, meshPool, tend, err)
       end if
 
    end subroutine ocn_mep_vel_tend!}}}
@@ -333,7 +334,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_twa_drag_GM(diagnosticsPool, meshPool, tend, err)!{{{
+   subroutine ocn_mep_twa_drag_GM(tendPool, diagnosticsPool, meshPool, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -353,6 +354,7 @@ contains
       !
       !-----------------------------------------------------------------
 
+      type (mpas_pool_type), intent(inout) :: tendPool !< Input/Output: Tendency structure
       real (kind=RKIND), dimension(:,:), intent(inout) :: tend          !< Input/Output: normal velocity tendency
 
       !-----------------------------------------------------------------
@@ -405,7 +407,8 @@ contains
 
       includeHalo = .true.
 
-      call mpas_pool_get_array(diagnosticsPool, 'tend_vel_mep', tend_vel_mep)
+      ! retrieve velocity tendencry by MEP
+      call mpas_pool_get_array(tendPool, 'normalVelocityMEP', tend_vel_mep)
       tend_vel_mep = 0.0
 
 
