@@ -433,6 +433,7 @@ module ocn_time_integration_split
 
          block => domain % blocklist
          do while (associated(block))
+           call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
            call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
            call mpas_pool_get_subpool(tendPool, 'tracersTend', tracersTendPool)
            call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
@@ -464,7 +465,7 @@ module ocn_time_integration_split
                   sshCur, dt, vertAleTransportTop, err)
             endif
 
-            call ocn_tend_vel(tendPool, statePool, forcingPool, diagnosticsPool, meshPool, scratchPool, stage1_tend_time)
+            call ocn_tend_vel(mepPool, tendPool, statePool, forcingPool, diagnosticsPool, meshPool, scratchPool, stage1_tend_time)
 
             block => block % next
          end do

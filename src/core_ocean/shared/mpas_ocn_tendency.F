@@ -194,9 +194,10 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tend_vel(tendPool, statePool, forcingPool, diagnosticsPool, meshPool, scratchPool, timeLevelIn)!{{{
+   subroutine ocn_tend_vel(mepPool, tendPool, statePool, forcingPool, diagnosticsPool, meshPool, scratchPool, timeLevelIn)!{{{
       implicit none
 
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: Tendency structure
       type (mpas_pool_type), intent(inout) :: tendPool !< Input/Output: Tendency structure
       type (mpas_pool_type), intent(in) :: statePool !< Input: State information
       type (mpas_pool_type), intent(in) :: forcingPool !< Input: Forcing information
@@ -339,7 +340,7 @@ contains
       ! velocity tendency: eddy parameterization
       !
       call mpas_timer_start("mep", .false., velMEPtendTimer)
-      call ocn_mep_vel_tend(tendPool, diagnosticsPool, meshPool, tend_normalVelocity, err)
+      call ocn_mep_vel_tend(mepPool, tendPool, diagnosticsPool, meshPool, tend_normalVelocity, err)
       call mpas_timer_stop("mep", velMEPtendTimer)
     
       !

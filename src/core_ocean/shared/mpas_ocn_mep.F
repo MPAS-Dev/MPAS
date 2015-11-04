@@ -269,15 +269,15 @@ contains
 !
 !  routine ocn_mep_vel_tend
 !
-!> \brief  This routine increments tend by the time tendency by eddy forces.
+!> \brief  This routine increments normalVelocity tend by the tendency due to eddy forces.
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   October, 2015
 !> \details 
-!>  This routine increments tend by the time tendency by eddy forces.
+!>  This routine increments normalVelocity tend by the tendency due to eddy forces.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vel_tend(tendPool, diagnosticsPool, meshPool, tend, err)!{{{
+   subroutine ocn_mep_vel_tend(mepPool, tendPool, diagnosticsPool, meshPool, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -296,6 +296,7 @@ contains
       !
       !-----------------------------------------------------------------
 
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: Tendency structure
       type (mpas_pool_type), intent(inout) :: tendPool !< Input/Output: Tendency structure
       real (kind=RKIND), dimension(:,:), intent(inout) :: &
          tend          !< Input/Output: normal velocity tendency
@@ -316,7 +317,7 @@ contains
 
 
       if (mepTWAdragGMOn) then
-         call ocn_mep_twa_drag_GM(tendPool, diagnosticsPool, meshPool, tend, err)
+         call ocn_mep_twa_drag_GM(mepPool, tendPool, meshPool, tend, err)
       end if
 
    end subroutine ocn_mep_vel_tend!}}}
@@ -326,15 +327,16 @@ contains
 !
 !  routine ocn_mep_twa_drag_GM
 !
-!> \brief  This routine increments tend by the time tendency by eddy forces.
+!> \brief  This routine calculates normalVelocity tend due GM bolus coriolis.
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   October, 2015
 !> \details 
-!>  This routine increments tend by the time tendency by eddy forces.
+!>  This routine calculates normalVelocity tend due coriolis force caused by 
+!>  the GM bolus velocity.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_twa_drag_GM(tendPool, diagnosticsPool, meshPool, tend, err)!{{{
+   subroutine ocn_mep_twa_drag_GM(mepPool, tendPool, meshPool, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -342,7 +344,7 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(in) :: diagnosticsPool  !< Input: Diagnostic information
+      type (mpas_pool_type), intent(in) :: mepPool  !< Input: Diagnostic information
       type (mpas_pool_type), intent(in) :: meshPool            !< Input: Mesh information
 
       !jas issue: it might be that only need uBolus or normalBolusGM, 
@@ -379,9 +381,9 @@ contains
       real (kIND=RKIND), dimension(:),   pointer :: fEdge
       real (kind=RKIND), dimension(:,:), pointer :: edgeTangentVectors
       real (kind=RKIND), dimension(:,:), pointer :: tend_vel_mep
-      real (kind=RKIND), dimension(:,:), pointer :: xGMBolusVelocity
-      real (kind=RKIND), dimension(:,:), pointer :: yGMBolusVelocity
-      real (kind=RKIND), dimension(:,:), pointer :: zGMBolusVelocity
+      real (kind=RKIND), dimension(:,:), pointer :: GMBolusVelocityX
+      real (kind=RKIND), dimension(:,:), pointer :: GMBolusVelocityY
+      real (kind=RKIND), dimension(:,:), pointer :: GMBolusVelocityZ
       
       real (kind=RKIND), dimension(:,:),   allocatable :: normalBolusEdge
       real (kind=RKIND), dimension(:,:),   allocatable :: tangentBolusEdge
@@ -413,13 +415,13 @@ contains
 
 
       !retrieve x,y,z bolus velocity at cell centers
-      call mpas_pool_get_array(diagnosticsPool, 'xGMBolusVelocity', xGMBolusVelocity)
-      call mpas_pool_get_array(diagnosticsPool, 'yGMBolusVelocity', yGMBolusVelocity)
-      call mpas_pool_get_array(diagnosticsPool, 'zGMBolusVelocity', zGMBolusVelocity)
+      call mpas_pool_get_array(mepPool, 'GMBolusVelocityX', GMBolusVelocityX)
+      call mpas_pool_get_array(mepPool, 'GMBolusVelocityY', GMBolusVelocityY)
+      call mpas_pool_get_array(mepPool, 'GMBolusVelocityZ', GMBolusVelocityZ)
 
-      bolusCell(1,:,:) = xGMBolusVelocity
-      bolusCell(2,:,:) = yGMBolusVelocity
-      bolusCell(3,:,:) = zGMBolusVelocity
+      bolusCell(1,:,:) = GMBolusVelocityX
+      bolusCell(2,:,:) = GMBolusVelocityY
+      bolusCell(3,:,:) = GMBolusVelocityZ
 
       !interpolate bolus velocity at cell centers, mid layers, to Edges
       !make sure to average the x,y,z components, not lat/lon components.

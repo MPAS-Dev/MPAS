@@ -442,7 +442,7 @@ module ocn_time_integration_rk4
                  vertAleTransportTop, err)
            endif
 
-           call ocn_tend_vel(tendPool, provisStatePool, forcingPool, diagnosticsPool, meshPool, scratchPool, 1)
+           call ocn_tend_vel(mepPool, tendPool, provisStatePool, forcingPool, diagnosticsPool, meshPool, scratchPool, 1)
 
            if (associated(highFreqThicknessProvis)) then
               call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
