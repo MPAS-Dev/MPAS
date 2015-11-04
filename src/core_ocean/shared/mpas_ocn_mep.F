@@ -47,7 +47,8 @@ module ocn_mep
              ocn_mep_init, &
              ocn_mep_transportVelocity_update, &
              ocn_mep_vel_tend, &
-             ocn_mep_reconstruct
+             ocn_mep_reconstruct, &
+             ocn_mep_vel_hmix_tend
 
 
    !-------------------------------------------------------------------
@@ -329,7 +330,7 @@ contains
 !
 !> \brief  This routine calculates normalVelocity tend due GM bolus coriolis.
 !> \author Juan A. Saenz, Todd Ringler
-!> \date   October, 2015
+!> \date   November, 2015
 !> \details 
 !>  This routine calculates normalVelocity tend due coriolis force caused by 
 !>  the GM bolus velocity.
@@ -445,6 +446,57 @@ contains
       deallocate(bolusCell)
     
     end subroutine ocn_mep_twa_drag_GM!}}}
+
+
+!***********************************************************************
+!
+!  routine ocn_mep_vel_hmix_tend
+!
+!> \brief  This routine increments the horizontal mixing tendency for momentum due to mep.
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   November, 2015
+!> \details 
+!>  This routine increments the horizontal mixing tendency for momentum due to 
+!>  meso scale eddies.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_vel_hmix_tend(meshPool, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: meshPool        !< Input: Mesh information
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: tend  !< Input/Output: normal velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+
+      return
+
+   end subroutine ocn_mep_vel_hmix_tend!}}}
 
 
 !***********************************************************************

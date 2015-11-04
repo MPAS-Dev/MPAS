@@ -28,6 +28,7 @@ module ocn_vel_hmix
    use ocn_vel_hmix_del2
    use ocn_vel_hmix_leith
    use ocn_vel_hmix_del4
+   use ocn_mep
    use ocn_constants
 
    implicit none
@@ -56,7 +57,8 @@ module ocn_vel_hmix
    !--------------------------------------------------------------------
 
    logical :: hmixOn
-   type (timer_node), pointer :: del2Timer, del2TensorTimer, leithTimer, del4Timer, del4TensorTimer
+   type (timer_node), pointer :: del2Timer, del2TensorTimer, leithTimer
+   type (timer_node), pointer :: del4Timer, del4TensorTimer, mepTimer 
 
 
 !***********************************************************************
@@ -171,6 +173,11 @@ contains
       call mpas_timer_start("del4_tensor", .false., del4TensorTimer)
       call ocn_vel_hmix_del4_tensor_tend(meshPool, normalVelocity, tangentialVelocity, viscosity, scratchPool, tend, err1)
       call mpas_timer_stop("del4_tensor", del4TensorTimer)
+      err = ior(err1, err)
+
+      call mpas_timer_start("mep", .false., mepTimer)
+      call ocn_mep_vel_hmix_tend(meshPool, tend, err1)
+      call mpas_timer_stop("mep", mepTimer)
       err = ior(err1, err)
 
    !--------------------------------------------------------------------
