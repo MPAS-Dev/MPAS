@@ -48,7 +48,8 @@ module ocn_mep
              ocn_mep_transportVelocity_update, &
              ocn_mep_vel_tend, &
              ocn_mep_reconstruct, &
-             ocn_mep_vel_hmix_tend
+             ocn_mep_vel_hmix_tend, &
+             ocn_mep_vmix_coefs_build
 
 
    !-------------------------------------------------------------------
@@ -497,6 +498,77 @@ contains
       return
 
    end subroutine ocn_mep_vel_hmix_tend!}}}
+
+
+!***********************************************************************
+!
+!  routine ocn_mep_vmix_coefs_build
+!
+!> \brief  This routine calculates the vertical viscocity from the mep.
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   November, 2015
+!> \details 
+!>  This routine calculates the vertical viscocity from the mep. 
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_vmix_coefs_build(meshPool, statePool, diagnosticsPool, mepPool, err, timeLevel)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: meshPool        !< Input: Mesh information
+      type (mpas_pool_type), intent(in) :: statePool        !< Input: state
+      integer, intent(in), optional :: timeLevel         !< Input: Time level for state pool
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: diagnosticsPool        !< Input/Output: diagnostics
+      type (mpas_pool_type), intent(in) :: mepPool        !< Input/Output: mep stuff
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+      
+
+      if (mepTWAdragVertViscOn) then
+         ! constant viscocity
+         call ocn_mep_vmix_mom_const(...)
+
+         ! viscocity as a function of GM kappa
+         call ocn_mep_vmix_mom_GL(...)
+
+         ! viscocity using mixing length theory and prognostic eqn for EKE
+         call ocn_mep_vmix_mom_prognostic_closure(...)
+
+      end if
+
+
+
+      return
+
+   end subroutine ocn_mep_vmix_coefs_build!}}}
+
+
+
+
 
 
 !***********************************************************************

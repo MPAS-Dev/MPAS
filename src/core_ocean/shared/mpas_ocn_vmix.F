@@ -32,6 +32,7 @@ module ocn_vmix
    use ocn_vmix_coefs_rich
    use ocn_vmix_cvmix
    use ocn_vmix_coefs_redi
+   use ocn_mep
 
    implicit none
    private
@@ -124,7 +125,7 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: err1, err2, err3, err4, err5
+      integer :: err1, err2, err3, err4, err5, err6
       integer :: timeLevel
 
       real (kind=RKIND), dimension(:,:), pointer :: vertViscTopOfEdge, vertDiffTopOfCell
@@ -153,8 +154,10 @@ contains
       call ocn_vmix_coefs_rich_build(meshPool, statePool, diagnosticsPool, err3, timeLevel)
       call ocn_vmix_coefs_cvmix_build(meshPool, statePool, diagnosticsPool, err4, timeLevel)
       call ocn_vmix_coefs_redi_build(meshPool, statePool, diagnosticsPool, mepPool, err5, timeLevel)
+      !juan issue: should the previous routine call be put inside the mep vmix call below?
+      call ocn_mep_vmix_coefs_build(meshPool, statePool, diagnosticsPool, mepPool, err6, timeLevel)
 
-      err = ior(ior(ior(err1, ior(err2, err3)), err4), err5)
+      err = ior(ior(ior(ior(err1, ior(err2, err3)), err4), err5), err6)
 
    !--------------------------------------------------------------------
 
