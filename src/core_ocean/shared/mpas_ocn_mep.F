@@ -26,6 +26,7 @@ module ocn_mep
    use ocn_mep_gm
    use ocn_diagnostics
    use mpas_vector_operations
+   use ocn_mep_vmix_mom
 
    implicit none
    private
@@ -160,6 +161,23 @@ contains
       if (mepUseGMmodule) then
          call ocn_gm_init(err)
       end if
+
+      ! Initialize constant vertical viscocity
+      if (mepVertViscConst) then
+         call ocn_mep_vert_visc_const_init(mepPool, err)
+      end if
+
+      ! Initialize GL vertical viscocity
+      if (mepVertViscGL) then
+         call ocn_mep_vert_visc_GL_init(mepPool, err)
+      end if
+
+      ! Initialize prognostic vertical viscocity
+      if (mepVertViscProg) then
+         call ocn_mep_vert_visc_prog_init(mepPool, err)
+      end if
+
+      check if there are conflicts between vertical viscocity schemes
 
    !--------------------------------------------------------------------
 
@@ -451,6 +469,77 @@ contains
 
 !***********************************************************************
 !
+!  routine ocn_mep_vmix_coefs_build
+!
+!> \brief  This routine calculates the vertical viscocity from the mep.
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   November, 2015
+!> \details 
+!>  This routine calculates the vertical viscocity from the mep. 
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_vmix_coefs_build(meshPool, statePool, diagnosticsPool, mepPool, err, timeLevel)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: meshPool        !< Input: Mesh information
+      type (mpas_pool_type), intent(in) :: statePool        !< Input: state
+      integer, intent(in), optional :: timeLevel         !< Input: Time level for state pool
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: diagnosticsPool        !< Input/Output: diagnostics
+      type (mpas_pool_type), intent(in) :: mepPool        !< Input/Output: mep stuff
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+      
+      call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
+
+      
+      ! Constant vertical viscocity
+      if (mepVertViscConst) then
+         call ocn_mep_vmix_mom_const_build(vertDiffTopOfCell, err)
+      end if
+
+      ! GL vertical viscocity
+      if (mepVertViscGL) then
+         call ocn_mep_vmix_mom_GL_build(meshPool, vertDiffTopOfCell, err)
+      end if
+
+      ! Prognostic vertical viscocity
+      if (mepVertViscProg) then
+         call ocn_mep_vmix_mom_prognostic_closure_build(...)
+      end if
+
+
+      return
+
+   end subroutine ocn_mep_vmix_coefs_build!}}}
+
+
+!***********************************************************************
+!
 !  routine ocn_mep_vel_hmix_tend
 !
 !> \brief  This routine increments the horizontal mixing tendency for momentum due to mep.
@@ -498,77 +587,6 @@ contains
       return
 
    end subroutine ocn_mep_vel_hmix_tend!}}}
-
-
-!***********************************************************************
-!
-!  routine ocn_mep_vmix_coefs_build
-!
-!> \brief  This routine calculates the vertical viscocity from the mep.
-!> \author Juan A. Saenz, Todd Ringler
-!> \date   November, 2015
-!> \details 
-!>  This routine calculates the vertical viscocity from the mep. 
-!
-!-----------------------------------------------------------------------
-
-   subroutine ocn_mep_vmix_coefs_build(meshPool, statePool, diagnosticsPool, mepPool, err, timeLevel)!{{{
-
-      !-----------------------------------------------------------------
-      !
-      ! input variables
-      !
-      !-----------------------------------------------------------------
-
-      type (mpas_pool_type), intent(in) :: meshPool        !< Input: Mesh information
-      type (mpas_pool_type), intent(in) :: statePool        !< Input: state
-      integer, intent(in), optional :: timeLevel         !< Input: Time level for state pool
-
-      !-----------------------------------------------------------------
-      !
-      ! input/output variables
-      !
-      !-----------------------------------------------------------------
-
-      type (mpas_pool_type), intent(in) :: diagnosticsPool        !< Input/Output: diagnostics
-      type (mpas_pool_type), intent(in) :: mepPool        !< Input/Output: mep stuff
-
-      !-----------------------------------------------------------------
-      !
-      ! output variables
-      !
-      !-----------------------------------------------------------------
-
-      integer, intent(out) :: err !< Output: error flag
-
-      !-----------------------------------------------------------------
-      !
-      ! local variables
-      !
-      !-----------------------------------------------------------------
-      
-
-      if (mepTWAdragVertViscOn) then
-         ! constant viscocity
-         call ocn_mep_vmix_mom_const(...)
-
-         ! viscocity as a function of GM kappa
-         call ocn_mep_vmix_mom_GL(...)
-
-         ! viscocity using mixing length theory and prognostic eqn for EKE
-         call ocn_mep_vmix_mom_prognostic_closure(...)
-
-      end if
-
-
-
-      return
-
-   end subroutine ocn_mep_vmix_coefs_build!}}}
-
-
-
-
 
 
 !***********************************************************************

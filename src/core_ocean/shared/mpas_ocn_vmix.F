@@ -154,7 +154,6 @@ contains
       call ocn_vmix_coefs_rich_build(meshPool, statePool, diagnosticsPool, err3, timeLevel)
       call ocn_vmix_coefs_cvmix_build(meshPool, statePool, diagnosticsPool, err4, timeLevel)
       call ocn_vmix_coefs_redi_build(meshPool, statePool, diagnosticsPool, mepPool, err5, timeLevel)
-      !juan issue: should the previous routine call be put inside the mep vmix call below?
       call ocn_mep_vmix_coefs_build(meshPool, statePool, diagnosticsPool, mepPool, err6, timeLevel)
 
       err = ior(ior(ior(ior(err1, ior(err2, err3)), err4), err5), err6)
