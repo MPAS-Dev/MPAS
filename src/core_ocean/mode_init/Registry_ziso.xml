@@ -63,7 +63,7 @@
     description="Mean restoring temperature $T_m$ in $T_r(y) = T_m + T_a \tanh\left(2\frac{y-L/2}{L/2}\right) + T_b \frac{y-L/2}{L/2}$."
     possible_values="Any real number."
     />
-  <nml_option name="config_ziso_restoring_temp_dev_ta" type="real" default_value="2.0" units="^{circ} C"
+  <nml_option name="config_ziso_restoring_temp_dev_ta" type="real" default_value="1.0" units="^{circ} C"
     description="Temperature deviation $T_a$ in surface temp. $T_r(y) = T_m + T_a \tanh\left(2\frac{y-L/2}{L/2}\right) + T_b \frac{y-L/2}{L/2}$."
     possible_values="Any real number."
     />
@@ -75,7 +75,7 @@
     description="Time scale for interior restoring of temperature."
     possible_values="Any real number."
     />
-  <nml_option name="config_ziso_restoring_temp_piston_vel" type="real" default_value="1.93e-5" units="m s^{-1}"
+  <nml_option name="config_ziso_restoring_temp_piston_vel" type="real" default_value="7.0e-6" units="m s^{-1}"
     description="Restoring piston velocity for surface temperature."
     possible_values="Any real number."
     />
@@ -101,6 +101,10 @@
     />
   <nml_option name="config_ziso_initial_temp_mt" type="real" default_value="7.5e-5" units="^{circ} C m^{-1}"
     description="Initial temperature profile constant $m_T$ in $T(z,t=0) = T_1 + T_2 \tanh(z/h_1) + m_T z$."
+    possible_values="Any real number."
+    />
+  <nml_option name="config_ziso_bottom_water_temperature_deficit" type="real" default_value="1.0" units="^{circ} C"
+    description="Deficit in temperature used to produce bottom water."
     possible_values="Any real number."
     />
   <nml_option name="config_ziso_frazil_enable" type="logical" default_value="false" units="logical"
