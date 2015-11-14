@@ -15,7 +15,7 @@ module ocn_tracer_short_wave_absorption_jerlov
 
    use mpas_derived_types
    use mpas_pool_routines
-   use ocn_constants
+use ocn_constants
 
    implicit none
    private
@@ -146,6 +146,13 @@ contains
       weights(1) = 1.0_RKIND
 
       if ( config_fixed_jerlov_weights ) then
+      
+      !
+      ! LPV -- QUESTION: is this option necessary?  I can't imagine a use case for this option, but that 
+      !			doesn't mean it doesn't exist.
+      !
+      
+         !$omp do schedule(runtime) private(depth, k)
          do iCell = 1, nCells
            depth = 0.0_RKIND
            do k = 1, maxLevelCell(iCell)
@@ -155,9 +162,9 @@ contains
              tend(index_temperature, k, iCell) = tend(index_temperature, k, iCell) + penetrativeTemperatureFlux(iCell)*(weights(k) - weights(k+1))
            end do
          end do
+         !$omp end do
       else
-         ! it looks like this could be used to call a similar function for spatially variable coefficients.  Perhaps the fortran
-         ! interface could work here
+         !$omp do schedule(runtime) private(depth, k)
          do iCell = 1, nCells
            depth = 0.0_RKIND
            do k = 1, maxLevelCell(iCell)
@@ -167,6 +174,7 @@ contains
              tend(index_temperature, k, iCell) = tend(index_temperature, k, iCell) + penetrativeTemperatureFlux(iCell)*(weights(k) - weights(k+1))
            end do
          end do
+         !$omp end do
       end if
 
       deallocate(weights)
@@ -187,27 +195,32 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tracer_short_wave_absorption_jerlov_init(err)!{{{
+!
+!   LPV -- with new shortwave options, this routine is merged into ocean_tracer_short_wave_init
+!    		this routine is also redundant with the higher level init, it does the same thing
+!
+
+!   subroutine ocn_tracer_short_wave_absorption_jerlov_init(err)!{{{
 
    !--------------------------------------------------------------------
 
-      integer, intent(out) :: err !< Output: error flag
+!      integer, intent(out) :: err !< Output: error flag
 
-      character (len=StrKIND), pointer :: config_sw_absorption_type
+!      character (len=StrKIND), pointer :: config_sw_absorption_type
 
-      err = 0
+!      err = 0
 
-      call mpas_pool_get_config(ocnConfigs, 'config_sw_absorption_type', config_sw_absorption_type)
+!      call mpas_pool_get_config(ocnConfigs, 'config_sw_absorption_type', config_sw_absorption_type)
 
 !    will need to flip the command below to account for a non-jerlov type, maybe called variable_clarity
 
-      if ( trim( config_sw_absorption_type ) .ne. 'jerlov') then
-        write(stderrUnit,*) 'Incorrect option for config_sw_absorption_type. Options are: jerlov'
-        err = 1
-        return
-      end if
+!      if ( trim( config_sw_absorption_type ) .ne. 'jerlov') then
+!        write(stderrUnit,*) 'Incorrect option for config_sw_absorption_type. Options are: jerlov'
+!        err = 1
+!        return
+!      end if
 
-   end subroutine ocn_tracer_short_wave_absorption_jerlov_init!}}}
+!   end subroutine ocn_tracer_short_wave_absorption_jerlov_init!}}}
 
 !***********************************************************************
 
@@ -239,11 +252,6 @@ contains
 !
 !-----------------------------------------------------------------------
 
-!  
-! LPV   for spatially variable coefficients, seems like the structure would best pass in just the one coefficient value
-!
-!   real(kind=RKIND),intent(in) :: extinction_coeff_red, extinction_coeff_bg
-
 !
       integer :: k, nVertLevels
       integer,  parameter :: num_water_types = 5  ! max number of different water types
@@ -260,9 +268,6 @@ contains
 !
 !-----------------------------------------------------------------------
 
-! LPV if spatially variable could have two different weight calculations or merge to one and change the table at the top to have
-! coefficients and not depths 
-
       call mpas_pool_get_config(ocnConfigs, 'config_jerlov_water_type', config_jerlov_water_type)
 
       if (-depth < depth_cutoff) then
@@ -270,9 +275,6 @@ contains
       else
          weight = rfac(config_jerlov_water_type) * exp(-depth/depth1(config_jerlov_water_type)) &
                   + (1.0_RKIND - rfac(config_jerlov_water_type)) * exp(-depth/depth2(config_jerlov_water_type))
-
-          ! LPV i think the weight calculation would look like
-          ! weight = 0.52_RKIND*exp(-depth*2.28_RKIND)+0.24*exp(-depth*extinction_coeff_red) + 0.24*exp(-extinction_coeff_bg*depth)
       endif
    end subroutine ocn_get_jerlov_fraction!}}}
 

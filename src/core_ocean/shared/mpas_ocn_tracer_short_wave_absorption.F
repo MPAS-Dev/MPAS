@@ -103,11 +103,11 @@ contains
       !-----------------------------------------------------------------
 
       err = 0
-
-      if ( useJerlov ) then
-         call ocn_tracer_short_wave_absorption_jerlov_tend(meshPool, index_temperature, layerThickness, penetrativeTemperatureFlux, tend, err)
-      end if
-
+	  if(useJerlov) then
+	     call ocn_tracer_short_wave_absorption_jerlov_tend(meshPool, index_temperature, layerThickness, penetrativeTemperatureFlux, tend, err)
+      else
+         call ocn_tracer_short_wave_absorption_variable_tend(meshPool,swForcingPool, index_temperature, layerThickness, penetrativeTemperatureFlux,tend,err)
+      endif
    !--------------------------------------------------------------------
 
    end subroutine ocn_tracer_short_wave_absorption_tend!}}}
@@ -124,10 +124,12 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tracer_short_wave_absorption_init(err)!{{{
+   subroutine ocn_tracer_short_wave_absorption_init(domain,err)!{{{
 
    !--------------------------------------------------------------------
 
+      type (domain_type) :: domain
+      
       integer, intent(out) :: err !< Output: error flag
 
       character (len=StrKind), pointer :: config_sw_absorption_type
@@ -135,22 +137,25 @@ contains
       err = 0
 
       call mpas_pool_get_config(ocnConfigs, 'config_sw_absorption_type', config_sw_absorption_type)
-
-      useJerlov = .false.
-
-      if ( trim( config_sw_absorption_type ) .ne. 'jerlov') then
-        write(stderrUnit,*) 'Incorrect option for config_sw_absorption_type. Options are: jerlov'
-        err = 1
-        return
-      else if ( trim( config_sw_absorption_type ) == 'jerlov') then
-        useJerlov = .true.
-        call ocn_tracer_short_wave_absorption_jerlov_init(err)
+   
+      useJerlov=.false.
+      if ( trim( config_sw_absorption_type ) == 'jerlov') then
+         useJerlov=.true.
+!        call ocn_tracer_short_wave_absorption_jerlov_init(err)
+      else if ( trim( config_sw_absorption_type ) == 'manizza05' .or. trim( config_sw_absorption_type ) == 'ohlmann00'  .or.   &
+      		trim(config_sw_absorption_type) == 'ohlmann03' ) then
+      	 call ocn_tracer_short_wave_absorption_variable_init(domain, err)
+      else 
+         write(stderrUnit,*) 'Incorrect option for config_sw_absorption_type. Options are: jerlov, manizza05, ohlmann00, or ohlmann03'
+         err = 1
+         return
       end if
 
 
    end subroutine ocn_tracer_short_wave_absorption_init!}}}
 
 !***********************************************************************
+
 
 end module ocn_tracer_short_wave_absorption
 

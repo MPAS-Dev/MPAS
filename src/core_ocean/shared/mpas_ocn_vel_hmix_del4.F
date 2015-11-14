@@ -22,6 +22,7 @@ module ocn_vel_hmix_del4
 
    use mpas_derived_types
    use mpas_pool_routines
+   use mpas_threading
    use mpas_vector_operations
    use mpas_matrix_operations
    use mpas_tensor_operations
@@ -77,7 +78,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_hmix_del4_tend(meshPool, divergence, relativeVorticity, tend, err)!{{{
+   subroutine ocn_vel_hmix_del4_tend(meshPool, scratchPool, divergence, relativeVorticity, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -87,6 +88,8 @@ contains
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          divergence      !< Input: velocity divergence
+
+      type (mpas_pool_type), intent(in) :: scratchPool !< Input: scratch variables
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          relativeVorticity       !< Input: relative vorticity
@@ -131,16 +134,17 @@ contains
       real (kind=RKIND), dimension(:), pointer :: dcEdge, dvEdge, areaTriangle, &
             meshScalingDel4, areaCell
 
-      real (kind=RKIND), dimension(:,:), allocatable :: delsq_divergence, &
-            delsq_circulation, delsq_relativeVorticity, delsq_u
+      real (kind=RKIND), dimension(:,:), pointer :: delsq_divergence, delsq_relativeVorticity, delsq_u
+      type (field2DReal), pointer :: delsq_uField, delsq_divergenceField, delsq_relativeVorticityField
 
-      real (kind=RKIND), pointer :: config_mom_del4
+      real (kind=RKIND), pointer :: config_mom_del4, config_mom_del4_div_factor
 
       err = 0
 
       if(.not.hmixDel4On) return
 
       call mpas_pool_get_config(ocnConfigs, 'config_mom_del4', config_mom_del4)
+      call mpas_pool_get_config(ocnConfigs, 'config_mom_del4_div_factor', config_mom_del4_div_factor)
 
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
@@ -166,15 +170,26 @@ contains
       call mpas_pool_get_array(meshPool, 'edgeSignOnVertex', edgeSignOnVertex)
       call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
 
-      allocate(delsq_u(nVertLEvels, nEdges+1))
-      allocate(delsq_divergence(nVertLevels, nCells+1))
-      allocate(delsq_relativeVorticity(nVertLevels, nVertices+1))
+      call mpas_pool_get_field(scratchPool, 'delsq_u', delsq_uField)
+      call mpas_pool_get_field(scratchPool, 'delsq_divergence', delsq_divergenceField)
+      call mpas_pool_get_field(scratchPool, 'delsq_relativeVorticity', delsq_relativeVorticityField)
+      call mpas_allocate_scratch_field(delsq_uField, .true.)
+      call mpas_allocate_scratch_field(delsq_divergenceField, .true.)
+      call mpas_allocate_scratch_field(delsq_relativeVorticityField, .true.)
+      call mpas_threading_barrier()
 
+      delsq_u => delsq_uField % array
+      delsq_divergence => delsq_divergenceField % array
+      delsq_relativeVorticity => delsq_relativeVorticityField % array
+
+      !$omp workshare
       delsq_u(:,:) = 0.0
       delsq_relativeVorticity(:,:) = 0.0
       delsq_divergence(:,:) = 0.0
+      !$omp end workshare
 
       !Compute delsq_u
+      !$omp do schedule(runtime) private(cell1, cell2, vertex1, vertex2, invDcEdge, invDvEdge)
       do iEdge = 1, nEdges
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
@@ -183,16 +198,18 @@ contains
          vertex2 = verticesOnEdge(2,iEdge)
 
          invDcEdge = 1.0 / dcEdge(iEdge)
-         invDvEdge = 1.0 / dvEdge(iEdge)
+         invDvEdge = 1.0 / max(dvEdge(iEdge), 0.25_RKIND*dcEdge(iEdge))
 
          do k=1,maxLevelEdgeTop(iEdge)
             ! Compute \nabla^2 u = \nabla divergence + k \times \nabla relativeVorticity
             delsq_u(k, iEdge) = ( divergence(k,cell2)  - divergence(k,cell1) ) * invDcEdge  &
-                               -( relativeVorticity(k,vertex2) - relativeVorticity(k,vertex1)) * invDcEdge * sqrt(3.0)   
+                               -( relativeVorticity(k,vertex2) - relativeVorticity(k,vertex1)) * invDvEdge
          end do
       end do
+      !$omp end do
 
       ! Compute delsq_relativeVorticity
+      !$omp do schedule(runtime) private(invAreaTri1, i, iEdge, k)
       do iVertex = 1, nVertices
          invAreaTri1 = 1.0 / areaTriangle(iVertex)
          do i = 1, vertexDegree
@@ -202,8 +219,10 @@ contains
             end do
          end do
       end do
+      !$omp end do
 
       ! Compute delsq_divergence
+      !$omp do schedule(runtime) private(invAreaCell1, i, iEdge, k)
       do iCell = 1, nCells
          invAreaCell1 = 1.0 / areaCell(iCell)
          do i = 1, nEdgesOnCell(iCell)
@@ -213,9 +232,11 @@ contains
             end do
          end do
       end do
+      !$omp end do
 
       ! Compute - \kappa \nabla^4 u 
       ! as  \nabla div(\nabla^2 u) + k \times \nabla ( k \cross curl(\nabla^2 u) )
+      !$omp do schedule(runtime) private(cell1, cell2, vertex1, vertex2, invDcEdge, invDvEdge, r_tmp, u_diffusion)
       do iEdge=1,nEdgesSolve
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
@@ -227,16 +248,18 @@ contains
          r_tmp = config_mom_del4 * meshScalingDel4(iEdge)
 
          do k=1,maxLevelEdgeTop(iEdge)
-            u_diffusion = (delsq_divergence(k,cell2) - delsq_divergence(k,cell1)) * invDcEdge  &
-                        - (delsq_relativeVorticity(k,vertex2) - delsq_relativeVorticity(k,vertex1) ) * invDcEdge * sqrt(3.0) 
+            u_diffusion = config_mom_del4_div_factor*(delsq_divergence(k,cell2) - delsq_divergence(k,cell1)) * invDcEdge  &
+                        - (delsq_relativeVorticity(k,vertex2) - delsq_relativeVorticity(k,vertex1) ) * invDvEdge
 
             tend(k,iEdge) = tend(k,iEdge) - edgeMask(k, iEdge) * u_diffusion * r_tmp
          end do
       end do
+      !$omp end do
 
-      deallocate(delsq_u)
-      deallocate(delsq_divergence)
-      deallocate(delsq_relativeVorticity)
+      call mpas_threading_barrier()
+      call mpas_deallocate_scratch_field(delsq_uField, .true.)
+      call mpas_deallocate_scratch_field(delsq_divergenceField, .true.)
+      call mpas_deallocate_scratch_field(delsq_relativeVorticityField, .true.)
 
    !--------------------------------------------------------------------
 
@@ -358,6 +381,7 @@ contains
       call mpas_allocate_scratch_field(outerProductEdgeField, .true.)
       call mpas_allocate_scratch_field(normalVectorEdgeField, .true.)
       call mpas_allocate_scratch_field(tangentialVectorEdgeField, .true.)
+      call mpas_threading_barrier()
 
       strainRateR3Cell => strainRateR3CellField % array
       strainRateR3Edge => strainRateR3EdgeField % array
@@ -375,6 +399,7 @@ contains
       call mpas_matrix_cell_to_edge(strainRateR3Cell, meshPool, .true., strainRateR3Edge)
 
       ! The following loop could possibly be reduced to nEdgesSolve
+      !$omp do schedule(runtime) private(visc4_sqrt, k)
       do iEdge = 1, nEdges 
          visc4_sqrt = sqrt(config_mom_del4_tensor * meshScalingDel4(iEdge))
          do k = 1, maxLevelEdgeTop(iEdge)
@@ -385,6 +410,7 @@ contains
             strainRateR3Edge(:,k,iEdge) = 0.0
          end do
       end do
+      !$omp end do
 
       ! may change boundaries to false later
       call mpas_divergence_of_tensor_R3Cell(strainRateR3Edge, meshPool, edgeSignOnCell, .true., divTensorR3Cell)
@@ -400,6 +426,7 @@ contains
       call mpas_matrix_cell_to_edge(strainRateR3Cell, meshPool, .true., strainRateR3Edge)
 
       ! The following loop could possibly be reduced to nEdgesSolve
+      !$omp do schedule(runtime) private(visc4_sqrt, k)
       do iEdge = 1, nEdges  
          visc4_sqrt = sqrt(config_mom_del4_tensor * meshScalingDel4(iEdge))
          viscosity(:,iEdge) = viscosity(:,iEdge) + config_mom_del4_tensor * meshScalingDel4(iEdge)
@@ -411,6 +438,7 @@ contains
             strainRateR3Edge(:,k,iEdge) = 0.0
          end do
       end do
+      !$omp end do
 
       ! may change boundaries to false later
       call mpas_divergence_of_tensor_R3Cell(strainRateR3Edge, meshPool, edgeSignOnCell, .true., divTensorR3Cell)
@@ -418,12 +446,15 @@ contains
       call mpas_vector_R3Cell_to_normalVectorEdge(divTensorR3Cell, meshPool, .true., normalVectorEdge)
 
       ! The following loop could possibly be reduced to nEdgesSolve
+      !$omp do schedule(runtime) private(k)
       do iEdge = 1,nEdges
          do k = 1,maxLevelEdgeTop(iEdge)
             tend(k,iEdge) = tend(k,iEdge) - edgeMask(k, iEdge) * normalVectorEdge(k,iEdge)
          end do
       end do
+      !$omp end do
 
+      call mpas_threading_barrier()
       call mpas_deallocate_scratch_field(strainRateR3CellField, .true.)
       call mpas_deallocate_scratch_field(strainRateR3EdgeField, .true.)
       call mpas_deallocate_scratch_field(divTensorR3CellField, .true.)
