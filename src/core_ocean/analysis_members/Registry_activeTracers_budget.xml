@@ -23,6 +23,15 @@
 	<packages>
 		<package name="activeTracersBudgetAMPKG" description="This package includes variables required for the active tracers budget analysis member."/>
 	</packages>
+	<var_struct name="tracerBudgetScratch" time_levs="1">
+	        <var name="tracerProvisional" 
+                         persistence="scratch"
+                         type="real" 
+                         dimensions="nVertLevels nCells" 
+                         units="tracer units" 
+                         description="Provisional tracer needed to compute the implicit vertical diffusion term within the tracer budget AM"
+                />
+        </var_struct>
 	<var_struct name="tracersBudgetAM" time_levs="1">
 		<var_array name="activeTracersBudgetHadv" dimensions="nVertLevels nCells Time" type="real" packages="activeTracersBudgetAMPKG">
 			<var name="temperatureBudgetHadv" array_group="activeTracersBudgetHadvGRP" units="C s^{-1}"
