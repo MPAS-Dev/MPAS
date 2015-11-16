@@ -17,7 +17,8 @@ module ocn_tracer_short_wave_absorption
    use mpas_pool_routines
    use ocn_constants
    use ocn_tracer_short_wave_absorption_jerlov
-
+   use ocn_tracer_short_wave_absorption_variable
+   
    implicit none
    private
    save
@@ -61,7 +62,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tracer_short_wave_absorption_tend(meshPool, index_temperature, layerThickness, penetrativeTemperatureFlux, tend, err)!{{{
+   subroutine ocn_tracer_short_wave_absorption_tend(meshPool, swForcingPool, forcingPool, index_temperature, layerThickness, penetrativeTemperatureFlux, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -70,7 +71,7 @@ contains
       !-----------------------------------------------------------------
 
       type (mpas_pool_type), intent(in) :: &
-         meshPool          !< Input: mesh information
+         meshPool, swForcingPool, forcingPool          !< Input: mesh information
 
       real (kind=RKIND), dimension(:), intent(in) :: &
          penetrativeTemperatureFlux !< Input: short wave heat flux
@@ -106,7 +107,7 @@ contains
 	  if(useJerlov) then
 	     call ocn_tracer_short_wave_absorption_jerlov_tend(meshPool, index_temperature, layerThickness, penetrativeTemperatureFlux, tend, err)
       else
-         call ocn_tracer_short_wave_absorption_variable_tend(meshPool,swForcingPool, index_temperature, layerThickness, penetrativeTemperatureFlux,tend,err)
+         call ocn_tracer_short_wave_absorption_variable_tend(meshPool,swForcingPool, forcingPool, index_temperature, layerThickness, penetrativeTemperatureFlux,tend,err)
       endif
    !--------------------------------------------------------------------
 

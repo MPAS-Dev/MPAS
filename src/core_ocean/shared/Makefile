@@ -37,7 +37,8 @@ OBJS = mpas_ocn_init_routines.o \
 	   mpas_ocn_tracer_nonlocalflux.o \
 	   mpas_ocn_tracer_short_wave_absorption.o \
 	   mpas_ocn_tracer_short_wave_absorption_jerlov.o \
-	   mpas_ocn_tracer_surface_restoring.o \
+           mpas_ocn_tracer_short_wave_absorption_variable.o \
+           mpas_ocn_tracer_surface_restoring.o \
 	   mpas_ocn_tracer_interior_restoring.o \
 	   mpas_ocn_tracer_exponential_decay.o \
 	   mpas_ocn_tracer_ideal_age.o \
@@ -117,7 +118,9 @@ mpas_ocn_tracer_nonlocalflux.o: mpas_ocn_constants.o
 
 mpas_ocn_tracer_surface_flux.o: mpas_ocn_forcing.o mpas_ocn_constants.o
 
-mpas_ocn_tracer_short_wave_absorption.o: mpas_ocn_tracer_short_wave_absorption_jerlov.o mpas_ocn_constants.o
+mpas_ocn_tracer_short_wave_absorption.o: mpas_ocn_tracer_short_wave_absorption_jerlov.o mpas_ocn_tracer_short_wave_absorption_variable.o mpas_ocn_constants.o
+
+mpas_ocn_tracer_short_wave_absorption.o: mpas_ocn_constants.o 
 
 mpas_ocn_tracer_short_wave_absorption_jerlov.o: mpas_ocn_constants.o
 

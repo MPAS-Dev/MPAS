@@ -34,7 +34,6 @@ use ocn_constants
    !--------------------------------------------------------------------
 
    public :: ocn_tracer_short_wave_absorption_jerlov_tend, &
-             ocn_tracer_short_wave_absorption_jerlov_init, &
              ocn_get_jerlov_fraction
 
    !--------------------------------------------------------------------
@@ -182,47 +181,6 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_tracer_short_wave_absorption_jerlov_tend!}}}
-
-!***********************************************************************
-!
-!  routine ocn_tracer_short_wave_absorption_jerlov_init
-!
-!> \brief   Initializes ocean tracer surface flux quantities
-!> \author  Doug Jacobsen
-!> \date    12/17/12
-!> \details 
-!>  This routine initializes quantities related to surface fluxes in the ocean.
-!
-!-----------------------------------------------------------------------
-
-!
-!   LPV -- with new shortwave options, this routine is merged into ocean_tracer_short_wave_init
-!    		this routine is also redundant with the higher level init, it does the same thing
-!
-
-!   subroutine ocn_tracer_short_wave_absorption_jerlov_init(err)!{{{
-
-   !--------------------------------------------------------------------
-
-!      integer, intent(out) :: err !< Output: error flag
-
-!      character (len=StrKIND), pointer :: config_sw_absorption_type
-
-!      err = 0
-
-!      call mpas_pool_get_config(ocnConfigs, 'config_sw_absorption_type', config_sw_absorption_type)
-
-!    will need to flip the command below to account for a non-jerlov type, maybe called variable_clarity
-
-!      if ( trim( config_sw_absorption_type ) .ne. 'jerlov') then
-!        write(stderrUnit,*) 'Incorrect option for config_sw_absorption_type. Options are: jerlov'
-!        err = 1
-!        return
-!      end if
-
-!   end subroutine ocn_tracer_short_wave_absorption_jerlov_init!}}}
-
-!***********************************************************************
 
 !***********************************************************************
 !

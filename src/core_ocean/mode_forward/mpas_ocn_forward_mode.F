@@ -57,6 +57,7 @@ module ocn_forward_mode
    use ocn_tracer_hmix
    use ocn_tracer_surface_flux_to_tend
    use ocn_tracer_short_wave_absorption
+   use ocn_tracer_short_wave_absorption_variable
    use ocn_tracer_nonlocalflux
    use ocn_tracer_advection
    use ocn_gm
@@ -211,7 +212,7 @@ module ocn_forward_mode
       ierr = ior(ierr, err_tmp)
       call ocn_tracer_advection_init(err_tmp)
       ierr = ior(ierr,err_tmp)
-      call ocn_tracer_short_wave_absorption_init(err_tmp)
+      call ocn_tracer_short_wave_absorption_init(domain,err_tmp)
       ierr = ior(ierr,err_tmp)
       call ocn_gm_init(err_tmp)
       ierr = ior(ierr,err_tmp)
@@ -450,7 +451,7 @@ module ocn_forward_mode
       itimestep = 0
 
       ! read initial data required for variable shortwave
-      call get_shortWaveData(domain % streamManager, domain, clock, .true.)
+      call get_shortWaveData(domain % streamManager, domain, domain % clock, .true.)
       
       do while (.not. mpas_is_clock_stop_time(domain % clock))
          call mpas_timer_start('io_read', .false.)
@@ -537,7 +538,7 @@ module ocn_forward_mode
          call mpas_timer_stop('reset_io_alarms')
          
          ! read next time level data required for variable shortwave
-          call get_shortWaveData(domain % streamManager, domain, clock, .false.)
+         call get_shortWaveData(domain % streamManager, domain, domain % clock, .false.)
       
       end do
 
