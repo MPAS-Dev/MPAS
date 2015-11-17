@@ -538,8 +538,10 @@ module ocn_forward_mode
          call mpas_timer_stop('reset_io_alarms')
          
          ! read next time level data required for variable shortwave
+         call mpas_timer_start('io_shortwave',.false.)
          call get_shortWaveData(domain % streamManager, domain, domain % clock, .false.)
-      
+      	 call mpas_timer_stop('io_shortwave')
+      	 
       end do
 
    end function ocn_forward_mode_run!}}}

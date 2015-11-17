@@ -55,6 +55,10 @@
 	 				description="Name of clear sky radiation variable in the swData input file"
 	 				possible_values="clear sky radiation varname from swData file"
 	 	/>
+		<nml_option name="config_global_ocean_swData_method" type="character" default_value="bilinear_interpolation" units="unitless"
+					description="Method to interpolate shortwave data (chlorophyll, zenithAngle, clearskyrad) to MPAS mesh."
+					possible_values="bilinear_interpolation, nearest_neighbor"
+		/>
 		<nml_option name="config_global_ocean_temperature_file" type="character" default_value="none" units="unitless"
 					description="Path to the temperature initial condition file. Must be interpolated to vertical layers defined in depth file."
 					possible_values="path/to/temperature/file.nc"

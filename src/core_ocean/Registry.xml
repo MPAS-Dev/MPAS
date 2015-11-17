@@ -1270,7 +1270,8 @@
 				filename_template="shortwaveData.nc"
 				input_interval="none"
 				immutable="true">
-			
+				
+			<var name="xtime"/>
 			<var name="chlorophyllData"/>
 			<var name="zenithAngle"/>
 			<var name="clearSkyRadiation"/>
