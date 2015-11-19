@@ -23,7 +23,7 @@
 	<packages>
 		<package name="activeTracersBudgetAMPKG" description="This package includes variables required for the active tracers budget analysis member."/>
 	</packages>
-	<var_struct name="tracerBudgetScratch" time_levs="1">
+	<var_struct name="tracersBudgetScratch" time_levs="1">
 	        <var name="tracerProvisional" 
                          persistence="scratch"
                          type="real" 

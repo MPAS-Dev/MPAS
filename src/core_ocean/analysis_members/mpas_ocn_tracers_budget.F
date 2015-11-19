@@ -169,10 +169,13 @@ contains
       ! local variables
       !
       ! Note: variables that are needed at 2 time-levels (n and n+1) have been
-      ! named 'Cur' if time-level=n+1 and 'Old' if time-level=n (reasoning that
-      ! the time integration step has already been done when this AM is
-      ! computed). Any other 2-time-level variable that does not have a 'Cur'
-      ! or 'Old' suffix is associated with time-level=n+1.
+      ! named 'Cur' if time-level=n and 'New' if time-level=n+1. Now, the
+      ! forward model time integration step has already been done when this 
+      ! AM is computed, BUT time-levels have also been switched before the AM
+      ! is called, therefore: timeLevel=1 corresponds to the New time (n+1) and
+      ! timeLevel=2 corresponds to the Old (or Cur) time (n). Finally, any other 
+      ! 2-time-level variable that does not have a 'Cur' or a 'New' suffix 
+      ! is associated with time-level=n+1.
       !
       !-----------------------------------------------------------------
 
@@ -206,6 +209,7 @@ contains
       logical, pointer :: config_use_tracerGroup, config_use_tracerGroup_surface_bulk_forcing, config_use_tracerGroup_surface_restoring, &
                           config_use_tracerGroup_interior_restoring, config_use_tracerGroup_exponential_decay, config_use_tracerGroup_idealAge_forcing, &
                           config_use_tracerGroup_ttd_forcing
+      integer :: timeLevelCur, timeLevelNew
 
       ! time step
       type (MPAS_timeInterval_type) :: timeStep
@@ -232,7 +236,7 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: tracerGroupPistonVelocity, tracerGroupSurfaceRestoringValue, tracerGroupIdealAgeMask, tracerGroupTTDMask
 
       real (kind=RKIND), dimension(:,:), pointer :: &
-        normalTransportVelocity, layerThicknessCur, layerThicknessOld, vertAleTransportTop, layerThicknessEdge, vertDiffTopOfCell, &
+        normalTransportVelocity, layerThicknessCur, layerThicknessNew, vertAleTransportTop, layerThicknessEdge, vertDiffTopOfCell, &
         tend_layerThickness, normalThicknessFlux, tracerGroupSurfaceFlux, fractionAbsorbed, zMid, relativeSlopeTopOfEdge, &
         relativeSlopeTapering, relativeSlopeTaperingCell, tracerProvisional
 
@@ -240,7 +244,7 @@ contains
       ! three dimensional pointers
       !
       real (kind=RKIND), dimension(:,:,:), pointer :: &
-        tracerGroupCur, tracerGroupOld, tracerGroupTend, vertNonLocalFlux, &
+        tracerGroupCur, tracerGroupNew, tracerGroupTend, vertNonLocalFlux, &
         tracerGroupBudgetHadv, tracerGroupBudgetVadv, tracerGroupBudgetHdif, &
         tracerGroupBudgetVdif, tracerGroupBudgetForc, tracerGroupBudgetRate
 
@@ -258,6 +262,10 @@ contains
       call mpas_pool_get_config(domain % configs, 'config_dt', config_dt)
       call mpas_set_timeInterval(timeStep, timeString=config_dt, ierr=err)
       call mpas_get_timeInterval(timeStep, dt=dt)
+
+      ! Define time levels:
+      timeLevelNew = 1 ! n+1
+      timeLevelCur = 2 ! n
 
       dminfo = domain % dminfo
 
@@ -296,8 +304,8 @@ contains
 !         call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
 !         call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
 !         call mpas_pool_get_array(meshPool, 'maxLevelVertexBot', maxLevelVertexBot)
-         call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessCur, timeLevel)
-         call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessOld, timeLevel-1)
+         call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessCur, timeLevelCur)
+         call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessNew, timeLevelNew)
          call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
          call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
          call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
@@ -366,8 +374,8 @@ contains
 
 
                  ! Get tracer group, and other groups (tendencies, etc.)
-                 call mpas_pool_get_array(tracersPool, trim(groupItr % memberName), tracerGroupCur, timeLevel)
-                 call mpas_pool_get_array(tracersPool, trim(groupItr % memberName), tracerGroupOld, timeLevel-1)
+                 call mpas_pool_get_array(tracersPool, trim(groupItr % memberName), tracerGroupCur, timeLevelCur)
+                 call mpas_pool_get_array(tracersPool, trim(groupItr % memberName), tracerGroupNew, timeLevelNew)
                  nTracerGroup = size(tracerGroupCur, dim=1)
 
                  ! Get Tendency array
@@ -423,13 +431,13 @@ contains
                      call mpas_pool_get_array(tracersSurfaceRestoringFieldsPool, trim(modifiedGroupName), tracerGroupPistonVelocity)
                      modifiedGroupName = trim(groupItr % memberName) // "SurfaceRestoringValue"
                      call mpas_pool_get_array(tracersSurfaceRestoringFieldsPool, trim(modifiedGroupName), tracerGroupSurfaceRestoringValue)
-                     call ocn_tracer_surface_restoring_compute(nTracerGroup, nCellsSolve, tracerGroupCur, tracerGroupPistonVelocity, tracerGroupSurfaceRestoringValue, tracerGroupSurfaceFlux, err)
+                     call ocn_tracer_surface_restoring_compute(nTracerGroup, nCellsSolve, tracerGroupNew, tracerGroupPistonVelocity, tracerGroupSurfaceRestoringValue, tracerGroupSurfaceFlux, err)
                  endif
 
                  ! land-ice / ocean interface flux
                  ! this is a flux at the top ocean surface -- so these fluxes should be added into tracerGroupSurfaceFlux
                  !if (put correct logic here, only 'active' when coupling is turned on)
-                 !   call ocn_tracer_landIce_ocean_coupling(tracerGroupCur, tracerGroupSurfaceFlux)
+                 !   call ocn_tracer_landIce_ocean_coupling(tracerGroupNew, tracerGroupSurfaceFlux)
                  !endif
 
                  !
@@ -439,7 +447,7 @@ contains
                  !
                  ! Second, convert the surface tracer flux into a tracer tendency by distributing the flux across some number of surface layers
                  !
-                 call ocn_tracer_surface_flux_tend(meshPool, fractionAbsorbed, layerThicknessCur, tracerGroupSurfaceFlux, tracerGroupBudgetForc, err)
+                 call ocn_tracer_surface_flux_tend(meshPool, fractionAbsorbed, layerThicknessNew, tracerGroupSurfaceFlux, tracerGroupBudgetForc, err)
 
                  !
                  ! Third, add interior forcing terms
@@ -453,8 +461,8 @@ contains
                      call mpas_pool_get_array(tracersInteriorRestoringFieldsPool, trim(modifiedGroupName), tracerGroupInteriorRestoringRate)
                      modifiedGroupName = trim(groupItr % memberName) // "InteriorRestoringValue"
                      call mpas_pool_get_array(tracersInteriorRestoringFieldsPool, trim(modifiedGroupName),tracerGroupInteriorRestoringValue)
-                     call ocn_tracer_interior_restoring_compute(nTracerGroup, nCellsSolve, maxLevelCell, layerThicknessCur, &
-                        tracerGroupCur, tracerGroupInteriorRestoringRate, tracerGroupInteriorRestoringValue, tracerGroupBudgetForc, err)
+                     call ocn_tracer_interior_restoring_compute(nTracerGroup, nCellsSolve, maxLevelCell, layerThicknessNew, &
+                        tracerGroupNew, tracerGroupInteriorRestoringRate, tracerGroupInteriorRestoringValue, tracerGroupBudgetForc, err)
                  endif
 
                  !
@@ -465,8 +473,8 @@ contains
                      call mpas_pool_get_subpool(forcingPool, 'tracersExponentialDecayFields', tracersExponentialDecayFieldsPool)
                      modifiedGroupName = trim(groupItr % memberName) // "ExponentialDecayRate"
                      call mpas_pool_get_array(tracersExponentialDecayFieldsPool, trim(modifiedGroupName), tracerGroupExponentialDecayRate)
-                     call ocn_tracer_exponential_decay_compute(nTracerGroup, nCellsSolve, maxLevelCell, layerThicknessCur, &
-                        tracerGroupCur, tracerGroupExponentialDecayRate, tracerGroupBudgetForc, err)
+                     call ocn_tracer_exponential_decay_compute(nTracerGroup, nCellsSolve, maxLevelCell, layerThicknessNew, &
+                        tracerGroupNew, tracerGroupExponentialDecayRate, tracerGroupBudgetForc, err)
                  endif
 
                  !
@@ -478,8 +486,8 @@ contains
                      call mpas_pool_get_subpool(forcingPool, 'tracersIdealAgeFields', tracersIdealAgeFieldsPool)
                      modifiedGroupName = trim(groupItr % memberName) // "IdealAgeMask"
                      call mpas_pool_get_array(tracersIdealAgeFieldsPool, trim(modifiedGroupName), tracerGroupIdealAgeMask)
-                     call ocn_tracer_ideal_age_compute(nTracerGroup, nCellsSolve, maxLevelCell, layerThicknessCur, &
-                        tracerGroupIdealAgeMask, tracerGroupCur, tracerGroupBudgetForc, err)
+                     call ocn_tracer_ideal_age_compute(nTracerGroup, nCellsSolve, maxLevelCell, layerThicknessNew, &
+                        tracerGroupIdealAgeMask, tracerGroupNew, tracerGroupBudgetForc, err)
                  endif
 
                  !
@@ -493,29 +501,29 @@ contains
                  !    call mpas_pool_get_subpool(forcingPool, 'tracersTTDFields', tracersTTDFieldsPool)
                  !    modifiedGroupName = trim(groupItr % memberName) // "TTDMask"
                  !    call mpas_pool_get_array(tracersTTDFieldsPool, trim(modifiedGroupName), tracerGroupTTDMask)
-                 !    call ocn_tracer_TTD_compute(nTracerGroup, nCellsSolve, maxLevelCell, layerThicknessCur, &
-                 !       tracerGroupTTDMask, tracerGroupCur, err)
+                 !    call ocn_tracer_TTD_compute(nTracerGroup, nCellsSolve, maxLevelCell, layerThicknessNew, &
+                 !       tracerGroupTTDMask, tracerGroupNew, err)
                  !endif
 
                  !
                  ! Performing shortwave absorption
                  !
                  if ( trim(groupItr % memberName) == 'activeTracers' ) then
-                    call ocn_tracer_short_wave_absorption_tend(meshPool, indexTemperature, layerThicknessCur, penetrativeTemperatureFlux, tracerGroupBudgetForc, err)
+                    call ocn_tracer_short_wave_absorption_tend(meshPool, indexTemperature, layerThicknessNew, penetrativeTemperatureFlux, tracerGroupBudgetForc, err)
                  endif
 
                  !
                  ! tracer tendency: horizontal advection term -div( layerThicknessCur \phi u)
                  !
                  ! Monotonic Advection, or standard advection
-                 call ocn_tracer_advection_tend(tracerGroupCur, normalThicknessFlux, vertAleTransportTop, &
-                    layerThicknessCur, layerThicknessCur, dt, meshPool, scratchPool, tend_layerThickness, tracerGroupBudgetHadv)
+                 call ocn_tracer_advection_tend(tracerGroupNew, normalThicknessFlux, vertAleTransportTop, &
+                    layerThicknessNew, layerThicknessNew, dt, meshPool, scratchPool, tend_layerThickness, tracerGroupBudgetHadv)
 !                  tracerGroupBudgetHadv, tracerGroupBudgetVadv)
 
                  !
                  ! tracer tendency: del2 horizontal tracer diffusion, div(h \kappa_2 \nabla \phi)
                  !
-                 call ocn_tracer_hmix_tend(meshPool, scratchPool, layerThicknessEdge, zMid, tracerGroupCur, &
+                 call ocn_tracer_hmix_tend(meshPool, scratchPool, layerThicknessEdge, zMid, tracerGroupNew, &
                     relativeSlopeTopOfEdge, relativeSlopeTapering, relativeSlopeTaperingCell, tracerGroupBudgetHdif, err)
 
                  !
@@ -540,20 +548,24 @@ contains
                  do iTracer = 1, nTracerGroup
                    do iCell = 1, nCellsSolve
                      do k = 1, nVertLevels
-                       tracerProvisional(k, iCell) = ( tracerGroupOld(iTracer, k, iCell) * layerThicknessOld(k, iCell) + &
+                   write(*,*) '***********'
+                   write(*,*) 'k, iCell, iTracer, layerThicknessCur, layerThicknessNew = ', &
+                    k,iCell,iTracer,layerThicknessCur(k, iCell),layerThicknessNew(k, iCell)
+                   write(*,*) '***********'
+                       tracerProvisional(k, iCell) = ( tracerGroupCur(iTracer, k, iCell) * layerThicknessCur(k, iCell) + &
                                                        dt * ( tracerGroupBudgetForc(iTracer, k, iCell) +                 &
                                                               tracerGroupBudgetHadv(iTracer, k, iCell) +                 &
                                                               tracerGroupBudgetHdif(iTracer, k, iCell) +                 &
-                                                              tracerGroupBudgetVdif(iTracer, k, iCell) ) ) / layerThicknessCur(k, iCell)
+                                                              tracerGroupBudgetVdif(iTracer, k, iCell) ) ) / layerThicknessNew(k, iCell)
 
-                       tracerGroupBudgetVdif(iTracer, k, iCell) = tracerGroupBudgetVdif(iTracer, k, iCell) / layerThicknessCur(k, iCell) + &
-                                                                  ( tracerGroupCur(iTracer, k, iCell) - tracerProvisional(k, iCell)) / dt
+                       tracerGroupBudgetVdif(iTracer, k, iCell) = tracerGroupBudgetVdif(iTracer, k, iCell) / layerThicknessNew(k, iCell) + &
+                                                                  ( tracerGroupNew(iTracer, k, iCell) - tracerProvisional(k, iCell)) / dt
 
-                       tracerGroupBudgetRate(iTracer, k, iCell) = ( tracerGroupCur(iTracer, k, iCell) - tracerGroupOld(iTracer, k, iCell) ) / dt
+                       tracerGroupBudgetRate(iTracer, k, iCell) = ( tracerGroupNew(iTracer, k, iCell) - tracerGroupCur(iTracer, k, iCell) ) / dt
 
-                       tracerGroupBudgetForc(iTracer, k, iCell) = tracerGroupBudgetForc(iTracer, k, iCell) / layerThicknessCur(k, iCell)
-                       tracerGroupBudgetHadv(iTracer, k, iCell) = tracerGroupBudgetHadv(iTracer, k, iCell) / layerThicknessCur(k, iCell)
-                       tracerGroupBudgetHdif(iTracer, k, iCell) = tracerGroupBudgetHdif(iTracer, k, iCell) / layerThicknessCur(k, iCell)
+                       tracerGroupBudgetForc(iTracer, k, iCell) = tracerGroupBudgetForc(iTracer, k, iCell) / layerThicknessNew(k, iCell)
+                       tracerGroupBudgetHadv(iTracer, k, iCell) = tracerGroupBudgetHadv(iTracer, k, iCell) / layerThicknessNew(k, iCell)
+                       tracerGroupBudgetHdif(iTracer, k, iCell) = tracerGroupBudgetHdif(iTracer, k, iCell) / layerThicknessNew(k, iCell)
                      end do
                    end do
                  end do
