@@ -57,6 +57,7 @@ module ocn_forward_mode
    use ocn_tracer_hmix
    use ocn_tracer_surface_flux_to_tend
    use ocn_tracer_short_wave_absorption
+   use ocn_tracer_short_wave_absorption_variable
    use ocn_tracer_nonlocalflux
    use ocn_tracer_advection
    use ocn_tracer_ecosys
@@ -214,7 +215,7 @@ module ocn_forward_mode
       ierr = ior(ierr, err_tmp)
       call ocn_tracer_advection_init(err_tmp)
       ierr = ior(ierr,err_tmp)
-      call ocn_tracer_short_wave_absorption_init(err_tmp)
+      call ocn_tracer_short_wave_absorption_init(domain,err_tmp)
       ierr = ior(ierr,err_tmp)
       call ocn_gm_init(err_tmp)
       ierr = ior(ierr,err_tmp)
@@ -458,6 +459,9 @@ module ocn_forward_mode
       !   time step, and time level 2 stores the state advanced dt in time by timestep(...)
       itimestep = 0
 
+      ! read initial data required for variable shortwave
+      call get_shortWaveData(domain % streamManager, domain, domain % clock, .true.)
+      
       do while (.not. mpas_is_clock_stop_time(domain % clock))
          call mpas_timer_start('io_read', .false.)
          call mpas_stream_mgr_read(domain % streamManager, ierr=ierr)
@@ -528,6 +532,7 @@ module ocn_forward_mode
             open(22, file=config_restart_timestamp_name, form='formatted', status='replace')
             write(22, *) trim(timeStamp)
             close(22)
+            call shortWave_forcing_write_restart(domain)
          end if
 
          call mpas_timer_start('reset_io_alarms', .false.)
@@ -540,6 +545,12 @@ module ocn_forward_mode
          call mpas_timer_start('reset_io_alarms', .false.)
          call mpas_stream_mgr_reset_alarms(domain % streamManager, direction=MPAS_STREAM_OUTPUT, ierr=ierr)
          call mpas_timer_stop('reset_io_alarms')
+         
+         ! read next time level data required for variable shortwave
+         call mpas_timer_start('io_shortwave',.false.)
+         call get_shortWaveData(domain % streamManager, domain, domain % clock, .false.)
+      	 call mpas_timer_stop('io_shortwave')
+      	 
       end do
 
    end function ocn_forward_mode_run!}}}

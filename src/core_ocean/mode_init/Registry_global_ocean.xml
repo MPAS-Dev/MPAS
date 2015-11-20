@@ -19,6 +19,46 @@
 					description="Conversion factor for depth levels. Should convert units on input depth levels to meters."
 					possible_values="Any positive real value greater than 0."
 		/>
+		<nml_option name="config_global_ocean_swData_file" type="character" default_value="none" units="unitless"
+					description="Path to the file containing data needed for spatially variable penetrating shortwave radiation"
+					possible_values="path/to/swData/file.nc"
+		/>
+		<nml_option name="config_global_ocean_swData_lat_varname" type="character" default_value="none" units="unitless"
+					description="Name of the latitude dimension in the swData file"
+					possible_values="lat dimname from swData input file"
+	 	/>
+	 	<nml_option name="config_global_ocean_swData_lon_varname" type="character" default_value="none" units="unitless"
+					description="Name of the longitude dimension in the swData file"
+					possible_values="lon dimname from swData input file"
+	 	/>
+	 	<nml_option name="config_global_ocean_swData_nlat_dimname" type="character" default_value="none" units="unitless"
+	 				description="Name of latitude dimension that determines number of lat lines in swData file"
+	 				possible_values="lat dimname from swData input file"
+	 	/>
+	 	<nml_option name="config_global_ocean_swData_nlon_dimname" type="character" default_value="none" units="unitless"
+	 				description="Name of longitude dimension that determines number of lon lines in swData file"
+	 				possible_values="lon dimname from swData input file"
+	 	/>	 	
+	 	<nml_option name="config_global_ocean_swData_latlon_degrees" type="logical" default_value=".true." units="unitless"
+	 				description="Logical flag that controls if the Lat/Lon fields for tracers should be converted to radians.  True = input in deg, false = input radians"
+	 				possible_values=".true. or .false."
+	 	/>
+	 	<nml_option name="config_global_ocean_swData_zenithAngle_varname" type="character" default_value="none" units="unitless"
+	 				description="Name of zenithAngle variable in the swData input file"
+	 				possible_values="zenith angle varname from swData file"
+	 	/>
+	 	<nml_option name="config_global_ocean_swData_chlorophyll_varname" type="character" default_value="none"
+	 				description="Name of chlorophyll data variable in the swData input file"
+	 				possible_values="chlorophyll data varname from swData file"
+	 	/>
+	 	<nml_option name="config_global_ocean_swData_clearSky_varname" type="character" default_value="none"
+	 				description="Name of clear sky radiation variable in the swData input file"
+	 				possible_values="clear sky radiation varname from swData file"
+	 	/>
+		<nml_option name="config_global_ocean_swData_method" type="character" default_value="bilinear_interpolation" units="unitless"
+					description="Method to interpolate shortwave data (chlorophyll, zenithAngle, clearskyrad) to MPAS mesh."
+					possible_values="bilinear_interpolation, nearest_neighbor"
+		/>
 		<nml_option name="config_global_ocean_temperature_file" type="character" default_value="none" units="unitless"
 					description="Path to the temperature initial condition file. Must be interpolated to vertical layers defined in depth file."
 					possible_values="path/to/temperature/file.nc"
