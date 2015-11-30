@@ -1,0 +1,20 @@
+<template>
+	<namelist>
+		<option name="config_write_cull_cell_mask">.true.</option>
+	</namelist>
+
+	<streams>
+		<stream name="output_init">
+			<attribute name="type">output</attribute>
+			<attribute name="output_interval">0000_00:00:01</attribute>
+			<attribute name="clobber_mode">truncate</attribute>
+			<attribute name="filename_template">ocean.nc</attribute>
+			<add_contents>
+				<member name="input_init" type="stream"/>
+				<member name="maxLevelCell" type="var"/>
+				<member name="cullCell" type="var"/>
+			</add_contents>
+		</stream>
+
+	</streams>
+</template>
