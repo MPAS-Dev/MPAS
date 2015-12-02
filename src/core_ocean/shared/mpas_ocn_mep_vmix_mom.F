@@ -20,7 +20,10 @@
 
 module ocn_mep_vmix_mom
 
-   use ...
+   use mpas_derived_types
+   use mpas_pool_routines
+   use ocn_constants
+
 
    implicit none
    private
@@ -38,9 +41,9 @@ module ocn_mep_vmix_mom
    !
    !--------------------------------------------------------------------
 
-   public :: ocn_mep_vmix_mom_const_build, &
-   	ocn_mep_vmix_mom_GL_build, &
-   	ocn_mep_vmix_mom_prognostic_closure_build
+   public :: ocn_mep_vmix_mom_const_build, ocn_mep_vert_visc_const_init !, &
+   	!ocn_mep_vmix_mom_GL_build, &
+   	!ocn_mep_vmix_mom_prognostic_closure_build
 
    !-------------------------------------------------------------------
    !
@@ -48,15 +51,19 @@ module ocn_mep_vmix_mom
    !
    !--------------------------------------------------------------------
 
-   real (kind=RKIND), pointer :: config_mep_vert_visc_const
+   real (kind=RKIND), pointer :: config_mep_vert_visc_const_value
 
 
 !***********************************************************************
 
 contains
 
-ocn_mep_vmix_const_init
-initialize vertConstantMEPVisc with value from namelist record
+
+
+!ocn_mep_vmix_const_init
+!initialize vertConstantMEPVisc with value from namelist record
+
+
 
 !***********************************************************************
 !
@@ -71,7 +78,7 @@ initialize vertConstantMEPVisc with value from namelist record
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vert_visc_const_init(mepPool, err)!{{{
+   subroutine ocn_mep_vert_visc_const_init(err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -101,7 +108,7 @@ initialize vertConstantMEPVisc with value from namelist record
 
       err = 0
 
-      call mpas_pool_get_config(ocnConfigs, 'config_mep_const_visc', config_mep_vert_visc_const)
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_vert_visc_const_value', config_mep_vert_visc_const_value)
 
    !--------------------------------------------------------------------
 
@@ -154,7 +161,7 @@ initialize vertConstantMEPVisc with value from namelist record
 
       err = 0
 
-      vertDiffTopOfCell = vertDiffTopOfCell + config_mep_vert_visc_const
+      vertDiffTopOfCell = vertDiffTopOfCell + config_mep_vert_visc_const_value
 
    !--------------------------------------------------------------------
 
