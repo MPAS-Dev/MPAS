@@ -116,6 +116,7 @@ contains
     real (kind=RKIND), pointer :: config_ziso_wind_transition_position
     real (kind=RKIND), pointer :: config_ziso_antarctic_shelf_front_width
     real (kind=RKIND), pointer :: config_ziso_wind_stress_shelf_front_max
+    real (kind=RKIND), pointer :: config_ziso_bottom_water_temperature_deficit
     logical, pointer :: config_ziso_add_easterly_wind_stress_ASF
 
     ! configure settings related to frazil
@@ -187,6 +188,7 @@ contains
     call mpas_pool_get_config(domain % configs, 'config_ziso_wind_transition_position', config_ziso_wind_transition_position)
     call mpas_pool_get_config(domain % configs, 'config_ziso_antarctic_shelf_front_width', config_ziso_antarctic_shelf_front_width)
     call mpas_pool_get_config(domain % configs, 'config_ziso_wind_stress_shelf_front_max', config_ziso_wind_stress_shelf_front_max)
+    call mpas_pool_get_config(domain % configs, 'config_ziso_bottom_water_temperature_deficit', config_ziso_bottom_water_temperature_deficit)
 
     ! frazil configures
     call mpas_pool_get_config(domain % configs, 'config_ziso_frazil_enable', config_ziso_frazil_enable)
@@ -440,7 +442,8 @@ contains
             if(config_ziso_meridional_extent-yCell(iCell) <= 1.5_RKIND*config_ziso_restoring_sponge_l) then
               idx = index_temperature
               activeTracersInteriorRestoringValue(idx, k, iCell) = activeTracersSurfaceRestoringValue(idx,iCell) &
-                                * exp(refZMid(k)/config_ziso_restoring_temp_ze)
+                                * (exp(refZMid(k)/config_ziso_restoring_temp_ze)-exp(-config_ziso_bottom_depth/config_ziso_restoring_temp_ze)) / &
+                                  (1.0_RKIND - exp(-config_ziso_bottom_depth/config_ziso_restoring_temp_ze))
               activeTracersInteriorRestoringRate(idx, k, iCell) = &
                                   exp(-(config_ziso_meridional_extent-yCell(iCell))/config_ziso_restoring_sponge_l) &
                                 * ( 1.0_RKIND / (config_ziso_restoring_temp_tau*86400.0_RKIND))
@@ -456,7 +459,9 @@ contains
             !Interior restoring along southern wall
             if(yCell(iCell) <= 2.0_RKIND*config_ziso_restoring_sponge_l) then
               idx = index_temperature
-              activeTracersInteriorRestoringValue(idx, k, iCell) = activeTracersSurfaceRestoringValue(idx,iCell)
+              activeTracersInteriorRestoringValue(idx, k, iCell) = activeTracersSurfaceRestoringValue(idx,iCell) - &
+                        config_ziso_bottom_water_temperature_deficit * &
+                        max(min(1.0, (2.0_RKIND*config_ziso_restoring_sponge_l-yCell(iCell))/(2.0_RKIND*config_ziso_restoring_sponge_l)),0.0_RKIND)
               activeTracersInteriorRestoringRate(idx, k, iCell) =   exp(-yCell(iCell)/config_ziso_restoring_sponge_l) &
                                                                   * ( 1.0_RKIND / (config_ziso_restoring_temp_tau*86400.0_RKIND))
               idx = index_salinity
