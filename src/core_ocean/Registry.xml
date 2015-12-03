@@ -353,10 +353,14 @@
 					possible_values="Positive real numbers"
 		/>
 	</nml_record>
-	<nml_record name="mep_twa_drag" mode="forward">
-		<nml_option name="config_mep_twaDragVertVisc_enable" type="logical" default_value=".false." units="NA"
-					description="If true, twa framework is used and form drag is parameterized as vertical viscocity."
+	<nml_record name="mep_vert_visc_const" mode="forward">
+		<nml_option name="config_mep_vert_visc_const_enable" type="logical" default_value=".false." units="NA"
+					description="If true, twa framework is used and form drag is parameterized as a constant vertical viscocity."
 					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_mep_vert_visc_const_value" type="real" default_value="1.2" units="m^2 s^{-1}"
+					description="Value of the constant vertical viscocity."
+					possible_values="Positive real numbers"
 		/>
 	</nml_record>
 	<nml_record name="hmix_del2_tensor" mode="forward">
