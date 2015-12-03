@@ -2,6 +2,7 @@
 OBJS = mpas_ocn_init_routines.o \
 	   mpas_ocn_mep.o \
 	   mpas_ocn_mep_gm.o \
+	   mpas_ocn_mep_vmix_mom.o\
 	   mpas_ocn_diagnostics.o \
 	   mpas_ocn_diagnostics_routines.o \
 	   mpas_ocn_thick_ale.o \
@@ -78,9 +79,11 @@ mpas_ocn_thick_vadv.o: mpas_ocn_constants.o
 
 mpas_ocn_thick_surface_flux.o: mpas_ocn_forcing.o mpas_ocn_constants.o
 
-mpas_ocn_mep.o:  mpas_ocn_constants.o mpas_ocn_diagnostics.o mpas_ocn_mep_gm.o
+mpas_ocn_mep.o:  mpas_ocn_constants.o mpas_ocn_diagnostics.o mpas_ocn_mep_gm.o mpas_ocn_mep_vmix_mom.o
 
 mpas_ocn_mep_gm.o:  mpas_ocn_constants.o
+
+mpas_ocn_mep_vmix_mom.o: mpas_ocn_constants.o
 
 mpas_ocn_vel_pressure_grad.o: mpas_ocn_constants.o
 
