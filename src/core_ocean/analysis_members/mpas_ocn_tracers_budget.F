@@ -547,11 +547,7 @@ contains
                  !
                  do iTracer = 1, nTracerGroup
                    do iCell = 1, nCellsSolve
-                     do k = 1, nVertLevels
-                   write(*,*) '***********'
-                   write(*,*) 'k, iCell, iTracer, layerThicknessCur, layerThicknessNew = ', &
-                    k,iCell,iTracer,layerThicknessCur(k, iCell),layerThicknessNew(k, iCell)
-                   write(*,*) '***********'
+                     do k = 1, maxLevelCell(iCell)
                        tracerProvisional(k, iCell) = ( tracerGroupCur(iTracer, k, iCell) * layerThicknessCur(k, iCell) + &
                                                        dt * ( tracerGroupBudgetForc(iTracer, k, iCell) +                 &
                                                               tracerGroupBudgetHadv(iTracer, k, iCell) +                 &
