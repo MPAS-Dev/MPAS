@@ -116,6 +116,8 @@ module ocn_core_interface
       logical, pointer :: thicknessBulkPKGActive
       logical, pointer :: frazilIceActive
       logical, pointer :: inSituEOSActive
+      logical, pointer :: restartForcingFieldsActive
+      logical, pointer :: variableShortwaveActive
 
       type (mpas_pool_iterator_type) :: pkgItr
       logical, pointer :: packageActive
@@ -136,11 +138,15 @@ module ocn_core_interface
       logical, pointer :: config_use_tracerGroup_idealAge_forcing
       logical, pointer :: config_use_tracerGroup_ttd_forcing
 
+      logical, pointer :: config_restart_forcing_fields
+
       logical, pointer :: config_use_freq_filtered_thickness
       logical, pointer :: config_use_frazil_ice_formation
       character (len=StrKIND), pointer :: config_time_integrator
       character (len=StrKIND), pointer :: config_ocean_run_mode
       character (len=StrKIND), pointer :: config_pressure_gradient_type
+      character (len=StrKIND), pointer :: config_sw_absorption_type
+
       logical, pointer :: config_use_bulk_wind_stress
       logical, pointer :: config_use_bulk_thickness_flux
       character (len=StrKIND), pointer :: config_land_ice_flux_mode
@@ -158,6 +164,7 @@ module ocn_core_interface
       call mpas_pool_get_package(packagePool, 'analysisModeActive', analysisModeActive)
       call mpas_pool_get_package(packagePool, 'initModeActive', initModeActive)
       call mpas_pool_get_config(configPool, 'config_ocean_run_mode', config_ocean_run_mode)
+      
       if ( trim(config_ocean_run_mode) == 'forward' ) then
          forwardModeActive = .true.
       endif
@@ -211,6 +218,17 @@ module ocn_core_interface
       end if
 
       !
+      ! Test if chlorophyll, solar zenith angle, and clear sky radiation should
+      ! be used
+      !
+
+      call mpas_pool_get_package(packagePool,'variableShortwaveActive',variableShortwaveActive)
+      call mpas_pool_get_config(configPool,'config_sw_absorption_type',config_sw_absorption_type)
+      if (trim (config_sw_absorption_type) == 'ohlmann00') then
+         variableShortwaveActive = .true.
+      end if
+
+      !
       ! test for land ice fluxes, landIceFluxesPKG
       ! test for land ice coupling, landIceCouplingPKG
       !
@@ -241,6 +259,15 @@ module ocn_core_interface
       call mpas_pool_get_config(configPool, 'config_pressure_gradient_type', config_pressure_gradient_type)
       if (config_pressure_gradient_type.eq.'Jacobian_from_TS') then
          inSituEOSActive = .true.
+      end if
+
+      !
+      ! test for restart of forcing fields
+      !
+      call mpas_pool_get_package(packagePool, 'restartForcingFieldsActive', restartForcingFieldsActive)
+      call mpas_pool_get_config(configPool, 'config_restart_forcing_fields', config_restart_forcing_fields)
+      if ( config_restart_forcing_fields ) then
+         restartForcingFieldsActive = .true.
       end if
 
       !

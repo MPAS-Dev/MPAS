@@ -57,6 +57,7 @@ module ocn_forward_mode
    use ocn_tracer_hmix
    use ocn_tracer_surface_flux_to_tend
    use ocn_tracer_short_wave_absorption
+   use ocn_tracer_short_wave_absorption_variable
    use ocn_tracer_nonlocalflux
    use ocn_tracer_advection
    use ocn_tracer_ecosys
@@ -214,7 +215,7 @@ module ocn_forward_mode
       ierr = ior(ierr, err_tmp)
       call ocn_tracer_advection_init(err_tmp)
       ierr = ior(ierr,err_tmp)
-      call ocn_tracer_short_wave_absorption_init(err_tmp)
+      call ocn_tracer_short_wave_absorption_init(domain,err_tmp)
       ierr = ior(ierr,err_tmp)
       call ocn_gm_init(err_tmp)
       ierr = ior(ierr,err_tmp)
@@ -430,13 +431,15 @@ module ocn_forward_mode
 
 
       type (MPAS_timeInterval_type) :: timeStep
-      character(len=StrKIND), pointer :: config_restart_timestamp_name
+      character(len=StrKIND), pointer :: config_restart_timestamp_name, config_sw_absorption_type
+
       logical, pointer :: config_write_output_on_startup
 
       ierr = 0
 
       call mpas_pool_get_config(domain % configs, 'config_write_output_on_startup', config_write_output_on_startup)
       call mpas_pool_get_config(domain % configs, 'config_restart_timestamp_name', config_restart_timestamp_name)
+      call mpas_pool_get_config(domain % configs, 'config_sw_absorption_type', config_sw_absorption_type)
 
       ! Eventually, dt should be domain specific
       timeStep = mpas_get_clock_timestep(domain % clock, ierr=ierr)
@@ -453,7 +456,13 @@ module ocn_forward_mode
           call mpas_stream_mgr_write(domain % streamManager, 'output', forceWriteNow=.true., ierr=ierr)
           call mpas_timer_stop('io_write')
       endif
-
+      	 
+	  ! read initial data required for variable shortwave
+	  call mpas_timer_start('io_shortwave',.false.)
+      call ocn_get_shortWaveData(domain % streamManager, domain, domain % clock, .true.)
+      call mpas_timer_stop('io_shortwave')
+      
+      
       ! During integration, time level 1 stores the model state at the beginning of the
       !   time step, and time level 2 stores the state advanced dt in time by timestep(...)
       itimestep = 0
@@ -528,6 +537,8 @@ module ocn_forward_mode
             open(22, file=config_restart_timestamp_name, form='formatted', status='replace')
             write(22, *) trim(timeStamp)
             close(22)
+
+            if(trim(config_sw_absorption_type)=='ohlmann00') call ocn_shortwave_forcing_write_restart(domain)
          end if
 
          call mpas_timer_start('reset_io_alarms', .false.)
@@ -540,6 +551,12 @@ module ocn_forward_mode
          call mpas_timer_start('reset_io_alarms', .false.)
          call mpas_stream_mgr_reset_alarms(domain % streamManager, direction=MPAS_STREAM_OUTPUT, ierr=ierr)
          call mpas_timer_stop('reset_io_alarms')
+         
+         ! read next time level data required for variable shortwave
+         call mpas_timer_start('io_shortwave',.false.)
+         call ocn_get_shortWaveData(domain % streamManager, domain, domain % clock, .false.)
+      	 call mpas_timer_stop('io_shortwave')
+      	 
       end do
 
    end function ocn_forward_mode_run!}}}

@@ -17,6 +17,11 @@
 !>  module computes Lagrangian particle trajectories and associated
 !>  diagnostics
 !-----------------------------------------------------------------------
+#define COMMA ,
+#define LIGHT_DEBUG_WRITE(M) !  write(stderrUnit,*) M
+#define LIGHT_DEBUG_ALL_WRITE(M) !  write(stderrUnit,*) M
+#define LIGHT_WARNING_WRITE(M)  write(stderrUnit,*) 'WARNING: '//M
+#define LIGHT_ERROR_WRITE(M)  write(stderrUnit,*) 'ERROR: '//M
 
 module ocn_lagrangian_particle_tracking
 
@@ -29,6 +34,7 @@ module ocn_lagrangian_particle_tracking
 
    use ocn_particle_list
    use ocn_lagrangian_particle_tracking_interpolations
+   use ocn_lagrangian_particle_tracking_reset
 
    implicit none
    private
@@ -67,7 +73,7 @@ module ocn_lagrangian_particle_tracking
    ! allocated in init, deallocated in finalize
    ! these globals could be moved to the framework component, as well
    ! as quite a few of the subroutines
-   integer, dimension(:), pointer :: g_ProcNeighs => null(), g_ioProcNeighs=>null()
+   integer, dimension(:), pointer :: g_compProcNeighsNearby => null(), g_compProcNeighs => null(), g_ioProcNeighs=>null()
 
 !***********************************************************************
 
@@ -117,11 +123,12 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
-      logical, pointer :: config_do_restart
+      logical :: config_AM_lagrPartTrack_reset_particles
+      character (len=StrKIND), pointer :: config_AM_lagrPartTrack_reset_criteria
 
       err = 0
 
-      write(stderrUnit,*) 'starting ocn_init_lagrangian_particle_tracking'
+      LIGHT_DEBUG_WRITE('starting ocn_init_lagrangian_particle_tracking')
       call mpas_timer_start("totalLPT", .false., timerTotalLPT)
       call mpas_timer_start("initLPT", .false., timerInit)
 
@@ -136,31 +143,27 @@ contains
       ! build up the particles lists and fill them with their data
       call mpas_particle_list_build_and_assign_particle_list(domain, err)
       ! now we have built the particlelist for a given block
-#ifdef MPAS_DEBUG
-      write(stderrUnit,*) 'finished building and allocating particles in init'
-#endif
+      LIGHT_DEBUG_WRITE('finished building and allocating particles in init')
 
       ! parallel code:
 
       ! get "MPI halos" for communication of particles in halo during computational step
-      call mpas_particle_list_build_computation_halos(domain, err, g_ProcNeighs)
-#ifdef MPAS_DEBUG
-      write(stderrUnit,*) 'finished building and computational halos'
-#endif
+      call mpas_particle_list_build_computation_halos(domain, err, g_compProcNeighsNearby)
+      LIGHT_DEBUG_WRITE('finished building and computational halos')
 
       ! get "MPI halos" for IO communication during write and restart steps (ioBlock to currentBlocks)
-      call mpas_particle_list_build_io_halos(domain, err, 'currentBlock', g_ioProcNeighs)
-#ifdef MPAS_DEBUG
-      write(stderrUnit,*) 'g_ioProcNeighs=', g_ioProcNeighs
-      write(stderrUnit,*) 'finished building io halos'
-#endif
+      ! AllToAll Computation!
+      call mpas_particle_list_build_halos(domain, err, 'currentBlock', g_ioProcNeighs)
+      LIGHT_DEBUG_WRITE('g_ioProcNeighs=' COMMA g_ioProcNeighs)
+      LIGHT_DEBUG_WRITE('finished building io halos')
 
       ! transfer particles to their appropriate blocks (currentBlock) via MPI
       ! note, don't necessarily need to have g_ionSend and g_ionRecv comeout
 #ifdef MPAS_DEBUG
       call mpas_timer_start("trans_from_block_to_blockLPT", .false., timerTransferParticles_init)
-      call mpas_particle_list_test_numparticles_to_neighprocs(domain % dminfo % my_proc_id, g_ProcNeighs, g_ioProcNeighs)
+      call mpas_particle_list_test_numparticles_to_neighprocs(domain % dminfo % my_proc_id, g_compProcNeighsNearby, g_ioProcNeighs)
 #endif
+      ! move particles to the 'currentBlock'
       call mpas_particle_list_transfer_particles_from_block_to_named_block(domain, err, .True., .False., 'currentBlock', &
         g_ioProcNeighs)
 #ifdef MPAS_DEBUG
@@ -171,9 +174,10 @@ contains
       ! tests to make sure all the values are ok !{{{
 #ifdef MPAS_DEBUG
       call mpas_particle_list_test_neighscalc(domain, err)
-      call mpas_particle_list_test_numparticles_to_neighprocs(domain % dminfo % my_proc_id, g_ProcNeighs, g_ioProcNeighs)
+      call mpas_particle_list_test_numparticles_to_neighprocs(domain % dminfo % my_proc_id, g_compProcNeighsNearby, g_ioProcNeighs)
       call mpas_particle_list_test_num_current_particlelist(domain)
 #endif
+      LIGHT_DEBUG_WRITE('g_compProcNeighsNearby = ' COMMA g_compProcNeighsNearby)
       !}}}
 
       ! now set sums for autocorrelation calculation to be zero
@@ -187,7 +191,10 @@ contains
       call initialize_particle_properties(domain,2,err)
       call write_lagrangian_particle_tracking(domain, err)
 
-      write(stderrunit,*) 'finished ocn_init_lagrangian_particle_tracking'
+      ! set up particle reset condition
+      call ocn_setup_particle_reset_condition(domain, err)
+
+      LIGHT_DEBUG_WRITE('finished ocn_init_lagrangian_particle_tracking')
       call mpas_timer_stop("initLPT", timerInit)
 
       call mpas_timer_stop("totalLPT", timerTotalLPT)
@@ -273,9 +280,9 @@ contains
       integer, pointer :: nCells, nVertLevels, iCell
       integer, dimension(:), pointer :: nCellVerticesArray
       integer, dimension(:,:), pointer :: cellsOnCell
-      logical, dimension(:,:), pointer :: ioProcRecvList
-      logical, dimension(:), pointer :: ioProcSendList
       logical, pointer :: onSphere
+      logical :: config_AM_lagrPartTrack_reset_particles
+      character (len=StrKIND), pointer :: config_AM_lagrPartTrack_reset_criteria
 
       real (kind=RKIND), dimension(4) :: kWeightK, kWeightKVert
       real (kind=RKIND), dimension(3,4) :: kWeightX
@@ -293,6 +300,7 @@ contains
       integer, pointer :: verticalTreatment, vertexReconstMethod, timeIntegration, indexLevel, filterNum
       character(len=StrKIND), pointer :: config_dt
       type (MPAS_timeInterval_type) :: timeStepESMF
+      logical :: resetParticle, resetParticleAny
       integer :: err_tmp
 
       err = 0
@@ -303,16 +311,18 @@ contains
 
       dminfo = domain % dminfo
 
-      write(stderrUnit,*) 'Computing Lagrangian Particle Tracking...'
+      LIGHT_DEBUG_WRITE('Computing Lagrangian Particle Tracking...')
       call mpas_timer_start("totalLPT", .false., timerTotalLPT)
       call mpas_timer_start("computeLPT", .false., timerCompute)
 
       call mpas_pool_get_config(ocnConfigs, 'config_AM_lagrPartTrack_filter_number', filterNum)
+      call mpas_pool_get_config(ocnConfigs, 'config_AM_lagrPartTrack_reset_criteria', config_AM_lagrPartTrack_reset_criteria)
 
-      allocate(ioProcRecvList(domain % dminfo % nprocs, size(g_ioProcNeighs)))
-      allocate(ioProcSendList(domain % dminfo % nprocs))
-      ioProcRecvList = .False.
-      ioProcSendList = .False.
+      if (trim(config_AM_lagrPartTrack_reset_criteria) == 'none') then
+        config_AM_lagrPartTrack_reset_particles = .False.
+      else
+        config_AM_lagrPartTrack_reset_particles = .True.
+      end if
 
       ! get the most recent velocities on the potential density surfaces
 #ifdef MPAS_DEBUG
@@ -322,6 +332,8 @@ contains
 #ifdef MPAS_DEBUG
       call mpas_timer_stop("velocity_pot_density_LPT",timerVelocityPotDensity)
 #endif
+
+      resetParticleAny = .False.
 
       block => domain % blocklist
       do while (associated(block)) !{{{
@@ -395,15 +407,14 @@ contains
           uVertexVelocity, vVertexVelocity, wVertexVelocity)
 #ifdef MPAS_DEBUG
         call mpas_timer_stop("reconst_filter_LPT", timerReconstFilter)
-        write(stderrUnit,*) 'uVertexVelocity=',uVertexVelocity % array
-        write(stderrUnit,*) 'vVertexVelocity=',vVertexVelocity % array
-        write(stderrUnit,*) 'wVertexVelocity=',wVertexVelocity % array
+        LIGHT_DEBUG_ALL_WRITE('uVertexVelocity=' COMMA uVertexVelocity % array)
+        LIGHT_DEBUG_ALL_WRITE('vVertexVelocity=' COMMA vVertexVelocity % array)
+        LIGHT_DEBUG_ALL_WRITE('wVertexVelocity=' COMMA wVertexVelocity % array)
 #endif
         !}}}
 
+        LIGHT_DEBUG_WRITE('beginning particle loop with particlelist associated =  ' COMMA associated(particlelist))
 #ifdef MPAS_DEBUG
-        write(stderrUnit,*) 'beginning particle loop with particlelist associated =  ', associated(particlelist)
-        ! error is here
         call mpas_particle_list_test_num_current_particlelist(domain)
 #endif
 
@@ -562,13 +573,13 @@ contains
               ! determine cell location
 #ifdef MPAS_DEBUG
               call mpas_timer_start("get_validated_cell_idLPT", .false., timerValidatedCell)
-              write(stderrUnit, *) 'beginning of substeps'
 #endif
+              LIGHT_DEBUG_WRITE('beginning of substeps')
               call get_validated_cell_id(nCells, xCell,yCell,zCell , xVertex,yVertex,zVertex, &
                 xSubStep(1),xSubStep(2),xSubStep(3), meshPool, &
                 nCellVerticesArray, verticesOnCell, iCell, nCellVertices, cellsOnCell)
+              LIGHT_DEBUG_WRITE('iCell=' COMMA iCell)
 #ifdef MPAS_DEBUG
-              write(stderrUnit,*) 'iCell=',iCell
               call mpas_timer_stop("get_validated_cell_idLPT", timerValidatedCell)
 #endif
 
@@ -580,8 +591,8 @@ contains
                 iLevel = mpas_get_vertical_id(maxLevelCell(iCell), zSubStep, zMid(:,iCell))
 #ifdef MPAS_DEBUG
                 call mpas_timer_stop("mpas_get_vertical_idLPT", timerVerticalID)
-                write(stderrUnit,*) 'iLevel=', iLevel
 #endif
+                LIGHT_DEBUG_WRITE('iLevel=' COMMA iLevel)
               end if
 
               !!!!!!!!!! TEMPORALLY INTERPOLATE TIME FIELD !!!!!!!!!!
@@ -655,8 +666,8 @@ contains
           ! get updated cell location
 #ifdef MPAS_DEBUG
           call mpas_timer_start("get_validated_cell_idLPT", .false., timerValidatedCell_out)
-          write(stderrUnit,*) 'do sampling'
 #endif
+          LIGHT_DEBUG_WRITE('do sampling')
           call get_validated_cell_id(nCells, xCell,yCell,zCell , xVertex,yVertex,zVertex, &
             particlePosition(1),particlePosition(2),particlePosition(3), meshPool, &
             nCellVerticesArray, verticesOnCell, iCell, nCellVertices, cellsOnCell)
@@ -751,10 +762,21 @@ contains
 #ifdef MPAS_DEBUG
           call mpas_timer_start("particleAssignments", .false., timerParticleAssignment)
 #endif
-          ! update halo fields
-          call mpas_particle_list_update_computational_halos(domain, block, particle, 'lagrPartTrackCells', iCell, arrayIndex, ioProcRecvList, ioProcSendList, g_ioProcNeighs)
+
+          resetParticle = .False.
+          if (config_AM_lagrPartTrack_reset_particles) then   ! need to link to currentBlockReset for communication
+            ! determine if particles should be reset based on different criteria.  If so, reset them.
+            call ocn_evaluate_particle_reset_condition(domain, block, particle, dtSim, iCell, resetParticle, err)
+          end if
+          resetParticleAny = resetParticleAny .or. resetParticle
+
+          if (.not. resetParticle) then
+            ! update halo fields for particles moving from adjacent computational halos
+            call mpas_particle_list_update_particle_block(domain, block, particle, 'lagrPartTrackCells', iCell)
+          end if
+
 #ifdef MPAS_DEBUG
-            call mpas_timer_stop("particleAssignments", timerParticleAssignment)
+          call mpas_timer_stop("particleAssignments", timerParticleAssignment)
 #endif
           !}}}
 
@@ -782,17 +804,20 @@ contains
 #ifdef MPAS_DEBUG
       call mpas_timer_start("trans_from_block_to_blockLPT", .false., timerTransferParticles)
 #endif
+      if (config_AM_lagrPartTrack_reset_particles .and. resetParticleAny) then   ! need to link to currentBlockReset for communication
+         call mpas_particle_list_build_halos(domain, err, 'currentBlockReset', g_compProcNeighs)
+         ! take the union of this halo with the particle computation halos to build complete computational halo
+         call mpas_particle_list_self_union_halo_lists(g_compProcNeighs, g_compProcNeighsNearby, domain % dminfo % nprocs, domain % dminfo % my_proc_id)
+      else
+        allocate(g_compProcNeighs(size(g_compProcNeighsNearby)))
+        g_compProcNeighs = g_compProcNeighsNearby
+      end if
       call mpas_particle_list_transfer_particles_from_block_to_named_block(domain, err, .True., .False., 'currentBlock', &
-        g_ProcNeighs)
+        g_compProcNeighs)
+      deallocate(g_compProcNeighs)
 #ifdef MPAS_DEBUG
       call mpas_timer_stop("trans_from_block_to_blockLPT", timerTransferParticles)
-      call mpas_timer_start("update_io_haloLPT", .false., timerUpdateIOHalo)
 #endif
-      call mpas_particle_list_update_io_halos(domain, err, g_ioProcNeighs, ioProcSendList, ioProcRecvList)
-#ifdef MPAS_DEBUG
-      call mpas_timer_stop("update_io_haloLPT",timerUpdateIOHalo)
-#endif
-      deallocate(ioProcSendList, ioProcRecvList)
 
       ! do IO communications if this is an output time step
       if (mpas_stream_mgr_ringing_alarms(domain % streamManager, streamID='lagrPartTrackOutput', direction=MPAS_STREAM_OUTPUT, ierr=err)) then
@@ -802,7 +827,7 @@ contains
       call mpas_timer_stop("computeLPT", timerCompute)
       call mpas_timer_stop("totalLPT", timerTotalLPT)
 
-      write(stderrUnit,*) 'finished computing Lagrangian Particle Tracking'
+      LIGHT_DEBUG_WRITE('finished computing Lagrangian Particle Tracking')
 
    end subroutine ocn_compute_lagrangian_particle_tracking!}}}
 
@@ -858,11 +883,13 @@ contains
       if (mpas_stream_mgr_ringing_alarms(domain % streamManager, streamID='lagrPartTrackRestart', direction=MPAS_STREAM_OUTPUT, ierr=err)) then
         call mpas_timer_start("restartLPT", .false., timerRestart)
 
-      write(stderrUnit,*) 'start ocn_restart_lagrangian_particle_tracking'
+      LIGHT_DEBUG_WRITE('start ocn_restart_lagrangian_particle_tracking')
       ! transfer particles to their appropriate blocks (ioBlock) via MPI
       ! note, don't necessarily need to have g_ionSend and g_ionRecv comeout
+      call mpas_particle_list_build_halos(domain, err, 'ioBlock', g_ioProcNeighs)
       call mpas_particle_list_transfer_particles_from_block_to_named_block(domain, err, .True., .True., 'ioBlock', &
         g_ioProcNeighs)
+      deallocate(g_ioProcNeighs)
 
       ! write out all the data, sorting to make sure that shuffled particles
       ! are ouptut correctly (done separately in each function, could be
@@ -876,7 +903,7 @@ contains
       ! correct currentBlock)
       call mpas_particle_list_remove_particles_not_on_current_block(domain,err)
 
-      write(stderrUnit,*) 'end ocn_restart_lagrangian_particle_tracking'
+      LIGHT_DEBUG_WRITE('end ocn_restart_lagrangian_particle_tracking')
       call mpas_timer_stop("restartLPT", timerRestart)
       end if
 
@@ -928,7 +955,7 @@ contains
 
       err = 0
 
-      write(stderrUnit,*) 'start write_lagrangian_particle_tracking'
+      LIGHT_DEBUG_WRITE('start write_lagrangian_particle_tracking')
       call mpas_timer_start("totalLPT", .false., timerTotalLPT)
       call mpas_timer_start("writeLPT", .false., timerWrite)
 
@@ -942,10 +969,11 @@ contains
 #endif
       ! depreciated (can just use update_halo_io to keep g_ioProcNeighs up to date)
       !! get "MPI halos" for IO communication during write and restart steps (currentBlock to ioBlock)
-      !call mpas_particle_list_build_io_halos(domain, err, 'ioBlock', g_ioProcNeighs)
+      call mpas_particle_list_build_halos(domain, err, 'ioBlock', g_ioProcNeighs)
       ! transfer the data
       call mpas_particle_list_transfer_particles_from_block_to_named_block(domain, err, .False., .True., 'ioBlock', &
         g_ioProcNeighs)
+      deallocate(g_ioProcNeighs)
 #ifdef MPAS_DEBUG
       call mpas_timer_stop("trans_from_block_to_blockLPT", timerTransferParticles_write)
 #endif
@@ -966,7 +994,7 @@ contains
 #ifdef MPAS_DEBUG
       call mpas_particle_list_test_num_current_particlelist(domain)
 #endif
-      write(stderrUnit,*) 'end write_lagrangian_particle_tracking'
+      LIGHT_DEBUG_WRITE('end write_lagrangian_particle_tracking')
       call mpas_timer_stop("writeLPT", timerWrite)
       call mpas_timer_stop("totalLPT", timerTotalLPT)
 
@@ -1023,18 +1051,16 @@ contains
       call mpas_timer_start("finalizeLPT", .false., timerFinalize)
       err = 0
 
-      write(stderrUnit,*) 'start ocn_finalize_lagrangian_particle_tracking'
+      LIGHT_DEBUG_WRITE('start ocn_finalize_lagrangian_particle_tracking')
       block => domain % blocklist
       do while (associated(block))
         call mpas_particle_list_destroy_particle_list(block % particlelist)
         block => block %  next
       end do
 
-      deallocate(g_ProcNeighs, g_ioProcNeighs)
-      ! these following ones should be deallocated once rest of the code is sketched in
-      !deallocate(g_nPartSend, g_nPartRecv, g_ionSend, g_ionRecv)
+      deallocate(g_compProcNeighsNearby)
 
-      write(stderrUnit,*) 'end ocn_finalize_lagrangian_particle_tracking'
+      LIGHT_DEBUG_WRITE('end ocn_finalize_lagrangian_particle_tracking')
       call mpas_timer_stop("finalizeLPT", timerFinalize)
       call mpas_timer_stop("totalLPT", timerTotalLPT)
 
@@ -1102,12 +1128,11 @@ contains
          yVertex(verticesOnCell(1:nCellVertices,iCell)), &
          zVertex(verticesOnCell(1:nCellVertices,iCell)), &
          xSubStep,ySubStep,zSubStep , on_a_sphere)) then
-           write(stderrUnit,*) 'Point (', xSubStep,ySubStep,zSubStep ,') is horizontally outside cell ', iCell
-           write(stderrUnit,*) 'Cell  (',&
-             xCell(iCell),yCell(iCell),zCell(iCell), ') with index ' , iCell
-           write(stderrUnit,*) 'xVertex = ', xVertex(verticesOnCell(1:nCellVertices,iCell))
-           write(stderrUnit,*) 'yVertex = ', yVertex(verticesOnCell(1:nCellVertices,iCell))
-           write(stderrUnit,*) 'zVertex = ', zVertex(verticesOnCell(1:nCellVertices,iCell))
+           LIGHT_DEBUG_WRITE('Point (' COMMA xSubStep COMMA ySubStep COMMA zSubStep  COMMA ') is horizontally outside cell ' COMMA iCell)
+           LIGHT_DEBUG_WRITE('Cell  (' COMMA xCell(iCell) COMMA yCell(iCell) COMMA zCell(iCell) COMMA ') with index ' COMMA iCell)
+           LIGHT_DEBUG_WRITE('xVertex = ' COMMA xVertex(verticesOnCell(1:nCellVertices,iCell)))
+           LIGHT_DEBUG_WRITE('yVertex = ' COMMA yVertex(verticesOnCell(1:nCellVertices,iCell)))
+           LIGHT_DEBUG_WRITE('zVertex = ' COMMA zVertex(verticesOnCell(1:nCellVertices,iCell)))
        end if
      else
        allocate(xtmp(nCellVertices), ytmp(nCellVertices))
@@ -1118,12 +1143,11 @@ contains
        if(.not. point_in_cell(nCellVertices, xtmp, ytmp, &
          zVertex(verticesOnCell(1:nCellVertices,iCell)), &
          xSubStep,ySubStep,zSubStep , on_a_sphere)) then
-           write(stderrUnit,*) 'Point (', xSubStep,ySubStep,zSubStep ,') is horizontally outside cell ', iCell
-           write(stderrUnit,*) 'Cell  (',&
-             xCell(iCell),yCell(iCell),zCell(iCell), ') with index ' , iCell
-           write(stderrUnit,*) 'xVertex = ', xtmp
-           write(stderrUnit,*) 'yVertex = ', ytmp
-           write(stderrUnit,*) 'zVertex = ', zVertex(verticesOnCell(1:nCellVertices,iCell))
+           LIGHT_DEBUG_WRITE('Point (' COMMA xSubStep COMMA ySubStep COMMA zSubStep  COMMA ') is horizontally outside cell ' COMMA iCell)
+           LIGHT_DEBUG_WRITE('Cell  (' COMMA xCell(iCell) COMMA yCell(iCell) COMMA zCell(iCell) COMMA ') with index ' COMMA iCell)
+           LIGHT_DEBUG_WRITE('xVertex = ' COMMA xtmp)
+           LIGHT_DEBUG_WRITE('yVertex = ' COMMA ytmp)
+           LIGHT_DEBUG_WRITE('zVertex = ' COMMA zVertex(verticesOnCell(1:nCellVertices,iCell)))
        end if
        deallocate(xtmp, ytmp)
      end if
@@ -1278,7 +1302,7 @@ contains
          if(.not.associated(uVV) .or. &
             .not.associated(vVV) .or. &
             .not.associated(wVV)) then
-            write(stderrUnit,*) '[u,v,w]VertexVelocity memory not allocated!'
+            LIGHT_DEBUG_WRITE('[u,v,w]VertexVelocity memory not allocated!')
           end if
 #endif
 
@@ -1340,6 +1364,7 @@ contains
       integer  :: nVertices, iCell, i, im1, i0, ip1, iVertex
       integer, pointer :: nCells
       real (kind=RKIND), dimension(:), allocatable :: xv,yv,zv
+      real (kind=RKIND), dimension(3) :: v1, v2, v3
       real (kind=RKIND), pointer :: radiusLocal
       integer, dimension(:,:), pointer :: verticesOnCell
       integer, dimension(:), pointer :: nCellVerticesArray
@@ -1399,9 +1424,16 @@ contains
 
             ! precompute B_i areas
             ! always the same because B_i independent of xp,yp,zp
-            areaBArray(iCell, i) = mpas_triangle_signed_area( (/ xv(im1),yv(im1),zv(im1) /) , &
-              (/ xv(i0),yv(i0),zv(i0) /) , &
-              (/ xv(ip1),yv(ip1),zv(ip1) /) , meshPool)
+            v1(1) = xv(im1)
+            v1(2) = yv(im1)
+            v1(3) = zv(im1)
+            v2(1) = xv(i0)
+            v2(2) = yv(i0)
+            v2(3) = zv(i0)
+            v3(1) = xv(ip1)
+            v3(2) = yv(ip1)
+            v3(3) = zv(ip1)
+            areaBArray(iCell, i) = mpas_triangle_signed_area(v1, v2, v3, meshPool)
           end do
           deallocate(xv, yv, zv)
 
@@ -1456,7 +1488,7 @@ contains
       integer :: iHigh, iLow, aval
       real (kind=RKIND) :: eps=1e-14_RKIND
 
-      !write(stderrUnit,*) 'compute_velocity_on_potentialdensity_surface start'
+      LIGHT_DEBUG_WRITE('compute_velocity_on_potentialdensity_surface start')
 
       err = 0
 
@@ -1479,10 +1511,10 @@ contains
         call mpas_pool_get_array(lagrPartTrackCellsPool,'buoyancySurfaceValues', buoyancySurfaceValues)
         call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
 
-        !write(stderrUnit,*) 'nBuoyancySurfaces  =', nBuoyancySurfaces
-        !write(stderrUnit,*) 'buoyancySurfaceValues=', buoyancySurfaceValues
-        !write(stderrUnit,*) 'size(buoyancy)=',size(buoyancy)
-        !write(stderrUnit,*) 'shape(buoyancy)=',shape(buoyancy)
+        LIGHT_DEBUG_ALL_WRITE('nBuoyancySurfaces  =' COMMA nBuoyancySurfaces)
+        LIGHT_DEBUG_ALL_WRITE('buoyancySurfaceValues=' COMMA buoyancySurfaceValues)
+        LIGHT_DEBUG_ALL_WRITE('size(buoyancy)=' COMMA size(buoyancy))
+        LIGHT_DEBUG_ALL_WRITE('shape(buoyancy)=' COMMA shape(buoyancy))
         zonVel = -9999.0_RKIND
         merVel = -9999.0_RKIND
         ! for each buoyancy surface
@@ -1494,13 +1526,7 @@ contains
 
             ! get correct vertical levels
 
-#ifdef MPAS_DEBUG
-            !call mpas_timer_start("mpas_get_vertical_idLPT", .false., timerVerticalID)
-#endif
             iLevel = mpas_get_vertical_id(maxLevelCell(iCell), phiInterp, buoyancy(:,iCell))
-#ifdef MPAS_DEBUG
-            !call mpas_timer_stop("mpas_get_vertical_idLPT", timerVerticalID)
-#endif
 
             if(iLevel < 1) then
               ! top level
@@ -1540,7 +1566,7 @@ contains
 
         block => block %  next
       end do
-      !write(stderrUnit,*) 'compute_velocity_on_potentialdensity_surface end'
+      LIGHT_DEBUG_WRITE('compute_velocity_on_potentialdensity_surface end')
 
    end subroutine compute_velocity_on_potentialdensity_surface !}}}
 
@@ -1734,8 +1760,8 @@ contains
           ! get updated cell location
 #ifdef MPAS_DEBUG
           call mpas_timer_start("get_validated_cell_idLPT", .false., timerValidatedCell_init)
-          write(stderrUnit,*) 'sampling initialization'
 #endif
+          LIGHT_DEBUG_WRITE('sampling initialization')
           call get_validated_cell_id(nCells, xCell,yCell,zCell , xVertex,yVertex,zVertex, &
             particlePosition(1),particlePosition(2),particlePosition(3), meshPool, &
             nCellVerticesArray, verticesOnCell, iCell, nCellVertices, cellsOnCell)
@@ -1752,13 +1778,7 @@ contains
           else
             ! make sure final zLevelParticle is ok so that it can't extent past zMid range
 
-#ifdef MPAS_DEBUG
-            !call mpas_timer_start("mpas_get_vertical_idLPT", .false., timerVerticalID)
-#endif
             iLevel = mpas_get_vertical_id(maxLevelCell(iCell), zLevelParticle, zMid(:,iCell))
-#ifdef MPAS_DEBUG
-            !call mpas_timer_stop("mpas_get_vertical_idLPT", timerVerticalID)
-#endif
           end if
 
           ! compute necessary information for autocorrelation !{{{
@@ -1779,19 +1799,11 @@ contains
             meshPool, areaBArray)
           ! convert horizontal velocity to lat/lon velocity
 
-          !write(stderrUnit,*) iLevel, particleVelocity
+          LIGHT_DEBUG_WRITE(iLevel COMMA particleVelocity)
 
           ! store velocity for use in computing normalized autocorrelation offline
-#ifdef MPAS_DEBUG
-          !call mpas_timer_start("mpas_convert_xyz_velocity_to_latlonLPT", .false., timerConvertXYZLatLon)
-#endif
 
           call mpas_convert_xyz_velocity_to_latlon(lonVel, latVel, particlePosition, particleVelocity)
-
-#ifdef MPAS_DEBUG
-          !call mpas_timer_stop("mpas_convert_xyz_velocity_to_latlonLPT", timerConvertXYZLatLon)
-#endif
-
           !}}}
 
           ! get next particle to process on the list
@@ -1936,7 +1948,7 @@ contains
          !}}}
 
        case default verticalTreatmentCase !{{{
-         write(stderrUnit,*) 'Vertical treatment for particle integration unknwon (', verticalTreatment, ')!'
+         LIGHT_ERROR_WRITE('Vertical treatment for particle integration unknown (' COMMA verticalTreatment COMMA ')!')
          return
          !}}}
 
@@ -2056,14 +2068,8 @@ contains
         ! buoyancy case (not using zSubStep for interpolation / iLevel)
         ! use existing code noting we need to flip the order to get the right iLevel
 
-#ifdef MPAS_DEBUG
-        !call mpas_timer_start("mpas_get_vertical_idLPT", .false., timerVerticalID)
-#endif
         iLevel = mpas_get_vertical_id(maxLevelCell(iCell), buoyancyInterp, buoyancy(:,iCell))
-#ifdef MPAS_DEBUG
-        !call mpas_timer_stop("mpas_get_vertical_idLPT", timerVerticalID)
-        write(stderrUnit,*) 'iLevel=',iLevel
-#endif
+        LIGHT_DEBUG_WRITE('iLevel=' COMMA iLevel)
         ! note, if buoyancyInterp out of range this will try to reorient the particle to the top / bottom but there
         ! will definitely be some error with this type of computation because the buoyancy is not available at this location
         ! the time interpolation, as a consequency, can mix velocities from different buoyancy surfaces in order to advect
@@ -2084,15 +2090,15 @@ contains
       ! timer commented out because it is used in more than just compute...
 #ifdef MPAS_DEBUG
       call mpas_timer_start("part_horiz_interpLPT", .false., timerHorizVelInterp)
-      write(stderrUnit,*) 'particleVelocityVert=',particleVelocityVert
 #endif
+      LIGHT_DEBUG_WRITE('particleVelocityVert=' COMMA particleVelocityVert)
       particleVelocity = particleVelocity + &
         timeCoeff(aTimeLevel) * particle_horizontal_interpolation(nCellVertices, vertCoords, &
         xSubStep, uvCell, meshPool, areaB)
 #ifdef MPAS_DEBUG
       call mpas_timer_stop("part_horiz_interpLPT", timerHorizVelInterp)
-      write(stderrUnit,*) 'particleVelocity=',particleVelocity
 #endif
+      LIGHT_DEBUG_WRITE('particleVelocity=' COMMA particleVelocity)
 
 
     end do
@@ -2195,12 +2201,10 @@ contains
      ! get lambda coordinate for particle
      lambda = mpas_wachspress_coordinates(nCellVertices, vertCoords , &
        pointInterp, meshPool, areaB)
-!#ifdef MPAS_DEBUG
-!write(stderrUnit,*) 'lambda=',lambda
-!write(stderrUnit,*) 'uVertex=',uVertex(1,:)
-!write(stderrUnit,*) 'vVertex=',uVertex(2,:)
-!write(stderrUnit,*) 'wVertex=',uVertex(3,:)
-!#endif
+     LIGHT_DEBUG_ALL_WRITE('lambda=' COMMA lambda)
+     LIGHT_DEBUG_ALL_WRITE('uVertex=' COMMA uVertex(1,:))
+     LIGHT_DEBUG_ALL_WRITE('vVertex=' COMMA uVertex(2,:))
+     LIGHT_DEBUG_ALL_WRITE('wVertex=' COMMA uVertex(3,:))
 
      ! update particle velocities via horizontal interpolation
      particle_horizontal_interpolation(1) = mpas_wachspress_interpolate(lambda, uVertex(1,:))
@@ -2269,7 +2273,7 @@ contains
        ! need to make sure new point is on the spherical shell
 
        ! get path length
-       !write(stderrUnit, *) 'dpParticle = ', dpParticle
+       LIGHT_DEBUG_ALL_WRITE('dpParticle = ' COMMA dpParticle)
        lenPath = sqrt(sum(dpParticle*dpParticle))
 
        ! consider case of particle not moving (need to have this code here in general)
@@ -2288,10 +2292,10 @@ contains
        pParticleTemp = ( radiusShell / sqrt(sum(pParticleTemp*pParticleTemp)) ) * pParticleTemp
 
        ! compute alpha parameter for spherical interpolant / extrapolant
-       !write(stderrUnit,*) 'dpParticle    = ', dpParticle
-       !write(stderrUnit,*) 'pParticle     = ', pParticle
-       !write(stderrUnit,*) 'pParticleTemp = ', pParticleTemp
-       !write(stderrUnit,*) 'mpas_arc_length = ',  mpas_arc_length(pParticle(1),pParticle(2),pParticle(3) , pParticleTemp(1), pParticleTemp(2), pParticleTemp(3)), 'lenPath = ', lenPath
+       LIGHT_DEBUG_ALL_WRITE('dpParticle    = ' COMMA dpParticle)
+       LIGHT_DEBUG_ALL_WRITE('pParticle     = ' COMMA pParticle)
+       LIGHT_DEBUG_ALL_WRITE('pParticleTemp = ' COMMA pParticleTemp)
+       LIGHT_DEBUG_ALL_WRITE('mpas_arc_length = ' COMMA  mpas_arc_length(pParticle(1),pParticle(2),pParticle(3) , pParticleTemp(1), pParticleTemp(2), pParticleTemp(3)) COMMA 'lenPath = ' COMMA lenPath)
        arcLen = mpas_arc_length(pParticle(1),pParticle(2),pParticle(3) , pParticleTemp(1),pParticleTemp(2),pParticleTemp(3))
        if (arcLen > eps) then
          alpha = lenPath / arcLen
@@ -2669,12 +2673,12 @@ contains
 #ifdef MPAS_DEBUG
      if(phiVals(iLow) <= phiInterp .and. phiInterp <= phiVals(iHigh)) then
        ! we are ok
-       !write(stderrUnit,*) 'brute force interpolation successful'
-       !write(stderrUnit,*) 'iLow = ', iLow, ' iHigh = ', iHigh
-       !write(stderrUnit,*) 'phiInterp = ', phiInterp , ' phiLow =',  phiVals(iLow), ' phiHigh = ', phiVals(iHigh)
+       LIGHT_DEBUG_ALL_WRITE('brute force interpolation successful')
+       LIGHT_DEBUG_ALL_WRITE('iLow = ' COMMA iLow COMMA ' iHigh = ' COMMA iHigh)
+       LIGHT_DEBUG_ALL_WRITE('phiInterp = ' COMMA phiInterp COMMA ' phiLow =' COMMA phiVals(iLow) COMMA ' phiHigh = ' COMMA phiVals(iHigh))
      else
        write(stderrUnit,*) 'brute force interpolation failed with phiInterp = ', phiInterp, ' phiLow = ', phiVals(iLow), ' phiHigh = ', phiVals(iHigh)
-       !write(stderrUnit,*) ' phiVals = ', phiVals(1:nVertLevels)
+       LIGHT_DEBUG_ALL_WRITE(' phiVals = ' COMMA phiVals(1:nVertLevels))
      end if
 
      write(stderrUnit,*) 'Warning!: brute force interpolation used, boundary condition may be wrong!'
