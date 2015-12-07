@@ -60,7 +60,7 @@ module ocn_mep
    !--------------------------------------------------------------------
 
    logical :: mepStdGMOn, mepTWAdragGMOn, mepRediOn, mepUseGMmodule
-   logical :: mepVertViscConstOn, mepVertViscProgOn
+
 
 !***********************************************************************
 
@@ -110,66 +110,45 @@ contains
       !
       !-----------------------------------------------------------------
 
-      logical, pointer :: config_mep_stdGM_enable
-      logical, pointer :: config_mep_twaDragGM_enable
       logical, pointer :: config_mep_Redi_enable
-      logical, pointer :: config_mep_vert_visc_const_enable
-      logical, pointer :: config_mep_vert_visc_GL_enable
-      logical, pointer :: config_mep_vert_visc_prognostic_enable
+      character (len=StrKIND), pointer :: config_mep_formulation
 
       err = 0
 
-      call mpas_pool_get_config(ocnConfigs, 'config_mep_stdGM_enable', config_mep_stdGM_enable)
-      call mpas_pool_get_config(ocnConfigs, 'config_mep_twaDragGM_enable', config_mep_twaDragGM_enable)
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_formulation', config_mep_formulation)
       call mpas_pool_get_config(ocnConfigs, 'config_mep_Redi_enable', config_mep_Redi_enable)
-
-      call mpas_pool_get_config(ocnConfigs, 'config_mep_vert_visc_const_enable', config_mep_vert_visc_const_enable)
-      call mpas_pool_get_config(ocnConfigs, 'config_mep_vert_visc_GL_enable', config_mep_vert_visc_GL_enable)
-      call mpas_pool_get_config(ocnConfigs, 'config_mep_vert_visc_prognostic_enable', config_mep_vert_visc_prognostic_enable)
 
       mepStdGMOn = .false.
       mepTWAdragGMOn = .false.
       mepRediOn = .false.
       mepUseGMmodule = .false.
-      
-      mepVertViscConstOn = .false.
 
-      ! Momentum eddy parameterization flags
-      if (config_mep_stdGM_enable) then
+      ! Check for invalid parameterizations being enabled
+      if ( trim(config_mep_formulation) == 'none' ) then
+         return
+      else if ( trim(config_mep_formulation) == 'standardGM' ) then
          mepStdGMOn = .true.
          mepUseGMmodule = .true.
-      end if
-      if (config_mep_twaDragGM_enable) then
+         call ocn_gm_init(err)
+      else if ( trim(config_mep_formulation) == 'twaDragGM' ) then
          mepTWAdragGMOn = .true.
          mepUseGMmodule= .true.
+         call ocn_gm_init(err)
+      else if ( trim(config_mep_formulation) == 'constantVerticalViscocity' ) then
+         call ocn_mep_vert_visc_init(err)
+      else if ( trim(config_mep_formulation) == 'prognosticVerticalViscocity' ) then
+         call ocn_mep_vert_visc_init(err)
+      else
+         write (stderrUnit,*) 'Invalid value in config_mep_formulation:'
+         write (stderrUnit,*) config_mep_formulation
+         err = 1
+         !crash out
       end if
-      
-      if (config_mep_vert_visc_const_enable) then
-         mepVertViscConstOn = .true.
-         call ocn_mep_vert_visc_const_init(err)
-      end if
-!      if (config_mep_vert_visc_prognostic_enable) then
-!         mepVertViscProgOn = .true.
-!         call ocn_mep_vert_visc_prog_init(err)
-!      end if
 
-      
       ! Tracer eddy parameterization flags
       if (config_mep_Redi_enable) then
          mepRediOn = .true.
          mepUseGMmodule = .true.
-      end if
-
-      ! Check for invalid parameterizations being enabled
-      if ( count( (/mepStdGMOn, mepTWAdragGMOn, mepVertViscConstOn/) ) > 1 ) then
-         write (stderrUnit,*) 'Invalid combination of meso-scale eddy parameterizations:'
-         write (stderrUnit,*) '  stdGM is incompatible with twaDragGM and with twaDragVertVisc.'
-         err = 1
-      end if
-
-      ! Initialize GM module if needed
-      if (mepUseGMmodule) then
-         call ocn_gm_init(err)
       end if
 
    !--------------------------------------------------------------------
@@ -512,16 +491,8 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
 
       
-      ! Constant vertical viscocity
-      if (mepVertViscConstOn) then
-         call ocn_mep_vmix_mom_const_build(vertDiffTopOfCell, err)
-      end if
-
-      ! Prognostic vertical viscocity
-      !if (mepVertViscProgOn) then
-      !   call ocn_mep_vmix_mom_prognostic_closure_build(...)
-      !end if
-
+      ! MEP vertical viscocity
+         call ocn_mep_vmix_mom_build(vertDiffTopOfCell, err)
 
       return
 
