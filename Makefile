@@ -52,11 +52,17 @@ titan-cray:
 	( $(MAKE) all \
 	"FC_PARALLEL = ftn" \
 	"CC_PARALLEL = cc" \
+	"CXX_PARALLEL = CC" \
 	"FC_SERIAL = ftn" \
 	"CC_SERIAL = gcc" \
-	"FFLAGS_OPT = -s integer32 -default64 -O3 -f free -N 255 -em -ef" \
-	"CFLAGS_OPT = -O3" \
-	"LDFLAGS_OPT = -O3" \
+	"CXX_SERIAL = gcc" \
+	"FFLAGS_OPT = -s integer32 -default64 -O2 -f free -N 255 -em -ef -h acc" \
+	"CFLAGS_OPT = -O2" \
+	"LDFLAGS_OPT = -O2 -s integer32 -default64 -N 255 -em -ef -h acc" \
+	"FFLAGS_DEBUG = -s integer32 -default64 -O0 -g " \
+	"CFLAGS_DEBUG = -s integer32 -default64 -O0 -g " \
+	"CXXFLAGS_DEBUG = -s integer32 -default64 -O0 -g " \
+	"LDFLAGS_DEBUG = -s integer32 -default64 -O0 -g " \
 	"FFLAGS_OMP = " \
 	"CFLAGS_OMP = " \
 	"CORE = $(CORE)" \
@@ -64,6 +70,32 @@ titan-cray:
 	"USE_PAPI = $(USE_PAPI)" \
 	"OPENMP = $(OPENMP)" \
 	"CPPFLAGS = $(MODEL_FORMULATION) -D_MPI -DUNDERSCORE" )
+
+titan-pgi:
+	( $(MAKE) all \
+	"FC_PARALLEL = ftn" \
+	"CC_PARALLEL = cc" \
+	"CXX_PARALLEL = CC" \
+	"FC_SERIAL = ftn" \
+	"CC_SERIAL = gcc" \
+	"CXX_SERIAL = gcc" \
+	"FFLAGS_OPT = -r8 -O3 -byteswapio -Mfree -acc -ta=nvidia -Mcuda=6.5,cc35 -Minfo=all" \
+	"CFLAGS_OPT = -O3" \
+	"CXXFLAGS_OPT = -O3" \
+	"LDFLAGS_OPT = -O3 -ta=nvidia -Mcuda=6.5,cc35 -acc" \
+	"FFLAGS_DEBUG = -r8 -O0 -g -ta=nvidia -Mcuda=6.5,cc35 -acc -Mbounds -Mchkptr -byteswapio -Mfree -Ktrap=divz,fp,inv,ovf -traceback" \
+	"CFLAGS_DEBUG = -O0 -g -traceback" \
+	"CXXFLAGS_DEBUG = -O0 -g -traceback" \
+	"LDFLAGS_DEBUG = -O0 -g -ta=nvidia -Mcuda=6.5,cc35 -acc -Mbounds -Mchkptr -Ktrap=divz,fp,inv,ovf -traceback" \
+	"FFLAGS_OMP = -mp" \
+	"CFLAGS_OMP = -mp" \
+	"CORE = $(CORE)" \
+	"DEBUG = $(DEBUG)" \
+	"USE_PAPI = $(USE_PAPI)" \
+	"OPENMP = $(OPENMP)" \
+	"CPPFLAGS = $(MODEL_FORMULATION) -D_MPI -DUNDERSCORE" )
+
+#"CPPFLAGS = $(MODEL_FORMULATION) -D_MPI -DUNDERSCORE -DMPAS_NO_LOG_REDIRECT -DMPAS_ALL_TASKS_PRINT" )
 
 pgi:
 	( $(MAKE) all \
