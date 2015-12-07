@@ -41,9 +41,7 @@ module ocn_mep_vmix_mom
    !
    !--------------------------------------------------------------------
 
-   public :: ocn_mep_vmix_mom_const_build, ocn_mep_vert_visc_const_init !, &
-   	!ocn_mep_vmix_mom_GL_build, &
-   	!ocn_mep_vmix_mom_prognostic_closure_build
+   public :: ocn_mep_vert_visc_init, ocn_mep_vmix_mom_build
 
    !-------------------------------------------------------------------
    !
@@ -51,8 +49,12 @@ module ocn_mep_vmix_mom
    !
    !--------------------------------------------------------------------
 
+   logical :: mepVertViscConstOn, mepVertViscProgOn
+
+
    real (kind=RKIND), pointer :: config_mep_vert_visc_const_value
 
+   
 
 !***********************************************************************
 
@@ -64,21 +66,20 @@ contains
 !initialize vertConstantMEPVisc with value from namelist record
 
 
-
 !***********************************************************************
 !
-!  routine ocn_mep_vert_visc_const_init
+!  routine ocn_mep_vert_visc_init
 !
-!> \brief   Add constant momentum vertical mixing coefficient to vertDiffTopOfCell
+!> \brief   Initialize mep vertical mixing of momentum
 !> \author  Juan A. Saenz, Todd Ringler
-!> \date    November 2015
+!> \date    December 2015
 !> \version 
 !> \details 
 !>  This routine adds constant momentum vertical mixing coefficient to vertDiffTopOfCell
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vert_visc_const_init(err)!{{{
+   subroutine ocn_mep_vert_visc_init(err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -106,21 +107,35 @@ contains
       !
       !-----------------------------------------------------------------
 
+      character (len=StrKIND), pointer :: config_mep_formulation
+
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_formulation', config_mep_formulation)
+
       err = 0
 
-      call mpas_pool_get_config(ocnConfigs, 'config_mep_vert_visc_const_value', config_mep_vert_visc_const_value)
+      mepVertViscConstOn = .false.
+      mepVertViscProgOn = .false.
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_formulation', config_mep_formulation)
+      if ( trim(config_mep_formulation) == 'constantVerticalViscocity' ) then
+         mepVertViscConstOn = .true.
+         call mpas_pool_get_config(ocnConfigs, 'config_mep_formulation', config_mep_formulation)
+      else if ( trim(config_mep_formulation) == 'prognosticVerticalViscocity' ) then
+         mepVertViscProgOn = .true.
+         ! get config parameters for prognostic parameterization
+      end if
+
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_mep_vert_visc_const_init!}}}
+   end subroutine ocn_mep_vert_visc_init!}}}
 
 
 
 !***********************************************************************
 !
-!  routine ocn_mep_vmix_mom_const_build
+!  routine ocn_mep_vmix_mom_build
 !
-!> \brief   Add constant momentum vertical mixing coefficient to vertDiffTopOfCell
+!> \brief   Add momentum vertical mixing coefficient to vertDiffTopOfCell
 !> \author  Juan A. Saenz, Todd Ringler
 !> \date    November 2015
 !> \version 
@@ -129,7 +144,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vmix_mom_const_build(vertDiffTopOfCell, err)!{{{
+   subroutine ocn_mep_vmix_mom_build(vertDiffTopOfCell, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -161,11 +176,13 @@ contains
 
       err = 0
 
+
+
       vertDiffTopOfCell = vertDiffTopOfCell + config_mep_vert_visc_const_value
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_mep_vmix_mom_const_build!}}}
+   end subroutine ocn_mep_vmix_mom_build!}}}
 
 
 !***********************************************************************
