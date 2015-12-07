@@ -336,7 +336,7 @@
 					description="If true, Redi diffusion parameterization is implemented."
 					possible_values=".true. or .false."
 		/>
-		<nml_option name="config_mep_GM_tracer_kappa" type="real" default_value="0.0" units="m^2 s^{-1}"
+		<nml_option name="config_mep_GM_tracer_kappa" type="real" default_value="1200.0" units="m^2 s^{-1}"
 					description="Coefficient of GM parametrization of eddy transport (Bolus component), $\kappa$"
 					possible_values="Any positive real value."
 		/>
