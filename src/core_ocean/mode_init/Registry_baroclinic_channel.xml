@@ -39,4 +39,24 @@
 					description="Coriolis parameter for entrie domain."
 					possible_values="Any real number."
 		/>
+		<nml_option name="config_baroclinic_channel_use_FW_flux" type="logical" default_value="false" units="unitless"
+			description="logical flag for including freshwater fluxes."
+			possible_values="true or false."
+		/>
+		<nml_option name="config_baroclinic_channel_runoff_cell_number" type="integer" default_value="0" units="unitless"
+			description="Grid cell number for adding runoff."
+			possible_values="Any positive integer not greater than nCells."
+		/>
+		<nml_option name="config_baroclinic_channel_runoff_magnitude" type="real" default_value="0.0" units="kg m^{-2} s^{-1}"
+			description="Magnitude of river runoff."
+			possible_values="Any real non-negative number."
+		/>
+		<nml_option name="config_baroclinic_channel_precip_magnitude" type="real" default_value="0.0" units="kg m^{-2} s^{-1}"
+			description="Magnitude of precipitation."
+			possible_values="Any real non-negative number."
+		/>
+		<nml_option name="config_baroclinic_channel_evap_magnitude" type="real" default_value="0.0" units="kg m^{-2} s^{-1}"
+			description="Magnitude of evaporation."
+			possible_values="Any real non-negative number, BUT will be multiplied by -1 in init."
+		/>
 	</nml_record>
