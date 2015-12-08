@@ -89,12 +89,14 @@ contains
       type (mpas_pool_type), pointer :: statePool
       type (mpas_pool_type), pointer :: tracersPool
       type (mpas_pool_type), pointer :: verticalMeshPool
+      type (mpas_pool_type), pointer :: forcingPool
 
       integer :: iCell, k, idx
 
       ! Define config variable pointers
       character (len=StrKIND), pointer :: config_init_configuration, config_vertical_grid
-      logical, pointer :: config_baroclinic_channel_use_distances
+      logical, pointer :: config_baroclinic_channel_use_distances, &
+                          config_baroclinic_channel_use_FW_flux
       real (kind=RKIND), pointer :: config_baroclinic_channel_gradient_width_dist, &
                                     config_baroclinic_channel_gradient_width_frac, &
                                     config_baroclinic_channel_bottom_depth, &
@@ -102,17 +104,23 @@ contains
                                     config_baroclinic_channel_bottom_temperature, &
                                     config_baroclinic_channel_temperature_difference, &
                                     config_baroclinic_channel_salinity, &
-                                    config_baroclinic_channel_coriolis_parameter
+                                    config_baroclinic_channel_coriolis_parameter, &
+                                    config_baroclinic_channel_runoff_magnitude, &
+                                    config_baroclinic_channel_precip_magnitude, &
+                                    config_baroclinic_channel_evap_magnitude
 
       ! Define dimension pointers
       integer, pointer :: nCellsSolve, nEdgesSolve, nVertLevels, nVertLevelsP1
       integer, pointer :: index_temperature, index_salinity, index_tracer1
+      integer, pointer :: config_baroclinic_channel_runoff_cell_number
 
       ! Define variable pointers
-      integer, dimension(:), pointer :: maxLevelCell
+      integer, dimension(:), pointer :: maxLevelCell, &
+                                        indexToCellID
       real (kind=RKIND), dimension(:), pointer :: xCell, yCell,refBottomDepth, refZMid, &
                                                   vertCoordMovementWeights, bottomDepth, &
                                                   fCell, fEdge, fVertex, dcEdge
+      real (kind=RKIND), dimension(:), pointer :: riverRunoffFlux, rainFlux, evaporationFlux
       real (kind=RKIND), dimension(:,:), pointer :: layerThickness, restingThickness
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers, debugTracers
 
@@ -138,6 +146,11 @@ contains
       call mpas_pool_get_config(ocnConfigs, 'config_baroclinic_channel_temperature_difference', config_baroclinic_channel_temperature_difference)
       call mpas_pool_get_config(ocnConfigs, 'config_baroclinic_channel_salinity', config_baroclinic_channel_salinity)
       call mpas_pool_get_config(ocnConfigs, 'config_baroclinic_channel_coriolis_parameter', config_baroclinic_channel_coriolis_parameter)
+      call mpas_pool_get_config(domain % configs, 'config_baroclinic_channel_runoff_magnitude', config_baroclinic_channel_runoff_magnitude)
+      call mpas_pool_get_config(domain % configs, 'config_baroclinic_channel_precip_magnitude', config_baroclinic_channel_precip_magnitude)
+      call mpas_pool_get_config(domain % configs, 'config_baroclinic_channel_evap_magnitude', config_baroclinic_channel_evap_magnitude)
+      call mpas_pool_get_config(domain % configs, 'config_baroclinic_channel_use_FW_flux', config_baroclinic_channel_use_FW_flux)
+      call mpas_pool_get_config(domain % configs, 'config_baroclinic_channel_runoff_cell_number', config_baroclinic_channel_runoff_cell_number)
 
       ! Determine vertical grid for configuration
       call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
@@ -198,6 +211,7 @@ contains
         call mpas_pool_get_subpool(block_ptr % structs, 'mesh', meshPool)
         call mpas_pool_get_subpool(block_ptr % structs, 'state', statePool)
         call mpas_pool_get_subpool(block_ptr % structs, 'verticalMesh', verticalMeshPool)
+        call mpas_pool_get_subpool(block_ptr % structs, 'forcing', forcingPool)
         call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
 
         call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
@@ -216,6 +230,7 @@ contains
         call mpas_pool_get_array(meshPool, 'fCell', fCell)
         call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
         call mpas_pool_get_array(meshPool, 'fVertex', fVertex)
+        call mpas_pool_get_array(meshPool, 'indexToCellID', indexToCellID)
 
         call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, 1)
         call mpas_pool_get_array(tracersPool, 'debugTracers', debugTracers, 1)
@@ -223,6 +238,10 @@ contains
 
         call mpas_pool_get_array(verticalMeshPool, 'refZMid', refZMid)
         call mpas_pool_get_array(verticalMeshPool, 'restingThickness', restingThickness)
+
+        call mpas_pool_get_array(forcingPool, 'riverRunoffFlux', riverRunoffFlux, 1)
+        call mpas_pool_get_array(forcingPool, 'rainFlux', rainFlux, 1)
+        call mpas_pool_get_array(forcingPool, 'evaporationFlux', evaporationFlux, 1)
 
         call ocn_mark_north_boundary(meshPool, yMaxGlobal, dcEdgeMinGlobal, iErr)
         call ocn_mark_south_boundary(meshPool, yMinGlobal, dcEdgeMinGlobal, iErr)
@@ -286,6 +305,22 @@ contains
               idx = index_salinity
               activeTracers(idx, :, iCell) = config_baroclinic_channel_salinity
            end if
+
+           ! Set freshwater flux
+           ! for now just make constant--maybe later add spatial dependence
+           if (config_baroclinic_channel_use_FW_flux) then
+              rainFlux(iCell) = config_baroclinic_channel_precip_magnitude
+              evaporationFlux(iCell) = -1.0_RKIND * config_baroclinic_channel_evap_magnitude
+           else
+              rainFlux(iCell) = 0.0_RKIND
+              evaporationFlux(iCell) = 0.0_RKIND
+           end if
+
+           ! Set river runoff in specified cell if including FW fluxes
+           riverRunoffFlux(iCell) = 0.0_RKIND
+           if (config_baroclinic_channel_use_FW_flux &
+               .and. indexToCellID(iCell) == config_baroclinic_channel_runoff_cell_number) &
+                  riverRunoffFlux(iCell) = config_baroclinic_channel_runoff_magnitude
 
            ! Set layerThickness and restingThickness
            do k = 1, nVertLevels
