@@ -42,9 +42,10 @@ module ocn_mep_vmix_mom
    !--------------------------------------------------------------------
 
    public :: ocn_mep_vmix_mom_update_climate, &
-             ocn_mep_vmix_evp_analytical, &
+             ocn_mep_vmix_mom_evp_analytical, &
+             ocn_mep_vmix_mom_eddyE, &
              ocn_mep_vmix_mom_update_vertIntEddyE, &
-             ocn_mep_vert_visc_init, &
+             ocn_mep_vmix_mom_init, &
              ocn_mep_vmix_mom_build
 
    !-------------------------------------------------------------------
@@ -139,7 +140,7 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_mep_vmix_evp_analytical
+!  routine ocn_mep_vmix_mom_evp_analytical
 !
 !> \brief   Assign an analytical expression to the eigenvalue problem
 !> \author  Juan A. Saenz, Todd Ringler
@@ -152,7 +153,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vmix_evp_analytical(diagnosticsPool, mepPool, meshPool, statePool, err)!{{{
+   subroutine ocn_mep_vmix_mom_evp_analytical(diagnosticsPool, mepPool, meshPool, statePool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -208,14 +209,14 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_mep_vmix_evp_analytical!}}}
+   end subroutine ocn_mep_vmix_mom_evp_analytical!}}}
 
 
 
 
 !***********************************************************************
 !
-!  routine ocn_mep_vert_visc_init
+!  routine ocn_mep_vmix_mom_init
 !
 !> \brief   Initialize mep variables related to vertical mixing of momentum
 !> \author  Juan A. Saenz, Todd Ringler
@@ -226,7 +227,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vert_visc_init(err)!{{{
+   subroutine ocn_mep_vmix_mom_init(err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -285,7 +286,7 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_mep_vert_visc_init!}}}
+   end subroutine ocn_mep_vmix_mom_init!}}}
 
 
 
