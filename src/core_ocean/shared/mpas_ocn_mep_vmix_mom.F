@@ -42,6 +42,7 @@ module ocn_mep_vmix_mom
    !--------------------------------------------------------------------
 
    public :: ocn_mep_vmix_mom_update_climate, &
+             ocn_mep_vmix_evp_analytical, &
              ocn_mep_vmix_mom_update_vertIntEddyE, &
              ocn_mep_vert_visc_init, &
              ocn_mep_vmix_mom_build
@@ -56,6 +57,8 @@ module ocn_mep_vmix_mom
 
 
    real (kind=RKIND), pointer :: config_mep_climate_Tc, config_mep_climate_dt
+   real (kind=RKIND), pointer :: config_mep_eigenvector_A, config_mep_eigenvector_Le
+   real (kind=RKIND), pointer :: config_mep_eigenvector_phi0
    real (kind=RKIND), pointer :: config_mep_vert_visc_const_value
 
    
@@ -108,10 +111,13 @@ contains
       !
       !-----------------------------------------------------------------
       integer :: iCell, kLevel
-      integer, dimension(:), pointer   :: maxLevelCell
+      integer, pointer :: nCells
+      integer, dimension(:), pointer :: maxLevelCell
+      real(kind=RKIND), dimension(:,:), pointer :: NsqClimate
       real(kind=RKIND), dimension(:,:), pointer :: BruntVaisalaFreqTop
 
 
+      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_array(meshPool, 'maxLevelCell',  maxLevelCell)
       call mpas_pool_get_array(diagnosticsPool, 'BruntVaisalaFreqTop', BruntVaisalaFreqTop)
       call mpas_pool_get_array(mepPool, 'NsqClimate', NsqClimate)
@@ -128,6 +134,82 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_mep_vmix_mom_update_climate!}}}
+
+
+
+!***********************************************************************
+!
+!  routine ocn_mep_vmix_evp_analytical
+!
+!> \brief   Assign an analytical expression to the eigenvalue problem
+!> \author  Juan A. Saenz, Todd Ringler
+!> \date    December 2015
+!> \version 
+!> \details 
+!>  This routine assignes an approximate analytical expression to the 
+!   eigenvalue problem with the new climate.
+!>  
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_vmix_evp_analytical(diagnosticsPool, mepPool, meshPool, statePool, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: mepPool structure
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+      integer :: iCell, kLevel
+      integer, pointer :: nCells
+      integer, dimension(:), pointer :: maxLevelCell
+      real(kind=RKIND), dimension(:), pointer :: ssh
+      real(kind=RKIND), dimension(:,:), pointer :: phi ! eigenvector
+      real(kind=RKIND), dimension(:,:), pointer :: zMid
+
+
+
+      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+      call mpas_pool_get_array(meshPool, 'maxLevelCell',  maxLevelCell)
+      call mpas_pool_get_array(mepPool, 'eigenvectorPhi', phi)
+      call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
+      call mpas_pool_get_array(statePool, 'ssh', ssh)
+
+      ! eigenvector
+      do iCell = 1, nCells
+         do kLevel = 1, maxLevelCell(iCell)
+            phi(kLevel, iCell) = &
+               - config_mep_eigenvector_A &
+               * exp( (zMid(kLevel, iCell)-ssh(iCell) ) / config_mep_eigenvector_Le ) &
+               + config_mep_eigenvector_phi0
+         end do
+      end do
+
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_mep_vmix_evp_analytical!}}}
+
 
 
 
@@ -183,6 +265,9 @@ contains
 
       config_mep_climate_Tc = 0.0
       config_mep_climate_dt = 0.0
+      config_mep_eigenvector_A = 0.0
+      config_mep_eigenvector_Le = 0.0
+      config_mep_eigenvector_phi0 = 0.0
 
       call mpas_pool_get_config(ocnConfigs, 'config_mep_formulation', config_mep_formulation)
       if ( trim(config_mep_formulation) == 'constantVerticalViscocity' ) then
@@ -192,6 +277,9 @@ contains
          mepVertViscProgOn = .true.
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_Tc', config_mep_climate_Tc)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_dt', config_mep_climate_dt)
+         call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_A', config_mep_eigenvector_A)
+         call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_Le', config_mep_eigenvector_Le)
+         call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_phi0', config_mep_eigenvector_phi0)
       end if
 
 
