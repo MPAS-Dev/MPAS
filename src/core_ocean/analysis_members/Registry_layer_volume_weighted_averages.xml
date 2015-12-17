@@ -23,7 +23,7 @@
 					description="Logical flag determining if an analysis member output write occurs on start-up."
 					possible_values=".true. or .false."
 		/>
-		<nml_option name="config_AM_layerVolumeWeightedAverage_stream_name" type="character" default_value="layerVolumeWeightedAverageOutput" units="unitless"
+		<nml_option name="config_AM_layerVolumeWeightedAverage_output_stream" type="character" default_value="layerVolumeWeightedAverageOutput" units="unitless"
 					description="Name of the string that should be tied to the layer volume weighted average analysis member"
 					possible_values="Any existing stream name or 'none'"
 		/>
@@ -354,6 +354,7 @@
 	</var_struct>
 	<streams>
 		<stream name="layerVolumeWeightedAverageOutput"
+				mode="forward;analysis"
 				type="output"
 				filename_template="analysis_members/layerVolumeWeightedAverage.$Y-$M-$D_$h.$m.$s.nc"
 				output_interval="00-00-05_00:00:00"

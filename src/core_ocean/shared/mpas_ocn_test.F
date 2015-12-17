@@ -199,6 +199,7 @@ contains
       call mpas_allocate_scratch_field(divTensorLonLatRCellSolutionField, .false.)
       call mpas_allocate_scratch_field(outerProductEdgeField, .false.)
 
+
       call mpas_test_tensor(domain, config_tensor_test_function, &
          edgeSignOnCellField, &
          edgeTangentVectorsField, &
@@ -215,6 +216,7 @@ contains
          divTensorLonLatRCellField, &
          divTensorLonLatRCellSolutionField, &
          outerProductEdgeField )
+
 
       call mpas_deallocate_scratch_field(normalVelocityTestField, .false.)
       call mpas_deallocate_scratch_field(tangentialVelocityTestField, .false.)
@@ -283,14 +285,13 @@ contains
 
       real(kind=RKIND) :: zTop, config_gm_analytic_temperature2, config_gm_analytic_temperature3, config_gm_analytic_ymax, &
          config_gm_analytic_bottom_depth, L, R, c1, c2, zMax, zBot
-      real (kind=RKIND), pointer :: config_gravWaveSpeed_trunc, config_density0, config_standardGM_tracer_kappa, config_eos_linear_alpha
+      real (kind=RKIND), pointer :: config_gravWaveSpeed_trunc, config_standardGM_tracer_kappa, config_eos_linear_alpha
 
       real(kind=RKIND), dimension(:), pointer   :: bottomDepth, refBottomDepthTopOfCell, yCell, yEdge
       real(kind=RKIND), dimension(:,:), pointer :: yRelativeSlopeSolution, yGMStreamFuncSolution, yGMBolusVelocitySolution, zMid
 
       type (field2DReal), pointer :: yRelativeSlopeSolutionField, yGMStreamFuncSolutionField, yGMBolusVelocitySolutionField
 
-      call mpas_pool_get_config(ocnConfigs, 'config_density0',config_density0)
       call mpas_pool_get_config(ocnConfigs, 'config_eos_linear_alpha', config_eos_linear_alpha)
       call mpas_pool_get_config(ocnConfigs, 'config_gravWaveSpeed_trunc',config_gravWaveSpeed_trunc)
       call mpas_pool_get_config(ocnConfigs, 'config_standardGM_tracer_kappa',config_standardGM_tracer_kappa)
@@ -314,21 +315,22 @@ contains
       yGMBolusVelocitySolution => yGMBolusVelocitySolutionField % array 
 
       ! These are flags that must match your initial conditions settings.  See gm_analytic initial condition in mode_init.
-      config_gm_analytic_temperature2 = 10;
-      config_gm_analytic_temperature3 = -10;
-      config_gm_analytic_ymax = 500000;
-      config_gm_analytic_bottom_depth = 1000;
+      config_gm_analytic_temperature2 = 10
+      config_gm_analytic_temperature3 = -10
+      config_gm_analytic_ymax = 500000
+      config_gm_analytic_bottom_depth = 1000
 
       ! zMax is associated with linear temperature profile in z
-      zMax = -config_gm_analytic_bottom_depth;  
+      zMax = -config_gm_analytic_bottom_depth
       ! zBot is location we apply boundary conditions on the ODE for stream function.  
-      zBot = zMax;  
+      zBot = zMax
 
-      L = config_gravWaveSpeed_trunc * sqrt(config_density0*zMax/gravity/config_eos_linear_alpha/config_gm_analytic_temperature3);
-      R = - config_standardGM_tracer_kappa * config_gm_analytic_temperature2 * zMax / config_gm_analytic_temperature3 / config_gm_analytic_ymax;
-      c1 = R*(1-exp(-zBot/L))/(exp(zBot/L) - exp(-zBot/L));
-      c2 = R-c1;
+      L = config_gravWaveSpeed_trunc * sqrt(rho_sw * zMax / gravity / config_eos_linear_alpha / config_gm_analytic_temperature3)
+      R = - config_standardGM_tracer_kappa * config_gm_analytic_temperature2 * zMax / config_gm_analytic_temperature3 / config_gm_analytic_ymax
+      c1 = R*(1-exp(-zBot/L))/(exp(zBot/L) - exp(-zBot/L))
+      c2 = R-c1
 
+      !$omp do schedule(runtime) private(k, zTop)
       do iCell = 1, nCells
 
          do k = 1, maxLevelCell(iCell)
@@ -344,11 +346,12 @@ contains
          end do
 
          k = maxLevelCell(iCell)+1
-            ! placed at top interface, cell center.
-            zTop = zBot
-            yGMStreamFuncSolution(k,iCell) = c1*exp(zTop/L) + c2*exp(-zTop/L) - R;
+         ! placed at top interface, cell center.
+         zTop = zBot
+         yGMStreamFuncSolution(k,iCell) = c1*exp(zTop/L) + c2*exp(-zTop/L) - R;
 
       end do
+      !$omp end do
 
    end subroutine ocn_init_gm_test_functions!}}}
 

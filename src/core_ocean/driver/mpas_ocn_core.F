@@ -28,9 +28,11 @@ module ocn_core
    use mpas_dmpar
    use mpas_timer
    use mpas_io_units
+   use mpas_threading
 
    use ocn_forward_mode
    use ocn_analysis_mode
+   use ocn_init_mode
 
    implicit none
    private
@@ -59,15 +61,26 @@ module ocn_core
       integer :: ierr
 
       character (len=StrKIND), pointer :: config_ocean_run_mode
+      integer :: numThreads
 
       ierr = 0
 
       call mpas_pool_get_config(domain % configs, 'config_ocean_run_mode', config_ocean_run_mode)
 
+      numThreads = mpas_threading_get_max_threads()
+
+      write(stderrUnit, *) ''
+      write(stderrUnit, *) ' *****************************************************************************'
+      write(stderrUnit, *) ' MPI Task ', domain % dminfo % my_proc_id, ' has access to ', numThreads, ' threads'
+      write(stderrUnit, *) ' *****************************************************************************'
+      write(stderrUnit, *) ''
+
       if ( trim(config_ocean_run_mode) == 'forward' ) then
          ierr = ocn_forward_mode_init(domain, startTimeStamp)
       else if ( trim(config_ocean_run_mode) == 'analysis' ) then
          ierr = ocn_analysis_mode_init(domain, startTimeStamp)
+      else if ( trim(config_ocean_run_mode) == 'init' ) then
+         ierr = ocn_init_mode_init(domain, startTimeStamp)
       end if
 
    end function ocn_core_init!}}}
@@ -101,6 +114,8 @@ module ocn_core
          ierr = ocn_forward_mode_run(domain)
       else if ( trim(config_ocean_run_mode) == 'analysis' ) then
          ierr = ocn_analysis_mode_run(domain)
+      else if ( trim(config_ocean_run_mode) == 'init' ) then
+         ierr = ocn_init_mode_run(domain)
       end if
 
    end function ocn_core_run!}}}
@@ -132,6 +147,8 @@ module ocn_core
          ierr = ocn_forward_mode_finalize(domain)
       else if (trim(config_ocean_run_mode) == 'analysis' ) then
          ierr = ocn_analysis_mode_finalize(domain)
+      else if (trim(config_ocean_run_mode) == 'init' ) then
+         ierr = ocn_init_mode_finalize(domain)
       end if
 
    end function ocn_core_finalize!}}}

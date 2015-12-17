@@ -35,6 +35,11 @@ module ocn_analysis_driver
    use ocn_meridional_heat_transport
    use ocn_test_compute_interval
    use ocn_high_frequency_output
+   use ocn_time_filters
+   use ocn_lagrangian_particle_tracking
+   use ocn_eliassen_palm
+   use ocn_mixed_layer_depths
+   use ocn_time_series_stats
 !   use ocn_TEM_PLATE
 
    implicit none
@@ -54,6 +59,7 @@ module ocn_analysis_driver
    !--------------------------------------------------------------------
 
    public :: ocn_analysis_setup_packages, &
+             ocn_analysis_bootstrap, &
              ocn_analysis_init, &
              ocn_analysis_compute_startup, &
              ocn_analysis_compute, &
@@ -68,8 +74,10 @@ module ocn_analysis_driver
    !--------------------------------------------------------------------
 
 
+   character (len=*), parameter :: initReadTimerPrefix = 'init_read_'
    character (len=*), parameter :: initTimerPrefix = 'init_'
    character (len=*), parameter :: computeTimerPrefix = 'compute_'
+   character (len=*), parameter :: computeStartupTimerPrefix = 'compute_startup_'
    character (len=*), parameter :: writeTimerPrefix = 'write_'
    character (len=*), parameter :: alarmTimerPrefix = 'reset_alarm_'
    character (len=*), parameter :: restartTimerPrefix = 'restart_'
@@ -94,7 +102,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_analysis_setup_packages(configPool, packagePool, err)!{{{
+   subroutine ocn_analysis_setup_packages(configPool, packagePool, iocontext, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -102,8 +110,9 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(in) :: configPool
-      type (mpas_pool_type), intent(in) :: packagePool
+      type (mpas_pool_type), intent(inout) :: configPool
+      type (mpas_pool_type), intent(inout) :: packagePool
+      type (mpas_io_context_type), intent(inout) :: iocontext
 
       !-----------------------------------------------------------------
       !
@@ -145,6 +154,11 @@ contains
       call mpas_pool_add_config(analysisMemberList, 'waterMassCensus', 1)
       call mpas_pool_add_config(analysisMemberList, 'zonalMean', 1)
       call mpas_pool_add_config(analysisMemberList, 'highFrequencyOutput', 1)
+      call mpas_pool_add_config(analysisMemberList, 'timeFilters', 1)
+      call mpas_pool_add_config(analysisMemberList, 'lagrPartTrack', 1)
+      call mpas_pool_add_config(analysisMemberList, 'eliassenPalm', 1)
+      call mpas_pool_add_config(analysisMemberList, 'mixedLayerDepths', 1)
+      call mpas_pool_add_config(analysisMemberList, 'timeSeriesStats', 1)
 !     call mpas_pool_add_config(analysisMemberList, 'temPlate', 1)
 
       ! DON'T EDIT BELOW HERE
@@ -164,6 +178,160 @@ contains
       end do
 
    end subroutine ocn_analysis_setup_packages!}}}
+
+!***********************************************************************
+!
+!  routine ocn_analysis_bootstrap
+!
+!> \brief   Bootstrap analysis members (pre-init configuration)
+!> \author  Doug Jacobsen
+!> \date    10/08/2015
+!> \details
+!>  This routine will read either a restart or an input stream for each analysis member.
+!>  The stream names that will be read are controlled via the analysis member's
+!>     - config_AM_${AM}_restart_stream
+!>     - config_AM_${AM}_input_stream
+!>  namelist options.
+!>
+!>  If the AM doesn't specify either of these, it will be ignored. If the AM
+!>  specifies only the restart stream, it will only be read if the config_do_restart flag
+!>  for the model is set to true. If the AM specifies both, the restart_stream will be read if
+!>  config_do_restart is true, and the input_stream will be read if config_do_restart is false.
+!>
+!>  After this call, alarms on both streams are reset.
+!>
+!>  Additionally, if a bootstrap subroutine has been defined properly for the
+!>  analysis member, it will be called here.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_analysis_bootstrap(domain, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      type (domain_type), intent(inout) :: domain
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: err_tmp
+
+      character (len=StrKIND) :: configName, alarmName, restartStreamName, inputStreamName, timerName
+      logical, pointer :: config_AM_enable, config_do_restart
+      character (len=StrKIND), pointer :: config_AM_restart_stream, config_AM_input_stream
+      integer :: nameLength
+      type (mpas_pool_iterator_type) :: poolItr
+
+      logical :: streamFound
+      character  (len=StrKIND) :: referenceTimeString, outputIntervalString
+      type (MPAS_Time_Type) :: referenceTime 
+      type (MPAS_TimeInterval_type) :: alarmTimeStep
+
+      integer :: poolErrorLevel
+
+      err = 0
+
+      poolErrorLevel = mpas_pool_get_error_level()
+      call mpas_pool_set_error_level(MPAS_POOL_SILENT)
+
+      call mpas_timer_start('analysis_bootstrap', .false.)
+
+      call mpas_pool_get_config(domain % configs, 'config_do_restart', config_do_restart)
+
+      call mpas_pool_begin_iteration(analysisMemberList)
+      do while ( mpas_pool_get_next_member(analysisMemberList, poolItr) )
+         nameLength = len_trim(poolItr % memberName)
+         configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_enable'
+         call mpas_pool_get_config(domain % configs, configName, config_AM_enable)
+
+         if ( config_AM_enable ) then
+            timerName = trim(initReadTimerPrefix) // poolItr % memberName(1:nameLength)
+            call mpas_timer_start(timerName, .false.)
+
+            call ocn_bootstrap_analysis_members(domain, poolItr % memberName(1:nameLength), ierr=err)
+
+            configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_restart_stream'
+            nullify(config_AM_restart_stream)
+            call mpas_pool_get_config(domain % configs, configName, config_AM_restart_stream)
+
+            configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_input_stream'
+            nullify(config_AM_input_stream)
+            call mpas_pool_get_config(domain % configs, configName, config_AM_input_stream)
+
+            ! Verify the restart stream exists
+            if ( associated(config_AM_restart_stream) ) then
+               if ( trim(config_AM_restart_stream) == 'none' ) then
+                  ! If the stream is set to 'none' nullify the config, so it doesn't get read in
+                  nullify(config_AM_restart_stream)
+               else if ( .not. mpas_stream_mgr_stream_exists(domain % streamManager, config_AM_restart_stream) ) then
+                  call mpas_dmpar_global_abort('ERROR: Stream named ''' // trim(config_AM_restart_stream) // &
+                                               ''' does not exist in config for analysis member ''' // &
+                                               trim(poolItr % memberName(1:nameLength)) // '''')
+               end if
+            end if
+
+            ! Verify the input stream exists
+            if ( associated(config_AM_input_stream) ) then
+               if ( trim(config_AM_input_stream) == 'none' ) then
+                  ! If the stream is set to 'none' nullify the config, so it doesn't get read in
+                  nullify(config_AM_input_stream)
+               else if ( .not. mpas_stream_mgr_stream_exists(domain % streamManager, config_AM_input_stream) ) then
+                  call mpas_dmpar_global_abort('ERROR: Stream named ''' // trim(config_AM_input_stream) // &
+                                               ''' does not exist in config for analysis member ''' // &
+                                               trim(poolItr % memberName(1:nameLength)) // '''')
+               end if
+            end if
+
+            ! Handle reading of streams that exist.
+            if ( associated(config_AM_restart_stream) .and. associated(config_AM_input_stream) ) then
+               if ( config_do_restart ) then
+                  call mpas_stream_mgr_read(domain % streamManager, streamID=config_AM_restart_stream, ierr=err)
+               else
+                  call mpas_stream_mgr_read(domain % streamManager, streamID=config_AM_input_stream, ierr=err)
+               end if
+               call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID=config_AM_restart_stream, direction=MPAS_STREAM_INPUT, ierr=err)
+               call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID=config_AM_input_stream, direction=MPAS_STREAM_INPUT, ierr=err)
+            else if ( associated(config_AM_restart_stream) ) then
+               if ( config_do_restart ) then
+                  call mpas_stream_mgr_read(domain % streamManager, streamID=config_AM_restart_stream, ierr=err)
+               end if
+               call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID=config_AM_restart_stream, direction=MPAS_STREAM_INPUT, ierr=err)
+            else if ( associated(config_AM_input_stream) ) then
+               if ( .not. config_do_restart ) then
+                  call mpas_stream_mgr_read(domain % streamManager, streamID=config_AM_input_stream, ierr=err)
+               end if
+               call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID=config_AM_input_stream, direction=MPAS_STREAM_INPUT, ierr=err)
+            end if
+            call mpas_timer_stop(timerName)
+         end if
+      end do
+
+      call mpas_timer_stop('analysis_bootstrap')
+
+      call mpas_pool_set_error_level(poolErrorLevel)
+
+   end subroutine ocn_analysis_bootstrap!}}}
 
 !***********************************************************************
 !
@@ -212,7 +380,7 @@ contains
 
       character (len=StrKIND) :: configName, alarmName, streamName, timerName
       logical, pointer :: config_AM_enable
-      character (len=StrKIND), pointer :: config_AM_compute_interval, config_AM_stream_name
+      character (len=StrKIND), pointer :: config_AM_compute_interval, config_AM_output_stream
       integer :: nameLength
       type (mpas_pool_iterator_type) :: poolItr
 
@@ -240,8 +408,8 @@ contains
             configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_compute_interval'
             call mpas_pool_get_config(domain % configs, configName, config_AM_compute_interval)
 
-            configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_stream_name'
-            call mpas_pool_get_config(domain % configs, configName, config_AM_stream_name)
+            configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_output_stream'
+            call mpas_pool_get_config(domain % configs, configName, config_AM_output_stream)
 
             if ( config_AM_compute_interval == 'dt' ) then
                alarmTimeStep = mpas_get_clock_timestep(domain % clock, err_tmp)
@@ -249,26 +417,26 @@ contains
             end if
 
             ! Verify stream exists before trying to use output_interval
-            if ( config_AM_stream_name /= 'none' ) then
+            if ( config_AM_output_stream /= 'none' ) then
                streamFound = .false.
    
                call mpas_stream_mgr_begin_iteration(domain % streamManager)
                do while ( mpas_stream_mgr_get_next_stream(domain % streamManager, streamName) )
-                  if ( trim(streamName) == trim(config_AM_stream_name) ) then
+                  if ( trim(streamName) == trim(config_AM_output_stream) ) then
                      streamFound = .true.
                   end if
                end do
    
                if ( .not. streamFound ) then
-                  call mpas_dmpar_global_abort('ERROR: Stream ' // trim(config_AM_stream_name) // ' does not exist. Exiting...')
+                  call mpas_dmpar_global_abort('ERROR: Stream ' // trim(config_AM_output_stream) // ' does not exist. Exiting...')
                end if
             end if
             
 
-            if ( config_AM_compute_interval /= 'output_interval' .and. config_AM_stream_name /= 'none') then
+            if ( config_AM_compute_interval /= 'output_interval' .and. config_AM_output_stream /= 'none') then
                alarmName = poolItr % memberName(1:nameLength) // computeAlarmSuffix
                call mpas_set_timeInterval(alarmTimeStep, timeString=config_AM_compute_interval, ierr=err_tmp)
-               call MPAS_stream_mgr_get_property(domain % streamManager, config_AM_stream_name, MPAS_STREAM_PROPERTY_REF_TIME, referenceTimeString, err_tmp)
+               call MPAS_stream_mgr_get_property(domain % streamManager, config_AM_output_stream, MPAS_STREAM_PROPERTY_REF_TIME, referenceTimeString, err_tmp)
                call mpas_set_time(referenceTime, dateTimeString=referenceTimeString, ierr=err_tmp)
                call mpas_add_clock_alarm(domain % clock, alarmName, referenceTime, alarmTimeStep, ierr=err_tmp)
                call mpas_reset_clock_alarm(domain % clock, alarmName, ierr=err_tmp)
@@ -327,14 +495,14 @@ contains
       integer :: timeLevel, err_tmp
 
       character (len=StrKIND) :: configName, timerName
-      character (len=StrKIND), pointer :: config_AM_stream_name
+      character (len=StrKIND), pointer :: config_AM_output_stream
       logical, pointer :: config_AM_enable, config_AM_write_on_startup, config_AM_compute_on_startup
       type (mpas_pool_iterator_type) :: poolItr
       integer :: nameLength
 
       err = 0
 
-      call mpas_timer_start('analysis_compute', .false.)
+      call mpas_timer_start('analysis_compute_startup', .false.)
 
       timeLevel=1
 
@@ -351,29 +519,28 @@ contains
             call mpas_pool_get_config(domain % configs, configName, config_AM_write_on_startup)
 
             if ( config_AM_compute_on_startup ) then
-               timerName = trim(computeTimerPrefix) // poolItr % memberName(1:nameLength)
+               timerName = trim(computeStartupTimerPrefix) // poolItr % memberName(1:nameLength)
                call mpas_timer_start(timerName, .false.)
                call ocn_compute_analysis_members(domain, timeLevel, poolItr % memberName, err_tmp)
                call mpas_timer_stop(timerName)
                err = ior(err, err_tmp)
+            end if
 
-               if ( config_AM_write_on_startup ) then
-                  configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_stream_name'
-                  call mpas_pool_get_config(domain % configs, configName, config_AM_stream_name)
-                  if ( config_AM_stream_name /= 'none' ) then
-                     call mpas_stream_mgr_write(domain % streamManager, streamID=config_AM_stream_name, forceWriteNow=.true., ierr=err_tmp)
-                  end if
+            if ( config_AM_write_on_startup ) then
+               configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_output_stream'
+               call mpas_pool_get_config(domain % configs, configName, config_AM_output_stream)
+               if ( config_AM_output_stream /= 'none' ) then
+                  call mpas_stream_mgr_write(domain % streamManager, streamID=config_AM_output_stream, forceWriteNow=.true., ierr=err_tmp)
                end if
-            else
-               if ( config_AM_write_on_startup ) then
+               if (.not. config_AM_compute_on_startup) then
                   write(stderrUnit, *) ' *** WARNING: write_on_startup called without compute_on_startup for analysis member: ' &
-                                        // poolItr % memberName(1:nameLength) // '. Skipping output...'
+                    // poolItr % memberName(1:nameLength) // '.'
                end if
             end if
          end if
       end do
 
-      call mpas_timer_stop('analysis_compute')
+      call mpas_timer_stop('analysis_compute_startup')
 
    end subroutine ocn_analysis_compute_startup!}}}
 
@@ -423,7 +590,7 @@ contains
       integer :: timeLevel, err_tmp
 
       character (len=StrKIND) :: configName, alarmName, timerName
-      character (len=StrKIND), pointer :: config_AM_stream_name, config_AM_compute_interval
+      character (len=StrKIND), pointer :: config_AM_output_stream, config_AM_compute_interval
       logical, pointer :: config_AM_enable
       type (mpas_pool_iterator_type) :: poolItr
       integer :: nameLength
@@ -443,16 +610,16 @@ contains
          if ( config_AM_enable ) then
             configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_compute_interval'
             call mpas_pool_get_config(domain % configs, configName, config_AM_compute_interval)
-            configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_stream_name'
-            call mpas_pool_get_config(domain % configs, configName, config_AM_stream_name)
+            configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_output_stream'
+            call mpas_pool_get_config(domain % configs, configName, config_AM_output_stream)
 
             ! Build name of alarm for analysis member
             alarmName = poolItr % memberName(1:nameLength) // computeAlarmSuffix
             timerName = trim(computeTimerPrefix) // poolItr % memberName(1:nameLength)
 
             ! Compute analysis member just before output
-            if ( config_AM_compute_interval == 'output_interval' .and. config_AM_stream_name /= 'none') then
-               if ( mpas_stream_mgr_ringing_alarms(domain % streamManager, streamID=config_AM_stream_name, direction=MPAS_STREAM_OUTPUT, ierr=err_tmp) ) then
+            if ( config_AM_compute_interval == 'output_interval' .and. config_AM_output_stream /= 'none') then
+               if ( mpas_stream_mgr_ringing_alarms(domain % streamManager, streamID=config_AM_output_stream, direction=MPAS_STREAM_OUTPUT, ierr=err_tmp) ) then
                   call mpas_timer_start(timerName, .false.)
                   call ocn_compute_analysis_members(domain, timeLevel, poolItr % memberName, err_tmp)
                   call mpas_timer_stop(timerName)
@@ -591,7 +758,7 @@ contains
       integer :: err_tmp
 
       character (len=StrKIND) :: configName, timerName
-      character (len=StrKIND), pointer :: config_AM_stream_name
+      character (len=StrKIND), pointer :: config_AM_output_stream
       logical, pointer :: config_AM_enable
       type (mpas_pool_iterator_type) :: poolItr
       integer :: nameLength
@@ -607,16 +774,16 @@ contains
          call mpas_pool_get_config(domain % configs, configName, config_AM_enable)
 
          if ( config_AM_enable ) then
-            configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_stream_name'
-            call mpas_pool_get_config(domain % configs, configName, config_AM_stream_name)
-            if ( config_AM_stream_name /= 'none' ) then
+            configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_output_stream'
+            call mpas_pool_get_config(domain % configs, configName, config_AM_output_stream)
+            if ( config_AM_output_stream /= 'none' ) then
                timerName = trim(writeTimerPrefix) // poolItr % memberName(1:nameLength)
                call mpas_timer_start(timerName, .false.)
-               call mpas_stream_mgr_write(domain % streamManager, streamID=config_AM_stream_name, ierr=err_tmp)
+               call mpas_stream_mgr_write(domain % streamManager, streamID=config_AM_output_stream, ierr=err_tmp)
                call mpas_timer_stop(timerName)
                timerName = trim(alarmTimerPrefix) // poolItr % memberName(1:nameLength)
                call mpas_timer_start(timerName, .false.)
-               call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID=config_AM_stream_name, ierr=err_tmp)
+               call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID=config_AM_output_stream, ierr=err_tmp)
                call mpas_timer_stop(timerName)
             end if
          end if
@@ -702,6 +869,41 @@ contains
 
 !***********************************************************************
 !
+!  routine ocn_bootstrap_analysis_members
+!
+!> \brief Analysis member initialization driver
+!> \author Doug Jacobsen
+!> \date 07/01/2015
+!> \details
+!>  This private routine calls the correct init routine for each analysis member.
+!
+!-----------------------------------------------------------------------
+   subroutine ocn_bootstrap_analysis_members(domain, analysisMemberName, iErr)!{{{
+      type (domain_type), intent(inout) :: domain !< Input: Domain information
+      character (len=*), intent(in) :: analysisMemberName !< Input: Name of analysis member
+      integer, intent(out) :: iErr !< Output: Error code
+
+      integer :: nameLength, err_tmp
+
+      iErr = 0
+      err_tmp = 0
+
+      nameLength = len_trim(analysisMemberName)
+
+      !if ( analysisMemberName(1:nameLength) == 'testComputeInterval' ) then
+      !   call ocn_bootstrap_test_compute_interval(domain, err_tmp)
+      if ( analysisMemberName(1:nameLength) == 'timeSeriesStats' ) then
+         call ocn_bootstrap_time_series_stats(domain, err_tmp)
+!     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
+!        call ocn_init_TEM_PLATE(domain, err_tmp)
+      end if
+
+      iErr = ior(iErr, err_tmp)
+
+   end subroutine ocn_bootstrap_analysis_members!}}}
+
+!***********************************************************************
+!
 !  routine ocn_init_analysis_members
 !
 !> \brief Analysis member initialization driver
@@ -738,8 +940,18 @@ contains
          call ocn_init_water_mass_census(domain, err_tmp)
       else if ( analysisMemberName(1:nameLength) == 'zonalMean' ) then
          call ocn_init_zonal_mean(domain, err_tmp)
-     else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
-        call ocn_init_high_frequency_output(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
+         call ocn_init_high_frequency_output(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'timeFilters' ) then
+         call ocn_init_time_filters(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'lagrPartTrack' ) then
+         call ocn_init_lagrangian_particle_tracking(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'eliassenPalm' ) then
+         call ocn_init_eliassen_palm(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
+         call ocn_init_mixed_layer_depths(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'timeSeriesStats' ) then
+         call ocn_init_time_series_stats(domain, err_tmp)
 !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
 !        call ocn_init_TEM_PLATE(domain, err_tmp)
       end if
@@ -787,8 +999,18 @@ contains
          call ocn_compute_water_mass_census(domain, timeLevel, err_tmp)
       else if ( analysisMemberName(1:nameLength) == 'zonalMean' ) then
          call ocn_compute_zonal_mean(domain, timeLevel, err_tmp)
-     else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
-        call ocn_compute_high_frequency_output(domain, timeLevel, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
+         call ocn_compute_high_frequency_output(domain, timeLevel, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'timeFilters' ) then
+         call ocn_compute_time_filters(domain, timeLevel, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'lagrPartTrack' ) then
+         call ocn_compute_lagrangian_particle_tracking(domain, timeLevel, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'eliassenPalm' ) then
+         call ocn_compute_eliassen_palm(domain, timeLevel, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
+         call ocn_compute_mixed_layer_depths(domain, timeLevel, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'timeSeriesStats' ) then
+         call ocn_compute_time_series_stats(domain, timeLevel, err_tmp)
 !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
 !        call ocn_compute_TEM_PLATE(domain, timeLevel, err_tmp)
       end if
@@ -835,8 +1057,18 @@ contains
          call ocn_restart_water_mass_census(domain, err_tmp)
       else if ( analysisMemberName(1:nameLength) == 'zonalMean' ) then
          call ocn_restart_zonal_mean(domain, err_tmp)
-     else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
-        call ocn_restart_high_frequency_output(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
+         call ocn_restart_high_frequency_output(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'timeFilters' ) then
+         call ocn_restart_time_filters(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'lagrPartTrack' ) then
+         call ocn_restart_lagrangian_particle_tracking(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'eliassenPalm' ) then
+         call ocn_restart_eliassen_palm(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
+         call ocn_restart_mixed_layer_depths(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'timeSeriesStats' ) then
+         call ocn_restart_time_series_stats(domain, err_tmp)
 !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
 !        call ocn_restart_TEM_PLATE(domain, err_tmp)
       end if
@@ -883,8 +1115,18 @@ contains
          call ocn_finalize_water_mass_census(domain, err_tmp)
       else if ( analysisMemberName(1:nameLength) == 'zonalMean' ) then
          call ocn_finalize_zonal_mean(domain, err_tmp)
-     else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
-        call ocn_finalize_high_frequency_output(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'highFrequencyOutput' ) then
+         call ocn_finalize_high_frequency_output(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'timeFilters' ) then
+         call ocn_finalize_time_filters(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'lagrPartTrack' ) then
+         call ocn_finalize_lagrangian_particle_tracking(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'eliassenPalm' ) then
+         call ocn_finalize_eliassen_palm(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
+         call ocn_finalize_mixed_layer_depths(domain, err_tmp)
+      else if ( analysisMemberName(1:nameLength) == 'timeSeriesStats' ) then
+         call ocn_finalize_time_series_stats(domain, err_tmp)
 !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
 !        call ocn_finalize_TEM_PLATE(domain, err_tmp)
       end if

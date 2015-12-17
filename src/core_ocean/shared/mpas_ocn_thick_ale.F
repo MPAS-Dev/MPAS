@@ -69,7 +69,7 @@ contains
 !>  (z-tilde), and imposes a minimum layer thickness.
 !
 !-----------------------------------------------------------------------
-   subroutine ocn_ALE_thickness(meshPool, verticalMeshPool, oldSSH, div_hu_btr, dt, ALE_thickness, err, newHighFreqThickness)!{{{
+   subroutine ocn_ALE_thickness(meshPool, verticalMeshPool, SSH, ALE_thickness, err, newHighFreqThickness)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -84,14 +84,10 @@ contains
          verticalMeshPool   !< Input: vertical mesh information
 
       real (kind=RKIND), dimension(:), intent(in) :: &
-         oldSSH,   &!< Input: sea surface height at old time
-         div_hu_btr !< Input: thickness-weighted barotropic divergence
+         SSH     !< Input: sea surface height
 
       real (kind=RKIND), dimension(:,:), intent(in), optional :: &
          newHighFreqThickness   !< Input: high frequency thickness.  Alters ALE thickness.
-
-      real (kind=RKIND), intent(in) :: &
-         dt     !< Input: time step
 
       !-----------------------------------------------------------------
       !
@@ -114,7 +110,7 @@ contains
       integer, pointer :: nCells, nVertLevels
       integer, dimension(:), pointer :: maxLevelCell
 
-      real (kind=RKIND) :: thicknessSum, newSSH, remainder, newThickness, thicknessWithRemainder
+      real (kind=RKIND) :: thicknessSum, remainder, newThickness, thicknessWithRemainder
       real (kind=RKIND), dimension(:), pointer :: vertCoordMovementWeights
       real (kind=RKIND), dimension(:), allocatable :: &
          SSH_ALE_thickness,      & !> ALE thickness alteration due to SSH (z-star)
@@ -151,13 +147,13 @@ contains
       !
       ! ALE thickness alteration due to SSH (z-star)
       !
+      !$omp do schedule(runtime) private(kMax, thicknessSum, k)
       do iCell = 1, nCells
          kMax = maxLevelCell(iCell)
 
-         newSSH = oldSSH(iCell) - dt*div_hu_btr(iCell)
-         thicknessSum = 1e-14  
+         thicknessSum = 1e-14_RKIND
          do k = 1, kMax
-            SSH_ALE_Thickness(k) = newSSH * vertCoordMovementWeights(k) * restingThickness(k, iCell)
+            SSH_ALE_Thickness(k) = SSH(iCell) * vertCoordMovementWeights(k) * restingThickness(k, iCell)
             thicknessSum = thicknessSum + vertCoordMovementWeights(k) * restingThickness(k, iCell)
          end do
          SSH_ALE_Thickness = SSH_ALE_Thickness / thicknessSum
@@ -167,8 +163,10 @@ contains
              restingThickness(1:kMax,iCell) &
            + SSH_ALE_Thickness(1:kMax)
       enddo
+      !$omp end do
 
       if (thicknessFilterActive) then
+         !$omp do schedule(runtime) private(kMax)
          do iCell = 1, nCells
             kMax = maxLevelCell(iCell)
    
@@ -176,6 +174,7 @@ contains
                 ALE_Thickness(1:kMax, iCell) &
               + newHighFreqThickness(1:kMax,iCell)
          enddo
+         !$omp end do
       end if
 
       !
@@ -183,6 +182,7 @@ contains
       !
       if (config_use_min_max_thickness) then
 
+         !$omp do schedule(runtime) private(kMax, remainder, k, newThickness)
          do iCell = 1, nCells
             kMax = maxLevelCell(iCell)
 
@@ -208,6 +208,7 @@ contains
             ALE_Thickness(1:kMax, iCell) = ALE_Thickness(1:kMax, iCell) + min_ALE_thickness_down(1:kMax) + min_ALE_thickness_up(1:kMax)
 
          enddo
+         !$omp end do
 
       endif ! config_use_min_max_thickness
 

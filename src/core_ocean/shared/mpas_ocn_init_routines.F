@@ -33,7 +33,6 @@ module ocn_init_routines
    use mpas_vector_reconstruction
    use mpas_tracer_advection_helpers
 
-   use ocn_time_average
    use ocn_diagnostics
    use ocn_gm
    use ocn_constants
@@ -131,6 +130,7 @@ subroutine ocn_init_routines_compute_max_level(domain)!{{{
             min( maxLevelCell(cellsOnEdge(1,iEdge)), &
                  maxLevelCell(cellsOnEdge(2,iEdge)) )
       end do
+
       maxLevelEdgeTop(nEdges+1) = 0
 
       ! maxLevelEdgeBot is the maximum (deepest) of the surrounding cells
@@ -139,6 +139,7 @@ subroutine ocn_init_routines_compute_max_level(domain)!{{{
             max( maxLevelCell(cellsOnEdge(1,iEdge)), &
                  maxLevelCell(cellsOnEdge(2,iEdge)) )
       end do
+
       maxLevelEdgeBot(nEdges+1) = 0
 
       ! maxLevelVertexBot is the maximum (deepest) of the surrounding cells
@@ -150,6 +151,7 @@ subroutine ocn_init_routines_compute_max_level(domain)!{{{
                     maxLevelCell(cellsOnVertex(i,iVertex)))
          end do
       end do
+
       maxLevelVertexBot(nVertices+1) = 0
 
       ! maxLevelVertexTop is the minimum (shallowest) of the surrounding cells
@@ -161,11 +163,14 @@ subroutine ocn_init_routines_compute_max_level(domain)!{{{
                     maxLevelCell(cellsOnVertex(i,iVertex)))
          end do
       end do
+
       maxLevelVertexTop(nVertices+1) = 0
 
       ! set boundary edge
       boundaryEdge(:,1:nEdges+1)=1
       edgeMask(:,1:nEdges+1)=0
+
+
       do iEdge = 1, nEdges
          boundaryEdge(1:maxLevelEdgeTop(iEdge),iEdge)=0
          edgeMask(1:maxLevelEdgeTop(iEdge),iEdge)=1
@@ -178,6 +183,8 @@ subroutine ocn_init_routines_compute_max_level(domain)!{{{
       cellMask(:,1:nCells+1) = 0
       boundaryVertex(:,1:nVertices+1) = 0
       vertexMask(:,1:nVertices+1) = 0
+
+
       do iEdge = 1, nEdges
          do k = 1, nVertLevels
             if (boundaryEdge(k,iEdge).eq.1) then
@@ -325,9 +332,13 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       !
       ! Compute the scaling factors to be used in the del2 and del4 dissipation
       !
+      ! Typical use cases have the minval(meshScaling)==1.
+      ! meshScaling values of approximately 1 indicate the highest resolution of the domain.
+
       meshScalingDel2(:) = 1.0
       meshScalingDel4(:) = 1.0
       meshScaling(:)     = 1.0
+
       if (scaleHmixWithMesh) then
          do iEdge = 1, nEdges
             cell1 = cellsOnEdge(1,iEdge)
@@ -359,6 +370,7 @@ end subroutine ocn_init_routines_compute_max_level!}}}
 
       type (mpas_pool_type), pointer :: statePool
       type (mpas_pool_type), pointer :: meshPool
+      type (mpas_pool_type), pointer :: tracersPool
       type (mpas_pool_type), pointer :: verticalMeshPool
       type (dm_info) :: dminfo
 
@@ -373,24 +385,21 @@ end subroutine ocn_init_routines_compute_max_level!}}}
          refBottomDepthTopOfCell, vertCoordMovementWeights, bottomDepth, refZMid, refLayerThickness
       real (kind=RKIND), dimension(:), allocatable :: minBottomDepth, minBottomDepthMid, zMidZLevel
 
-      real (kind=RKIND), dimension(:,:), pointer :: layerThickness, restingThickness
-      real (kind=RKIND), dimension(:,:,:), pointer :: tracers
-      integer, pointer :: nVertLevels, nCells, num_tracers
+      real (kind=RKIND), dimension(:,:), pointer :: layerThickness
+      real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroup
+      integer, pointer :: nVertLevels, nCells
       logical :: consistentSSH
 
-      real (kind=RKIND), pointer :: config_min_pbc_fraction
-      logical, pointer :: config_do_restart, config_alter_ICs_for_pbcs, config_check_ssh_consistency
-      logical, pointer :: config_check_zlevel_consistency, config_set_restingThickness_to_IC
-      character (len=StrKIND), pointer :: config_vert_coord_movement, config_pbc_alteration_type
+      logical, pointer :: config_do_restart, config_check_ssh_consistency
+      logical, pointer :: config_check_zlevel_consistency
+      character (len=StrKIND), pointer :: config_vert_coord_movement
+
+      type (mpas_pool_iterator_type) :: groupItr
 
       call mpas_pool_get_config(domain % configs, 'config_vert_coord_movement', config_vert_coord_movement)
       call mpas_pool_get_config(domain % configs, 'config_do_restart', config_do_restart)
-      call mpas_pool_get_config(domain % configs, 'config_alter_ICs_for_pbcs', config_alter_ICs_for_pbcs)
-      call mpas_pool_get_config(domain % configs, 'config_pbc_alteration_type', config_pbc_alteration_type)
       call mpas_pool_get_config(domain % configs, 'config_check_ssh_consistency', config_check_ssh_consistency)
       call mpas_pool_get_config(domain % configs, 'config_check_zlevel_consistency', config_check_zlevel_consistency)
-      call mpas_pool_get_config(domain % configs, 'config_min_pbc_fraction', config_min_pbc_fraction)
-      call mpas_pool_get_config(domain % configs, 'config_set_restingThickness_to_IC', config_set_restingThickness_to_IC)
 
       ! Initialize z-level mesh variables from h, read in from input file.
       block => domain % blocklist
@@ -398,9 +407,9 @@ end subroutine ocn_init_routines_compute_max_level!}}}
          call mpas_pool_get_subpool(block % structs, 'state', statePool)
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block % structs, 'verticalMesh', verticalMeshPool)
+         call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
 
          call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
-         call mpas_pool_get_array(statePool, 'tracers', tracers, 1)
 
          call mpas_pool_get_array(meshPool, 'refBottomDepth', refBottomDepth)
          call mpas_pool_get_array(meshPool, 'refBottomDepthTopOfCell', refBottomDepthTopOfCell)
@@ -408,14 +417,11 @@ end subroutine ocn_init_routines_compute_max_level!}}}
          call mpas_pool_get_array(meshPool, 'vertCoordMovementWeights', vertCoordMovementWeights)
          call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
 
-         call mpas_pool_get_array(verticalMeshPool, 'restingThickness', restingThickness)
          call mpas_pool_get_array(verticalMeshPool, 'refZMid', refZMid)
          call mpas_pool_get_array(verticalMeshPool, 'refLayerThickness', refLayerThickness)
 
          call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
          call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-
-         call mpas_pool_get_dimension(statePool, 'num_tracers', num_tracers)
 
          ! TopOfCell needed where zero depth for the very top may be referenced.
          refBottomDepthTopOfCell(1) = 0.0
@@ -437,96 +443,6 @@ end subroutine ocn_init_routines_compute_max_level!}}}
             vertCoordMovementWeights = 1.0
 
          endif
-
-         ! Initial condition files (ocean.nc, produced by basin) include a realistic
-         ! bottomDepth variable and h,T,S variables for full thickness cells.
-         ! If running with pbcs, set config_alter_ICs_for_pbc='zlevel_pbcs_on'. Then thin pbc cells
-         !    will be changed, and h,T,S will be altered to match the pbcs.
-         ! If running without pbcs, set config_alter_ICs_for_pbc='zlevel_pbcs_off'. Then
-         !    bottomDepth will be altered so it is full cells everywhere.
-         !    If your input file does not include bottomDepth, the false option will
-         !    initialize bottomDepth correctly for a non-pbc run.
-
-         if (.not. config_do_restart .and. config_alter_ICs_for_pbcs) then
-
-            if (config_pbc_alteration_type .eq. 'partial_cell') then
-
-               write (stdoutUnit,'(a)') ' Altering bottomDepth to avoid very thin cells.'
-               write (stdoutUnit,'(a)') ' Altering layerThickness and tracer initial conditions to conform with partial bottom cells.'
-
-               allocate(minBottomDepth(nVertLevels),minBottomDepthMid(nVertLevels),zMidZLevel(nVertLevels))
-
-               ! min_pbc_fraction restricts pbcs from being too small.
-               ! A typical value is 10%, so pbcs must occupy at least 10% of the cell thickness.
-               ! If min_pbc_fraction = 0.0, bottomDepth gives the actual depth for that cell.
-               ! If min_pbc_fraction = 1.0, bottomDepth reverts to discrete z-level depths, same
-               !    as partial_bottom_cells = .false.
-
-               minBottomDepth(1) = (1.0-config_min_pbc_fraction)*refBottomDepth(1)
-               minBottomDepthMid(1) = 0.5*(minBottomDepth(1) + refBottomDepthTopOfCell(1))
-               zMidZLevel(1) = - 0.5*(refBottomDepth(1) + refBottomDepthTopOfCell(1))
-               do k = 2, nVertLevels
-                  minBottomDepth(k) = refBottomDepth(k) - (1.0-config_min_pbc_fraction)*(refBottomDepth(k) - refBottomDepth(k-1))
-                  minBottomDepthMid(k) = 0.5*(minBottomDepth(k) + refBottomDepthTopOfCell(k))
-                  zMidZLevel(k) = - 0.5*(refBottomDepth(k) + refBottomDepthTopOfCell(k))
-               enddo
-
-               do iCell = 1, nCells
-
-                  ! Change value of maxLevelCell for partial bottom cells
-                  k = maxLevelCell(iCell)
-                  if (bottomDepth(iCell) .lt. minBottomDepthMid(k)) then
-                     ! Round up to cell above
-                     maxLevelCell(iCell) = maxLevelCell(iCell) - 1
-                     bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
-                  elseif (bottomDepth(iCell) .lt. minBottomDepth(k)) then
-                     ! Round down cell to the min_pbc_fraction.
-                     bottomDepth(iCell) = minBottomDepth(k)
-                  endif
-                  ! reset k to new value of maxLevelCell
-                  k = maxLevelCell(iCell)
-
-                  ! Alter thickness of bottom level to account for PBC
-                  layerThickness(k,iCell) = bottomDepth(iCell) - refBottomDepthTopOfCell(k)
-
-                  ! Linearly interpolate the initial T&S for new location of bottom cell for PBCs
-                  zMidPBC = -0.5*(bottomDepth(iCell) + refBottomDepthTopOfCell(k))
-                  km1 = max(k-1,1)
-                  do iTracer = 1, num_tracers
-                     tracers(iTracer,k,iCell) = tracers(iTracer,k,iCell) &
-                        + (tracers(iTracer,km1,iCell) - tracers(iTracer,k,iCell)) &
-                         /(zMidZLevel(km1)-zMidZLevel(k)+1.0e-16) &
-                         *(zMidPBC - zMidZLevel(k))
-                  enddo
-
-               enddo
-
-               deallocate(minBottomDepth,zMidZLevel)
-
-            elseif (config_pbc_alteration_type .eq. 'full_cell') then
-
-               do iCell = 1,nCells
-                  bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
-               enddo
-
-            else
-
-                write (stderrUnit,*) ' Incorrect choice of config_pbc_alteration_type.'
-                call mpas_dmpar_abort(dminfo)
-
-            endif
-
-         endif ! .not.config_do_restart
-
-         if (.not. config_do_restart) then
-
-            ! Layer thickness when the ocean is at rest, i.e. without SSH or internal perturbations.
-            ! This is applied only from the initial condition
-            if (config_set_restingThickness_to_IC) then
-                restingThickness = layerThickness
-            endif
-
-         endif ! .not.config_do_restart.and.config_alter_ICs_for_pbcs
 
          if (config_check_ssh_consistency) then
             consistentSSH = .true.
@@ -587,7 +503,7 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       real (kind=RKIND), intent(in) :: dt
       integer, intent(out) :: err
 
-      type (mpas_pool_type), pointer :: meshPool, averagePool, statePool
+      type (mpas_pool_type), pointer :: meshPool, statePool, tracersPool
       type (mpas_pool_type), pointer :: forcingPool, diagnosticsPool, scratchPool
       integer :: i, iEdge, iCell, k
       integer :: err1
@@ -603,13 +519,15 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       real (kind=RKIND), dimension(:,:), pointer :: velocityZonal, velocityMeridional
       real (kind=RKIND), dimension(:,:,:), pointer :: derivTwo
 
-      real (kind=RKIND), dimension(:,:,:), pointer :: tracers
+      real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroup
 
       integer, pointer :: nCells, nEdges, nVertices, nVertLevels
       integer, pointer :: config_horiz_tracer_adv_order
       logical, pointer :: config_hmix_scaleWithMesh, config_do_restart
       logical, pointer :: config_use_standardGM
       real (kind=RKIND), pointer :: config_maxMeshDensity
+
+      type (mpas_pool_iterator_type) :: groupItr
 
       call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells)
       call mpas_pool_get_dimension(block % dimensions, 'nEdges', nEdges)
@@ -621,7 +539,8 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
       call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
       call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
-      call mpas_pool_get_subpool(block % structs, 'average', averagePool)
+
+      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
 
       call mpas_pool_get_array(meshPool, 'derivTwo', derivTwo)
       call mpas_pool_get_array(meshPool, 'advCoefs', advCoefs)
@@ -648,7 +567,6 @@ end subroutine ocn_init_routines_compute_max_level!}}}
 
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, 1)
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
-      call mpas_pool_get_array(statePool, 'tracers', tracers, 1)
 
       call mpas_pool_get_config(block % configs, 'config_horiz_tracer_adv_order', config_horiz_tracer_adv_order)
       call mpas_pool_get_config(block % configs, 'config_hmix_scaleWithMesh', config_hmix_scaleWithMesh)
@@ -665,8 +583,6 @@ end subroutine ocn_init_routines_compute_max_level!}}}
           boundaryCell)
       err = ior(err, err1)
 
-      call ocn_time_average_init(averagePool)
-
       if (.not. config_do_restart) then
          do iCell=1,nCells
             boundaryLayerDepth(iCell) = layerThickness(1, iCell) * 0.5
@@ -674,13 +590,14 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       end if
 
       call mpas_timer_start("diagnostic solve", .false., initDiagSolveTimer)
-      call ocn_diagnostic_solve(dt,  statePool, forcingPool, meshPool, diagnosticsPool, scratchPool)
+      call ocn_diagnostic_solve(dt,  statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool)
       call mpas_timer_stop("diagnostic solve", initDiagSolveTimer)
 
-      ! initialize velocities and tracers on land to be zero.
+      ! initialize velocities and active tracers on land to be zero.
       areaCell(nCells+1) = -1.0e34
 
       layerThickness(:, nCells+1) = 0.0
+
 
       do iEdge=1, nEdges
          normalVelocity(maxLevelEdgeTop(iEdge)+1:maxLevelEdgeBot(iEdge), iEdge) = 0.0
@@ -688,8 +605,16 @@ end subroutine ocn_init_routines_compute_max_level!}}}
          normalVelocity(maxLevelEdgeBot(iEdge)+1:nVertLevels,iEdge) = -1.0e34
       end do
 
-      do iCell=1,nCells
-         tracers(:, maxLevelCell(iCell)+1:nVertLevels,iCell) =  -1.0e34
+      call mpas_pool_begin_iteration(tracersPool)
+      do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
+         if ( groupItr % memberType == MPAS_POOL_FIELD ) then
+            call mpas_pool_get_array(tracersPool, groupItr % memberName, tracersGroup, 1)
+            if ( associated(tracersGroup) ) then
+               do iCell=1,nCells
+                  tracersGroup(:, maxLevelCell(iCell)+1:nVertLevels,iCell) =  -1.0e34
+               end do
+            end if
+         end if
       end do
 
       ! ------------------------------------------------------------------
@@ -697,14 +622,18 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       ! ------------------------------------------------------------------
       normalTransportVelocity(:,:) = normalVelocity(:,:)
 
+
       ! Compute normalGMBolusVelocity, relativeSlope and RediDiffVertCoef if respective flags are turned on
       if (config_use_standardGM) then
+          !$omp parallel
           call ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, scratchPool)
+          !$omp end parallel
       end if
 
       if (config_use_standardGM) then
          normalTransportVelocity(:,:) = normalTransportVelocity(:,:) + normalGMBolusVelocity(:,:)
        end if
+
       ! ------------------------------------------------------------------
       ! End: Accumulating various parametrizations of the transport velocity
       ! ------------------------------------------------------------------
@@ -714,7 +643,7 @@ end subroutine ocn_init_routines_compute_max_level!}}}
       call mpas_rbf_interp_initialize(meshPool)
       call mpas_initialize_tangent_vectors(meshPool, edgeTangentVectors)
 
-      call mpas_init_reconstruct(meshPool)
+      call mpas_init_reconstruct(meshPool, includeHalos=.true.)
 
       call mpas_reconstruct(meshPool, normalVelocity,        &
                        velocityX,            &

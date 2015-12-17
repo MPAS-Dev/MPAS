@@ -83,7 +83,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, err, timeLevelIn)!{{{
+   subroutine ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, scratchPool, err, timeLevelIn)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -93,6 +93,8 @@ contains
 
       type (mpas_pool_type), intent(in) :: &
          meshPool          !< Input: mesh information
+
+      type (mpas_pool_type), intent(in) :: scratchPool !< Input/Output: Scratch structure
       
       integer, intent(in), optional :: timeLevelIn !< Input: Time level for state pool
 
@@ -143,14 +145,30 @@ contains
 
       call mpas_pool_get_array(diagnosticsPool, 'vertViscTopOfEdge', vertViscTopOfEdge)
       call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
+      !$omp workshare
       vertViscTopOfEdge = 0.0_RKIND
       vertDiffTopOfCell = 0.0_RKIND
+      !$omp end workshare
 
+      call mpas_timer_start('coef const build', .false.)
       call ocn_vmix_coefs_const_build(meshPool, statePool, diagnosticsPool, err1, timeLevel)
+      call mpas_timer_stop('coef const build')
+
+      call mpas_timer_start('coef tanh build', .false.)
       call ocn_vmix_coefs_tanh_build(meshPool, statePool, diagnosticsPool, err2, timeLevel)
-      call ocn_vmix_coefs_rich_build(meshPool, statePool, diagnosticsPool, err3, timeLevel)
+      call mpas_timer_stop('coef tanh build')
+
+      call mpas_timer_start('coef rich build', .false.)
+      call ocn_vmix_coefs_rich_build(meshPool, statePool, diagnosticsPool, scratchPool, err3, timeLevel)
+      call mpas_timer_stop('coef rich build')
+
+      call mpas_timer_start('coef cvmix build', .false.)
       call ocn_vmix_coefs_cvmix_build(meshPool, statePool, diagnosticsPool, err4, timeLevel)
+      call mpas_timer_stop('coef cvmix build')
+
+      call mpas_timer_start('coef redi build', .false.)
       call ocn_vmix_coefs_redi_build(meshPool, statePool, diagnosticsPool, err5, timeLevel)
+      call mpas_timer_stop('coef redi build')
 
       err = ior(ior(ior(err1, ior(err2, err3)), err4), err5)
 
@@ -246,6 +264,7 @@ contains
       allocate(A(nVertLevels),B(nVertLevels),C(nVertLevels),velTemp(nVertLevels)) 
       A(1)=0
 
+      !$omp do schedule(runtime) private(N, cell1, cell2, k)
       do iEdge = 1, nEdges
         N = maxLevelEdgeTop(iEdge)
         if (N .gt. 0) then
@@ -291,6 +310,7 @@ contains
 
         end if
       end do
+      !$omp end do
 
       deallocate(A,B,C,velTemp)
 
@@ -374,6 +394,8 @@ contains
 
       allocate(A(nVertLevels),B(nVertLevels),C(nVertLevels),tracersTemp(num_tracers,nVertLevels))
 
+      call mpas_timer_start('vmix tracers tend imp loop', .false.)
+      !$omp do schedule(runtime) private(N, k)
       do iCell = 1, nCells
          ! Compute A(k), B(k), C(k) for tracers
          N = maxLevelCell(iCell)
@@ -397,14 +419,16 @@ contains
             B(k) = 1 - A(k) - C(k)
          enddo
 
-         call tridiagonal_solve_mult(A(2:N),B,C(1:N-1),tracers(:,:,iCell), &
-              tracersTemp, N, nVertLevels,num_tracers)
+         call tridiagonal_solve_mult(A(2:N), B, C(1:N-1), tracers(:,:,iCell), &
+              tracersTemp, N, nVertLevels, num_tracers)
 
          tracers(:,1:N,iCell) = tracersTemp(:,1:N)
          tracers(:,N+1:nVertLevels,iCell) = -1e34
       end do
+      !$omp end do
+      call mpas_timer_stop('vmix tracers tend imp loop')
 
-      deallocate(A,B,C,tracersTemp)
+      deallocate(A, B, C, tracersTemp)
 
    !--------------------------------------------------------------------
 
@@ -424,24 +448,30 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vmix_implicit(dt, meshPool, diagnosticsPool, statePool, err, timeLevelIn)!{{{
+   subroutine ocn_vmix_implicit(dt, meshPool, diagnosticsPool, statePool, scratchPool, err, timeLevelIn)!{{{
       real (kind=RKIND), intent(in) :: dt
       type (mpas_pool_type), intent(in) :: meshPool
       type (mpas_pool_type), intent(inout) :: diagnosticsPool
       type (mpas_pool_type), intent(inout) :: statePool
+      type (mpas_pool_type), intent(in) :: scratchPool !< Input/Output: Scratch structure
       integer, intent(out) :: err
       integer, intent(in), optional :: timeLevelIn
+
+      type (mpas_pool_type), pointer :: tracersPool
 
       integer :: timeLevel, k, cell1, cell2, iEdge
       integer, pointer :: nCells, nEdges
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, layerThickness, layerThicknessEdge, vertViscTopOfEdge, vertDiffTopOfCell, kineticEnergyCell
       real (kind=RKIND), dimension(:,:), pointer :: vertViscTopOfCell
-      real (kind=RKIND), dimension(:,:,:), pointer :: tracers
+      real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroup
       integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeTop
       integer, dimension(:,:), pointer :: cellsOnEdge
       logical, pointer :: config_use_cvmix
+      type (mpas_pool_iterator_type) :: groupItr
 
       err = 0
+
+      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
 
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
@@ -452,7 +482,6 @@ contains
       call mpas_pool_get_config(ocnConfigs, 'config_use_cvmix', config_use_cvmix)
 
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
-      call mpas_pool_get_array(statePool, 'tracers', tracers, timeLevel)
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
 
       call mpas_pool_get_array(diagnosticsPool, 'kineticEnergyCell', kineticEnergyCell)
@@ -468,11 +497,18 @@ contains
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
 
-      call ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, err, timeLevel)
+      call mpas_timer_start('vmix coefs', .false.)
+      call ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, scratchPool, err, timeLevel)
+      call mpas_timer_stop('vmix coefs')
 
       ! if using CVMix, then viscosity has to be averaged from cell centers to cell edges
       if ( config_use_cvmix ) then
+
+      call mpas_timer_start('CVMix avg', .false.)
+      !$omp workshare
       vertViscTopOfEdge(:,:) = 0.0
+      !$omp end workshare
+      !$omp do schedule(runtime) private(cell1, cell2, k)
       do iEdge=1,nEdges
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
@@ -480,18 +516,35 @@ contains
            vertViscTopOfEdge(k,iEdge) = 0.5*(vertViscTopOfCell(k,cell2)+vertViscTopOfCell(k,cell1))
          enddo
       enddo
+      !$omp end do
+      call mpas_timer_stop('CVMix avg')
+
       endif
 
       !
       !  Implicit vertical solve for momentum
       !
+      call mpas_timer_start('vmix solve momentum', .false.)
       call ocn_vel_vmix_tend_implicit(meshPool, dt, kineticEnergyCell, vertViscTopOfEdge, layerThickness, layerThicknessEdge, normalVelocity, err)
+      call mpas_timer_stop('vmix solve momentum')
 
       !
-      !  Implicit vertical solve for tracers
+      !  Implicit vertical solve for all tracers
       !
 
-      call ocn_tracer_vmix_tend_implicit(meshPool, dt, vertDiffTopOfCell, layerThickness, tracers, err)
+      call mpas_timer_start('vmix solve tracers', .false.)
+      call mpas_pool_begin_iteration(tracersPool)
+      do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
+
+         if ( groupItr % memberType == MPAS_POOL_FIELD ) then
+            call mpas_pool_get_array(tracersPool, groupItr % memberName, tracersGroup, timeLevel)
+            if ( associated(tracersGroup) ) then
+               call ocn_tracer_vmix_tend_implicit(meshPool, dt, vertDiffTopOfCell, layerThickness, tracersGroup, err)
+            end if
+         end if
+      end do
+      call mpas_timer_stop('vmix solve tracers')
+
 
    end subroutine ocn_vmix_implicit!}}}
 

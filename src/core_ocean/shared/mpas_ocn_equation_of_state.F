@@ -72,14 +72,14 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, k_displaced, displacement_type, density, err, &
+   subroutine ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, k_displaced, displacement_type, density, err, &
       thermalExpansionCoeff, salineContractionCoeff, timeLevelIn)!{{{
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    !  This module contains routines necessary for computing the density
    !  from model temperature and salinity using an equation of state.
    !
    ! Input: mesh - mesh metadata
-   !        s - state: tracers
+   !        s - state: activeTracers
    !        k_displaced 
    !
    !  If k_displaced==0, density is returned with no displacement 
@@ -96,7 +96,9 @@ contains
       type (mpas_pool_type), intent(in) :: statePool
       type (mpas_pool_type), intent(inout) :: diagnosticsPool
       type (mpas_pool_type), intent(in) :: meshPool
+      type (mpas_pool_type), intent(in) :: scratchPool !< Input/Output: Scratch structure
       integer, intent(in), optional :: timeLevelIn
+      type (mpas_pool_type), pointer :: tracersPool
       integer :: k_displaced
       character(len=*), intent(in) :: displacement_type
       real (kind=RKIND), dimension(:,:), intent(out) :: density
@@ -107,7 +109,7 @@ contains
 
       integer, dimension(:), pointer :: maxLevelCell
       real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue
-      real (kind=RKIND), dimension(:,:,:), pointer :: tracers
+      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
       integer :: iCell, k
       integer, pointer :: indexT, indexS
       type (dm_info) :: dminfo
@@ -122,18 +124,19 @@ contains
       end if
 
       call mpas_pool_get_array(diagnosticsPool, 'tracersSurfaceValue', tracersSurfaceValue)
-      call mpas_pool_get_array(statePool, 'tracers', tracers, timeLevel)
-      call mpas_pool_get_dimension(statePool, 'index_temperature', indexT)
-      call mpas_pool_get_dimension(statePool, 'index_salinity', indexS)
+      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+      call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, timeLevel)
+      call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexT)
+      call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexS)
 
       if (linearEos) then
 
-         call ocn_equation_of_state_linear_density(meshPool, k_displaced, displacement_type, indexT, indexS, tracers, density, err, &
+         call ocn_equation_of_state_linear_density(meshPool, k_displaced, displacement_type, indexT, indexS, activeTracers, density, err, &
             tracersSurfaceValue, thermalExpansionCoeff, salineContractionCoeff)
 
       elseif (jmEos) then
 
-         call ocn_equation_of_state_jm_density(meshPool, k_displaced, displacement_type, indexT, indexS, tracers, density, err, &
+         call ocn_equation_of_state_jm_density(meshPool, scratchPool, k_displaced, displacement_type, indexT, indexS, activeTracers, density, err, &
             tracersSurfaceValue, thermalExpansionCoeff, salineContractionCoeff)
 
       endif

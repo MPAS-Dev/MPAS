@@ -116,7 +116,6 @@ contains
       integer :: iCell, k
       integer, pointer :: nCells, nVertLevels
       integer, dimension(:), pointer :: maxLevelCell
-      integer, dimension(:,:), pointer :: cellMask
 
       real (kind=RKIND) :: remainingFlux
 
@@ -125,22 +124,23 @@ contains
       if (.not. surfaceThicknessFluxOn) return
 
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-      call mpas_pool_get_array(meshPool, 'cellMask', cellMask)
 
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
 
+      !$omp do schedule(runtime) private(remainingFlux, k)
       do iCell = 1, nCells
         remainingFlux = 1.0_RKIND
         do k = 1, maxLevelCell(iCell)
           remainingFlux = remainingFlux - transmissionCoefficients(k, iCell)
 
-          tend(k, iCell) = tend(k, iCell) + cellMask(k, iCell) * surfaceThicknessFlux(iCell) * transmissionCoefficients(k, iCell)
+          tend(k, iCell) = tend(k, iCell) + surfaceThicknessFlux(iCell) * transmissionCoefficients(k, iCell)
         end do
 
         if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
-          tend(maxLevelCell(iCell), iCell) = tend(maxLevelCell(iCell), iCell) + cellMask(maxLevelCell(iCell), iCell) * remainingFlux * surfaceThicknessFlux(iCell)
+          tend(maxLevelCell(iCell), iCell) = tend(maxLevelCell(iCell), iCell) + remainingFlux * surfaceThicknessFlux(iCell)
         end if
       end do
+      !$omp end do
 
    !--------------------------------------------------------------------
 
@@ -172,23 +172,16 @@ contains
       integer, intent(out) :: err !< Output: error flag
 
       logical, pointer :: config_disable_thick_sflux
-      character (len=StrKIND), pointer :: config_forcing_type
 
       err = 0
 
       call mpas_pool_get_config(ocnConfigs, 'config_disable_thick_sflux', config_disable_thick_sflux)
-      call mpas_pool_get_config(ocnConfigs, 'config_forcing_type', config_forcing_type)
 
       surfaceThicknessFluxOn = .true.
 
       if (config_disable_thick_sflux) then
          surfaceThicknessFluxOn = .false.
       end if
-
-      if (config_forcing_type == trim('off')) then
-         surfaceThicknessFluxOn = .false.
-      end if
-
 
    !--------------------------------------------------------------------
 

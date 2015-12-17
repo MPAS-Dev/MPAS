@@ -154,6 +154,7 @@ contains
          ! pressure for generalized coordinates
          ! -1/density_0 (grad p_k + density g grad z_k^{mid})
 
+         !$omp do schedule(runtime) private(cell1, cell2, invdcEdge, k)
          do iEdge=1,nEdgesSolve
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
@@ -165,12 +166,14 @@ contains
                  - gdensity0Inv * 0.5*(density(k,cell1)+density(k,cell2)) * ( zMid(k,cell2) - zMid(k,cell1) ) )
             end do
          end do
+         !$omp end do
 
       elseif (config_pressure_gradient_type.eq.'MontgomeryPotential') then
 
          ! For pure isopycnal coordinates, this is just grad(M), 
          ! the gradient of Montgomery Potential
 
+         !$omp do schedule(runtime) private(cell1, cell2, invdcEdge, k)
          do iEdge=1,nEdgesSolve
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
@@ -181,6 +184,7 @@ contains
                   - ( montgomeryPotential(k,cell2) - montgomeryPotential(k,cell1) ) )
             end do
          end do
+         !$omp end do
 
       elseif (config_pressure_gradient_type.eq.'MontgomeryPotential_and_density') then
 
@@ -190,6 +194,7 @@ contains
          ! Where rho is the potential density.
          ! See Bleck (2002) equation 1, and last equation in Appendix A.
 
+         !$omp do schedule(runtime) private(cell1, cell2, invdcEdge, k)
          do iEdge=1,nEdgesSolve
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
@@ -201,11 +206,13 @@ contains
                   +  0.5*(pressure(k,cell1)+pressure(k,cell2)) * ( 1.0/potentialDensity(k,cell2) - 1.0/potentialDensity(k,cell1) ) )
             end do
          end do
+         !$omp end do
 
       elseif (config_pressure_gradient_type.eq.'Jacobian_from_density') then
 
          allocate(JacobianDxDs(nVertLevels))
 
+         !$omp do schedule(runtime) private(cell1, cell2, invdcEdge, k, pGrad)
          do iEdge=1,nEdgesSolve
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
@@ -234,6 +241,7 @@ contains
 
             end do
          end do
+         !$omp end do
 
          deallocate(JacobianDxDs)
 
@@ -241,6 +249,7 @@ contains
 
          allocate(JacobianDxDs(nVertLevels),JacobianTz(nVertLevels),JacobianSz(nVertLevels), T1(nVertLevels), T2(nVertLevels), S1(nVertLevels), S2(nVertLevels))
 
+         !$omp do schedule(runtime) private(cell1, cell2, invdcEdge, kMax, k, pGrad, alpha, beta)
          do iEdge=1,nEdgesSolve
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
@@ -288,6 +297,7 @@ contains
 
             end do
          end do
+         !$omp end do
 
          deallocate(JacobianDxDs,JacobianTz,JacobianSz, T1, T2, S1, S2)
 
@@ -618,21 +628,19 @@ contains
       ! call individual init routines for each parameterization
       !
       !-----------------------------------------------------------------
-      real (kind=RKIND), pointer :: config_density0
       logical, pointer :: config_disable_vel_pgrad
 
       err = 0
 
       call mpas_pool_get_config(ocnConfigs, 'config_pressure_gradient_type', config_pressure_gradient_type)
       call mpas_pool_get_config(ocnConfigs, 'config_common_level_weight', config_common_level_weight)
-      call mpas_pool_get_config(ocnConfigs, 'config_density0', config_density0)
       call mpas_pool_get_config(ocnConfigs, 'config_disable_vel_pgrad', config_disable_vel_pgrad)
 
       pgradOn = .true.
 
-      density0Inv = 1.0/config_density0
-      gdensity0Inv = gravity/config_density0
-      inv12 = 1.0/12.0
+      density0Inv = 1.0_RKIND / rho_sw
+      gdensity0Inv = gravity / rho_sw
+      inv12 = 1.0_RKIND / 12.0_RKIND
 
       if (config_disable_vel_pgrad) pgradOn = .false.
 
