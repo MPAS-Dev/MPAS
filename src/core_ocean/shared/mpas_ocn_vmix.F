@@ -152,8 +152,23 @@ contains
       call ocn_vmix_coefs_const_build(meshPool, statePool, diagnosticsPool, err1, timeLevel)
       call ocn_vmix_coefs_tanh_build(meshPool, statePool, diagnosticsPool, err2, timeLevel)
       call ocn_vmix_coefs_rich_build(meshPool, statePool, diagnosticsPool, err3, timeLevel)
+
       call ocn_vmix_coefs_cvmix_build(meshPool, statePool, diagnosticsPool, err4, timeLevel)
+      ! If using CVMix, then viscosity has to be averaged from cell centers to cell edges
+      ! Note that if using CVMix, vertViscTopOfEdge is reset
+      if ( config_use_cvmix ) then
+         vertViscTopOfEdge(:,:) = 0.0
+         do iEdge=1,nEdges
+            cell1 = cellsOnEdge(1,iEdge)
+            cell2 = cellsOnEdge(2,iEdge)
+            do k=1,maxLevelEdgeTop(iEdge)
+              vertViscTopOfEdge(k,iEdge) = 0.5*(vertViscTopOfCell(k,cell2)+vertViscTopOfCell(k,cell1))
+            enddo
+         enddo
+      endif
+
       call ocn_vmix_coefs_redi_build(meshPool, statePool, diagnosticsPool, mepPool, err5, timeLevel)
+      
       call ocn_mep_vmix_coefs_build(meshPool, statePool, diagnosticsPool, mepPool, err6, timeLevel)
 
       err = ior(ior(ior(ior(err1, ior(err2, err3)), err4), err5), err6)
@@ -478,18 +493,6 @@ contains
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
 
       call ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, mepPool, err, timeLevel)
-
-      ! if using CVMix, then viscosity has to be averaged from cell centers to cell edges
-      if ( config_use_cvmix ) then
-      vertViscTopOfEdge(:,:) = 0.0
-      do iEdge=1,nEdges
-         cell1 = cellsOnEdge(1,iEdge)
-         cell2 = cellsOnEdge(2,iEdge)
-         do k=1,maxLevelEdgeTop(iEdge)
-           vertViscTopOfEdge(k,iEdge) = 0.5*(vertViscTopOfCell(k,cell2)+vertViscTopOfCell(k,cell1))
-         enddo
-      enddo
-      endif
 
       !
       !  Implicit vertical solve for momentum
