@@ -9,11 +9,11 @@
 !
 !  ocn_mep
 !
-!> \brief Ocean meso-scale eddy parameterization module 
+!> \brief Ocean meso-scale eddy parameterization module
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   14 September 2015
 !> \details
-!>  This module contains routines for computing the meso-scale eddy 
+!>  This module contains routines for computing the meso-scale eddy
 !>  parameterization, as well as interface routines.
 !
 !-----------------------------------------------------------------------
@@ -44,13 +44,15 @@ module ocn_mep
    !
    !--------------------------------------------------------------------
 
-   public :: ocn_mep_update, &
-             ocn_mep_init, &
+   public :: ocn_mep_init, &
+             ocn_mep_update_climate_quantities, &
+             ocn_mep_update, &
              ocn_mep_transportVelocity_update, &
              ocn_mep_vel_tend, &
              ocn_mep_reconstruct, &
              ocn_mep_vel_hmix_tend, &
              ocn_mep_vmix_coefs_build
+
 
 
    !-------------------------------------------------------------------
@@ -73,7 +75,7 @@ contains
 !> \brief  Initialize the mep module
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   14 September 2015
-!> \details 
+!> \details
 !> This routine initializes control flags, parameters and quantities related
 !> to the meso-scale eddy parameterization.
 
@@ -135,14 +137,14 @@ contains
          mepUseGMmodule= .true.
          call ocn_gm_init(err)
       else if ( trim(config_mep_formulation) == 'constantVerticalViscocity' ) then
-         call ocn_mep_vert_visc_init(err)
+         call ocn_mep_vmix_mom_init(err)
       else if ( trim(config_mep_formulation) == 'prognosticVerticalViscocity' ) then
-         call ocn_mep_vert_visc_init(err)
+         call ocn_mep_vmix_mom_init(err)
       else
          write (stderrUnit,*) 'Invalid value in config_mep_formulation:'
          write (stderrUnit,*) config_mep_formulation
          err = 1
-         !crash out
+         !juan issue: crash out
       end if
 
       ! Tracer eddy parameterization flags
@@ -158,12 +160,78 @@ contains
 
 !***********************************************************************
 !
+!  routine ocn_mep_update_climate_quantities
+!
+!> \brief  Update the climate of the flow
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   December, 2015
+!> \details
+!> This routine updates the climate of the flow, variables used by the
+!> prognostic mep.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_update_climate_quantities(meshPool, diagnosticsPool, mepPool, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+
+      ! Update the filtered, low frequency variables that are
+      ! used to in the EVP and in vertIntEddyEnergy tendency calculations
+      call ocn_mep_vmix_mom_update_climate( ... )
+
+      ! update the solution of the eigenvalue problem
+      call ocn_mep_vmix_solve_evp( NsqClimate )
+
+      ! Update the vertically integrated eddy energy by integrating in time
+      call ocn_mep_vmix_time_integrate_vertInt_eddy_energy( ... )
+
+      ! Get eddy energy as a function of depth, using evp solution and vertIntEddyEnergy
+      call ocn_mep_vmix_eddyEnergy( phi, vertIntEddyEnergy, eddyE )
+
+      ! update viscocity from mep
+      call ocn_mep_vmix_vert_viscocity(  )
+
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_mep_update_climate_quantities!}}}
+
+
+!***********************************************************************
+!
 !  routine ocn_mep_update
 !
-!> \brief  This routine updates the mep module given an ocean state 
+!> \brief  This routine updates the mep module given an ocean state
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   17 September 2015
-!> \details 
+!> \details
 !>  This routine updates the mep given a current ocean state.
 !
 !-----------------------------------------------------------------------
@@ -194,12 +262,12 @@ contains
       !
       !-----------------------------------------------------------------
 
-      
+
       if (mepUseGMmodule) then
          ! might want to give the routine called here a more general name
          call ocn_gm_compute_Bolus_velocity(diagnosticsPool, meshPool, mepPool, scratchPool)
       end if
-   
+
 
    end subroutine ocn_mep_update!}}}
 
@@ -208,11 +276,11 @@ contains
 !
 !  routine ocn_mep_transportVelocity_update
 !
-!> \brief  This routine updates the transport velocity 
+!> \brief  This routine updates the transport velocity
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   17 September 2015
-!> \details 
-!>  This routine receives a velocity (eulerian velocity) and adds 
+!> \details
+!>  This routine receives a velocity (eulerian velocity) and adds
 !>  the GM bolus velocity, resulting in the residual velocity
 !>  It is assumed that the mep module has already been updated.
 !
@@ -225,7 +293,7 @@ contains
       ! input variables
       !
       !-----------------------------------------------------------------
-      
+
       type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: mepPool structure
 
       !-----------------------------------------------------------------
@@ -245,14 +313,14 @@ contains
 
 
       call mpas_pool_get_array(mepPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
-     
-      
+
+
       ! NOTE: This routine is called within block loops
-      
+
       if (mepStdGMOn) then
          normalTransportVelocity(:,:) = normalTransportVelocity(:,:) + normalGMBolusVelocity(:,:)
       end if
-   
+
 
    end subroutine ocn_mep_transportVelocity_update!}}}
 
@@ -264,7 +332,7 @@ contains
 !> \brief  This routine increments normalVelocity tend by the tendency due to eddy forces.
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   October, 2015
-!> \details 
+!> \details
 !>  This routine increments normalVelocity tend by the tendency due to eddy forces.
 !
 !-----------------------------------------------------------------------
@@ -322,8 +390,8 @@ contains
 !> \brief  This routine calculates normalVelocity tend due GM bolus coriolis.
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   November, 2015
-!> \details 
-!>  This routine calculates normalVelocity tend due coriolis force caused by 
+!> \details
+!>  This routine calculates normalVelocity tend due coriolis force caused by
 !>  the GM bolus velocity.
 !
 !-----------------------------------------------------------------------
@@ -339,7 +407,7 @@ contains
       type (mpas_pool_type), intent(in) :: mepPool  !< Input: Diagnostic information
       type (mpas_pool_type), intent(in) :: meshPool            !< Input: Mesh information
 
-      !jas issue: it might be that only need uBolus or normalBolusGM, 
+      !jas issue: it might be that only need uBolus or normalBolusGM,
       !not entire diagnostics?
 
       !-----------------------------------------------------------------
@@ -376,7 +444,7 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: GMBolusVelocityX
       real (kind=RKIND), dimension(:,:), pointer :: GMBolusVelocityY
       real (kind=RKIND), dimension(:,:), pointer :: GMBolusVelocityZ
-      
+
       real (kind=RKIND), dimension(:,:),   allocatable :: normalBolusEdge
       real (kind=RKIND), dimension(:,:),   allocatable :: tangentBolusEdge
       real (kind=RKIND), dimension(:,:,:), allocatable :: bolusCell
@@ -393,7 +461,7 @@ contains
       call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
       call mpas_pool_get_array(meshPool, 'edgeTangentVectors', edgeTangentVectors)
 
-      
+
       allocate(normalBolusEdge(nVertLevels,nEdges))
       allocate(tangentBolusEdge(nVertLevels,nEdges))
       allocate(bolusCell(3,nVertLevels,nCells+1))
@@ -435,7 +503,7 @@ contains
       deallocate(normalBolusEdge)
       deallocate(tangentBolusEdge)
       deallocate(bolusCell)
-    
+
     end subroutine ocn_mep_twa_drag_GM!}}}
 
 
@@ -446,8 +514,8 @@ contains
 !> \brief  This routine calculates the vertical viscocity from the mep.
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   November, 2015
-!> \details 
-!>  This routine calculates the vertical viscocity from the mep. 
+!> \details
+!>  This routine calculates the vertical viscocity from the mep.
 !
 !-----------------------------------------------------------------------
 
@@ -485,14 +553,14 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
-      real (kind=RKIND), dimension(:,:), pointer :: vertViscTopOfEdge, vertDiffTopOfCell
+      real (kind=RKIND), dimension(:,:), pointer :: vertViscTopOfEdge
 
 
-      call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
+      call mpas_pool_get_array(diagnosticsPool, 'vertViscTopOfEdge', vertViscTopOfEdge)
 
-      
+
       ! MEP vertical viscocity
-         call ocn_mep_vmix_mom_build(vertDiffTopOfCell, err)
+      call ocn_mep_vmix_mom_build(vertViscTopOfEdge, err)
 
       return
 
@@ -506,8 +574,8 @@ contains
 !> \brief  This routine increments the horizontal mixing tendency for momentum due to mep.
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   November, 2015
-!> \details 
-!>  This routine increments the horizontal mixing tendency for momentum due to 
+!> \details
+!>  This routine increments the horizontal mixing tendency for momentum due to
 !>  meso scale eddies.
 !
 !-----------------------------------------------------------------------
@@ -557,7 +625,7 @@ contains
 !> \brief  This routine interfaces the cell center reconstruction
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   17 September 2015
-!> \details 
+!> \details
 !>  This routine interfaces the cell center reconstruction for diagnostics
 !
 !-----------------------------------------------------------------------
@@ -569,7 +637,7 @@ contains
       ! input variables
       !
       !-----------------------------------------------------------------
-      
+
       type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
       type (mpas_pool_type), intent(in) :: mepPool !< Input: mesh information
       type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostic information
@@ -588,11 +656,11 @@ contains
       !-----------------------------------------------------------------
 
       ! NOTE: This routine is called within block loops
-      
+
       if (mepUseGMmodule) then
          call ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool, mepPool)
       end if
-   
+
 
    end subroutine ocn_mep_reconstruct!}}}
 
@@ -604,7 +672,7 @@ contains
 !> \brief  This routine interfaces the cell center reconstruction
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   17 September 2015
-!> \details 
+!> \details
 !>  This routine interfaces the cell center reconstruction for diagnostics
 !
 !-----------------------------------------------------------------------
@@ -616,7 +684,7 @@ contains
       ! input variables
       !
       !-----------------------------------------------------------------
-      
+
       integer, intent(out) :: err !< Output: error flag
 
       !-----------------------------------------------------------------
@@ -632,7 +700,7 @@ contains
       !
       !-----------------------------------------------------------------
 
-      err = 0 
+      err = 0
 
    end subroutine ocn_mep_twa_drag_VertVisc_init!}}}
 
