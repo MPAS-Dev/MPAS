@@ -153,9 +153,9 @@ contains
       call ocn_vmix_coefs_tanh_build(meshPool, statePool, diagnosticsPool, err2, timeLevel)
       call ocn_vmix_coefs_rich_build(meshPool, statePool, diagnosticsPool, err3, timeLevel)
 
-      call ocn_vmix_coefs_cvmix_build(meshPool, statePool, diagnosticsPool, err4, timeLevel)
       ! If using CVMix, then viscosity has to be averaged from cell centers to cell edges
       ! Note that if using CVMix, vertViscTopOfEdge is reset
+      call ocn_vmix_coefs_cvmix_build(meshPool, statePool, diagnosticsPool, err4, timeLevel)
       if ( config_use_cvmix ) then
          vertViscTopOfEdge(:,:) = 0.0
          do iEdge=1,nEdges
