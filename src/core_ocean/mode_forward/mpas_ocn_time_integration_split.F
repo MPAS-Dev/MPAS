@@ -273,6 +273,20 @@ module ocn_time_integration_split
 
          call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
 
+         call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
+
+         call mpas_pool_get_subpool(domain % blocklist % structs, 'diagnostics', diagnosticsPool)
+
+
+         ! Update mep quantities: climate of the flow
+         if ( mpas_is_alarm_ringing(domain % clock, mepPool % alarmName, ierr=err_tmp) ) then
+            call mpas_reset_clock_alarm(domain % clock, mepPool % alarmName, ierr=err_tmp)
+            !call mpas_timer_start(timerName, .false.)
+            call ocn_mep_update_climate_quantities(meshPool, diagnosticsPool, mepPool, err)
+            !call mpas_timer_stop(timerName)
+         end if
+
+
          ! Initialize * variables that are used to compute baroclinic tendencies below.
          do iEdge = 1, nEdges
             do k = 1, nVertLevels !maxLevelEdgeTop % array(iEdge)
