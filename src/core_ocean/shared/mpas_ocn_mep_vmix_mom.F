@@ -84,13 +84,17 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vmix_mom_update_climate(meshPool, diagnosticsPool, mepPool, err)!{{{
+   subroutine ocn_mep_vmix_mom_update_climate(meshPool, diagnosticsPool, mepPool, statePool, err)!{{{
 
       !-----------------------------------------------------------------
       !
       ! input variables
       !
       !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(inout) :: meshPool
+      type (mpas_pool_type), intent(inout) :: diagnosticsPool
+      type (mpas_pool_type), intent(inout) :: statePool
 
       !-----------------------------------------------------------------
       !
@@ -116,14 +120,14 @@ contains
       integer, pointer :: nCells
       integer, dimension(:), pointer :: maxLevelCell
       real(kind=RKIND), dimension(:,:), pointer :: NsqFiltered
-      real(kind=RKIND), dimension(:,:), pointer :: BruntVaisalaFreqTop
+      real(kind=RKIND), dimension(:,:), pointer :: BruntVaisalaFreqTop, normalVelocity
 
 
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_array(meshPool, 'maxLevelCell',  maxLevelCell)
       call mpas_pool_get_array(diagnosticsPool, 'BruntVaisalaFreqTop', BruntVaisalaFreqTop)
       call mpas_pool_get_array(mepPool, 'NsqFiltered', NsqFiltered)
-
+      call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity)
 
       do iCell = 1, nCells
          do kLevel = 1, maxLevelCell(iCell)
@@ -136,9 +140,17 @@ contains
          dissipationFiltered(iCell) = 
       end do
 
+      ! EPFT is rotated horizontally onto the normal, tangential unit vectors.
+      ! This way, EPFT(:,1) corresponds to normalVelocity component of momentum.
+      ! Since we are not parameterizing the Reynolds stress terms in EPFT,
+      ! i.e. EPFT(1,1) and EPFT(2,1), the only contribution to Div EPFT is
+      ! the vertical derivative of EPFT(3,1)
       do iEdge = 1, nEdges
          do kLevel = 1, maxLevelCell(iCell)
-            uDivEPFTFiltered(kLevel, iEdge) = 
+            udEPFT31dz = normalVelocity(kLevel, iEdge) * dEPFT31dz(kLevel, iEdge)
+            uDivEPFTFiltered(kLevel, iEdge) = &
+               + config_mep_climate_dt/config_mep_climate_Tc &
+               * ( udEPFT31dz - uDivEPFTFiltered(kLevel, iEdge) )
          end do
       end do
 
