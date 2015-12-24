@@ -173,6 +173,10 @@ contains
       !
       !-----------------------------------------------------------------
 
+      type (mpas_pool_type), intent(inout) :: diagnosticsPool
+      type (mpas_pool_type), intent(inout) :: meshPool
+      type (mpas_pool_type), intent(inout) :: statePool
+
       !-----------------------------------------------------------------
       !
       ! input/output variables
@@ -193,19 +197,28 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
-      integer :: iCell, kLevel
-      integer, pointer :: nCells
+      integer :: iCell, kLevel, cell1, cell2, iEdge
+      integer, pointer :: nCells, nEdges
       integer, dimension(:), pointer :: maxLevelCell
-      real(kind=RKIND), dimension(:), pointer :: ssh
-      real(kind=RKIND), dimension(:,:), pointer :: phi ! eigenvector
-      real(kind=RKIND), dimension(:,:), pointer :: zMid
+      integer, dimension(:,:), pointer :: cellsOnEdge
+      real(kind=RKIND) :: NsqFilteredTopEdge
+      real(kind=RKIND), dimension(:), pointer :: ssh, Leddy, fEdge, maxLevelEdgeTop
+      real(kind=RKIND), dimension(:,:), pointer :: phi, NsqFiltered, alphaEff
+      real(kind=RKIND), dimension(:,:), pointer :: zMid, layerThicknessEdge
 
-
+      err = 0
 
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
       call mpas_pool_get_array(meshPool, 'maxLevelCell',  maxLevelCell)
+      call mpas_pool_get_array(meshPool, 'fEdge',  fEdge)
+      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
+      call mpas_pool_get_array(meshPool, 'cellsOnEdge',  cellsOnEdge)
       call mpas_pool_get_array(mepPool, 'eigenvectorPhi', phi)
+      call mpas_pool_get_array(mepPool, 'Leddy', Leddy)
+      call mpas_pool_get_array(mepPool, 'alphaEff', alphaEff)
       call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
+      call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge',  layerThicknessEdge)
       call mpas_pool_get_array(statePool, 'ssh', ssh)
 
       ! eigenvector
@@ -218,9 +231,21 @@ contains
          end do
       end do
 
-         update:
-            alphaEff
-            Leddy
+      ! efficiency of eddy mixing is set to 1.0 for now
+      alphaEff = 1.0_RKIND
+
+      ! eddy length scale is calculated using the Wentzel-Kramers-Brillouin (WKB)
+      ! approximation of the Rossby Radius of deformation
+      do iEdge = 1, nEdges
+         cell1 = cellsOnEdge(1,iEdge)
+         cell2 = cellsOnEdge(2,iEdge)
+         Leddy(iEdge) = 0.0_RKIND
+         do kLevel = 1, maxLevelEdgeTop(iEdge)
+            NsqFilteredTopEdge = 0.5_RKIND * ( NsqFiltered(kLevel,cell1) + NsqFiltered(kLevel,cell2) )
+            Leddy(iEdge) = Leddy(iEdge) + sqrt(NsqFilteredTopEdge) * layerThicknessEdge(kLevel, iEdge)
+         end do
+         Leddy(iEdge) =  Leddy(iEdge) / fEdge(iEdge)
+      end do
 
 
    !--------------------------------------------------------------------
