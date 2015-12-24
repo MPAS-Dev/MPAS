@@ -53,8 +53,6 @@ module ocn_mep
              ocn_mep_vel_hmix_tend, &
              ocn_mep_vmix_coefs_build
 
-
-
    !-------------------------------------------------------------------
    !
    ! Private module variables
@@ -204,19 +202,19 @@ contains
 
       ! Update the filtered, low frequency variables that are
       ! used to in the EVP and in vertIntEddyEnergy tendency calculations
-      call ocn_mep_vmix_mom_update_climate( ... )
+      call ocn_mep_vmix_mom_update_climate( meshPool, diagnosticsPool, mepPool, err )
 
       ! update the solution of the eigenvalue problem
-      call ocn_mep_vmix_solve_evp( NsqClimate )
+      call ocn_mep_vmix_solve_evp( diagnosticsPool, mepPool, meshPool, statePool, err )
 
       ! Update the vertically integrated eddy energy by integrating in time
-      call ocn_mep_vmix_time_integrate_vertInt_eddy_energy( ... )
+      call ocn_mep_vmix_time_integrate_vertInt_eddy_energy( mepPool, meshPool, diagnosticsPool, err )
 
       ! Get eddy energy as a function of depth, using evp solution and vertIntEddyEnergy
-      call ocn_mep_vmix_eddyEnergy( phi, vertIntEddyEnergy, eddyE )
+      call ocn_mep_vmix_eddyEnergy( diagnosticsPool, mepPool, meshPool, statePool, err )
 
       ! update viscocity from mep
-      call ocn_mep_vmix_vert_viscocity(  )
+      call ocn_mep_vmix_vert_viscocity( vertViscTopOfEdge, mepPool, meshPool, err )
 
 
    !--------------------------------------------------------------------
