@@ -319,7 +319,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vmix_eddyEnergy(diagnosticsPool, mepPool, meshPool, statePool, err)!{{{
+   subroutine ocn_mep_vmix_eddyEnergy(mepPool, meshPool, statePool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -327,11 +327,16 @@ contains
       !
       !-----------------------------------------------------------------
 
+      type (mpas_pool_type), intent(inout) :: meshPool
+      type (mpas_pool_type), intent(inout) :: statePool
+
       !-----------------------------------------------------------------
       !
       ! input/output variables
       !
       !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(inout) :: mepPool
 
       !-----------------------------------------------------------------
       !
@@ -348,15 +353,17 @@ contains
       integer :: iCell, kLevel
       integer, pointer :: nCells
       integer, dimension(:), pointer :: maxLevelCell
-      real(kind=RKIND) :: Usq
-      real(kind=RKIND), dimension(:,:), pointer :: phi
-
+      real(kind=RKIND) :: intPhiSq
+      real(kind=RKIND), dimension(:), pointer :: vertIntEddyEnergy
+      real(kind=RKIND), dimension(:,:), pointer :: layerThickness, phi
+      real(kind=RKIND), dimension(:,:), pointer :: eddyEnergy
 
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_array(meshPool, 'maxLevelCell',  maxLevelCell)
+      call mpas_pool_get_array(statePool, 'layerThickness',  layerThickness)
       call mpas_pool_get_array(mepPool, 'eigenvectorPhi', phi)
-      call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
-      call mpas_pool_get_array(statePool, 'u', u)
+      call mpas_pool_get_array(mepPool, 'eddyEnergy', eddyEnergy)
+      call mpas_pool_get_array(mepPool, 'vertIntEddyEnergy', vertIntEddyEnergy)
 
       do iCell = 1, nCells
          intPhiSq = 0.0
