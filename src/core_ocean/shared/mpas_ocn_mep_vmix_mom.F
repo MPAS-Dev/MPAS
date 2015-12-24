@@ -132,11 +132,17 @@ contains
                  NsqFiltered(kLevel, iCell) &
                + config_mep_climate_dt/config_mep_climate_Tc &
                * ( BruntVaisalaFreqTop(kLevel, iCell) - NsqFiltered(kLevel, iCell) )
-            uDivEPFTFiltered(nVertLevels, nEdges)
-            dissipationFiltered
+         end do
+         dissipationFiltered(iCell) = 
+      end do
 
+      do iEdge = 1, nEdges
+         do kLevel = 1, maxLevelCell(iCell)
+            uDivEPFTFiltered(kLevel, iEdge) = 
          end do
       end do
+
+
 
    !--------------------------------------------------------------------
 
@@ -277,13 +283,17 @@ contains
       call mpas_pool_get_array(mepPool, 'vertIntEddyEnergy_tend', vertIntEddyEnergy_tend)
       call mpas_pool_get_array(mepPool, 'vertIntEddyEnergy', vertIntEddyEnergy)
 
-
-      ! compute time tendencies for vertIntEddyEnergy
-      call ocn_mep_vmix_mom_vertIntEddyEnergy_tend(mepPool, meshPool, diagnosticsPool, err)
+      need to iterate on blocks
 
       ! start time integration
       do iter = 1, nIter
-
+         ! substep update vertIntEddyEnergy and variables that depend on it
+         vertIntEddyEnergy = vertIntEddyEnergy + dt * subStepCoef(iter) * tendOld
+         update viscosity which depends on eddy energy
+         call ocn_mep_vmix_mom_vertIntEddyEnergy_tend(mepPool, meshPool, diagnosticsPool, err)
+         do iCell = 1, nCells
+            vertIntEddyEnergyNew = vertIntEddyEnergy(iCell) + dt * coef(iter)*tend
+         end do
       end do
       ! end time integration
 
@@ -349,12 +359,12 @@ contains
       call mpas_pool_get_array(statePool, 'u', u)
 
       do iCell = 1, nCells
+         intPhiSq = 0.0
          do kLevel = 1, maxLevelCell(iCell)
-            Usq = ( u(kLevel, iCell)**2 + v(kLevel, iCell)**2 )
-            eddyEnergy(kLevel, iCell) = &
-               - config_mep_eddyEnergy_C &
-               * Usq
-               * phi(iCell)**2
+            intPhiSq = intPhiSq + phi(kLevel,iCell)**2 * layerThickness(kLevel,iCell)
+         end do
+         do kLevel = 1, maxLevelCell(iCell)
+            eddyEnergy(kLevel, iCell) = vertIntEddyEnergy(iCell) * phi(kLevel,iCell) / intPhiSq
          end do
       end do
 
