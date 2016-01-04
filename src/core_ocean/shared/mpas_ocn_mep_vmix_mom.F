@@ -116,18 +116,29 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
-      integer :: iCell, kLevel
-      integer, pointer :: nCells
-      integer, dimension(:), pointer :: maxLevelCell
-      real(kind=RKIND), dimension(:,:), pointer :: NsqFiltered
+      integer :: iCell, kLevel, iEdge
+      real (kind=RKIND) :: udEPFT31dz
+      real (kind=RKIND), dimension(:,:), allocatable :: dFielddzTopEdges
+
+      integer, pointer :: nCells, nEdges, nVertLevels
+      integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeBot
+      real(kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge
+      real(kind=RKIND), dimension(:,:), pointer :: NsqFiltered, dEPFT31dz
       real(kind=RKIND), dimension(:,:), pointer :: BruntVaisalaFreqTop, normalVelocity
 
-
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
       call mpas_pool_get_array(meshPool, 'maxLevelCell',  maxLevelCell)
+      call mpas_pool_get_array(meshPool, 'maxLevelEdgeBot',  maxLevelEdgeBot)
+      call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
       call mpas_pool_get_array(diagnosticsPool, 'BruntVaisalaFreqTop', BruntVaisalaFreqTop)
       call mpas_pool_get_array(mepPool, 'NsqFiltered', NsqFiltered)
+      call mpas_pool_get_array(mepPool, 'dEPFT31dz', dEPFT31dz)
+      call mpas_pool_get_array(mepPool, 'uDivEPFTFiltered', uDivEPFTFiltered)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity)
+
+      allocate( dFielddzTopEdges(nVertLevels+1, nEdges) )
 
       do iCell = 1, nCells
          do kLevel = 1, maxLevelCell(iCell)
@@ -141,12 +152,21 @@ contains
       end do
 
       ! EPFT is rotated horizontally onto the normal, tangential unit vectors.
-      ! This way, EPFT(:,1) corresponds to normalVelocity component of momentum.
-      ! Since we are not parameterizing the Reynolds stress terms in EPFT,
-      ! i.e. EPFT(1,1) and EPFT(2,1), the only contribution to Div EPFT is
+      ! EPFT(:,1) (first column) corresponds to normalVelocity component of momentum.
+      ! Since we are not parameterizing the Reynolds stress terms
+      ! EPFT(1,1) and EPFT(2,1), the only contribution to Div EPFT is
       ! the vertical derivative of EPFT(3,1)
+
+      call computeVerticalDerivativeEdgeMidToTop( nEdges, maxLevelEdgeBot, &
+         layerThicknessEdge, normalVelocity, dFielddzTopEdges )
+
+      workVariable = - vertViscTopOfEdge * dudz
+
+      call computeVerticalDerivativeEdgeTopToMid( nEdges, maxLevelEdgeBot, &
+         layerThicknessEdge, dFielddzTopEdges, dEPFT31dz)
+
       do iEdge = 1, nEdges
-         do kLevel = 1, maxLevelCell(iCell)
+         do kLevel = 1, maxLevelEdgeTop(iEdge)
             udEPFT31dz = normalVelocity(kLevel, iEdge) * dEPFT31dz(kLevel, iEdge)
             uDivEPFTFiltered(kLevel, iEdge) = &
                + config_mep_climate_dt/config_mep_climate_Tc &
@@ -154,6 +174,7 @@ contains
          end do
       end do
 
+      deallocate( dFielddzTopEdges )
 
 
    !--------------------------------------------------------------------
@@ -750,6 +771,142 @@ contains
 
    end subroutine ocn_mep_vmix_mom_vertIntEddyEnergy_tend!}}}
 
+
+
+!***********************************************************************
+!
+!  routine computeVerticalDerivativeEdgeMidToTop
+!
+!> \brief   Compute vertical derivative of field on mid edges
+!> \author  Juan A. Saenz
+!> \date    January 2016
+!> \version
+!> \details
+!>  This routine computes the vertical derivative of a field that exists 
+!>  in the middle of edges. The resulting derivative exists at top of Edges.
+!
+!-----------------------------------------------------------------------
+
+   subroutine computeVerticalDerivativeEdgeMidToTop( &
+      nEdges, maxLevelEdgeBot, layerThicknessEdge, fieldMidEdge, dFielddzTopEdges )!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      integer, intent(in) :: nEdges
+      integer, dimension(nEdges), intent(in) :: maxLevelEdgeBot
+      real (kind=RKIND), dimension(:,:), intent(in) :: layerThicknessEdge
+      real (kind=RKIND), dimension(:,:), intent(in) :: fieldMidEdge
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(out) :: dFielddzTopEdges
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+      integer :: iEdge, kLevel
+      real (kind=RKIND) :: wrkAbove, wrkBelow, dz
+
+      dFielddzTopEdges = 0.0_RKIND
+
+      do iEdge = 1, nEdges
+         ! maxLevelEdgeBot is the maximum (deepest) of the surrounding cells
+         do kLevel = 2, maxLevelEdgeBot(iEdge)
+            wrkAbove = fieldMidEdge(kLevel-1, iEdge)
+            wrkBelow = fieldMidEdge(kLevel, iEdge)
+            dz = 0.5_RKIND * ( layerThicknessEdge(kLevel-1, iEdge) + layerThicknessEdge(kLevel, iEdge) )
+            dFielddzTopEdges(kLevel,iEdge) = (wrkAbove - wrkBelow) / dz
+         end do
+         ! juan issue : can make derivative at top of top edge a function of wind stress?
+         dFielddzTopEdges(1,iEdge) = dFielddzTopEdges(2,iEdge)
+         ! juan issue : can make derivative at bottom of bottom edge a function of bottom drag?
+         dFielddzTopEdges(maxLevelEdgeBot(iEdge)+1, iEdge) = dFielddzTopEdges(maxLevelEdgeBot(iEdge), iEdge)
+      end do
+
+   !--------------------------------------------------------------------
+
+   end subroutine computeVerticalDerivativeEdgeMidToTop!}}}
+
+
+
+!***********************************************************************
+!
+!  routine computeVerticalDerivativeEdgeTopToMid
+!
+!> \brief   Compute vertical derivative of field on top edges.
+!> \author  Juan A. Saenz
+!> \date    January 2016
+!> \version
+!> \details
+!>  This routine computes the vertical derivative of a field that exists on 
+!>  top of edges. The resulting derivative exists in the middle of Edges.
+!
+!-----------------------------------------------------------------------
+
+   subroutine computeVerticalDerivativeEdgeTopToMid( &
+      nEdges, maxLevelEdgeBot, layerThicknessEdge, fieldTopEdge, dFielddzMidEdges )!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      integer, intent(in) :: nEdges
+      integer, dimension(nEdges), intent(in) :: maxLevelEdgeBot
+      real (kind=RKIND), dimension(:,:), intent(in) :: layerThicknessEdge
+      real (kind=RKIND), dimension(:,:), intent(in) :: fieldTopEdge
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(out) :: dFielddzMidEdges
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+      integer :: iEdge, kLevel
+      real (kind=RKIND) :: wrkAbove, wrkBelow
+
+      dFielddzMidEdges = 0.0_RKIND
+
+      do iEdge = 1, nEdges
+         ! maxLevelEdgeBot is the maximum (deepest) of the surrounding cells
+         do kLevel = 1, maxLevelEdgeBot(iEdge)
+            wrkAbove = fieldTopEdge(kLevel, iEdge)
+            wrkBelow = fieldTopEdge(kLevel+1, iEdge)
+            dFielddzMidEdges(kLevel,iEdge) = (wrkAbove - wrkBelow) / layerThicknessEdge(kLevel, iEdge)
+         end do
+      end do
+
+   !--------------------------------------------------------------------
+
+   end subroutine computeVerticalDerivativeEdgeTopToMid!}}}
 
 
 !***********************************************************************
