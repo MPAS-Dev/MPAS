@@ -2550,6 +2550,50 @@
 			 description="GM stream function"
 			 packages="forwardMode;analysisMode"
 		/>
+
+		<!-- Variables used for the prognostic eddy parameterization -->
+		<!-- juan issue: how to handle time for filtered variables -->
+		<var name="NsqFiltered" type="real" dimensions="nVertLevels nCells Time" units="s^{-2}"
+			 description="Filtered Brunt Vaisala frequency squared defined at the center (horizontally, vertically) of cell"
+			 packages="forwardMode;analysisMode"
+		/>
+		<var name="dEPFT31dz" type="real" dimensions="nVertLevels nEdges Time" units="m s^{-2}"
+			 description="Vertical derivative of EPFT(3,1), form drag force on normal momentum."
+			 packages="forwardMode;analysisMode"
+		/>
+		<var name="uDivEPFTFiltered" type="real" dimensions="nVertLevels nEdges Time" units="m^2 s^{-3}"
+			 description="Filtered eddy energy time tendency from eddy mean flow interactions"
+			 packages="forwardMode;analysisMode"
+		/>
+		<var name="eigenvectorPhi" type="real" dimensions="nVertLevels nCells Time" units="unitless"
+			 description="Dominant eigenvector in each column"
+			 packages="forwardMode;analysisMode"
+		/>
+		<var name="Leddy" type="real" dimensions="nEdges Time" units="m"
+			 description="Representative eddy length scale for each column"
+			 packages="forwardMode;analysisMode"
+		/>
+		<var name="alphaEff" type="real" dimensions="nEdges Time" units="unitless"
+			 description="Eddy mixing efficiency factor"
+			 packages="forwardMode;analysisMode"
+		/>
+		<var name="vertIntEddyEnergy_tend" type="real" dimensions="nCells Time" units="m^3 s^{-3}"
+			 description="Time tendency of vertically integrated eddy energy"
+			 packages="forwardMode;analysisMode"
+		/>
+		<var name="vertIntEddyEnergy" type="real" dimensions="nCells Time" units="m^3 s^{-2}"
+			 description="Vertically integrated eddy energy"
+			 packages="forwardMode;analysisMode"
+		/>
+		<var name="eddyEnergy" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-2}"
+			 description="Eddy energy"
+			 packages="forwardMode;analysisMode"
+		/>
+		<var name="vertViscTopOfEdgeMEP" type="real" dimensions="nVertLevels nEdges Time" units="m^2 s"
+			 description="Vertical eddy viscosity at the top of edges"
+			 packages="forwardMode;analysisMode"
+		/>
+
 	</var_struct>
 	<var_struct name="scratch" time_levs="1">
 		<var name="normalThicknessFlux" persistence="scratch" type="real" dimensions="nVertLevels nEdges Time"
