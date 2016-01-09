@@ -1108,7 +1108,14 @@ contains
        type (mpas_pool_iterator_type) :: groupItr
        real (kind=RKIND), dimension(:), pointer :: bottomDepth, refBottomDepth
        real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroup
-       real (kind=RKIND), dimension(:), allocatable :: zMidZLevel
+
+       ! Variables needed for vertical interpolation of tracers
+       type (mpas_pool_type), pointer :: verticalMeshPool, diagnosticsPool
+       real (kind=RKIND), dimension(:), pointer :: refZMid
+       real (kind=RKIND), dimension(:,:), pointer :: zMid
+       real (kind=RKIND), dimension(:), allocatable :: inTracer, outTracer
+       integer :: kMax, iTracer, nTracersGroup
+
 
        iErr = 0
 
@@ -1286,47 +1293,34 @@ contains
           do while(associated(block_ptr))
              call mpas_pool_get_subpool(block_ptr % structs, 'mesh', meshPool)
              call mpas_pool_get_subpool(block_ptr % structs, 'state', statePool)
+             call mpas_pool_get_subpool(block_ptr % structs, 'diagnostics', diagnosticsPool)
+             call mpas_pool_get_subpool(block_ptr % structs, 'verticalMesh', verticalMeshPool)
              call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
 
              call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
              call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
 
              call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-             call mpas_pool_get_array(meshPool, 'bottomDepth', bottomDepth)
-             call mpas_pool_get_array(meshPool, 'refBottomDepth', refBottomDepth)
+             call mpas_pool_get_array(verticalMeshPool, 'refZMid', refZMid)
+             call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
 
              call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, 1)
 
-             allocate(zMidZLevel(nVertLevels))
-             zMidZLevel(1) = - 0.5*(refBottomDepth(1)) ! could add SSH here
-             do k = 2, nVertLevels
-                zMidZLevel(k) = - 0.5*(refBottomDepth(k) + refBottomDepth(k-1))
+             allocate(inTracer(nVertLevels),outTracer(nVertLevels))
+
+             nTracersGroup = size(tracersGroup, dim=1)
+             do iCell = 1, nCells
+                kMax = maxLevelCell(iCell)
+                do iTracer = 1, nTracersGroup
+                   inTracer(:) = tracersGroup(iTracer,:,iCell)
+                   call ocn_init_interpolation_linear_vert(refZMid(1:kMax), inTracer(1:kMax), kMax, &
+                                               zMid(:,iCell), outTracer(1:kMax), kMax)
+                   tracersGroup(iTracer, :, iCell) = -1e34_RKIND
+                   tracersGroup(iTracer, 1:kMax, iCell) = outTracer(1:kMax)
+                end do
              end do
 
-             call mpas_pool_begin_iteration(tracersPool)
-             do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
-                if ( groupItr % memberType == MPAS_POOL_FIELD ) then
-                   call mpas_pool_get_array(tracersPool, groupItr % memberName, tracersGroup, 1)
-
-
-                   if ( associated(tracersGroup) ) then
-                      do iCell = 1, nCells
-                         ! Linearly interpolate the initial tracers for new location of bottom cell for PBCs
-                         k = maxLevelCell(iCell)
-                         if (k>1) then
-                            zMidPBC = -0.5_RKIND * (bottomDepth(iCell) + refBottomDepth(k-1))
-                            km1 = max(k-1,1)
-                            tracersGroup(:, k, iCell) = tracersGroup(:, k, iCell) &
-                                 + (tracersGroup(:, km1, iCell) - tracersGroup(:, k, iCell)) &
-                                 /(zMidZLevel(km1) - zMidZLevel(k) + 1.0e-16_RKIND) &
-                                 *(zMidPBC - zMidZLevel(k))
-                         endif
-                      end do
-                   end if
-                end if
-             end do
-
-             deallocate(zMidZLevel)
+             deallocate(inTracer,outTracer)
              block_ptr => block_ptr % next
           end do
        endif
