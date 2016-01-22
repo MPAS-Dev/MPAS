@@ -1,0 +1,280 @@
+	<nml_record name="AM_regionalStats" mode="forward;analysis">
+		<nml_option name="config_AM_regionalStats_enable" 
+					type="logical" 
+					default_value=".false." 
+					units="unitless"
+					description="If true, ocean analysis member regional stats is called."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_AM_regionalStats_compute_on_startup" 
+					type="logical" 
+					default_value=".false."
+					units="unitless"
+					description="Logical flag determining if an analysis member computation occurs on start-up."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_AM_regionalStats_write_on_startup" 
+					type="logical" 
+					default_value=".false." 
+					units="unitless"
+					description="Logical flag determining if an analysis member output occurs on start-up."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_AM_regionalStats_compute_interval" 
+					type="character" 
+					default_value="dt" 
+					units="unitless"
+					description="Interval that determines frequency of computation for the regional stats analysis member."
+					possible_values="Any valid time stamp or 'dt'."
+		/>
+		<nml_option name="config_AM_regionalStats_output_stream" 
+					type="character" 
+					default_value="regionalStatsOutput" 
+					units="unitless"
+					description="Name of stream the regional stats analysis member will operate on that contains the list of input fields (and will be modified to contain the output stats fields)."
+					possible_values="An existing output stream that will be read for input fields. Cannot be 'none', like other analysis members."
+					/>
+
+		<nml_option name="config_AM_regionalStats_restart_stream" 
+					type="character" 
+					default_value="masksInput" 
+					units="unitless"
+					description="Name of stream the regional stats analysis member will use for the mask/region data."
+					possible_values="An existing input stream that will be read for regions/masks. Cannot be 'none', like other analysis members, and should be the same as input_stream to ensure the masks are read on start or restart."
+		/>
+		<nml_option name="config_AM_regionalStats_input_stream" 
+					type="character" 
+					default_value="masksInput" 
+					units="unitless"
+					description="Name of stream the regional stats analysis member will use for the mask/region data."
+					possible_values="An existing input stream that will be read for regions/masks. Cannot be 'none', like other analysis members, and should be the same as restart_stream to ensure the masks are read on start or restart."
+		/>
+
+		<nml_option name="config_AM_regionalStats_operation"
+					type="character"
+					default_value="avg"
+					units="unitless"
+					description="An operation describing the statistic to apply to the time series for all variables in the output stream."
+					possible_values="An operation, where it can be 'avg', 'min', or 'max'."
+		/>
+
+		<nml_option name="config_AM_regionalStats_region_type"
+					type="character"
+					default_value="cell"
+					units="unitless"
+					description="The element dimension of the region masks that will be used during the regional stats operation."
+					possible_values="The mask dimension, where it can be 'cell' or 'vertex' or 'edge'"
+		/>
+		<nml_option name="config_AM_regionalStats_region_group"
+					type="integer"
+					default_value="1"
+					units="unitless"
+					description="The index of the group of region masks that will be used to subset the mesh during the regional stats operation."
+					possible_values="1 to 64"
+		/>
+		<nml_option name="config_AM_regionalStats_weighting_function"
+					type="character"
+					default_value="id"
+					units="unitless"
+					description="An operation applied to every element in a region, with the weighting field, prior to the stats operation."
+					possible_values="An operation, where it can be 'id', 'mul', or 'div'."
+		/>
+		<nml_option name="config_AM_regionalStats_weighting_field"
+					type="character"
+					default_value="none"
+					units="unitless"
+					description="A field used in conjunction with all other input fields, to be used as a weighting scale factor."
+					possible_values="'none' if weighting function is 'id', otherwise any valid field with the dimensions as the region masks"
+		/>
+
+	</nml_record>
+
+	<packages>
+		<package name="edgeRegionsPKG" description="This package includes variables required for region masks over edges. The regional stats AM will enable this based on the element type of regions specified in the namelist."/>
+		<package name="vertexRegionsPKG" description="This package includes variables required for region masks over vertices. The regional stats AM will enable this based on the element type of regions specified in the namelist."/>
+		<package name="cellRegionsPKG" description="This package includes variables required for region masks over cells. The regional stats AM will enable this based on the element type of regions specified in the namelist."/>
+		<package name="regionalStatsAMPKG" description="This package includes variables required for the regional stats analysis member."/>
+	</packages>
+
+	<dims>
+		<dim name="nRegions" units="unitless"
+			description="Number of regions."/>
+		<dim name="nRegionGroups" units="unitless"
+			description="Number of groups of regions."/>
+		<dim name="maxRegionsInGroup" units="unitless"
+			description="Maximum number of regions in a group."/>
+	</dims>
+
+	<var_struct name="cellRegions" packages="cellRegionsPKG" time_levs="1">
+		<var name="cellRegionMasks"
+			type="integer"
+			dimensions="nRegions nCells"
+			units="unitless"
+			description="The region masks for each cell."
+			/>
+		<var name="cellNElementsInRegion"
+			type="integer"
+			dimensions="nRegions"
+			units="unitless"
+			description="The number of cells in each region."
+			/>
+		<var name="cellRegionsInGroup"
+			type="integer"
+			dimensions="maxRegionsInGroup nRegionGroups"
+			units="unitless"
+			description="The list of region indices in each group."
+			/>
+		<var name="cellNRegionsInGroup"
+			type="integer"
+			dimensions="nRegionGroups"
+			units="unitless"
+			description="The number of regions in each group."
+			/>
+		<!-- TODO framework needs 1D string reading
+		<var name="cellRegionNames"
+			type="text"
+			dimensions="nRegion"
+			units="unitless"
+			description="The name for each region."
+			/>
+		-->
+		<!-- TODO framework needs 1D string reading
+		<var name="cellRegionGroupNames"
+			type="text"
+			dimensions="nRegionGroups"
+			units="unitless"
+			description="The name for each region group."
+			/>
+		-->
+	</var_struct>
+
+	<var_struct name="edgeRegions" packages="edgeRegionsPKG" time_levs="1">
+		<var name="edgeRegionMasks"
+			type="integer"
+			dimensions="nRegions nCells"
+			units="unitless"
+			description="The region masks for each edge."
+			/>
+		<var name="edgeNElementsInRegion"
+			type="integer"
+			dimensions="nRegions"
+			units="unitless"
+			description="The number of edges in each region."
+			/>
+		<var name="edgeRegionsInGroup"
+			type="integer"
+			dimensions="maxRegionsInGroup nRegionGroups"
+			units="unitless"
+			description="The list of region indices in each group."
+			/>
+		<var name="edgeNRegionsInGroup"
+			type="integer"
+			dimensions="nRegionGroups"
+			units="unitless"
+			description="The number of regions in each group."
+			/>
+		<!-- TODO framework needs 1D string reading
+		<var name="edgeRegionNames"
+			type="text"
+			dimensions="nRegion"
+			units="unitless"
+			description="The name for each region."
+			/>
+		-->
+		<!-- TODO framework needs 1D string reading
+		<var name="edgeRegionGroupNames"
+			type="text"
+			dimensions="nRegionGroups"
+			units="unitless"
+			description="The name for each region group."
+			/>
+		-->
+	</var_struct>
+
+	<var_struct name="vertexRegions" packages="vertexRegionsPKG" time_levs="1">
+		<var name="vertexRegionMasks"
+			type="integer"
+			dimensions="nRegions nCells"
+			units="unitless"
+			description="The region masks for each vertex."
+			/>
+		<var name="vertexNElementsInRegion"
+			type="integer"
+			dimensions="nRegions"
+			units="unitless"
+			description="The number of vertices in each region."
+			/>
+		<var name="vertexRegionsInGroup"
+			type="integer"
+			dimensions="maxRegionsInGroup nRegionGroups"
+			units="unitless"
+			description="The list of region indices in each group."
+			/>
+		<var name="vertexNRegionsInGroup"
+			type="integer"
+			dimensions="nRegionGroups"
+			units="unitless"
+			description="The number of regions in each group."
+			/>
+		<!-- TODO framework needs 1D string reading
+		<var name="vertexRegionNames"
+			type="text"
+			dimensions="nRegion"
+			units="unitless"
+			description="The name for each region."
+			/>
+		-->
+		<!-- TODO framework needs 1D string reading
+		<var name="vertexRegionGroupNames"
+			type="text"
+			dimensions="nRegionGroups"
+			units="unitless"
+			description="The name for each region group."
+			/>
+		-->
+	</var_struct>
+
+	<var_struct name="regionalStatsAM" 
+				time_levs="1" 
+				packages="regionalStatsAMPKG">
+		<var name="regionalStatsOneString" 
+			 type="text" 
+			 dimensions="Time" 
+			 units="unitless"
+			 description="a placeholder string so that regionalStats has a memory to duplicate per instance"
+		/>
+		<var name="regionalStatsOneInteger" 
+			 type="integer" 
+			 dimensions="Time" 
+			 units="unitless"
+			 description="a placeholder integer so that regionalStats has a memory to duplicate per instance"
+		/>
+	</var_struct>
+
+	<streams>
+		<stream name="regionalMasksInput"
+			type="input"
+			mode="forward;analysis"
+			filename_template="restarts/masks.nc"
+			packages="cellRegionsPKG"
+			input_interval="initial_only"
+			runtime_format="single_file">
+
+			<var_struct name="cellRegions"/>
+		</stream>
+
+		<stream name="regionalStatsOutput" 
+				type="output"
+				mode="forward;analysis"
+				filename_template="analysis_members/regionalStats.$Y-$M-$D.nc"
+				filename_interval="00-01-00_00:00:00"
+				output_interval="00-00-01_00:00:00"
+				packages="regionalStatsAMPKG;cellRegionsPKG"
+				clobber_mode="truncate"
+				runtime_format="single_file">
+
+			<var_array name="activeTracers"/>
+			<var name="ssh"/>
+		</stream>
+
+	</streams>

@@ -40,6 +40,7 @@ module ocn_analysis_driver
    use ocn_eliassen_palm
    use ocn_mixed_layer_depths
    use ocn_time_series_stats
+   use ocn_regional_stats
 !   use ocn_TEM_PLATE
 
    implicit none
@@ -159,7 +160,12 @@ contains
       call mpas_pool_add_config(analysisMemberList, 'eliassenPalm', 1)
       call mpas_pool_add_config(analysisMemberList, 'mixedLayerDepths', 1)
       call mpas_pool_add_config(analysisMemberList, 'timeSeriesStats', 1)
+      call mpas_pool_add_config(analysisMemberList, 'regionalStats', 1)
 !     call mpas_pool_add_config(analysisMemberList, 'temPlate', 1)
+
+      ! setup any additional packages needed by the AMs
+      call ocn_packages_regional_stats(configPool, packagePool)
+!     call ocn_packages_TEM_PLATE(configPool, packagePool)
 
       ! DON'T EDIT BELOW HERE
 
@@ -263,6 +269,7 @@ contains
       do while ( mpas_pool_get_next_member(analysisMemberList, poolItr) )
          nameLength = len_trim(poolItr % memberName)
          configName = 'config_AM_' // poolItr % memberName(1:nameLength) // '_enable'
+
          call mpas_pool_get_config(domain % configs, configName, config_AM_enable)
 
          if ( config_AM_enable ) then
@@ -305,6 +312,7 @@ contains
 
             ! Handle reading of streams that exist.
             if ( associated(config_AM_restart_stream) .and. associated(config_AM_input_stream) ) then
+
                if ( config_do_restart ) then
                   call mpas_stream_mgr_read(domain % streamManager, streamID=config_AM_restart_stream, ierr=err)
                else
@@ -967,9 +975,13 @@ contains
          call ocn_init_eliassen_palm(domain, err_tmp)
       else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
          call ocn_init_mixed_layer_depths(domain, err_tmp)
+      ! regional is second to last
+      else if ( analysisMemberName(1:nameLength) == 'regionalStats' ) then
+         call ocn_init_regional_stats(domain, err_tmp)
+      ! time is last
       else if ( analysisMemberName(1:nameLength) == 'timeSeriesStats' ) then
          call ocn_init_time_series_stats(domain, err_tmp)
-!     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
+ !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
 !        call ocn_init_TEM_PLATE(domain, err_tmp)
       end if
 
@@ -1026,6 +1038,10 @@ contains
          call ocn_compute_eliassen_palm(domain, timeLevel, err_tmp)
       else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
          call ocn_compute_mixed_layer_depths(domain, timeLevel, err_tmp)
+      ! regional is second to last
+      else if ( analysisMemberName(1:nameLength) == 'regionalStats' ) then
+         call ocn_compute_regional_stats(domain, timeLevel, err_tmp)
+      ! time is last
       else if ( analysisMemberName(1:nameLength) == 'timeSeriesStats' ) then
          call ocn_compute_time_series_stats(domain, timeLevel, err_tmp)
 !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
@@ -1084,6 +1100,10 @@ contains
          call ocn_restart_eliassen_palm(domain, err_tmp)
       else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
          call ocn_restart_mixed_layer_depths(domain, err_tmp)
+      ! regional is second to last
+      else if ( analysisMemberName(1:nameLength) == 'regionalStats' ) then
+         call ocn_restart_regional_stats(domain, err_tmp)
+      ! time is last
       else if ( analysisMemberName(1:nameLength) == 'timeSeriesStats' ) then
          call ocn_restart_time_series_stats(domain, err_tmp)
 !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
@@ -1142,6 +1162,10 @@ contains
          call ocn_finalize_eliassen_palm(domain, err_tmp)
       else if ( analysisMemberName(1:nameLength) == 'mixedLayerDepths' ) then
          call ocn_finalize_mixed_layer_depths(domain, err_tmp)
+      ! regional is second to last
+      else if ( analysisMemberName(1:nameLength) == 'regionalStats' ) then
+         call ocn_finalize_regional_stats(domain, err_tmp)
+      ! time is last
       else if ( analysisMemberName(1:nameLength) == 'timeSeriesStats' ) then
          call ocn_finalize_time_series_stats(domain, err_tmp)
 !     else if ( analysisMemberName(1:nameLength) == 'temPlate' ) then
