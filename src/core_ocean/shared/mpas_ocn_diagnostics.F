@@ -714,6 +714,7 @@ contains
         do iCell=1,nCells
           surfaceLayerDepth = config_cvmix_kpp_surface_layer_averaging
           sumSurfaceLayer=0.0_RKIND
+          rSurfaceLayer = maxLevelCell(iCell)
           do k=1,maxLevelCell(iCell)
            sumSurfaceLayer = sumSurfaceLayer + layerThickness(k,iCell)
            if(sumSurfaceLayer.gt.surfaceLayerDepth) then
