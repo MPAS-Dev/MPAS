@@ -58,6 +58,7 @@ module ocn_mep_vmix_mom
    logical :: mepVertViscConstOn, mepVertViscProgOn
 
    character (len=StrKIND), pointer :: config_mep_formulation
+   real (kind=RKIND), pointer :: config_mep_climate_eddy_energy_dt
    real (kind=RKIND), pointer :: config_mep_climate_Tc, config_mep_climate_dt
    real (kind=RKIND), pointer :: config_mep_eigenvector_A, config_mep_eigenvector_Le
    real (kind=RKIND), pointer :: config_mep_eigenvector_phi0
@@ -117,7 +118,7 @@ contains
       !
       !-----------------------------------------------------------------
       integer :: iCell, kLevel, iEdge
-      real (kind=RKIND) :: udEPFT31dz
+      real (kind=RKIND) :: uDivEPFT
       real (kind=RKIND), dimension(:,:), allocatable :: dFielddzTopEdges
 
       integer, pointer :: nCells, nEdges, nVertLevels
@@ -148,7 +149,7 @@ contains
                + config_mep_climate_dt/config_mep_climate_Tc &
                * ( BruntVaisalaFreqTop(kLevel, iCell) - NsqFiltered(kLevel, iCell) )
          end do
-         dissipationFiltered(iCell) = 
+         dissipationFiltered(iCell) =
       end do
 
       ! EPFT is rotated horizontally onto the normal, tangential unit vectors.
@@ -167,10 +168,10 @@ contains
 
       do iEdge = 1, nEdges
          do kLevel = 1, maxLevelEdgeTop(iEdge)
-            udEPFT31dz = normalVelocity(kLevel, iEdge) * dEPFT31dz(kLevel, iEdge)
+            uDivEPFT = normalVelocity(kLevel, iEdge) * dEPFT31dz(kLevel, iEdge)
             uDivEPFTFiltered(kLevel, iEdge) = &
                + config_mep_climate_dt/config_mep_climate_Tc &
-               * ( udEPFT31dz - uDivEPFTFiltered(kLevel, iEdge) )
+               * ( uDivEPFT - uDivEPFTFiltered(kLevel, iEdge) )
          end do
       end do
 
@@ -341,19 +342,14 @@ contains
       call mpas_pool_get_array(mepPool, 'vertIntEddyEnergy_tend', vertIntEddyEnergy_tend)
       call mpas_pool_get_array(mepPool, 'vertIntEddyEnergy', vertIntEddyEnergy)
 
-      need to iterate on blocks
+      ! update the time tendency of vertically integrated eddy energy
+      call ocn_mep_vmix_mom_vertIntEddyEnergy_tend(mepPool, meshPool, diagnosticsPool, err)
 
-      ! start time integration
-      do iter = 1, nIter
-         ! substep update vertIntEddyEnergy and variables that depend on it
-         vertIntEddyEnergy = vertIntEddyEnergy + dt * subStepCoef(iter) * tendOld
-         update viscosity which depends on eddy energy
-         call ocn_mep_vmix_mom_vertIntEddyEnergy_tend(mepPool, meshPool, diagnosticsPool, err)
-         do iCell = 1, nCells
-            vertIntEddyEnergyNew = vertIntEddyEnergy(iCell) + dt * coef(iter)*tend
-         end do
+      ! Current implementation uses forward Euler for the time integration
+      do iCell = 1, nCells
+         vertIntEddyEnergy(iCell) = vertIntEddyEnergy(iCell) &
+            + vertIntEddyEnergy_tend * config_mep_climate_eddy_energy_dt
       end do
-      ! end time integration
 
 
    !--------------------------------------------------------------------
@@ -586,13 +582,14 @@ contains
       mepVertViscConstOn = .false.
       mepVertViscProgOn = .false.
 
-      config_mep_climate_Tc = 0.0
-      config_mep_climate_dt = 0.0
-      config_mep_eigenvector_A = 0.0
-      config_mep_eigenvector_Le = 0.0
-      config_mep_eigenvector_phi0 = 0.0
-      config_mep_vert_visc_const = 0.0
-      config_mep_energy_dissipation_const = 0.0
+      config_mep_climate_Tc = 0.0_RKIND
+      config_mep_climate_dt = 0.0_RKIND
+      config_mep_eigenvector_A = 0.0_RKIND
+      config_mep_eigenvector_Le = 0.0_RKIND
+      config_mep_eigenvector_phi0 = 0.0_RKIND
+      config_mep_vert_visc_const = 0.0_RKIND
+      config_mep_energy_dissipation_const = 0.0_RKIND
+      config_mep_climate_eddy_energy_dt = 0.0_RKIND
 
       if ( trim(config_mep_formulation) == 'constantVerticalViscocity' ) then
          mepVertViscConstOn = .true.
@@ -605,6 +602,8 @@ contains
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_Le', config_mep_eigenvector_Le)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_phi0', config_mep_eigenvector_phi0)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_energy_dissipation_const', config_mep_energy_dissipation_const)
+         call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_eddy_energy_dt', config_mep_climate_eddy_energy_dt)
+
       end if
 
 
@@ -684,7 +683,7 @@ contains
 !> \version
 !> \details
 !>  This routine computes prognostic vertically integrated eddy energy
-!>  time tendency.
+!>  time tendency. 
 !
 !-----------------------------------------------------------------------
 
@@ -743,29 +742,31 @@ contains
 
       vertIntEddyEnergy_tend = 0.0
 
-      ! vertically integrated advection of eddy energy
-      ! no contribution for now
-
-      ! vertically integrated eddy-mean flow interactions
       ! juan issue : using unfiltered layerThicknessEdge
+
+      ! Time tendency from eddy mean flow interactions
+      ! Investigating whether to use uDivEPFTFiltered or ubar*Div(viscosityBar * dubar/dz).
+      ! Will implement the latter while the former will be commented out for the time being.
       do iCell = 1, nCells
          do iEdge = 1, nEdgesOnCell(iCell)
             do kLevel = 1, maxLevelCell(iCell)
                vertIntEddyEnergy_tend(iCell) = vertIntEddyEnergy_tend(iCell) &
-                  + uDivEPFTFiltered(kLevel,iEdge)*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
+                  - ubar(kLevel,iEdge)*divEPFT31bar*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
+               !    - uDivEPFTFiltered(kLevel,iEdge)*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
             end do
          end do
       end do
 
-      ! vertically integrated transport
-      ! no contribution for now
 
       ! vertically integrated dissipation
       do iCell = 1, nCells
          vertIntEddyEnergy_tend(iCell) = vertIntEddyEnergy_tend(iCell) &
-            + config_mep_energy_dissipation_const*vertIntEddyEnergy
+            + config_mep_energy_dissipation_const*vertIntEddyEnergy(iCell)
       end do
 
+      ! These terms are zero for now:
+      ! vertically integrated advection of eddy energy
+      ! vertically integrated transport
 
    !--------------------------------------------------------------------
 
@@ -782,7 +783,7 @@ contains
 !> \date    January 2016
 !> \version
 !> \details
-!>  This routine computes the vertical derivative of a field that exists 
+!>  This routine computes the vertical derivative of a field that exists
 !>  in the middle of edges. The resulting derivative exists at top of Edges.
 !
 !-----------------------------------------------------------------------
@@ -853,7 +854,7 @@ contains
 !> \date    January 2016
 !> \version
 !> \details
-!>  This routine computes the vertical derivative of a field that exists on 
+!>  This routine computes the vertical derivative of a field that exists on
 !>  top of edges. The resulting derivative exists in the middle of Edges.
 !
 !-----------------------------------------------------------------------
