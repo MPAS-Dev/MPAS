@@ -58,8 +58,8 @@ module ocn_mep_vmix_mom
    logical :: mepVertViscConstOn, mepVertViscProgOn
 
    character (len=StrKIND), pointer :: config_mep_formulation
-   real (kind=RKIND), pointer :: config_mep_climate_eddy_energy_dt
    real (kind=RKIND), pointer :: config_mep_climate_Tc, config_mep_climate_dt
+   real (kind=RKIND), pointer :: config_mep_climate_eddy_energy_dt
    real (kind=RKIND), pointer :: config_mep_eigenvector_A, config_mep_eigenvector_Le
    real (kind=RKIND), pointer :: config_mep_eigenvector_phi0
    real (kind=RKIND), pointer :: config_mep_vert_visc_const
@@ -584,12 +584,12 @@ contains
 
       config_mep_climate_Tc = 0.0_RKIND
       config_mep_climate_dt = 0.0_RKIND
+      config_mep_climate_eddy_energy_dt = 0.0_RKIND
       config_mep_eigenvector_A = 0.0_RKIND
       config_mep_eigenvector_Le = 0.0_RKIND
       config_mep_eigenvector_phi0 = 0.0_RKIND
       config_mep_vert_visc_const = 0.0_RKIND
       config_mep_energy_dissipation_const = 0.0_RKIND
-      config_mep_climate_eddy_energy_dt = 0.0_RKIND
 
       if ( trim(config_mep_formulation) == 'constantVerticalViscocity' ) then
          mepVertViscConstOn = .true.
@@ -598,11 +598,11 @@ contains
          mepVertViscProgOn = .true.
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_Tc', config_mep_climate_Tc)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_dt', config_mep_climate_dt)
+         call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_eddy_energy_dt', config_mep_climate_eddy_energy_dt)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_A', config_mep_eigenvector_A)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_Le', config_mep_eigenvector_Le)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_phi0', config_mep_eigenvector_phi0)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_energy_dissipation_const', config_mep_energy_dissipation_const)
-         call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_eddy_energy_dt', config_mep_climate_eddy_energy_dt)
 
       end if
 
