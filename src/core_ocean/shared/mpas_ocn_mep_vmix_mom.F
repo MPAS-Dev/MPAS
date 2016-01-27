@@ -345,7 +345,7 @@ contains
       ! update the time tendency of vertically integrated eddy energy
       call ocn_mep_vmix_mom_vertIntEddyEnergy_tend(mepPool, meshPool, diagnosticsPool, err)
 
-      ! Current implementation uses forward Euler for the time integration
+      ! Forward Euler time integration
       do iCell = 1, nCells
          vertIntEddyEnergy(iCell) = vertIntEddyEnergy(iCell) &
             + vertIntEddyEnergy_tend * config_mep_climate_eddy_energy_dt
@@ -433,7 +433,6 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_mep_vmix_eddyEnergy!}}}
-
 
 
 !***********************************************************************
@@ -533,7 +532,6 @@ contains
    end subroutine ocn_mep_vmix_vert_viscocity!}}}
 
 
-
 !***********************************************************************
 !
 !  routine ocn_mep_vmix_mom_init
@@ -612,7 +610,6 @@ contains
    end subroutine ocn_mep_vmix_mom_init!}}}
 
 
-
 !***********************************************************************
 !
 !  routine ocn_mep_vmix_mom_build
@@ -672,7 +669,6 @@ contains
    end subroutine ocn_mep_vmix_mom_build!}}}
 
 
-
 !***********************************************************************
 !
 !  routine ocn_mep_vmix_mom_vertIntEddyEnergy_tend
@@ -683,7 +679,7 @@ contains
 !> \version
 !> \details
 !>  This routine computes prognostic vertically integrated eddy energy
-!>  time tendency. 
+!>  time tendency.
 !
 !-----------------------------------------------------------------------
 
@@ -772,6 +768,158 @@ contains
 
    end subroutine ocn_mep_vmix_mom_vertIntEddyEnergy_tend!}}}
 
+
+!***********************************************************************
+!
+!  routine slowTimeFilterReset
+!
+!> \brief   Reset slow time filter
+!> \author  Juan A. Saenz
+!> \date    January 2016
+!> \version
+!> \details
+!>  This routine resets the accumulated variable of the slow time filter.
+!
+!-----------------------------------------------------------------------
+
+   subroutine slowTimeFilterReset( fieldAccum )!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: fieldAccum
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      fieldAccum = 0.0_RKIND
+
+   !--------------------------------------------------------------------
+
+   end subroutine slowTimeFilterReset!}}}
+
+
+!***********************************************************************
+!
+!  routine slowTimeFilterAccum
+!
+!> \brief   Accumulate variable for slow time filter
+!> \author  Juan A. Saenz
+!> \date    January 2016
+!> \version
+!> \details
+!>  This routine accumulates variable over time for the slow time filter.
+!
+!-----------------------------------------------------------------------
+
+   subroutine slowTimeFilterAccum( field, fieldAccum )!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: field
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: fieldAccum
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      fieldAccum = fieldAccum + field
+
+   !--------------------------------------------------------------------
+
+   end subroutine slowTimeFilterAccum!}}}
+
+
+!***********************************************************************
+!
+!  routine slowTimeFilterAverage
+!
+!> \brief   Average accumulated variable for slow time filter
+!> \author  Juan A. Saenz
+!> \date    January 2016
+!> \version
+!> \details
+!>  This routine averages the accumulated variable for the slow time filter.
+!
+!-----------------------------------------------------------------------
+
+   subroutine slowTimeFilterAccum( fieldAccum, fieldAveraged )!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: fieldAccum
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: fieldAveraged
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+
+      fieldAccum = fieldAccum * config_time_step / config_mep_climate_eddy_energy_dt
+
+   !--------------------------------------------------------------------
+
+   end subroutine slowTimeFilterAverage!}}}
 
 
 !***********************************************************************
