@@ -59,7 +59,7 @@ module ocn_mep
    !
    !--------------------------------------------------------------------
 
-   logical :: mepStdGMOn, mepTWAdragGMOn, mepRediOn, mepUseGMmodule
+   logical :: mepStdGMOn, mepForceTWAdragGMOn, mepForceVertViscOn, mepRediOn, mepUseGMmodule
 
 
 !***********************************************************************
@@ -119,7 +119,8 @@ contains
       call mpas_pool_get_config(ocnConfigs, 'config_mep_Redi_enable', config_mep_Redi_enable)
 
       mepStdGMOn = .false.
-      mepTWAdragGMOn = .false.
+      mepForceTWAdragGMOn = .false.
+      mepForceVertViscOn = .false.
       mepRediOn = .false.
       mepUseGMmodule = .false.
 
@@ -131,9 +132,12 @@ contains
          mepUseGMmodule = .true.
          call ocn_gm_init(err)
       else if ( trim(config_mep_formulation) == 'twaDragGM' ) then
-         mepTWAdragGMOn = .true.
+         mepForceTWAdragGMOn = .true.
          mepUseGMmodule= .true.
          call ocn_gm_init(err)
+      else if ( trim(config_mep_formulation) == 'forceVertVisc' ) then
+         mepForceVertViscOn = .true.
+         call ocn_mep_vmix_mom_init(err)
       else if ( trim(config_mep_formulation) == 'constantVerticalViscocity' ) then
          call ocn_mep_vmix_mom_init(err)
       else if ( trim(config_mep_formulation) == 'prognosticVerticalViscocity' ) then
@@ -374,8 +378,15 @@ contains
       !-----------------------------------------------------------------
 
 
-      if (mepTWAdragGMOn) then
-         call ocn_mep_twa_drag_GM(mepPool, tendPool, meshPool, tend, err)
+      ! calculate the eddy force from parameterized div EPFT and apply it to momentum tendency
+
+      ! force from vertical viscocity
+      if (mepForceVertViscOn) then
+         call ocn_mep_force_vert_visc(mepPool, tendPool, meshPool, tend, err)
+
+      ! TWA GM drag
+      if (mepForceTWAdragGMOn) then
+         call ocn_mep_force_twa_drag_GM(mepPool, tendPool, meshPool, tend, err)
       end if
 
    end subroutine ocn_mep_vel_tend!}}}
@@ -383,7 +394,103 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_mep_twa_drag_GM
+!  routine ocn_mep_force_vert_visc
+!
+!> \brief  This routine calculates normalVelocity tend due to vertical viscocity force.
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   November, 2015
+!> \details
+!>  This routine calculates normalVelocity tend due to vertical viscosity force.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_force_vert_visc(mepPool, tendPool, meshPool, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: mepPool  !< Input: Diagnostic information
+      type (mpas_pool_type), intent(in) :: meshPool            !< Input: Mesh information
+
+      !jas issue: it might be that only need uBolus or normalBolusGM,
+      !not entire diagnostics?
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(inout) :: tendPool !< Input/Output: Tendency structure
+      real (kind=RKIND), dimension(:,:), intent(inout) :: tend          !< Input/Output: normal velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      logical  :: includeHalo
+      integer :: iEdge, kLevel
+      integer, pointer :: nVertLevels, nCells, nEdges
+
+      integer, dimension(:,:), pointer :: edgeMask
+      real (kIND=RKIND), dimension(:),   pointer :: fEdge
+      real (kind=RKIND), dimension(:,:), pointer :: tend_vel_mep
+
+      err = 0
+
+      call mpas_pool_get_dimension(meshPool, 'nCells', nCells) ! includes halos
+      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges) ! includes halos
+      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+
+      call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
+      call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
+
+      allocate(normalBolusEdge(nVertLevels,nEdges))
+      allocate(tangentBolusEdge(nVertLevels,nEdges))
+      allocate(bolusCell(3,nVertLevels,nCells+1))
+
+
+      includeHalo = .true.
+
+      ! retrieve velocity tendencry by MEP
+      call mpas_pool_get_array(tendPool, 'normalVelocityMEP', tend_vel_mep)
+      tend_vel_mep = 0.0
+
+
+      !calculate tendency = -dE3i/dz dot ni = - d/dz( vertVisc * dubar/dz )
+      do iEdge = 1, nEdges
+        do kLevel = 1,nVertLevels
+          tend_vel_mep(kLevel,iEdge) = ... 
+        end do
+      end do
+
+      !update tendency with div EPFT parameterized with GM
+      tend = tend + tend_vel_mep
+
+
+      deallocate(normalBolusEdge)
+      deallocate(tangentBolusEdge)
+      deallocate(bolusCell)
+
+    end subroutine ocn_mep_force_vert_visc!}}}
+
+
+!***********************************************************************
+!
+!  routine ocn_mep_force_twa_drag_GM
 !
 !> \brief  This routine calculates normalVelocity tend due GM bolus coriolis.
 !> \author Juan A. Saenz, Todd Ringler
@@ -394,7 +501,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_twa_drag_GM(mepPool, tendPool, meshPool, tend, err)!{{{
+   subroutine ocn_mep_force_twa_drag_GM(mepPool, tendPool, meshPool, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -502,7 +609,7 @@ contains
       deallocate(tangentBolusEdge)
       deallocate(bolusCell)
 
-    end subroutine ocn_mep_twa_drag_GM!}}}
+    end subroutine ocn_mep_force_twa_drag_GM!}}}
 
 
 !***********************************************************************
