@@ -109,7 +109,7 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
-
+      integer :: counter
       logical, pointer :: config_mep_Redi_enable
       character (len=StrKIND), pointer :: config_mep_formulation
 
@@ -123,26 +123,37 @@ contains
       mepForceVertViscOn = .false.
       mepRediOn = .false.
       mepUseGMmodule = .false.
+      mepImplicitVertVisc = .false.
 
-      ! Check for invalid parameterizations being enabled
       if ( trim(config_mep_formulation) == 'none' ) then
          return
-      else if ( trim(config_mep_formulation) == 'standardGM' ) then
+      end if
+      counter = 0
+      if ( trim(config_mep_formulation) == 'standardGM' ) then
+         counter = counter + 1
          mepStdGMOn = .true.
          mepUseGMmodule = .true.
          call ocn_gm_init(err)
-      else if ( trim(config_mep_formulation) == 'twaDragGM' ) then
+      end if
+      if ( trim(config_mep_formulation) == 'twaDragGM' ) then
+         counter = counter + 1
          mepForceTWAdragGMOn = .true.
          mepUseGMmodule= .true.
          call ocn_gm_init(err)
-      else if ( trim(config_mep_formulation) == 'forceVertVisc' ) then
+      end if
+      if ( trim(config_mep_formulation) == 'forceVertVisc' ) then
+         counter = counter + 1
          mepForceVertViscOn = .true.
          call ocn_mep_vmix_mom_init(err)
-      else if ( trim(config_mep_formulation) == 'constantVerticalViscocity' ) then
+      end if
+      if ( trim(config_mep_formulation) == 'implicitVertVisc' ) then
+         counter = counter + 1
+         mepImplicitVertVisc = .true.
          call ocn_mep_vmix_mom_init(err)
-      else if ( trim(config_mep_formulation) == 'prognosticVerticalViscocity' ) then
-         call ocn_mep_vmix_mom_init(err)
-      else
+      end if
+
+      ! make sure incompatible combinations are not requested by user
+      if (counter>1) then
          write (stderrUnit,*) 'Invalid value in config_mep_formulation:'
          write (stderrUnit,*) config_mep_formulation
          err = 1
