@@ -326,7 +326,7 @@
 	<nml_record name="mep" mode="forward">
 		<nml_option name="config_mep_formulation" type="character" default_value="none" units="NA"
 					description="Form of the MEP parameterization."
-					possible_values="'none', 'standardGM', 'twaDragGM', 'vertViscConstant', or'vertViscPrognostic'"
+					possible_values="'none', 'standardGM', 'twaDragGM', 'forceVertVisc', 'constantVerticalViscocity', or 'prognosticVerticalViscocity'"
 		/>
 		<nml_option name="config_mep_Redi_enable" type="logical" default_value=".false." units="NA"
 					description="If true, Redi diffusion parameterization is implemented."
