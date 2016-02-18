@@ -23,4 +23,7 @@
 	<test name="sub-ice-shelf 2D - Haney-number constrained, iterative init - Smoke Test" core="ocean" configuration="sub_ice_shelf_2D" resolution="5km" test="Haney_number_iterative_init">
 		<script name="run_test.py"/>
 	</test>
+	<test name="global ocean QU 240 km with land ice - Smoke Test" core="ocean" configuration="global_ocean" resolution="QU_240km" test="with_land_ice">
+		<script name="run_test.py"/>
+	</test>
 </regression_suite>

@@ -531,7 +531,8 @@ contains
        integer :: minimum_levels
 
        character (len=StrKIND), pointer :: config_global_ocean_topography_method
-       logical, pointer :: config_global_ocean_smooth_topography, config_global_ocean_topography_has_ocean_frac
+       logical, pointer :: config_global_ocean_smooth_topography, config_global_ocean_topography_has_ocean_frac, &
+            config_global_ocean_deepen_channels
        real (kind=RKIND), pointer :: config_global_ocean_minimum_depth
 
        logical :: isOcean
@@ -545,6 +546,7 @@ contains
        call mpas_pool_get_config(domain % configs, 'config_global_ocean_topography_method', config_global_ocean_topography_method)
        call mpas_pool_get_config(domain % configs, 'config_global_ocean_minimum_depth', config_global_ocean_minimum_depth)
        call mpas_pool_get_config(domain % configs, 'config_global_ocean_smooth_topography', config_global_ocean_smooth_topography)
+       call mpas_pool_get_config(domain % configs, 'config_global_ocean_deepen_channels', config_global_ocean_deepen_channels)
        call mpas_pool_get_config(domain % configs, 'config_global_ocean_topography_has_ocean_frac', &
                                  config_global_ocean_topography_has_ocean_frac)
 
@@ -646,6 +648,10 @@ contains
              end if
           end do
 
+          ! Deepen channels to ensure Mediteranian, Red Sea, and Baltic are included in mesh
+          if (config_global_ocean_deepen_channels) then
+             call  ocn_init_setup_global_ocean_deepen_channels(maxLevelCell,bottomDepth,latCell,lonCell,refBottomDepth,nCells)
+          end if
 
           ! Smooth depth levels. Enforce different in maxLevelCell to only be a maximum
           ! of 1 vertical level between two neighboring cells.
@@ -713,6 +719,122 @@ contains
        end do
 
      end subroutine ocn_init_setup_global_ocean_create_model_topo!}}}
+
+!***********************************************************************
+!
+!  routine ocn_init_setup_global_ocean_deepen_channels
+!
+!> \brief   Deepen channels in model grid so that relevant seas are included.
+!> \author  Mark Petersen
+!> \date    Feb 2016
+!> \details
+!>   Deepen channels in model grid so that relevant seas are included.
+!
+!-----------------------------------------------------------------------
+
+    subroutine ocn_init_setup_global_ocean_deepen_channels(maxLevelCell,bottomDepth,latCell,lonCell,refBottomDepth,nCells)!{{{
+
+       integer, dimension(:), intent(inout) :: maxLevelCell
+       real (kind=RKIND), dimension(:), intent(inout) :: bottomDepth
+       real (kind=RKIND), dimension(:), intent(in) :: latCell, lonCell, refBottomDepth
+       integer, intent(in) :: nCells
+
+       integer :: iCell, k,i
+       real (kind=RKIND) :: currentLat, currentLon
+
+       integer, dimension(4) :: straightIndex
+       real (kind=RKIND), dimension(4) :: straightDepth
+
+       ! Determine mesh index for a particular depth.
+       straightDepth = [200.0_RKIND, 400.0_RKIND, 10.0_RKIND, 75.0_RKIND]
+       straightIndex = 0
+       do i=1,4
+          do k=1,size(refBottomDepth)
+             if (refBottomDepth(k).gt.straightDepth(i)) then
+                straightIndex(i) = k
+                exit 
+             end if
+          end do
+       end do
+
+       do iCell = 1, nCells
+          currentLat = latCell(iCell)*180.0_RKIND/pii
+          currentLon = lonCell(iCell)*180.0_RKIND/pii
+
+          ! Deepen straight of Gibralter (Mediterranean Sea)   
+          if (currentLat.gt.35.5_RKIND.and. &
+               currentLat.lt.36.0_RKIND.and. &
+               currentLon.gt.353.5_RKIND.and. &
+               currentLon.lt.354.5_RKIND.and. &
+               maxLevelCell(iCell).lt.straightIndex(1)) then
+
+             write (stdoutUnit,'(a,10f10.5)') 'Altering topo for St of Gibralter.  Lon, Lat = ',currentLat, currentLon
+             maxLevelCell(iCell) = straightIndex(1) ! ~ 200m
+             bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
+          end if
+
+          ! Deepen straight of Gibralter (Mediterranean Sea)
+          if (currentLat.gt.35.5_RKIND.and. &
+               currentLat.lt.36.0_RKIND.and. &
+               currentLon.gt.354.5_RKIND.and. &
+               currentLon.lt.355.0_RKIND.and. &
+               maxLevelCell(iCell).eq.-1) then
+
+             write (stdoutUnit,'(a,10f10.5)') 'Altering topo for St of Gibralter 2.  Lon, Lat = ',currentLat, currentLon
+             maxLevelCell(iCell) = straightIndex(2) ! ~ 400m
+             bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
+          end if
+
+          ! Deepen Baltic Sea            
+          if (currentLat.gt.55.7_RKIND.and. &
+               currentLat.lt.57.5_RKIND.and. &
+               currentLon.gt.10.0_RKIND.and. &
+               currentLon.lt.11.2_RKIND) then
+
+             write (stdoutUnit,'(a,10f10.5)') 'Altering topo for Baltic Sea.  Lon, Lat = ',currentLat, currentLon
+             maxLevelCell(iCell) = straightIndex(3)  ! ~ 10m
+             bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
+          end if
+
+          ! Deepen Persian Gulf
+          if (currentLat.gt.25.9_RKIND.and. &
+               currentLat.lt.27.0_RKIND.and. &
+               currentLon.gt.55.0_RKIND.and. &
+               currentLon.lt.55.9_RKIND.and. &
+               maxLevelCell(iCell).ne.-1) then  ! only adjust water cells here
+
+             write (stdoutUnit,'(a,10f10.5)') 'Altering topo for Persian Gulf.  Lon, Lat = ',currentLat, currentLon
+             maxLevelCell(iCell) = straightIndex(4) ! ~ 75m
+             bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
+          end if
+
+          ! Deepen Red Sea inlet
+          if (currentLat.gt.12.5_RKIND.and. &
+               currentLat.lt.12.7_RKIND.and. &
+               currentLon.gt.43.0_RKIND.and. &
+               currentLon.lt.43.2_RKIND.and. &
+               maxLevelCell(iCell).eq.-1) then  ! only adjust land cell here
+
+             write (stdoutUnit,'(a,10f10.5)') 'Altering land topo for Red Sea.  Lon, Lat = ',currentLat, currentLon
+             maxLevelCell(iCell) = straightIndex(1) ! ~ 200m
+             bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
+          end if
+
+          ! Deepen Red Sea inlet
+          if (currentLat.gt.12.3_RKIND.and. &
+               currentLat.lt.13.3_RKIND.and. &
+               currentLon.gt.42.7_RKIND.and. &
+               currentLon.lt.43.7_RKIND.and. &
+               maxLevelCell(iCell).ne.-1) then  ! only adjust water cells here
+
+             write (stdoutUnit,'(a,10f10.5)') 'Altering topo for Red Sea.  Lon, Lat = ',currentLat, currentLon
+             maxLevelCell(iCell) = straightIndex(1) ! ~ 200m
+             bottomDepth(iCell) = refBottomDepth(maxLevelCell(iCell))
+          end if
+
+       end do
+
+     end subroutine ocn_init_setup_global_ocean_deepen_channels!}}}
 
 !***********************************************************************
 !

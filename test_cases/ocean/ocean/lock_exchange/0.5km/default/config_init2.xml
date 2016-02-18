@@ -2,7 +2,7 @@
 <config case="init_step2">
 	<add_link source="../init_step1/culled_mesh.nc" dest="init.nc"/>
 	<add_link source="../init_step1/culled_graph.info" dest="graph.info"/>
-	<add_link source_path="script_test_dir" source="run_iter.bash" dest="my_script.sh"/>
+	<add_link source_path="script_test_dir" source="iterate_init.bash" dest="my_script.sh"/>
 
 	<add_executable source="model" dest="ocean_model"/>
 	<add_executable source="metis" dest="metis"/>
