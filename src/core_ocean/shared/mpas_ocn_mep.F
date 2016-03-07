@@ -469,10 +469,6 @@ contains
       call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
       call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
 
-      allocate(normalBolusEdge(nVertLevels,nEdges))
-      allocate(tangentBolusEdge(nVertLevels,nEdges))
-      allocate(bolusCell(3,nVertLevels,nCells+1))
-
 
       includeHalo = .true.
 
@@ -481,20 +477,17 @@ contains
       tend_vel_mep = 0.0
 
 
-      !calculate tendency = -dE3i/dz dot ni = - d/dz( vertVisc * dubar/dz )
+      ! calculate normal velocity time tendency do to eddy viscosity force
+      ! right now, only including form drag terms
+      ! tendency = -dE3i/dz dot ni = - d/dz( vertVisc * dubar/dz )
       do iEdge = 1, nEdges
         do kLevel = 1,nVertLevels
-          tend_vel_mep(kLevel,iEdge) = ... 
+          tend_vel_mep(kLevel,iEdge) = 
         end do
       end do
 
       !update tendency with div EPFT parameterized with GM
       tend = tend + tend_vel_mep
-
-
-      deallocate(normalBolusEdge)
-      deallocate(tangentBolusEdge)
-      deallocate(bolusCell)
 
     end subroutine ocn_mep_force_vert_visc!}}}
 
