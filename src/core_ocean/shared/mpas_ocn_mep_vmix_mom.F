@@ -59,6 +59,7 @@ module ocn_mep_vmix_mom
 
    character (len=StrKIND), pointer :: config_mep_formulation
    real (kind=RKIND), pointer :: config_mep_climate_Tc, config_mep_climate_dt
+   real (kind=RKIND), pointer :: config_mep_slowtime_Tc, config_mep_slowtime_dt
    real (kind=RKIND), pointer :: config_mep_climate_eddy_energy_dt
    real (kind=RKIND), pointer :: config_mep_eigenvector_A, config_mep_eigenvector_Le
    real (kind=RKIND), pointer :: config_mep_eigenvector_phi0
@@ -572,8 +573,9 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
+      character (len=StrKIND), pointer :: config_mep_vert_visc_formulation
 
-      call mpas_pool_get_config(ocnConfigs, 'config_mep_formulation', config_mep_formulation)
+      call mpas_pool_get_config(ocnConfigs, 'config_mep_vert_visc_formulation', config_mep_vert_visc_formulation)
 
       err = 0
 
@@ -582,6 +584,8 @@ contains
 
       config_mep_climate_Tc = 0.0_RKIND
       config_mep_climate_dt = 0.0_RKIND
+      config_mep_slowtime_Tc = 0.0_RKIND
+      config_mep_slowtime_dt = 0.0_RKIND
       config_mep_climate_eddy_energy_dt = 0.0_RKIND
       config_mep_eigenvector_A = 0.0_RKIND
       config_mep_eigenvector_Le = 0.0_RKIND
@@ -596,12 +600,13 @@ contains
          mepVertViscProgOn = .true.
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_Tc', config_mep_climate_Tc)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_dt', config_mep_climate_dt)
+         call mpas_pool_get_config(ocnConfigs, 'config_mep_slowtime_Tc', config_mep_slowtime_Tc)
+         call mpas_pool_get_config(ocnConfigs, 'config_mep_slowtime_dt', config_mep_slowtime_dt)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_eddy_energy_dt', config_mep_climate_eddy_energy_dt)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_A', config_mep_eigenvector_A)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_Le', config_mep_eigenvector_Le)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_phi0', config_mep_eigenvector_phi0)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_energy_dissipation_const', config_mep_energy_dissipation_const)
-
       end if
 
 
@@ -741,7 +746,7 @@ contains
       ! juan issue : using unfiltered layerThicknessEdge
 
       ! Time tendency from eddy mean flow interactions
-      ! Investigating whether to use uDivEPFTFiltered or ubar*Div(viscosityBar * dubar/dz).
+      ! Investigating whether to use ubarDivEPFTFiltered or ubar*Div(viscosityBar * dubar/dz).
       ! Will implement the latter while the former will be commented out for the time being.
       do iCell = 1, nCells
          do iEdge = 1, nEdgesOnCell(iCell)
@@ -883,7 +888,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine slowTimeFilterAccum( fieldAccum, fieldAveraged )!{{{
+   subroutine slowTimeFilterAverage( fieldAccum, fieldAveraged )!{{{
 
       !-----------------------------------------------------------------
       !
