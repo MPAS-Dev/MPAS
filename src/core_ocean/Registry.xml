@@ -328,6 +328,12 @@
 					description="Form of the MEP parameterization."
 					possible_values="'none', 'standardGM', 'twaDragGM', 'forceVertVisc', 'constantVerticalViscocity', or 'prognosticVerticalViscocity'"
 		/>
+		<nml_option name="config_mep_vert_visc_formulation" type="character"
+					default_value="constantVerticalViscocity"
+					units="NA"
+					description="MEP vertical viscosity parameterization type."
+					possible_values="'constantVerticalViscocity', or 'prognosticVerticalViscocity'"
+		/>
 		<nml_option name="config_mep_Redi_enable" type="logical" default_value=".false." units="NA"
 					description="If true, Redi diffusion parameterization is implemented."
 					possible_values=".true. or .false."
