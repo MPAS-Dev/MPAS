@@ -2567,7 +2567,7 @@
 			 description="Vertical derivative of EPFT(3,1), form drag force on normal momentum."
 			 packages="forwardMode;analysisMode"
 		/>
-		<var name="uDivEPFTFiltered" type="real" dimensions="nVertLevels nEdges Time" units="m^2 s^{-3}"
+		<var name="uDivEPFTClimateFilter" type="real" dimensions="nVertLevels nEdges Time" units="m^2 s^{-3}"
 			 description="Filtered eddy energy time tendency from eddy mean flow interactions"
 			 packages="forwardMode;analysisMode"
 		/>

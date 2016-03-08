@@ -348,7 +348,7 @@ contains
       !
       call mpas_timer_stop("ocn_tend_vel")
 
-    end subroutine ocn_tend_vel!}}}
+   end subroutine ocn_tend_vel!}}}
 
 !***********************************************************************
 !

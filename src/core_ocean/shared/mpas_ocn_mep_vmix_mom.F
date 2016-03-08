@@ -47,7 +47,11 @@ module ocn_mep_vmix_mom
              ocn_mep_vmix_eddyEnergy, &
              ocn_mep_vmix_vert_viscocity, &
              ocn_mep_vmix_mom_init, &
-             ocn_mep_vmix_mom_build
+             ocn_mep_vmix_mom_build, &
+             ocn_mep_slowTimeFilterReset, &
+             ocn_mep_slowTimeFilterAccum, &
+             ocn_mep_slowTimeFilterAverage
+
 
    !-------------------------------------------------------------------
    !
@@ -55,11 +59,13 @@ module ocn_mep_vmix_mom
    !
    !--------------------------------------------------------------------
 
-   logical :: mepVertViscConstOn, mepVertViscProgOn
+   logical :: mepVertVisocn_mep_cConstOn, mepVertViscProgOn
+   integer :: NslowTimeFilter
 
    character (len=StrKIND), pointer :: config_mep_formulation
    real (kind=RKIND), pointer :: config_mep_climate_Tc, config_mep_climate_dt
-   real (kind=RKIND), pointer :: config_mep_slowtime_Tc, config_mep_slowtime_dt
+   real (kind=RKIND), pointer :: config_mep_slowtime_Tc
+   real (kind=RKIND), pointer :: config_dt
    real (kind=RKIND), pointer :: config_mep_climate_eddy_energy_dt
    real (kind=RKIND), pointer :: config_mep_eigenvector_A, config_mep_eigenvector_Le
    real (kind=RKIND), pointer :: config_mep_eigenvector_phi0
@@ -70,6 +76,72 @@ module ocn_mep_vmix_mom
 !***********************************************************************
 
 contains
+
+
+
+!***********************************************************************
+!
+!  routine ocn_mep_vmix_update_slow_time_filtering
+!
+!> \brief  Update the climate of the flow
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   December, 2015
+!> \details
+!> This routine will 
+!> 1) update slow time filtered quantities by retrieving 
+!> the work variables that carry the accumulated sums, and normalizing
+!> then so to produce the slow time filtered variables.
+!> 2) reset the working variables to zero for the next cycle.
+!> There are two set of variables: 
+!>   one that contains work variables with accumulated quantities
+!>   one that contains the time filtered quantities
+!> It is assumed that work variables are updated elseshere.
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_vmix_update_slow_time_filtering(meshPool, diagnosticsPool, mepPool, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
+      call mpas_pool_get_array(mepPool, 'uSlowTimeFilterAccum', uSlowTimeFilterAccum)
+
+      ! Update the slow time filters by normalizing the accumulated quantities
+      uSlowTimeFilter = uSlowTimeFilterAccum / NslowTimeFilter
+
+      ! Reset work variables with accumulated quantities
+      uSlowTimeFilterAccum = 0.0
+
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_mep_vmix_update_slow_time_filtering!}}}
+
 
 
 !***********************************************************************
@@ -137,7 +209,7 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'BruntVaisalaFreqTop', BruntVaisalaFreqTop)
       call mpas_pool_get_array(mepPool, 'NsqFiltered', NsqFiltered)
       call mpas_pool_get_array(mepPool, 'dEPFT31dz', dEPFT31dz)
-      call mpas_pool_get_array(mepPool, 'uDivEPFTFiltered', uDivEPFTFiltered)
+      call mpas_pool_get_array(mepPool, 'uDivEPFTClimateFilter', uDivEPFTClimateFilter)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity)
 
       allocate( dFielddzTopEdges(nVertLevels+1, nEdges) )
@@ -170,9 +242,9 @@ contains
       do iEdge = 1, nEdges
          do kLevel = 1, maxLevelEdgeTop(iEdge)
             uDivEPFT = normalVelocity(kLevel, iEdge) * dEPFT31dz(kLevel, iEdge)
-            uDivEPFTFiltered(kLevel, iEdge) = &
+            uDivEPFTClimateFilter(kLevel, iEdge) = &
                + config_mep_climate_dt/config_mep_climate_Tc &
-               * ( uDivEPFT - uDivEPFTFiltered(kLevel, iEdge) )
+               * ( uDivEPFT - uDivEPFTClimateFilter(kLevel, iEdge) )
          end do
       end do
 
@@ -585,7 +657,6 @@ contains
       config_mep_climate_Tc = 0.0_RKIND
       config_mep_climate_dt = 0.0_RKIND
       config_mep_slowtime_Tc = 0.0_RKIND
-      config_mep_slowtime_dt = 0.0_RKIND
       config_mep_climate_eddy_energy_dt = 0.0_RKIND
       config_mep_eigenvector_A = 0.0_RKIND
       config_mep_eigenvector_Le = 0.0_RKIND
@@ -601,12 +672,14 @@ contains
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_Tc', config_mep_climate_Tc)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_dt', config_mep_climate_dt)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_slowtime_Tc', config_mep_slowtime_Tc)
-         call mpas_pool_get_config(ocnConfigs, 'config_mep_slowtime_dt', config_mep_slowtime_dt)
+         call mpas_pool_get_config(ocnConfigs, 'config_dt', config_dt)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_eddy_energy_dt', config_mep_climate_eddy_energy_dt)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_A', config_mep_eigenvector_A)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_Le', config_mep_eigenvector_Le)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_phi0', config_mep_eigenvector_phi0)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_energy_dissipation_const', config_mep_energy_dissipation_const)
+         
+         NslowTimeFilter = floor( config_mep_slowtime_Tc/config_dt )
       end if
 
 
@@ -724,7 +797,7 @@ contains
       integer, dimension(:), pointer :: maxLevelCell, nEdgesOnCell
       real(kind=RKIND), dimension(:), pointer :: vertIntEddyEnergy_tend
       real(kind=RKIND), dimension(:), pointer :: vertIntEddyEnergy
-      real(kind=RKIND), dimension(:,:), pointer :: uDivEPFTFiltered
+      real(kind=RKIND), dimension(:,:), pointer :: uDivEPFTClimateFilter
       real(kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge
       real(kind=RKIND), dimension(:,:), pointer :: edgeMask
 
@@ -737,7 +810,8 @@ contains
 
       call mpas_pool_get_array(mepPool, 'vertIntEddyEnergy_tend', vertIntEddyEnergy_tend)
       call mpas_pool_get_array(mepPool, 'vertIntEddyEnergy', vertIntEddyEnergy)
-      call mpas_pool_get_array(mepPool, 'uDivEPFTFiltered', uDivEPFTFiltered)
+      call mpas_pool_get_array(mepPool, 'uDivEPFTClimateFilter', uDivEPFTClimateFilter)
+      call mpas_pool_get_array(mepPool, 'uSlowFilter', uSlowFilter)
 
       err = 0
 
@@ -746,14 +820,14 @@ contains
       ! juan issue : using unfiltered layerThicknessEdge
 
       ! Time tendency from eddy mean flow interactions
-      ! Investigating whether to use ubarDivEPFTFiltered or ubar*Div(viscosityBar * dubar/dz).
+      ! Investigating whether to use ubarDivEPFTFiltered or uSlowFilter*Div(viscosityBar * dubar/dz).
       ! Will implement the latter while the former will be commented out for the time being.
       do iCell = 1, nCells
          do iEdge = 1, nEdgesOnCell(iCell)
             do kLevel = 1, maxLevelCell(iCell)
                vertIntEddyEnergy_tend(iCell) = vertIntEddyEnergy_tend(iCell) &
-                  - ubar(kLevel,iEdge)*divEPFT31bar*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
-               !    - uDivEPFTFiltered(kLevel,iEdge)*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
+                  - uSlowFilter(kLevel,iEdge)*divEPFT31bar*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
+               !    - uDivEPFTClimateFilter(kLevel,iEdge)*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
             end do
          end do
       end do
@@ -776,7 +850,7 @@ contains
 
 !***********************************************************************
 !
-!  routine slowTimeFilterReset
+!  routine ocn_mep_slowTimeFilterReset
 !
 !> \brief   Reset slow time filter
 !> \author  Juan A. Saenz
@@ -787,7 +861,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine slowTimeFilterReset( fieldAccum )!{{{
+   subroutine ocn_mep_slowTimeFilterReset( fieldAccum )!{{{
 
       !-----------------------------------------------------------------
       !
@@ -821,12 +895,12 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine slowTimeFilterReset!}}}
+   end subroutine ocn_mep_slowTimeFilterReset!}}}
 
 
 !***********************************************************************
 !
-!  routine slowTimeFilterAccum
+!  routine ocn_mep_slowTimeFilterAccum
 !
 !> \brief   Accumulate variable for slow time filter
 !> \author  Juan A. Saenz
@@ -837,7 +911,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine slowTimeFilterAccum( field, fieldAccum )!{{{
+   subroutine ocn_mep_slowTimeFilterAccum( field, fieldAccum )!{{{
 
       !-----------------------------------------------------------------
       !
@@ -872,12 +946,12 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine slowTimeFilterAccum!}}}
+   end subroutine ocn_mep_slowTimeFilterAccum!}}}
 
 
 !***********************************************************************
 !
-!  routine slowTimeFilterAverage
+!  routine ocn_mep_slowTimeFilterAverage
 !
 !> \brief   Average accumulated variable for slow time filter
 !> \author  Juan A. Saenz
@@ -888,7 +962,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine slowTimeFilterAverage( fieldAccum, fieldAveraged )!{{{
+   subroutine ocn_mep_slowTimeFilterAverage( fieldAccum, fieldAveraged )!{{{
 
       !-----------------------------------------------------------------
       !
@@ -924,7 +998,7 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine slowTimeFilterAverage!}}}
+   end subroutine ocn_mep_slowTimeFilterAverage!}}}
 
 
 !***********************************************************************

@@ -45,7 +45,8 @@ module ocn_mep
    !--------------------------------------------------------------------
 
    public :: ocn_mep_init, &
-             ocn_mep_update_climate_quantities, &
+             ocn_mep_update_climate_time_filtering, &
+             ocn_mep_update_slow_time_filtering, &
              ocn_mep_update, &
              ocn_mep_transportVelocity_update, &
              ocn_mep_vel_tend, &
@@ -173,7 +174,67 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_mep_update_climate_quantities
+!  routine ocn_mep_update_slow_time_filtering
+!
+!> \brief  Update the climate of the flow
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   December, 2015
+!> \details
+!> This routine will 
+!> 1) update slow time filtered quantities by retrieving 
+!> the work variables that carry the accumulated sums, and normalizing
+!> then so to produce the slow time filtered variables.
+!> 2) reset the working variables to zero for the next cycle.
+!> There are two set of variables: 
+!>   one that contains work variables with accumulated quantities
+!>   one that contains the time filtered quantities
+!> It is assumed that work variables are updated elseshere.
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_update_slow_time_filtering(meshPool, diagnosticsPool, mepPool, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+
+      if (mepForceVertViscOn) then
+         call ocn_mep_vmix_update_slow_time_filtering
+      end if
+
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_mep_update_slow_time_filtering!}}}
+
+
+!***********************************************************************
+!
+!  routine ocn_mep_update_climate_time_filtering
 !
 !> \brief  Update the climate of the flow
 !> \author Juan A. Saenz, Todd Ringler
@@ -184,7 +245,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_update_climate_quantities(meshPool, diagnosticsPool, mepPool, err)!{{{
+   subroutine ocn_mep_update_climate_time_filtering(meshPool, diagnosticsPool, mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -234,7 +295,7 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_mep_update_climate_quantities!}}}
+   end subroutine ocn_mep_update_climate_time_filtering!}}}
 
 
 !***********************************************************************
@@ -454,21 +515,14 @@ contains
 
       logical  :: includeHalo
       integer :: iEdge, kLevel
-      integer, pointer :: nVertLevels, nCells, nEdges
+      integer, pointer :: nVertLevels, nEdges
 
-      integer, dimension(:,:), pointer :: edgeMask
-      real (kIND=RKIND), dimension(:),   pointer :: fEdge
       real (kind=RKIND), dimension(:,:), pointer :: tend_vel_mep
 
       err = 0
 
-      call mpas_pool_get_dimension(meshPool, 'nCells', nCells) ! includes halos
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges) ! includes halos
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-
-      call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
-      call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
-
 
       includeHalo = .true.
 
@@ -477,19 +531,19 @@ contains
       tend_vel_mep = 0.0
 
 
-      ! calculate normal velocity time tendency do to eddy viscosity force
-      ! right now, only including form drag terms
+      ! calculate normal velocity time tendency do to vertical eddy viscosity force
+      ! right now, only including form drag terms, i.e. vertical transfer of horizontal momentum
       ! tendency = -dE3i/dz dot ni = - d/dz( vertVisc * dubar/dz )
       do iEdge = 1, nEdges
         do kLevel = 1,nVertLevels
-          tend_vel_mep(kLevel,iEdge) = 
+          tend_vel_mep(kLevel,iEdge) = - eddyViscosityForce(kLevel, iEdge)
         end do
       end do
 
-      !update tendency with div EPFT parameterized with GM
+      ! update tendency with div EPFT parameterized eddy viscosity force
       tend = tend + tend_vel_mep
 
-    end subroutine ocn_mep_force_vert_visc!}}}
+   end subroutine ocn_mep_force_vert_visc!}}}
 
 
 !***********************************************************************
