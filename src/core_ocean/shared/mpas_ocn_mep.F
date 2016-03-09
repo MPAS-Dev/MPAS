@@ -184,7 +184,7 @@ contains
 !
 !> \brief  Update the climate of the flow
 !> \author Juan A. Saenz, Todd Ringler
-!> \date   December, 2015
+!> \date   March, 2016
 !> \details
 !> This routine will 
 !> 1) update slow time filtered quantities by retrieving 
@@ -197,7 +197,7 @@ contains
 !> It is assumed that work variables are updated elseshere.
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_slow_time_filter_update(mepPool, err)!{{{
+   subroutine ocn_mep_slow_time_filter_update(meshPool, diagnosticsPool, mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -205,6 +205,8 @@ contains
       !
       !-----------------------------------------------------------------
 
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
+      type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: diagnostics information
 
       !-----------------------------------------------------------------
       !
@@ -238,6 +240,10 @@ contains
 
          ! Reset work variables with accumulated quantities
          uSlowTimeFilterAccum = 0.0
+
+         ! update the eddy force
+         call ocn_mep_vmix_mom_calculate_eddy_force(meshPool, diagnosticsPool, mepPool, err)
+
       end if
 
 
@@ -252,7 +258,7 @@ contains
 !
 !> \brief  Update the climate of the flow
 !> \author Juan A. Saenz, Todd Ringler
-!> \date   December, 2015
+!> \date   March, 2016
 !> \details
 !> This routine will 
 !> 1) update slow time filtered quantities by retrieving 
@@ -551,7 +557,7 @@ contains
 !
 !> \brief  This routine calculates normalVelocity tend due to vertical viscocity force.
 !> \author Juan A. Saenz, Todd Ringler
-!> \date   November, 2015
+!> \date   Feb, 2016
 !> \details
 !>  This routine calculates normalVelocity tend due to vertical viscosity force.
 !
@@ -594,7 +600,6 @@ contains
       !
       !-----------------------------------------------------------------
 
-      logical  :: includeHalo
       integer :: iEdge, kLevel
       integer, pointer :: nVertLevels, nEdges
 
@@ -604,8 +609,6 @@ contains
 
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges) ! includes halos
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-
-      includeHalo = .true.
 
       ! retrieve velocity tendencry by MEP
       call mpas_pool_get_array(tendPool, 'normalVelocityMEP', tend_vel_mep)

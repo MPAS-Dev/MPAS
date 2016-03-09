@@ -50,7 +50,8 @@ module ocn_mep_vmix_mom
              ocn_mep_vmix_mom_build, &
              ocn_mep_slowTimeFilterReset, &
              ocn_mep_slowTimeFilterAccum, &
-             ocn_mep_slowTimeFilterAverage
+             ocn_mep_slowTimeFilterAverage, &
+             ocn_mep_vmix_mom_calculate_eddy_force
 
 
    !-------------------------------------------------------------------
@@ -743,7 +744,7 @@ contains
       call mpas_pool_get_array(mepPool, 'vertIntEddyEnergy_tend', vertIntEddyEnergy_tend)
       call mpas_pool_get_array(mepPool, 'vertIntEddyEnergy', vertIntEddyEnergy)
       call mpas_pool_get_array(mepPool, 'uDivEPFTClimateFilter', uDivEPFTClimateFilter)
-      call mpas_pool_get_array(mepPool, 'uSlowFilter', uSlowFilter)
+      call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
 
       err = 0
 
@@ -752,13 +753,13 @@ contains
       ! juan issue : using unfiltered layerThicknessEdge
 
       ! Time tendency from eddy mean flow interactions
-      ! Investigating whether to use ubarDivEPFTFiltered or uSlowFilter*Div(viscosityBar * dubar/dz).
+      ! Investigating whether to use ubarDivEPFTFiltered or uSlowTimeFilter*Div(viscosityBar * dubar/dz).
       ! Will implement the latter while the former will be commented out for the time being.
       do iCell = 1, nCells
          do iEdge = 1, nEdgesOnCell(iCell)
             do kLevel = 1, maxLevelCell(iCell)
                vertIntEddyEnergy_tend(iCell) = vertIntEddyEnergy_tend(iCell) &
-                  - uSlowFilter(kLevel,iEdge)*divEPFT31bar*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
+                  - uSlowTimeFilter(kLevel,iEdge)*divEPFT31bar*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
                !    - uDivEPFTClimateFilter(kLevel,iEdge)*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
             end do
          end do
@@ -933,6 +934,90 @@ contains
    end subroutine ocn_mep_slowTimeFilterAverage!}}}
 
 
+
+!***********************************************************************
+!
+!  routine ocn_mep_vmix_mom_calculate_eddy_force
+!
+!> \brief   Update force from eddy viscisity
+!> \author  Juan A. Saenz
+!> \date    March, 2016
+!> \version
+!> \details
+!>  This routine computes the eddy force using the mep vertical viscisity
+!>  and the updated slow time filtered normal velocity.
+!
+!-----------------------------------------------------------------------
+   subroutine ocn_mep_vmix_mom_calculate_eddy_force(meshPool, diagnosticsPool, mepPool, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
+      type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: diagnostics information
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: mepPool structure
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+      integer, pointer :: nEdges
+      integer, dimension(:), pointer :: maxLevelEdgeBot
+      real(kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge
+      real(kind=RKIND), dimension(:,:), pointer :: uSlowTimeFilter
+      real(kind=RKIND), dimension(:,:), pointer :: vertViscTopOfEdgeMEP, eddyViscosityForceMEP
+      real (kind=RKIND), dimension(:,:), allocatable :: duSlowTimeFilterdz, workVariableTopEdges
+
+
+      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
+      call mpas_pool_get_array(meshPool, 'maxLevelEdgeBot',  maxLevelEdgeBot)
+      call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
+      call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
+      call mpas_pool_get_array(mepPool, 'vertViscTopOfEdgeMEP', vertViscTopOfEdgeMEP)
+      call mpas_pool_get_array(mepPool, 'eddyViscosityForceMEP', eddyViscosityForceMEP)
+
+      allocate( duSlowTimeFilterdz(nVertLevels+1, nEdges) )
+      allocate( workVariableTopEdges(nVertLevels+1, nEdges) )
+
+      ! calculate the vertical derivative of uSlowTimeFilter: duSlowTimeFilterdz
+      call computeVerticalDerivativeEdgeMidToTop( &
+         nEdges, maxLevelEdgeBot, layerThicknessEdge, uSlowTimeFilter, duSlowTimeFilterdz &
+         )
+
+      workVariableTopEdges = vertViscTopOfEdgeMEP * duSlowTimeFilterdz
+      
+      ! calculate eddyViscosityForceMEP = - ddz(viscosity * duSlowTimeFilterdz)
+      call computeVerticalDerivativeEdgeTopToMid( &
+         nEdges, maxLevelEdgeBot, layerThicknessEdge, eddyViscosityForceMEP, workVariableTopEdges &
+         )
+      eddyViscosityForceMEP = - eddyViscosityForceMEP
+
+      deallocate( duSlowTimeFilterdz )
+      deallocate( workVariableTopEdges )
+
+   end subroutine ocn_mep_vmix_mom_calculate_eddy_force!}}}
+
+
+
 !***********************************************************************
 !
 !  routine computeVerticalDerivativeEdgeMidToTop
@@ -1068,6 +1153,8 @@ contains
 
    end subroutine computeVerticalDerivativeEdgeTopToMid!}}}
 
+
+   
 
 !***********************************************************************
 
