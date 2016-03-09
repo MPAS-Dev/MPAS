@@ -81,7 +81,7 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_mep_vmix_update_slow_time_filtering
+!  routine ocn_mep_vmix_slow_time_filter_update
 !
 !> \brief  Update the climate of the flow
 !> \author Juan A. Saenz, Todd Ringler
@@ -98,7 +98,7 @@ contains
 !> It is assumed that work variables are updated elseshere.
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vmix_update_slow_time_filtering(meshPool, diagnosticsPool, mepPool, err)!{{{
+   subroutine ocn_mep_vmix_slow_time_filter_update(mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -140,7 +140,7 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_mep_vmix_update_slow_time_filtering!}}}
+   end subroutine ocn_mep_vmix_slow_time_filter_update!}}}
 
 
 

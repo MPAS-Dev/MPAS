@@ -45,8 +45,8 @@ module ocn_mep
    !--------------------------------------------------------------------
 
    public :: ocn_mep_init, &
-             ocn_mep_update_climate_time_filtering, &
-             ocn_mep_update_slow_time_filtering, &
+             ocn_mep_climate_time_filter_update, &
+             ocn_mep_slow_time_filter_update, &
              ocn_mep_update, &
              ocn_mep_transportVelocity_update, &
              ocn_mep_vel_tend, &
@@ -174,7 +174,7 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_mep_update_slow_time_filtering
+!  routine ocn_mep_slow_time_filter_update
 !
 !> \brief  Update the climate of the flow
 !> \author Juan A. Saenz, Todd Ringler
@@ -191,7 +191,7 @@ contains
 !> It is assumed that work variables are updated elseshere.
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_update_slow_time_filtering(meshPool, diagnosticsPool, mepPool, err)!{{{
+   subroutine ocn_mep_slow_time_filter_update(mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -223,18 +223,18 @@ contains
 
 
       if (mepForceVertViscOn) then
-         call ocn_mep_vmix_update_slow_time_filtering
+         call ocn_mep_vmix_slow_time_filter_update(mepPool, err)
       end if
 
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_mep_update_slow_time_filtering!}}}
+   end subroutine ocn_mep_slow_time_filter_update!}}}
 
 
 !***********************************************************************
 !
-!  routine ocn_mep_update_climate_time_filtering
+!  routine ocn_mep_climate_time_filter_update
 !
 !> \brief  Update the climate of the flow
 !> \author Juan A. Saenz, Todd Ringler
@@ -245,7 +245,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_update_climate_time_filtering(meshPool, diagnosticsPool, mepPool, err)!{{{
+   subroutine ocn_mep_climate_time_filter_update(meshPool, diagnosticsPool, mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -295,7 +295,7 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_mep_update_climate_time_filtering!}}}
+   end subroutine ocn_mep_climate_time_filter_update!}}}
 
 
 !***********************************************************************
