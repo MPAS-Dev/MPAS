@@ -60,7 +60,6 @@ module ocn_mep_vmix_mom
    !--------------------------------------------------------------------
 
    logical :: mepVertVisocn_mep_cConstOn, mepVertViscProgOn
-   integer :: NslowTimeFilter
 
    character (len=StrKIND), pointer :: config_mep_formulation
    real (kind=RKIND), pointer :: config_mep_climate_Tc, config_mep_climate_dt
@@ -76,72 +75,6 @@ module ocn_mep_vmix_mom
 !***********************************************************************
 
 contains
-
-
-
-!***********************************************************************
-!
-!  routine ocn_mep_vmix_slow_time_filter_update
-!
-!> \brief  Update the climate of the flow
-!> \author Juan A. Saenz, Todd Ringler
-!> \date   December, 2015
-!> \details
-!> This routine will 
-!> 1) update slow time filtered quantities by retrieving 
-!> the work variables that carry the accumulated sums, and normalizing
-!> then so to produce the slow time filtered variables.
-!> 2) reset the working variables to zero for the next cycle.
-!> There are two set of variables: 
-!>   one that contains work variables with accumulated quantities
-!>   one that contains the time filtered quantities
-!> It is assumed that work variables are updated elseshere.
-!-----------------------------------------------------------------------
-
-   subroutine ocn_mep_vmix_slow_time_filter_update(mepPool, err)!{{{
-
-      !-----------------------------------------------------------------
-      !
-      ! input variables
-      !
-      !-----------------------------------------------------------------
-
-
-      !-----------------------------------------------------------------
-      !
-      ! input/output variables
-      !
-      !-----------------------------------------------------------------
-
-
-      !-----------------------------------------------------------------
-      !
-      ! output variables
-      !
-      !-----------------------------------------------------------------
-
-      integer, intent(out) :: err !< Output: error flag
-
-      !-----------------------------------------------------------------
-      !
-      ! local variables
-      !
-      !-----------------------------------------------------------------
-
-      call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
-      call mpas_pool_get_array(mepPool, 'uSlowTimeFilterAccum', uSlowTimeFilterAccum)
-
-      ! Update the slow time filters by normalizing the accumulated quantities
-      uSlowTimeFilter = uSlowTimeFilterAccum / NslowTimeFilter
-
-      ! Reset work variables with accumulated quantities
-      uSlowTimeFilterAccum = 0.0
-
-
-   !--------------------------------------------------------------------
-
-   end subroutine ocn_mep_vmix_slow_time_filter_update!}}}
-
 
 
 !***********************************************************************
@@ -679,7 +612,6 @@ contains
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_phi0', config_mep_eigenvector_phi0)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_energy_dissipation_const', config_mep_energy_dissipation_const)
          
-         NslowTimeFilter = floor( config_mep_slowtime_Tc/config_dt )
       end if
 
 

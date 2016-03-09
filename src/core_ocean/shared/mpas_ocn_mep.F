@@ -47,6 +47,7 @@ module ocn_mep
    public :: ocn_mep_init, &
              ocn_mep_climate_time_filter_update, &
              ocn_mep_slow_time_filter_update, &
+             ocn_mep_slow_time_filter_accum, &
              ocn_mep_update, &
              ocn_mep_transportVelocity_update, &
              ocn_mep_vel_tend, &
@@ -61,6 +62,7 @@ module ocn_mep
    !--------------------------------------------------------------------
 
    logical :: mepStdGMOn, mepForceTWAdragGMOn, mepForceVertViscOn, mepRediOn, mepUseGMmodule
+   integer :: NstepsSlowTimeFilter
 
 
 !***********************************************************************
@@ -113,6 +115,7 @@ contains
       integer :: counter
       logical, pointer :: config_mep_Redi_enable
       character (len=StrKIND), pointer :: config_mep_formulation
+      real (kind=RKIND) :: config_mep_slowtime_Tc, config_dt
 
       err = 0
 
@@ -146,6 +149,9 @@ contains
          counter = counter + 1
          mepForceVertViscOn = .true.
          call ocn_mep_vmix_mom_init(err)
+         call mpas_pool_get_config(ocnConfigs, 'config_mep_slowtime_Tc', config_mep_slowtime_Tc)
+         call mpas_pool_get_config(ocnConfigs, 'config_dt', config_dt)
+         NstepsSlowTimeFilter = floor( config_mep_slowtime_Tc/config_dt )
       end if
       if ( trim(config_mep_formulation) == 'implicitVertVisc' ) then
          counter = counter + 1
@@ -205,6 +211,7 @@ contains
       ! input/output variables
       !
       !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: mepPool structure
 
 
       !-----------------------------------------------------------------
@@ -223,13 +230,87 @@ contains
 
 
       if (mepForceVertViscOn) then
-         call ocn_mep_vmix_slow_time_filter_update(mepPool, err)
+         call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
+         call mpas_pool_get_array(mepPool, 'uSlowTimeFilterAccum', uSlowTimeFilterAccum)
+
+         ! Update the slow time filters by normalizing the accumulated quantities
+         uSlowTimeFilter = uSlowTimeFilterAccum / NstepsSlowTimeFilter
+
+         ! Reset work variables with accumulated quantities
+         uSlowTimeFilterAccum = 0.0
       end if
 
 
    !--------------------------------------------------------------------
 
    end subroutine ocn_mep_slow_time_filter_update!}}}
+
+
+!***********************************************************************
+!
+!  routine ocn_mep_slow_time_filter_accum
+!
+!> \brief  Update the climate of the flow
+!> \author Juan A. Saenz, Todd Ringler
+!> \date   December, 2015
+!> \details
+!> This routine will 
+!> 1) update slow time filtered quantities by retrieving 
+!> the work variables that carry the accumulated sums, and normalizing
+!> then so to produce the slow time filtered variables.
+!> 2) reset the working variables to zero for the next cycle.
+!> There are two set of variables: 
+!>   one that contains work variables with accumulated quantities
+!>   one that contains the time filtered quantities
+!> It is assumed that work variables are updated elseshere.
+!-----------------------------------------------------------------------
+
+   subroutine ocn_mep_slow_time_filter_accum(statePool, mepPool, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: statePool !< Input/Output: statePool structure
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: mepPool structure
+
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+
+      if (mepForceVertViscOn) then
+
+         call mpas_pool_get_array(mepPool, 'uSlowTimeFilterAccum', uSlowTimeFilterAccum)
+         call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity) ! make sure using right one
+
+         ! Update the slow time filters by normalizing the accumulated quantities
+         uSlowTimeFilterAccum = uSlowTimeFilterAccum + normalVelocity
+
+      end if
+
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_mep_slow_time_filter_accum!}}}
 
 
 !***********************************************************************
