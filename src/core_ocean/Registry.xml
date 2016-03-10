@@ -2462,7 +2462,6 @@
 		<var name="vertGMBolusVelocityTop" type="real" dimensions="nVertLevelsP1 nCells Time" units="m s^{-1}"
 			 description="vertical tracer-transport velocity defined at center (horizonally) and top (vertically) of cell.  This is not the vertical ALE transport, but is Eulerian (fixed-frame) in the vertical, and computed from the continuity equation from the horizontal GM Bolus velocity."
 			 packages="forwardMode;analysisMode"
-
 		/>
 		<var name="normalGMBolusVelocity" type="real" dimensions="nVertLevels nEdges Time" units="m s^{-1}"
 			 description="Bolus velocity in Gent-McWilliams eddy parameterization, normal component"
@@ -2597,6 +2596,10 @@
 		/>
 		<var name="vertViscTopOfEdgeMEP" type="real" dimensions="nVertLevels nEdges Time" units="m^2 s"
 			 description="Vertical eddy viscosity at the top of edges"
+			 packages="forwardMode;analysisMode"
+		/>
+		<var name="eddyViscosityForceMEP" type="real" dimensions="nVertLevels nEdges Time" units="m s^{-2}"
+			 description="Eddy viscosity force, at edges mid layers"
 			 packages="forwardMode;analysisMode"
 		/>
 
