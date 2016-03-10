@@ -116,6 +116,7 @@ contains
       logical, pointer :: config_mep_Redi_enable
       character (len=StrKIND), pointer :: config_mep_formulation
       real (kind=RKIND) :: config_mep_slowtime_Tc, config_dt
+      real (kind=RKIND) :: uSlowTimeFilter, uSlowTimeFilterAccum, eddyViscosityForce
 
       err = 0
 
@@ -151,7 +152,13 @@ contains
          call ocn_mep_vmix_mom_init(err)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_slowtime_Tc', config_mep_slowtime_Tc)
          call mpas_pool_get_config(ocnConfigs, 'config_dt', config_dt)
+         call mpas_pool_get_array(mepPool, 'uSlowTimeFilterAccum', uSlowTimeFilterAccum)
+         call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
+         call mpas_pool_get_array(mepPool, 'eddyViscosityForce', eddyViscosityForce)
          NstepsSlowTimeFilter = floor( config_mep_slowtime_Tc/config_dt )
+         uSlowTimeFilterAccum = 0.0_RKIND
+         uSlowTimeFilter = 0.0_RKIND
+         eddyViscosityForce = 0.0_RKIND
       end if
       if ( trim(config_mep_formulation) == 'implicitVertVisc' ) then
          counter = counter + 1
