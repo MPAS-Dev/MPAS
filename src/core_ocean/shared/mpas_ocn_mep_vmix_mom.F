@@ -745,6 +745,7 @@ contains
       call mpas_pool_get_array(mepPool, 'vertIntEddyEnergy', vertIntEddyEnergy)
       call mpas_pool_get_array(mepPool, 'uDivEPFTClimateFilter', uDivEPFTClimateFilter)
       call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
+      call mpas_pool_get_array(mepPool, 'divEPFT31SlowTimeFilter', divEPFT31SlowTimeFilter)
 
       err = 0
 
@@ -759,8 +760,8 @@ contains
          do iEdge = 1, nEdgesOnCell(iCell)
             do kLevel = 1, maxLevelCell(iCell)
                vertIntEddyEnergy_tend(iCell) = vertIntEddyEnergy_tend(iCell) &
-                  - uSlowTimeFilter(kLevel,iEdge)*divEPFT31bar*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
                !    - uDivEPFTClimateFilter(kLevel,iEdge)*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
+                  - uSlowTimeFilter(kLevel,iEdge)*divEPFT31SlowTimeFilter*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
             end do
          end do
       end do

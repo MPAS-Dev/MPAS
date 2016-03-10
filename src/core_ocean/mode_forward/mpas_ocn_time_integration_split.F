@@ -290,7 +290,7 @@ module ocn_time_integration_split
          if ( mpas_is_alarm_ringing(domain % clock, mepPool % alarmName, ierr=err_tmp) ) then
             call mpas_reset_clock_alarm(domain % clock, mepPool % alarmName, ierr=err_tmp)
             !call mpas_timer_start(timerName, .false.)
-            call ocn_mep_update_climate_time_filtering(meshPool, diagnosticsPool, mepPool, err)
+            call ocn_mep_climate_time_filter_update_(meshPool, diagnosticsPool, mepPool, err)
             !call mpas_timer_stop(timerName)
          end if
 

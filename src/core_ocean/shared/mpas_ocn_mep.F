@@ -241,12 +241,17 @@ contains
       if (mepForceVertViscOn) then
          call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
          call mpas_pool_get_array(mepPool, 'uSlowTimeFilterAccum', uSlowTimeFilterAccum)
+         call mpas_pool_get_array(mepPool, 'divEPFT31SlowTimeFilter', divEPFT31SlowTimeFilter)
+         call mpas_pool_get_array(mepPool, 'divEPFT31SlowTimeFilterAccum', divEPFT31SlowTimeFilterAccum)
+
 
          ! Update the slow time filters by normalizing the accumulated quantities
          uSlowTimeFilter = uSlowTimeFilterAccum / NstepsSlowTimeFilter
+         divEPFT31SlowTimeFilter = divEPFT31SlowTimeFilterAccum / NstepsSlowTimeFilter
 
          ! Reset work variables with accumulated quantities
-         uSlowTimeFilterAccum = 0.0
+         uSlowTimeFilterAccum = 0.0_RKIND
+         divEPFT31SlowTimeFilterAccum = 0.0_RKIND
 
          ! update the eddy force
          call ocn_mep_vmix_mom_calculate_eddy_force(meshPool, diagnosticsPool, mepPool, err)
@@ -308,15 +313,19 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
+      real (kind=RKIND), dimension(:,:), pointer :: uSlowTimeFilterAccum, normalVelocity, dEPFT31dz
 
 
       if (mepForceVertViscOn) then
 
          call mpas_pool_get_array(mepPool, 'uSlowTimeFilterAccum', uSlowTimeFilterAccum)
          call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity) ! make sure using right one
+         call mpas_pool_get_array(mepPool, 'divEPFT31SlowTimeFilterAccum', divEPFT31SlowTimeFilterAccum)
+         call mpas_pool_get_array(mepPool, 'dEPFT31dz', dEPFT31dz)
 
          ! Update the slow time filters by normalizing the accumulated quantities
          uSlowTimeFilterAccum = uSlowTimeFilterAccum + normalVelocity
+         divEPFT31SlowTimeFilterAccum = divEPFT31SlowTimeFilterAccum + dEPFT31dz
 
       end if
 
