@@ -607,29 +607,20 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, kLevel
-      integer, pointer :: nVertLevels, nEdges
-
-      real (kind=RKIND), dimension(:,:), pointer :: tend_vel_mep
+      real (kind=RKIND), dimension(:,:), pointer :: tend_vel_mep, eddyViscosityForce
 
       err = 0
 
-      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges) ! includes halos
-      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-
       ! retrieve velocity tendencry by MEP
       call mpas_pool_get_array(tendPool, 'normalVelocityMEP', tend_vel_mep)
-      tend_vel_mep = 0.0
+      call mpas_pool_get_array(mepPool, 'eddyViscosityForce', eddyViscosityForce)
 
+      tend_vel_mep = 0.0
 
       ! calculate normal velocity time tendency do to vertical eddy viscosity force
       ! right now, only including form drag terms, i.e. vertical transfer of horizontal momentum
       ! tendency = -dE3i/dz dot ni = - d/dz( vertVisc * dubar/dz )
-      do iEdge = 1, nEdges
-        do kLevel = 1,nVertLevels
-          tend_vel_mep(kLevel,iEdge) = - eddyViscosityForce(kLevel, iEdge)
-        end do
-      end do
+      tend_vel_mep = - eddyViscosityForce
 
       ! update tendency with div EPFT parameterized eddy viscosity force
       tend = tend + tend_vel_mep
