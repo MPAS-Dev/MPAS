@@ -2599,7 +2599,7 @@
 			 packages="forwardMode;analysisMode"
 		/>
 		<var name="eddyViscosityForceMEP" type="real" dimensions="nVertLevels nEdges Time" units="m s^{-2}"
-			 description="Eddy viscosity force, at edges mid layers"
+			 description="Eddy viscosity force from meso-scale eddy parameterization, at edges mid layers"
 			 packages="forwardMode;analysisMode"
 		/>
 
