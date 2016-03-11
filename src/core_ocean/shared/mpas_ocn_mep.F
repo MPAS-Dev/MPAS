@@ -316,7 +316,9 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
-      real (kind=RKIND), dimension(:,:), pointer :: uSlowTimeFilterAccum, normalVelocity, dEPFT31dz
+      real (kind=RKIND), dimension(:,:), pointer :: uSlowTimeFilterAccum, normalVelocity
+      real (kind=RKIND), dimension(:,:), pointer :: divEPFT31SlowTimeFilterAccum, dEPFT31dz
+
 
 
       if (mepForceVertViscOn) then
@@ -351,13 +353,17 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_climate_time_filter_update(meshPool, diagnosticsPool, mepPool, err)!{{{
+   subroutine ocn_mep_climate_time_filter_update(statePool, meshPool, diagnosticsPool, mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
       ! input variables
       !
       !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: statePool !< Input: state information
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
+      type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: diagnostics information
 
 
       !-----------------------------------------------------------------
@@ -366,6 +372,7 @@ contains
       !
       !-----------------------------------------------------------------
 
+      type (mpas_pool_type), intent(in) :: mepPool !< Input: MEP information
 
       !-----------------------------------------------------------------
       !
