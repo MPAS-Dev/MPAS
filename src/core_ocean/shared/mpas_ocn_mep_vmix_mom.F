@@ -48,9 +48,6 @@ module ocn_mep_vmix_mom
              ocn_mep_vmix_vert_viscocity, &
              ocn_mep_vmix_mom_init, &
              ocn_mep_vmix_mom_build, &
-             ocn_mep_slowTimeFilterReset, &
-             ocn_mep_slowTimeFilterAccum, &
-             ocn_mep_slowTimeFilterAverage, &
              ocn_mep_vmix_mom_calculate_eddy_force
 
 
@@ -64,8 +61,6 @@ module ocn_mep_vmix_mom
 
    character (len=StrKIND), pointer :: config_mep_formulation
    real (kind=RKIND), pointer :: config_mep_climate_Tc, config_mep_climate_dt
-   real (kind=RKIND), pointer :: config_mep_slowtime_Tc
-   real (kind=RKIND), pointer :: config_dt
    real (kind=RKIND), pointer :: config_mep_climate_eddy_energy_dt
    real (kind=RKIND), pointer :: config_mep_eigenvector_A, config_mep_eigenvector_Le
    real (kind=RKIND), pointer :: config_mep_eigenvector_phi0
@@ -100,15 +95,16 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(inout) :: meshPool
-      type (mpas_pool_type), intent(inout) :: diagnosticsPool
-      type (mpas_pool_type), intent(inout) :: statePool
+      type (mpas_pool_type), intent(in) :: statePool
+      type (mpas_pool_type), intent(in) :: meshPool
+      type (mpas_pool_type), intent(in) :: diagnosticsPool
 
       !-----------------------------------------------------------------
       !
       ! input/output variables
       !
       !-----------------------------------------------------------------
+
       type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: mepPool structure
 
       !-----------------------------------------------------------------
@@ -214,9 +210,9 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(inout) :: statePool
-      type (mpas_pool_type), intent(inout) :: diagnosticsPool
-      type (mpas_pool_type), intent(inout) :: meshPool
+      type (mpas_pool_type), intent(in) :: statePool
+      type (mpas_pool_type), intent(in) :: meshPool
+      type (mpas_pool_type), intent(in) :: diagnosticsPool
 
       !-----------------------------------------------------------------
       !
@@ -317,8 +313,8 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(inout) :: meshPool
-      type (mpas_pool_type), intent(inout) :: diagnosticsPool
+      type (mpas_pool_type), intent(in) :: meshPool
+      type (mpas_pool_type), intent(in) :: diagnosticsPool
 
       !-----------------------------------------------------------------
       !
@@ -388,8 +384,8 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(inout) :: statePool
-      type (mpas_pool_type), intent(inout) :: meshPool
+      type (mpas_pool_type), intent(in) :: statePool
+      type (mpas_pool_type), intent(in) :: meshPool
 
       !-----------------------------------------------------------------
       !
@@ -592,7 +588,6 @@ contains
 
       config_mep_climate_Tc = 0.0_RKIND
       config_mep_climate_dt = 0.0_RKIND
-      config_mep_slowtime_Tc = 0.0_RKIND
       config_mep_climate_eddy_energy_dt = 0.0_RKIND
       config_mep_eigenvector_A = 0.0_RKIND
       config_mep_eigenvector_Le = 0.0_RKIND
@@ -607,8 +602,6 @@ contains
          mepVertViscProgOn = .true.
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_Tc', config_mep_climate_Tc)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_dt', config_mep_climate_dt)
-         call mpas_pool_get_config(ocnConfigs, 'config_mep_slowtime_Tc', config_mep_slowtime_Tc)
-         call mpas_pool_get_config(ocnConfigs, 'config_dt', config_dt)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_climate_eddy_energy_dt', config_mep_climate_eddy_energy_dt)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_A', config_mep_eigenvector_A)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_eigenvector_Le', config_mep_eigenvector_Le)
@@ -703,8 +696,8 @@ contains
       ! input variables
       !
       !-----------------------------------------------------------------
-      type (mpas_pool_type), intent(inout) :: meshPool
-      type (mpas_pool_type), intent(inout) :: diagnosticsPool
+      type (mpas_pool_type), intent(in) :: meshPool
+      type (mpas_pool_type), intent(in) :: diagnosticsPool
 
       !-----------------------------------------------------------------
       !
@@ -782,160 +775,6 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_mep_vmix_mom_vertIntEddyEnergy_tend!}}}
-
-
-!***********************************************************************
-!
-!  routine ocn_mep_slowTimeFilterReset
-!
-!> \brief   Reset slow time filter
-!> \author  Juan A. Saenz
-!> \date    January 2016
-!> \version
-!> \details
-!>  This routine resets the accumulated variable of the slow time filter.
-!
-!-----------------------------------------------------------------------
-
-   subroutine ocn_mep_slowTimeFilterReset( fieldAccum )!{{{
-
-      !-----------------------------------------------------------------
-      !
-      ! input variables
-      !
-      !-----------------------------------------------------------------
-
-
-      !-----------------------------------------------------------------
-      !
-      ! input/output variables
-      !
-      !-----------------------------------------------------------------
-
-      real (kind=RKIND), dimension(:,:), intent(inout) :: fieldAccum
-
-      !-----------------------------------------------------------------
-      !
-      ! output variables
-      !
-      !-----------------------------------------------------------------
-
-
-      !-----------------------------------------------------------------
-      !
-      ! local variables
-      !
-      !-----------------------------------------------------------------
-
-      fieldAccum = 0.0_RKIND
-
-   !--------------------------------------------------------------------
-
-   end subroutine ocn_mep_slowTimeFilterReset!}}}
-
-
-!***********************************************************************
-!
-!  routine ocn_mep_slowTimeFilterAccum
-!
-!> \brief   Accumulate variable for slow time filter
-!> \author  Juan A. Saenz
-!> \date    January 2016
-!> \version
-!> \details
-!>  This routine accumulates variable over time for the slow time filter.
-!
-!-----------------------------------------------------------------------
-
-   subroutine ocn_mep_slowTimeFilterAccum( field, fieldAccum )!{{{
-
-      !-----------------------------------------------------------------
-      !
-      ! input variables
-      !
-      !-----------------------------------------------------------------
-
-      real (kind=RKIND), dimension(:,:), intent(in) :: field
-
-      !-----------------------------------------------------------------
-      !
-      ! input/output variables
-      !
-      !-----------------------------------------------------------------
-
-      real (kind=RKIND), dimension(:,:), intent(inout) :: fieldAccum
-
-      !-----------------------------------------------------------------
-      !
-      ! output variables
-      !
-      !-----------------------------------------------------------------
-
-
-      !-----------------------------------------------------------------
-      !
-      ! local variables
-      !
-      !-----------------------------------------------------------------
-
-      fieldAccum = fieldAccum + field
-
-   !--------------------------------------------------------------------
-
-   end subroutine ocn_mep_slowTimeFilterAccum!}}}
-
-
-!***********************************************************************
-!
-!  routine ocn_mep_slowTimeFilterAverage
-!
-!> \brief   Average accumulated variable for slow time filter
-!> \author  Juan A. Saenz
-!> \date    January 2016
-!> \version
-!> \details
-!>  This routine averages the accumulated variable for the slow time filter.
-!
-!-----------------------------------------------------------------------
-
-   subroutine ocn_mep_slowTimeFilterAverage( fieldAccum, fieldAveraged )!{{{
-
-      !-----------------------------------------------------------------
-      !
-      ! input variables
-      !
-      !-----------------------------------------------------------------
-
-      real (kind=RKIND), dimension(:,:), intent(in) :: fieldAccum
-
-      !-----------------------------------------------------------------
-      !
-      ! input/output variables
-      !
-      !-----------------------------------------------------------------
-
-      real (kind=RKIND), dimension(:,:), intent(inout) :: fieldAveraged
-
-      !-----------------------------------------------------------------
-      !
-      ! output variables
-      !
-      !-----------------------------------------------------------------
-
-
-      !-----------------------------------------------------------------
-      !
-      ! local variables
-      !
-      !-----------------------------------------------------------------
-
-
-      fieldAccum = fieldAccum * config_time_step / config_mep_climate_eddy_energy_dt
-
-   !--------------------------------------------------------------------
-
-   end subroutine ocn_mep_slowTimeFilterAverage!}}}
-
 
 
 !***********************************************************************
@@ -1036,7 +875,8 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine computeVerticalDerivativeEdgeMidToTop( &
-      nEdges, maxLevelEdgeBot, layerThicknessEdge, fieldMidEdge, dFielddzTopEdges )!{{{
+      nEdges, maxLevelEdgeBot, layerThicknessEdge, fieldMidEdge, dFielddzTopEdges &
+      )!{{{
 
       !-----------------------------------------------------------------
       !
