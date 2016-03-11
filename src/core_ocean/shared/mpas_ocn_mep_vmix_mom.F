@@ -92,7 +92,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vmix_mom_update_climate(meshPool, diagnosticsPool, mepPool, statePool, err)!{{{
+   subroutine ocn_mep_vmix_mom_update_climate(statePool, meshPool, diagnosticsPool, mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -206,7 +206,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vmix_solve_evp(diagnosticsPool, mepPool, meshPool, statePool, err)!{{{
+   subroutine ocn_mep_vmix_solve_evp(statePool, meshPool, diagnosticsPool, mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -214,9 +214,9 @@ contains
       !
       !-----------------------------------------------------------------
 
+      type (mpas_pool_type), intent(inout) :: statePool
       type (mpas_pool_type), intent(inout) :: diagnosticsPool
       type (mpas_pool_type), intent(inout) :: meshPool
-      type (mpas_pool_type), intent(inout) :: statePool
 
       !-----------------------------------------------------------------
       !
@@ -309,7 +309,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vmix_time_integrate_vertInt_eddy_energy(mepPool, meshPool, diagnosticsPool, err)!{{{
+   subroutine ocn_mep_vmix_time_integrate_vertInt_eddy_energy(meshPool, diagnosticsPool, mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -380,7 +380,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vmix_eddyEnergy(mepPool, meshPool, statePool, err)!{{{
+   subroutine ocn_mep_vmix_eddyEnergy(statePool, meshPool, mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -388,8 +388,8 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(inout) :: meshPool
       type (mpas_pool_type), intent(inout) :: statePool
+      type (mpas_pool_type), intent(inout) :: meshPool
 
       !-----------------------------------------------------------------
       !
@@ -456,7 +456,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vmix_vert_viscocity(vertViscTopOfEdge, mepPool, meshPool, err)!{{{
+   subroutine ocn_mep_vmix_vert_viscocity(meshPool, mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -464,13 +464,15 @@ contains
       !
       !-----------------------------------------------------------------
 
+      type (mpas_pool_type), intent(in) :: meshPool
+
       !-----------------------------------------------------------------
       !
       ! input/output variables
       !
       !-----------------------------------------------------------------
 
-      real (kind=RKIND), dimension(:,:), intent(inout) :: vertViscTopOfEdge !< Input/Output: Vertical viscosity
+      type (mpas_pool_type), intent(inout) :: mepPool
 
       !-----------------------------------------------------------------
       !
