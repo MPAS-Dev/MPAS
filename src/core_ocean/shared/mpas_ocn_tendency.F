@@ -340,7 +340,7 @@ contains
       ! velocity tendency: eddy parameterization
       !
       call mpas_timer_start("mep", .false., velMEPtendTimer)
-      call ocn_mep_vel_tend(mepPool, tendPool, diagnosticsPool, meshPool, tend_normalVelocity, err)
+      call ocn_mep_vel_tend(mepPool, tendPool, meshPool, tend_normalVelocity, err)
       call mpas_timer_stop("mep", velMEPtendTimer)
     
       !
