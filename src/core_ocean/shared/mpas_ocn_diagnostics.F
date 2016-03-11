@@ -1532,8 +1532,8 @@ contains
    subroutine ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool, mepPool) !{{{
 
       type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
-      type (mpas_pool_type), intent(in) :: mepPool !< Input: mep information
       type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostic information
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input: mep information
 
       real (kind=RKIND), dimension(:,:), pointer :: &
          normalTransportVelocity, transportVelocityX, transportVelocityY, transportVelocityZ, &
