@@ -13,8 +13,8 @@
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   14 September 2015
 !> \details
-!>  This module contains routines for computing the meso-scale eddy
-!>  parameterization, as well as interface routines.
+!>  This module contains interface routines for computing the meso-scale eddy
+!>  parameterization.
 !
 !-----------------------------------------------------------------------
 
@@ -79,7 +79,6 @@ contains
 !> \details
 !> This routine initializes control flags, parameters and quantities related
 !> to the meso-scale eddy parameterization.
-
 !
 !-----------------------------------------------------------------------
 
@@ -193,12 +192,14 @@ contains
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   March, 2016
 !> \details
-!> This routine will 
+!> This routine does the following
 !> 1) update slow time filtered quantities by retrieving 
 !> the work variables that carry the accumulated sums, and normalizing
-!> then so to produce the slow time filtered variables.
+!> them so to produce the slow time filtered variables.
 !> 2) reset the working variables to zero for the next cycle.
-!> There are two set of variables: 
+!> 3) use the updated slow time filter variables to calculate the 
+!> eddyViscosityForce
+!> There are two sets of variables: 
 !>   one that contains work variables with accumulated quantities
 !>   one that contains the time filtered quantities
 !> It is assumed that work variables are updated elseshere.
@@ -236,6 +237,8 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
+      real (kind=RKIND), dimension(:,:), pointer :: uSlowTimeFilter, uSlowTimeFilterAccum
+      real (kind=RKIND), dimension(:,:), pointer :: divEPFT31SlowTimeFilter, divEPFT31SlowTimeFilterAccum
 
 
       if (mepForceVertViscOn) then
