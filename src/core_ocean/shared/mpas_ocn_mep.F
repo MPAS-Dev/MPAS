@@ -423,7 +423,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_update(diagnosticsPool, meshPool, mepPool, scratchPool)!{{{
+   subroutine ocn_mep_update(diagnosticsPool, meshPool, mepPool, scratchPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -445,10 +445,19 @@ contains
 
       !-----------------------------------------------------------------
       !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
       ! local variables
       !
       !-----------------------------------------------------------------
 
+      err = 0
 
       if (mepUseGMmodule) then
          ! might want to give the routine called here a more general name
@@ -481,7 +490,7 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: mepPool structure
+      type (mpas_pool_type), intent(in) :: mepPool !< Input/Output: mepPool structure
 
       !-----------------------------------------------------------------
       !
@@ -524,7 +533,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vel_tend(mepPool, tendPool, diagnosticsPool, meshPool, tend, err)!{{{
+   subroutine ocn_mep_vel_tend(mepPool, tendPool, meshPool, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -533,9 +542,6 @@ contains
       !-----------------------------------------------------------------
 
       type (mpas_pool_type), intent(in) :: meshPool        !< Input: Mesh information
-      type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostic information
-
-      !jas issue: it might be that only need uBolus or normalBolusGM, not entire diagnostics?
 
       !-----------------------------------------------------------------
       !
@@ -545,8 +551,7 @@ contains
 
       type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: Tendency structure
       type (mpas_pool_type), intent(inout) :: tendPool !< Input/Output: Tendency structure
-      real (kind=RKIND), dimension(:,:), intent(inout) :: &
-         tend          !< Input/Output: normal velocity tendency
+      real (kind=RKIND), dimension(:,:), intent(inout) :: tend !< Input/Output: normal velocity tendency
 
       !-----------------------------------------------------------------
       !
@@ -567,7 +572,7 @@ contains
 
       ! force from vertical viscocity
       if (mepForceVertViscOn) then
-         call ocn_mep_force_vert_visc(mepPool, tendPool, meshPool, tend, err)
+         call ocn_mep_force_vert_visc(mepPool, tendPool, tend, err)
 
       ! TWA GM drag
       if (mepForceTWAdragGMOn) then
@@ -589,7 +594,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_force_vert_visc(mepPool, tendPool, meshPool, tend, err)!{{{
+   subroutine ocn_mep_force_vert_visc(mepPool, tendPool, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -598,7 +603,6 @@ contains
       !-----------------------------------------------------------------
 
       type (mpas_pool_type), intent(in) :: mepPool  !< Input: Diagnostic information
-      type (mpas_pool_type), intent(in) :: meshPool            !< Input: Mesh information
 
       !jas issue: it might be that only need uBolus or normalBolusGM,
       !not entire diagnostics?
@@ -784,6 +788,8 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_mep_vmix_coefs_build(meshPool, statePool, diagnosticsPool, mepPool, err, timeLevel)!{{{
+      ! This routine receives more arguments than it needs, because this is the standard list of
+      ! arguments sent to other ocn_vmix_coefs_build routines in ocn_vmix_coefs(...)
 
       !-----------------------------------------------------------------
       !
@@ -839,8 +845,9 @@ contains
 !> \author Juan A. Saenz, Todd Ringler
 !> \date   November, 2015
 !> \details
+!>  Placeholder routine, this doesn't do anything right now.
 !>  This routine increments the horizontal mixing tendency for momentum due to
-!>  meso scale eddies.
+!>  meso scale eddies. 
 !
 !-----------------------------------------------------------------------
 
@@ -902,9 +909,8 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
-      type (mpas_pool_type), intent(in) :: mepPool !< Input: mesh information
       type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostic information
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
 
       !-----------------------------------------------------------------
       !
@@ -912,6 +918,7 @@ contains
       !
       !-----------------------------------------------------------------
 
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input: mesh information
 
       !-----------------------------------------------------------------
       !
