@@ -194,16 +194,16 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tend_vel(mepPool, tendPool, statePool, forcingPool, diagnosticsPool, meshPool, scratchPool, timeLevelIn)!{{{
+   subroutine ocn_tend_vel(tendPool, statePool, forcingPool, diagnosticsPool, meshPool, mepPool, scratchPool, timeLevelIn)!{{{
       implicit none
 
-      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: Tendency structure
       type (mpas_pool_type), intent(inout) :: tendPool !< Input/Output: Tendency structure
       type (mpas_pool_type), intent(in) :: statePool !< Input: State information
       type (mpas_pool_type), intent(in) :: forcingPool !< Input: Forcing information
       type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostic information
       type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
       type (mpas_pool_type), intent(inout) :: scratchPool !< Input: Scratch structure
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: Tendency structure
       integer, intent(in), optional :: timeLevelIn !< Input: Time level for state fields
 
       type (mpas_pool_type), pointer :: tracersPool

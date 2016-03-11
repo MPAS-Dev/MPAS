@@ -290,7 +290,7 @@ module ocn_time_integration_split
          if ( mpas_is_alarm_ringing(domain % clock, mepPool % alarmName, ierr=err_tmp) ) then
             call mpas_reset_clock_alarm(domain % clock, mepPool % alarmName, ierr=err_tmp)
             !call mpas_timer_start(timerName, .false.)
-            call ocn_mep_climate_time_filter_update_(meshPool, diagnosticsPool, mepPool, err)
+            call ocn_mep_climate_time_filter_update(meshPool, diagnosticsPool, mepPool, err)
             !call mpas_timer_stop(timerName)
          end if
 
@@ -488,7 +488,7 @@ module ocn_time_integration_split
                   sshCur, dt, vertAleTransportTop, err)
             endif
 
-            call ocn_tend_vel(mepPool, tendPool, statePool, forcingPool, diagnosticsPool, meshPool, scratchPool, stage1_tend_time)
+            call ocn_tend_vel(tendPool, statePool, forcingPool, diagnosticsPool, meshPool, scratchPool, mepPool, stage1_tend_time)
 
             block => block % next
          end do
