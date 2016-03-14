@@ -107,7 +107,6 @@ contains
 
       type (mpas_pool_type), intent(inout) :: &
          statePool             !< Input/Output: state information
-
       type (mpas_pool_type), intent(inout) :: &
          diagnosticsPool             !< Input/Output: diagnostic information
 
@@ -125,10 +124,16 @@ contains
       !
       !-----------------------------------------------------------------
 
+      logical, pointer :: config_use_cvmix
+      integer, pointer :: nEdges, nVertLevels
+      integer, dimension(:), pointer :: maxLevelEdgeTop
+      integer, dimension(:,:), pointer :: cellsOnEdge
       integer :: err1, err2, err3, err4, err5, err6
       integer :: timeLevel
+      integer :: iEdge, cell1, cell2, k
 
       real (kind=RKIND), dimension(:,:), pointer :: vertViscTopOfEdge, vertDiffTopOfCell
+      real (kind=RKIND), dimension(:,:), pointer :: vertViscTopOfCell
 
       !-----------------------------------------------------------------
       !
@@ -144,8 +149,15 @@ contains
          timeLevel = 1
       end if
 
+      call mpas_pool_get_config(ocnConfigs, 'config_use_cvmix', config_use_cvmix)
+
+      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
+      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
+
       call mpas_pool_get_array(diagnosticsPool, 'vertViscTopOfEdge', vertViscTopOfEdge)
       call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
+      call mpas_pool_get_array(diagnosticsPool, 'vertViscTopOfCell', vertViscTopOfCell)
       vertViscTopOfEdge = 0.0_RKIND
       vertDiffTopOfCell = 0.0_RKIND
 
@@ -454,14 +466,9 @@ contains
 
       type (mpas_pool_type), pointer :: tracersPool
 
-      integer :: timeLevel, k, cell1, cell2, iEdge
-      integer, pointer :: nCells, nEdges
+      integer :: timeLevel
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, layerThickness, layerThicknessEdge, vertViscTopOfEdge, vertDiffTopOfCell, kineticEnergyCell
-      real (kind=RKIND), dimension(:,:), pointer :: vertViscTopOfCell
       real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroup
-      integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeTop
-      integer, dimension(:,:), pointer :: cellsOnEdge
-      logical, pointer :: config_use_cvmix
       type (mpas_pool_iterator_type) :: groupItr
 
       err = 0
@@ -474,8 +481,6 @@ contains
          timeLevel = 1
       end if
 
-      call mpas_pool_get_config(ocnConfigs, 'config_use_cvmix', config_use_cvmix)
-
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
 
@@ -483,14 +488,6 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
       call mpas_pool_get_array(diagnosticsPool, 'vertViscTopOfEdge', vertViscTopOfEdge)
       call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
-      call mpas_pool_get_array(diagnosticsPool, 'vertViscTopOfCell', vertViscTopOfCell)
-
-      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-      call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
-               
-      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
-      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
 
       call ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, mepPool, err, timeLevel)
 
