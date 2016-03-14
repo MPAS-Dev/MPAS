@@ -61,7 +61,8 @@ module ocn_mep
    !
    !--------------------------------------------------------------------
 
-   logical :: mepStdGMOn, mepForceTWAdragGMOn, mepForceVertViscOn, mepRediOn, mepUseGMmodule
+   logical :: mepStdGMOn, mepForceTWAdragGMOn, mepForceVertViscOn, mepImplicitVertVisc
+   logical :: mepRediOn, mepUseGMmodule
    integer :: NstepsSlowTimeFilter
 
 
@@ -82,7 +83,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_init(err)!{{{
+   subroutine ocn_mep_init(domain, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -97,6 +98,7 @@ contains
       !
       !-----------------------------------------------------------------
 
+      type (domain_type), intent(inout) :: domain
 
       !-----------------------------------------------------------------
       !
@@ -111,11 +113,13 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
+      type (mpas_pool_type), pointer :: mepPool
+      type (block_type), pointer :: block
       integer :: counter
       logical, pointer :: config_mep_Redi_enable
       character (len=StrKIND), pointer :: config_mep_formulation
-      real (kind=RKIND) :: config_mep_slowtime_Tc, config_dt
-      real (kind=RKIND) :: uSlowTimeFilter, uSlowTimeFilterAccum, eddyViscosityForce
+      real (kind=RKIND), pointer :: config_mep_slowtime_Tc, config_dt
+      real (kind=RKIND), pointer :: uSlowTimeFilter, uSlowTimeFilterAccum, eddyViscosityForce
 
       err = 0
 
@@ -151,13 +155,20 @@ contains
          call ocn_mep_vmix_mom_init(err)
          call mpas_pool_get_config(ocnConfigs, 'config_mep_slowtime_Tc', config_mep_slowtime_Tc)
          call mpas_pool_get_config(ocnConfigs, 'config_dt', config_dt)
-         call mpas_pool_get_array(mepPool, 'uSlowTimeFilterAccum', uSlowTimeFilterAccum)
-         call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
-         call mpas_pool_get_array(mepPool, 'eddyViscosityForce', eddyViscosityForce)
          NstepsSlowTimeFilter = floor( config_mep_slowtime_Tc/config_dt )
-         uSlowTimeFilterAccum = 0.0_RKIND
-         uSlowTimeFilter = 0.0_RKIND
-         eddyViscosityForce = 0.0_RKIND
+         
+         block => domain % blocklist
+         do while (associated(block))
+            call mpas_pool_get_subpool(block % structs, 'mep', mepPool)
+            call mpas_pool_get_array(mepPool, 'uSlowTimeFilterAccum', uSlowTimeFilterAccum)
+            call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
+            call mpas_pool_get_array(mepPool, 'eddyViscosityForce', eddyViscosityForce)
+            uSlowTimeFilterAccum = 0.0_RKIND
+            uSlowTimeFilter = 0.0_RKIND
+            eddyViscosityForce = 0.0_RKIND
+            block => block % next
+         end do
+
       end if
       if ( trim(config_mep_formulation) == 'implicitVertVisc' ) then
          counter = counter + 1
@@ -319,7 +330,7 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: uSlowTimeFilterAccum, normalVelocity
       real (kind=RKIND), dimension(:,:), pointer :: divEPFT31SlowTimeFilterAccum, dEPFT31dz
 
-
+      err = 0
 
       if (mepForceVertViscOn) then
 
@@ -372,7 +383,7 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(in) :: mepPool !< Input: MEP information
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input: MEP information
 
       !-----------------------------------------------------------------
       !
@@ -423,7 +434,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_update(diagnosticsPool, meshPool, mepPool, scratchPool, err)!{{{
+   subroutine ocn_mep_update(diagnosticsPool, meshPool, mepPool, scratchPool)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -449,15 +460,12 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer, intent(out) :: err !< Output: error flag
-
       !-----------------------------------------------------------------
       !
       ! local variables
       !
       !-----------------------------------------------------------------
 
-      err = 0
 
       if (mepUseGMmodule) then
          ! might want to give the routine called here a more general name
@@ -573,6 +581,7 @@ contains
       ! force from vertical viscocity
       if (mepForceVertViscOn) then
          call ocn_mep_force_vert_visc(mepPool, tendPool, tend, err)
+   end if
 
       ! TWA GM drag
       if (mepForceTWAdragGMOn) then
@@ -799,6 +808,7 @@ contains
 
       type (mpas_pool_type), intent(in) :: meshPool        !< Input: Mesh information
       type (mpas_pool_type), intent(in) :: statePool        !< Input: state
+      type (mpas_pool_type), intent(in) :: mepPool        !< Input/Output: mep stuff
       integer, intent(in), optional :: timeLevel         !< Input: Time level for state pool
 
       !-----------------------------------------------------------------
@@ -807,8 +817,7 @@ contains
       !
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), intent(in) :: diagnosticsPool        !< Input/Output: diagnostics
-      type (mpas_pool_type), intent(in) :: mepPool        !< Input/Output: mep stuff
+      type (mpas_pool_type), intent(inout) :: diagnosticsPool        !< Input/Output: diagnostics
 
       !-----------------------------------------------------------------
       !
@@ -830,7 +839,7 @@ contains
 
 
       ! MEP vertical viscocity
-      call ocn_mep_vmix_mom_build(vertViscTopOfEdge, err)
+      call ocn_mep_vmix_mom_build(vertViscTopOfEdge, mepPool, err)
 
       return
 
@@ -883,6 +892,7 @@ contains
       !
       !-----------------------------------------------------------------
 
+      err = 0
 
       return
 
