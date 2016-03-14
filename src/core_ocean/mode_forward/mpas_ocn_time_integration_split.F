@@ -278,22 +278,12 @@ module ocn_time_integration_split
          call mpas_pool_get_subpool(domain % blocklist % structs, 'diagnostics', diagnosticsPool)
 
 
-         ! Update mep quantities: slow time filtered quantities
+         ! Accumulate mep slow time filter
          call ocn_mep_slow_time_filter_accum(statePool, mepPool, err)
-         if ( mpas_is_alarm_ringing(domain % clock, mepPool % alarmName, ierr=err_tmp) ) then
-            call mpas_reset_clock_alarm(domain % clock, mepPool % alarmName, ierr=err_tmp)
-            !call mpas_timer_start(timerName, .false.)
-            call ocn_mep_slow_time_filter_update(meshPool, diagnosticsPool, mepPool, err)
-            !call mpas_timer_stop(timerName)
-         end if
-         ! Update mep quantities: climate of the flow
-         if ( mpas_is_alarm_ringing(domain % clock, mepPool % alarmName, ierr=err_tmp) ) then
-            call mpas_reset_clock_alarm(domain % clock, mepPool % alarmName, ierr=err_tmp)
-            !call mpas_timer_start(timerName, .false.)
-            call ocn_mep_climate_time_filter_update(meshPool, diagnosticsPool, mepPool, err)
-            !call mpas_timer_stop(timerName)
-         end if
-
+         ! Update mep slow time filtered quantities
+         call ocn_mep_slow_time_filter_update(meshPool, diagnosticsPool, mepPool, domain % clock, err)
+         ! Update mep climate of the flow
+         call ocn_mep_climate_time_filter_update(statePool, meshPool, diagnosticsPool, mepPool, domain % clock, err)
 
 
          ! Initialize * variables that are used to compute baroclinic tendencies below.

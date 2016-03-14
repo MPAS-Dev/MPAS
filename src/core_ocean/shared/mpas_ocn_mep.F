@@ -27,6 +27,7 @@ module ocn_mep
    use ocn_mep_gm
    use ocn_diagnostics
    use ocn_mep_vmix_mom
+   use mpas_timekeeping
 
    implicit none
    private
@@ -64,6 +65,7 @@ module ocn_mep
    logical :: mepStdGMOn, mepForceTWAdragGMOn, mepForceVertViscOn, mepImplicitVertVisc
    logical :: mepRediOn, mepUseGMmodule
    integer :: NstepsSlowTimeFilter
+   character (len=StrKIND) :: mepClimateAlarmID, mepSlowTimeFilterAlarmID
 
 
 !***********************************************************************
@@ -216,7 +218,7 @@ contains
 !> It is assumed that work variables are updated elseshere.
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_slow_time_filter_update(meshPool, diagnosticsPool, mepPool, err)!{{{
+   subroutine ocn_mep_slow_time_filter_update(meshPool, diagnosticsPool, mepPool, clock, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -232,8 +234,9 @@ contains
       ! input/output variables
       !
       !-----------------------------------------------------------------
-      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: mepPool structure
 
+      type (mpas_pool_type), intent(inout) :: mepPool !< Input/Output: mepPool structure
+      type (mpas_clock_type), intent(inout) :: clock
 
       !-----------------------------------------------------------------
       !
@@ -251,6 +254,14 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: uSlowTimeFilter, uSlowTimeFilterAccum
       real (kind=RKIND), dimension(:,:), pointer :: divEPFT31SlowTimeFilter, divEPFT31SlowTimeFilterAccum
 
+      err = 0
+
+      ! Check if the alarm is ringing
+      if ( mpas_is_alarm_ringing(clock, mepSlowTimeFilterAlarmID, ierr=err) ) then
+         call mpas_reset_clock_alarm(clock, mepSlowTimeFilterAlarmID, ierr=err)
+      else
+         return
+      end if 
 
       if (mepForceVertViscOn) then
          call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
@@ -364,7 +375,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_climate_time_filter_update(statePool, meshPool, diagnosticsPool, mepPool, err)!{{{
+   subroutine ocn_mep_climate_time_filter_update(statePool, meshPool, diagnosticsPool, mepPool, clock, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -384,6 +395,7 @@ contains
       !-----------------------------------------------------------------
 
       type (mpas_pool_type), intent(inout) :: mepPool !< Input: MEP information
+      type (mpas_clock_type), intent(inout) :: clock
 
       !-----------------------------------------------------------------
       !
@@ -398,6 +410,15 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
+
+      err = 0
+
+      ! Check if the alarm is ringing
+      if ( mpas_is_alarm_ringing(clock, mepClimateAlarmID, ierr=err) ) then
+         call mpas_reset_clock_alarm(clock, mepClimateAlarmID, ierr=err)
+      else
+         return
+      end if
 
 
       ! Update the filtered, low frequency variables that are
