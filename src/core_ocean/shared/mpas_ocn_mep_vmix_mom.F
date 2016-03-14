@@ -57,7 +57,8 @@ module ocn_mep_vmix_mom
    !
    !--------------------------------------------------------------------
 
-   logical :: mepVertVisocn_mep_cConstOn, mepVertViscProgOn
+   logical :: mepVertViscConstOn, mepVertViscProgOn
+
 
    character (len=StrKIND), pointer :: config_mep_formulation
    real (kind=RKIND), pointer :: config_mep_climate_Tc, config_mep_climate_dt
@@ -122,12 +123,14 @@ contains
       !-----------------------------------------------------------------
       integer :: iCell, kLevel, iEdge
       real (kind=RKIND) :: uDivEPFT
-      real (kind=RKIND), dimension(:,:), allocatable :: dFielddzTopEdges
+      real (kind=RKIND), dimension(:,:), allocatable :: dFielddzTopEdges, workVariable
 
       integer, pointer :: nCells, nEdges, nVertLevels
-      integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeBot
+      integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeBot, maxLevelEdgeTop
       real(kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge
       real(kind=RKIND), dimension(:,:), pointer :: NsqFiltered, dEPFT31dz
+      real(kind=RKIND), dimension(:,:), pointer :: uDivEPFTClimateFilter
+      real(kind=RKIND), dimension(:,:), pointer :: vertViscTopOfEdgeMEP
       real(kind=RKIND), dimension(:,:), pointer :: BruntVaisalaFreqTop, normalVelocity
 
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
@@ -135,24 +138,26 @@ contains
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
       call mpas_pool_get_array(meshPool, 'maxLevelCell',  maxLevelCell)
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeBot',  maxLevelEdgeBot)
+      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
       call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
       call mpas_pool_get_array(diagnosticsPool, 'BruntVaisalaFreqTop', BruntVaisalaFreqTop)
       call mpas_pool_get_array(mepPool, 'NsqFiltered', NsqFiltered)
       call mpas_pool_get_array(mepPool, 'dEPFT31dz', dEPFT31dz)
       call mpas_pool_get_array(mepPool, 'uDivEPFTClimateFilter', uDivEPFTClimateFilter)
+      call mpas_pool_get_array(mepPool, 'vertViscTopOfEdgeMEP', vertViscTopOfEdgeMEP)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity)
 
       allocate( dFielddzTopEdges(nVertLevels+1, nEdges) )
+      allocate( workVariable(nVertLevels+1, nEdges) )
 
       do iCell = 1, nCells
          do kLevel = 1, maxLevelCell(iCell)
             ! NsqFiltered lives on top of cell centers
-            NsqFiltered(k, iCell) = &
+            NsqFiltered(kLevel, iCell) = &
                  NsqFiltered(kLevel, iCell) &
                + config_mep_climate_dt/config_mep_climate_Tc &
                * ( BruntVaisalaFreqTop(kLevel, iCell) - NsqFiltered(kLevel, iCell) )
          end do
-         dissipationFiltered(iCell) =
       end do
 
       ! EPFT is rotated horizontally onto the normal, tangential unit vectors.
@@ -164,7 +169,7 @@ contains
       call computeVerticalDerivativeEdgeMidToTop( nEdges, maxLevelEdgeBot, &
          layerThicknessEdge, normalVelocity, dFielddzTopEdges )
 
-      workVariable = - vertViscTopOfEdge * dudz
+      workVariable = - vertViscTopOfEdgeMEP * dFielddzTopEdges
 
       call computeVerticalDerivativeEdgeTopToMid( nEdges, maxLevelEdgeBot, &
          layerThicknessEdge, dFielddzTopEdges, dEPFT31dz)
@@ -179,6 +184,7 @@ contains
       end do
 
       deallocate( dFielddzTopEdges )
+      deallocate( workVariable )
 
 
    !--------------------------------------------------------------------
@@ -351,7 +357,7 @@ contains
       ! Forward Euler time integration
       do iCell = 1, nCells
          vertIntEddyEnergy(iCell) = vertIntEddyEnergy(iCell) &
-            + vertIntEddyEnergy_tend * config_mep_climate_eddy_energy_dt
+            + vertIntEddyEnergy_tend(iCell) * config_mep_climate_eddy_energy_dt
       end do
 
 
@@ -630,13 +636,15 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_mep_vmix_mom_build(vertViscTopOfEdge, err)!{{{
+   subroutine ocn_mep_vmix_mom_build(vertViscTopOfEdge, mepPool, err)!{{{
 
       !-----------------------------------------------------------------
       !
       ! input variables
       !
       !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: mepPool !< Input/Output: mepPool structure
 
       !-----------------------------------------------------------------
       !
@@ -659,13 +667,16 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
+      real(kind=RKIND), dimension(:,:), pointer :: vertViscTopOfEdgeMEP
+
+      call mpas_pool_get_array(mepPool, 'vertViscTopOfEdgeMEP', vertViscTopOfEdgeMEP)
 
       err = 0
 
       ! I don't think I need to check if both are on because this is guaranteed in ocn_mep_init
       if (.not. mepVertViscConstOn .and. .not. mepVertViscProgOn) then
          return
-      else then
+      else
          vertViscTopOfEdge = vertViscTopOfEdge + vertViscTopOfEdgeMEP
       end if
 
@@ -726,6 +737,8 @@ contains
       real(kind=RKIND), dimension(:), pointer :: vertIntEddyEnergy_tend
       real(kind=RKIND), dimension(:), pointer :: vertIntEddyEnergy
       real(kind=RKIND), dimension(:,:), pointer :: uDivEPFTClimateFilter
+      real(kind=RKIND), dimension(:,:), pointer :: uSlowTimeFilter
+      real(kind=RKIND), dimension(:,:), pointer :: divEPFT31SlowTimeFilter
       real(kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge
       real(kind=RKIND), dimension(:,:), pointer :: edgeMask
 
@@ -756,7 +769,7 @@ contains
             do kLevel = 1, maxLevelCell(iCell)
                vertIntEddyEnergy_tend(iCell) = vertIntEddyEnergy_tend(iCell) &
                !    - uDivEPFTClimateFilter(kLevel,iEdge)*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
-                  - uSlowTimeFilter(kLevel,iEdge)*divEPFT31SlowTimeFilter*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
+                  - uSlowTimeFilter(kLevel,iEdge)*divEPFT31SlowTimeFilter(kLevel, iEdge)*layerThicknessEdge(kLevel,iEdge)*edgeMask(kLevel,iEdge)
             end do
          end do
       end do
@@ -822,15 +835,17 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
-      integer, pointer :: nEdges
+      integer, pointer :: nEdges, nVertLevels
       integer, dimension(:), pointer :: maxLevelEdgeBot
       real(kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge
       real(kind=RKIND), dimension(:,:), pointer :: uSlowTimeFilter
       real(kind=RKIND), dimension(:,:), pointer :: vertViscTopOfEdgeMEP, eddyViscosityForceMEP
       real (kind=RKIND), dimension(:,:), allocatable :: duSlowTimeFilterdz, workVariableTopEdges
 
+      err = 0      
 
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
+      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeBot',  maxLevelEdgeBot)
       call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
       call mpas_pool_get_array(mepPool, 'uSlowTimeFilter', uSlowTimeFilter)
