@@ -126,6 +126,7 @@ module mpas_field_routines
        logical :: single_block
        type (field1dInteger), pointer :: f_cursor
        integer :: threadNum
+       integer :: idx
 
        if(f % isPersistent) then
           return
@@ -139,23 +140,28 @@ module mpas_field_routines
 
        threadNum = mpas_threading_get_thread_num()
 
-       if ( threadNum == 0 ) then
-          if(.not. single_block) then
-             f_cursor => f
-             do while(associated(f_cursor))
-                if(.not.associated(f_cursor % array)) then
-                   allocate(f_cursor % array(f_cursor % dimSizes(1)))
-                   f_cursor % array(:) = f_cursor % defaultValue
-                end if
-                f_cursor => f_cursor % next
-             end do
-          else
-             if(.not.associated(f % array)) then
-               allocate(f % array(f % dimSizes(1)))
-               f % array(:) = f % defaultValue
+       f_cursor => f
+       do while (associated(f_cursor))
+          if(.not. associated(f_cursor % array)) then
+             !$omp barrier
+             if ( threadNum == 0 ) then
+                allocate(f_cursor % array(f_cursor % dimSizes(1)))
              end if
+             !$omp barrier
+
+             !$omp do schedule(runtime)
+             do idx = 1, f_cursor % dimSizes(1)
+                f_cursor % array(idx) = f_cursor % defaultValue
+             end do
+             !$omp end do
           end if
-       end if
+
+          if ( .not. single_block ) then
+             f_cursor => f_cursor % next
+          else
+             exit
+          end if
+       end do
 
    end subroutine mpas_allocate_scratch_field1d_integer!}}}
 
@@ -177,6 +183,7 @@ module mpas_field_routines
        logical :: single_block
        type (field2dInteger), pointer :: f_cursor
        integer :: threadNum
+       integer :: idx
 
        if(f % isPersistent) then
           return
@@ -190,23 +197,28 @@ module mpas_field_routines
 
        threadNum = mpas_threading_get_thread_num()
 
-       if ( threadNum == 0 ) then
-          if(.not. single_block) then
-             f_cursor => f
-             do while(associated(f_cursor))
-                if(.not.associated(f_cursor % array)) then
-                   allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2)))
-                   f_cursor % array(:, :) = f_cursor % defaultValue
-                end if
-                f_cursor => f_cursor % next
-             end do
-          else
-             if(.not.associated(f % array)) then
-               allocate(f % array(f % dimSizes(1), f % dimSizes(2)))
-               f % array(:, :) = f % defaultValue
+       f_cursor => f
+       do while(associated(f_cursor))
+          if(.not.associated(f_cursor % array)) then
+             !$omp barrier
+             if ( threadNum == 0 ) then
+                allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2)))
              end if
+             !$omp barrier
+
+             !$omp do schedule(runtime)
+             do idx = 1, f_cursor % dimSizes(2)
+                f_cursor % array(:, idx) = f_cursor % defaultValue
+             end do
+             !$omp end do
           end if
-       end if
+
+          if ( .not. single_block ) then
+             f_cursor => f_cursor % next
+          else
+             exit
+          end if
+       end do
 
    end subroutine mpas_allocate_scratch_field2d_integer!}}}
 
@@ -228,6 +240,7 @@ module mpas_field_routines
        logical :: single_block
        type (field3dInteger), pointer :: f_cursor
        integer :: threadNum
+       integer :: idx
 
        if(f % isPersistent) then
           return
@@ -241,23 +254,27 @@ module mpas_field_routines
 
        threadNum = mpas_threading_get_thread_num()
 
-       if ( threadNum == 0 ) then
-          if(.not. single_block) then
-             f_cursor => f
-             do while(associated(f_cursor))
-                if(.not.associated(f_cursor % array)) then
-                   allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2), f_cursor % dimSizes(3)))
-                   f_cursor % array(:, :, :) = f_cursor % defaultValue
-                end if
-                f_cursor => f_cursor % next
-             end do
-          else
-             if(.not.associated(f % array)) then
-               allocate(f % array(f % dimSizes(1), f % dimSizes(2), f % dimSizes(3)))
-               f % array(:, :, :) = f % defaultValue
+       f_cursor => f
+       do while(associated(f_cursor))
+          if(.not.associated(f_cursor % array)) then
+             !$omp barrier
+             if ( threadNum == 0 ) then
+                allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2), f_cursor % dimSizes(3)))
              end if
+             !$omp barrier
+
+             !$omp do schedule(runtime)
+             do idx = 1, f_cursor % dimSizes(3)
+                f_cursor % array(:, :, idx) = f_cursor % defaultValue
+             end do
+             !$omp end do
           end if
-       end if
+          if ( .not. single_block ) then
+             f_cursor => f_cursor % next
+          else
+             exit
+          end if
+       end do
 
    end subroutine mpas_allocate_scratch_field3d_integer!}}}
 
@@ -279,6 +296,7 @@ module mpas_field_routines
        logical :: single_block
        type (field1dReal), pointer :: f_cursor
        integer :: threadNum
+       integer :: idx
 
        if(f % isPersistent) then
           return
@@ -292,23 +310,27 @@ module mpas_field_routines
 
        threadNum = mpas_threading_get_thread_num()
 
-       if ( threadNum == 0 ) then
-          if(.not. single_block) then
-             f_cursor => f
-             do while(associated(f_cursor))
-                if(.not.associated(f_cursor % array)) then
-                   allocate(f_cursor % array(f_cursor % dimSizes(1)))
-                   f_cursor % array(:) = f_cursor % defaultValue
-                end if
-                f_cursor => f_cursor % next
-             end do
-          else
-             if(.not.associated(f % array)) then
-               allocate(f % array(f % dimSizes(1)))
-               f % array(:) = f % defaultValue
+       f_cursor => f
+       do while(associated(f_cursor))
+          if(.not.associated(f_cursor % array)) then
+             !$omp barrier
+             if ( threadNum == 0 ) then
+                allocate(f_cursor % array(f_cursor % dimSizes(1)))
              end if
+             !$omp barrier
+
+             !$omp do schedule(runtime)
+             do idx = 1, f_cursor % dimSizes(1)
+                f_cursor % array(idx) = f_cursor % defaultValue
+             end do
+             !$omp end do
           end if
-       end if
+          if(.not. single_block) then
+             f_cursor => f_cursor % next
+          else
+             exit
+          end if
+       end do
 
    end subroutine mpas_allocate_scratch_field1d_real!}}}
 
@@ -330,6 +352,7 @@ module mpas_field_routines
        logical :: single_block
        type (field2dReal), pointer :: f_cursor
        integer :: threadNum
+       integer :: idx
 
        if(f % isPersistent) then
           return
@@ -343,23 +366,28 @@ module mpas_field_routines
 
        threadNum = mpas_threading_get_thread_num()
 
-       if ( threadNum == 0 ) then
-          if(.not. single_block) then
-             f_cursor => f
-             do while(associated(f_cursor))
-                if(.not.associated(f_cursor % array)) then
-                   allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2)))
-                   f_cursor % array(:, :) = f_cursor % defaultValue
-                end if
-                f_cursor => f_cursor % next
-             end do
-          else
-             if(.not.associated(f % array)) then
-               allocate(f % array(f % dimSizes(1), f % dimSizes(2)))
-               f % array(:, :) = f % defaultValue
+       f_cursor => f
+       do while(associated(f_cursor))
+          if(.not.associated(f_cursor % array)) then
+             !$omp barrier
+             if ( threadNum == 0 ) then
+                allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2)))
              end if
+             !$omp barrier
+
+             !$omp do schedule(runtime)
+             do idx = 1, f_cursor % dimSizes(2)
+                f_cursor % array(:, idx) = f_cursor % defaultValue
+             end do
+             !$omp end do
           end if
-       end if
+
+          if(.not. single_block) then
+             f_cursor => f_cursor % next
+          else
+             exit
+          end if
+       end do
 
    end subroutine mpas_allocate_scratch_field2d_real!}}}
 
@@ -381,6 +409,7 @@ module mpas_field_routines
        logical :: single_block
        type (field3dReal), pointer :: f_cursor
        integer :: threadNum
+       integer :: idx
 
        if(f % isPersistent) then
           return
@@ -394,23 +423,28 @@ module mpas_field_routines
 
        threadNum = mpas_threading_get_thread_num()
 
-       if ( threadNum == 0 ) then
-          if(.not. single_block) then
-             f_cursor => f
-             do while(associated(f_cursor))
-                if(.not.associated(f_cursor % array)) then
-                   allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2), f_cursor % dimSizes(3)))
-                   f_cursor % array(:, :, :) = f_cursor % defaultValue
-                end if
-                f_cursor => f_cursor % next
-             end do
-          else
-             if(.not.associated(f % array)) then
-               allocate(f % array(f % dimSizes(1), f % dimSizes(2), f % dimSizes(3)))
-               f % array(:, :, :) = f % defaultValue
+       f_cursor => f
+       do while(associated(f_cursor))
+          if(.not.associated(f_cursor % array)) then
+             !$omp barrier
+             if ( threadNum == 0 ) then
+                allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2), f_cursor % dimSizes(3)))
              end if
+             !$omp barrier
+
+             !$omp do schedule(runtime)
+             do idx = 1, f_cursor % dimSizes(3)
+                f_cursor % array(:, :, idx) = f_cursor % defaultValue
+             end do
+             !$omp end do
           end if
-       end if
+
+          if(.not. single_block) then
+             f_cursor => f_cursor % next
+          else
+             exit
+          end if
+       end do
 
    end subroutine mpas_allocate_scratch_field3d_real!}}}
 
@@ -432,6 +466,7 @@ module mpas_field_routines
        logical :: single_block
        type (field4dReal), pointer :: f_cursor
        integer :: threadNum
+       integer :: idx
 
        if(f % isPersistent) then
           return
@@ -445,23 +480,28 @@ module mpas_field_routines
 
        threadNum = mpas_threading_get_thread_num()
 
-       if ( threadNum == 0 ) then
-          if(.not. single_block) then
-             f_cursor => f
-             do while(associated(f_cursor))
-                if(.not.associated(f_cursor % array)) then
-                   allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2), f_cursor % dimSizes(3), f_cursor % dimSizes(4)))
-                   f_cursor % array(:, :, :, :) = f_cursor % defaultValue
-                end if
-                f_cursor => f_cursor % next
-             end do
-          else
-             if(.not.associated(f % array)) then
-               allocate(f % array(f % dimSizes(1), f % dimSizes(2), f % dimSizes(3), f % dimSizes(4)))
-               f % array(:, :, :, :) = f % defaultValue
+       f_cursor => f
+       do while(associated(f_cursor))
+          if(.not.associated(f_cursor % array)) then
+             !$omp barrier
+             if ( threadNum == 0 ) then
+                allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2), f_cursor % dimSizes(3), f_cursor % dimSizes(4)))
              end if
+             !$omp barrier
+
+             !$omp do schedule(runtime)
+             do idx = 1, f_cursor % dimSizes(4)
+                f_cursor % array(:, :, :, idx) = f_cursor % defaultValue
+             end do
+             !$omp end do
           end if
-       end if
+
+          if(.not. single_block) then
+             f_cursor => f_cursor % next
+          else
+             exit
+          end if
+       end do
 
    end subroutine mpas_allocate_scratch_field4d_real!}}}
 
@@ -483,6 +523,7 @@ module mpas_field_routines
        logical :: single_block
        type (field5dReal), pointer :: f_cursor
        integer :: threadNum
+       integer :: idx
 
        if(f % isPersistent) then
           return
@@ -496,23 +537,28 @@ module mpas_field_routines
 
        threadNum = mpas_threading_get_thread_num()
 
-       if ( threadNum == 0 ) then
-          if(.not. single_block) then
-             f_cursor => f
-             do while(associated(f_cursor))
-                if(.not.associated(f_cursor % array)) then
-                   allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2), f_cursor % dimSizes(3), f_cursor % dimSizes(4), f_cursor % dimSizes(5)))
-                   f_cursor % array(:, :, :, :, :) = f_cursor % defaultValue
-                end if
-                f_cursor => f_cursor % next
-             end do
-          else
-             if(.not.associated(f % array)) then
-               allocate(f % array(f % dimSizes(1), f % dimSizes(2), f % dimSizes(3), f % dimSizes(4), f % dimSizes(5)))
-               f % array(:, :, :, :, :) = f % defaultValue
+       f_cursor => f
+       do while(associated(f_cursor))
+          if(.not.associated(f_cursor % array)) then
+             !$omp barrier
+             if ( threadNum == 0 ) then
+                allocate(f_cursor % array(f_cursor % dimSizes(1), f_cursor % dimSizes(2), f_cursor % dimSizes(3), f_cursor % dimSizes(4), f_cursor % dimSizes(5)))
              end if
+             !$omp barrier
+
+             !$omp do schedule(runtime)
+             do idx = 1, f_cursor % dimSizes(5)
+                f_cursor % array(:, :, :, :, idx) = f_cursor % defaultValue
+             end do
+             !$omp end do
           end if
-       end if
+
+          if ( .not. single_block ) then
+             f_cursor => f_cursor % next
+          else
+             exit
+          end if
+       end do
 
    end subroutine mpas_allocate_scratch_field5d_real!}}}
 
@@ -534,6 +580,7 @@ module mpas_field_routines
        logical :: single_block
        type (field1dChar), pointer :: f_cursor
        integer :: threadNum
+       integer :: idx
 
        if(f % isPersistent) then
           return
@@ -547,23 +594,28 @@ module mpas_field_routines
 
        threadNum = mpas_threading_get_thread_num()
 
-       if ( threadNum == 0 ) then
-          if(.not. single_block) then
-             f_cursor => f
-             do while(associated(f_cursor))
-                if(.not.associated(f_cursor % array)) then
-                   allocate(f_cursor % array(f_cursor % dimSizes(1)))
-                   f_cursor % array(:) = f_cursor % defaultValue
-                end if
-                f_cursor => f_cursor % next
-             end do
-          else
-             if(.not.associated(f % array)) then
-               allocate(f % array(f % dimSizes(1)))
-               f % array(:) = f % defaultValue
+       f_cursor => f
+       do while(associated(f_cursor))
+          if(.not.associated(f_cursor % array)) then
+             !$omp barrier
+             if ( threadNum == 0 ) then
+                allocate(f_cursor % array(f_cursor % dimSizes(1)))
              end if
+             !$omp barrier
+
+             !$omp do schedule(runtime)
+             do idx = 1, f_cursor % dimSizes(1)
+                f_cursor % array(idx) = f_cursor % defaultValue
+             end do
+             !$omp end do
           end if
-       end if
+
+          if(.not. single_block) then
+             f_cursor => f_cursor % next
+          else
+             exit
+          end if
+       end do
 
    end subroutine mpas_allocate_scratch_field1d_char!}}}
 
