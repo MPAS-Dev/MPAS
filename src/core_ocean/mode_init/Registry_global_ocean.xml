@@ -155,6 +155,10 @@
 					description="Logical flag that controls if topograhy should be smoothed after being interpolated."
 					possible_values=".true. or .false."
 		/>
+		<nml_option name="config_global_ocean_deepen_channels" type="logical" default_value=".false." units="unitless"
+					description="Logical flag that controls if bathymetry is deepened at particular locations."
+					possible_values=".true. or .false."
+		/>
 		<nml_option name="config_global_ocean_depress_by_land_ice" type="logical" default_value=".false." units="unitless"
 					description="Logical flag that controls if sea surface pressure and layer thicknesses should be altered by an overlying ice sheet/shelf."
 					possible_values=".true. or .false."
