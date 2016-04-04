@@ -1292,7 +1292,6 @@
 				immutable="true"
 				mode="forward;analysis">
 
-			<stream name="mesh"/>
 			<var_struct name="tracers"/>
 			<var name="normalVelocity"/>
 			<var name="layerThickness"/>
