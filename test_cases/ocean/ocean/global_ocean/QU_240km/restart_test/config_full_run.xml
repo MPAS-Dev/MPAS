@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <config case="full_run">
-	<add_link source="../init_step2/ocean.nc" dest="init.nc"/>
+	<add_link source="../init_step2/init.nc" dest="init.nc"/>
+	<add_link source="../init_step2/output_mesh.nc" dest="mesh.nc"/>
 	<add_link source="../init_step2/graph.info" dest="graph.info"/>
 	<add_link source="../init_step2/init_mode_forcing_data.nc" dest="forcing_data.nc"/>
 
@@ -16,7 +17,7 @@
 
 	<streams name="streams.ocean" keep="immutable" mode="forward">
 		<stream name="mesh">
-			<attribute name="filename_template">init.nc</attribute>
+			<attribute name="filename_template">mesh.nc</attribute>
 		</stream>
 		<stream name="input">
 			<attribute name="filename_template">init.nc</attribute>
