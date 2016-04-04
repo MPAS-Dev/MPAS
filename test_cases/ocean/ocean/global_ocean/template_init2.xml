@@ -84,6 +84,7 @@
 				<member name="restingThickness" type="var"/>
 				<member name="vertCoordMovementWeights" type="var"/>
 				<member name="refZMid" type="var"/>
+				<member name="refLayerThickness" type="var"/>
 			</add_contents>
 		</stream>
 		<stream name="output_init">
