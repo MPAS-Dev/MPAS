@@ -156,6 +156,8 @@ module ocn_time_series_stats
     'repeat_interval'
   character (len=StrKIND), parameter :: RESET_INTERVAL_TOKEN = 'reset_interval'
 
+  character (len=StrKIND), parameter :: CURRENT_CORE_NAME = 'MPAS-Ocean'
+
 !***********************************************************************
 contains
 
@@ -383,6 +385,116 @@ end subroutine ocn_finalize_time_series_stats!}}}
 !
 
 !***********************************************************************
+! routine add_new_string
+!
+!> \brief Allocate an string in the MPAS framework for this AM
+!> \author  Jon Woodring
+!> \date    December 17, 2015
+!> \details
+!> Allocate a new integer in the AM pool and return a pointer to it.
+!-----------------------------------------------------------------------
+subroutine add_new_string(all_fields, inpool, & !outpool, 
+    field_name, target_ptr)
+  ! input variables
+  character (len=StrKIND) :: field_name
+
+  ! input/output variables
+  type (mpas_pool_type), pointer, intent(inout) :: all_fields, inpool !, outpool
+
+  ! output variables
+  character (len=StrKIND), pointer, optional :: target_ptr
+
+  ! local variables
+  type (field0DChar), pointer :: srcString, dstString
+
+  call mpas_pool_get_field(inpool, ONE_STRING_MEMORY, srcString, 1)
+  call mpas_duplicate_field(srcString, dstString)
+  dstString % fieldName = field_name
+  allocate(dstString % attLists(1))
+  !call mpas_pool_add_field(outpool, dstString % fieldName, dstString)
+  call mpas_pool_add_field(all_fields, dstString % fieldName, dstString)
+  if (present(target_ptr)) then
+    !call mpas_pool_get_array(outpool, dstString % fieldName, target_ptr, 1)
+    call mpas_pool_get_array(all_fields, dstString % fieldName, target_ptr, 1)
+  end if
+end subroutine add_new_string
+
+
+
+!***********************************************************************
+! routine add_new_integer
+!
+!> \brief Allocate an integer in the MPAS framework for this AM
+!> \author  Jon Woodring
+!> \date    December 17, 2015
+!> \details
+!> Allocate a new integer in the AM pool and return a pointer to it.
+!-----------------------------------------------------------------------
+subroutine add_new_integer(all_fields, inpool, & !outpool, 
+    field_name, target_ptr)
+  ! input variables
+  character (len=StrKIND) :: field_name
+
+  ! input/output variables
+  type (mpas_pool_type), pointer, intent(inout) :: all_fields, inpool !, outpool
+
+  ! output variables
+  integer, pointer, optional :: target_ptr
+
+  ! local variables
+  type (field0DInteger), pointer :: srcInteger, dstInteger
+
+  call mpas_pool_get_field(inpool, ONE_INTEGER_MEMORY, srcInteger, 1)
+  call mpas_duplicate_field(srcInteger, dstInteger)
+  dstInteger % fieldName = field_name
+  allocate(dstInteger % attLists(1))
+  !call mpas_pool_add_field(outpool, dstInteger % fieldName, dstInteger)
+  call mpas_pool_add_field(all_fields, dstInteger % fieldName, dstInteger)
+  if (present(target_ptr)) then
+    !call mpas_pool_get_array(outpool, dstInteger % fieldName, target_ptr, 1)
+    call mpas_pool_get_array(all_fields, dstInteger % fieldName, target_ptr, 1)
+  end if
+end subroutine add_new_integer
+
+
+
+!***********************************************************************
+! routine add_new_real
+!
+!> \brief Allocate an real in the MPAS framework for this AM
+!> \author  Jon Woodring
+!> \date    December 17, 2015
+!> \details
+!> Allocate a new real in the AM pool and return a pointer to it.
+!-----------------------------------------------------------------------
+subroutine add_new_real(all_fields, inpool, & !outpool, 
+    field_name, target_ptr)
+  ! input variables
+  character (len=StrKIND) :: field_name
+
+  ! input/output variables
+  type (mpas_pool_type), pointer, intent(inout) :: all_fields, inpool !, outpool
+
+  ! output variables
+  real (kind=RKIND), pointer, optional :: target_ptr
+
+  ! local variables
+  type (field0DReal), pointer :: srcReal, dstReal
+
+  call mpas_pool_get_field(inpool, ONE_REAL_MEMORY, srcReal, 1)
+  call mpas_duplicate_field(srcReal, dstReal)
+  dstReal % fieldName = field_name
+  allocate(dstReal % attLists(1))
+  !call mpas_pool_add_field(outpool, dstReal % fieldName, dstReal)
+  call mpas_pool_add_field(all_fields, dstReal % fieldName, dstReal)
+  if (present(target_ptr)) then
+    !call mpas_pool_get_array(outpool, dstReal % fieldName, target_ptr, 1)
+    call mpas_pool_get_array(all_fields, dstReal % fieldName, target_ptr, 1)
+  end if
+end subroutine add_new_real
+
+
+!***********************************************************************
 ! routine get_state
 !
 !> \brief Get all of the state for this instance.
@@ -545,10 +657,8 @@ subroutine start_state(domain, instance, series, err)
   ! local variables
   character (len=StrKIND), pointer :: config_results, output_stream_name
   character (len=StrKIND) :: config, namelist_prefix, storage_prefix, &
-    var_identifier, buf_identifier, var_prefix, buf_prefix
+    var_identifier, buf_identifier, var_prefix, buf_prefix, field_name
   integer :: b, v
-  type (field0DChar), pointer :: srcString, dstString
-  type (field0DInteger), pointer :: srcInteger, dstInteger
 
   ! start procedure
   err = 0
@@ -561,37 +671,22 @@ subroutine start_state(domain, instance, series, err)
   !
 
   ! number_of_variables
-  call mpas_pool_get_field(domain % blocklist % allFields, &
-    ONE_INTEGER_MEMORY, srcInteger, 1)
-  call mpas_duplicate_field(srcInteger, dstInteger)
-  dstInteger % fieldName = &
-    trim(storage_prefix) // trim(NUMBER_OF_VARIABLES_SUFFIX)
-  call mpas_pool_add_field(domain % blocklist % allFields, &
-    dstInteger % fieldName, dstInteger)
-  call mpas_pool_get_array(domain % blocklist % allFields, &
-    dstInteger % fieldName, series % number_of_variables, 1)
+  field_name = trim(storage_prefix) // trim(NUMBER_OF_VARIABLES_SUFFIX)
+  call add_new_integer(domain % blocklist % allFields, &
+    domain % blocklist % allFields, field_name, &
+    series % number_of_variables)
 
   ! number_of_buffers
-  call mpas_pool_get_field(domain % blocklist % allFields, &
-    ONE_INTEGER_MEMORY, srcInteger, 1)
-  call mpas_duplicate_field(srcInteger, dstInteger)
-  dstInteger % fieldName = &
-    trim(storage_prefix) // trim(NUMBER_OF_BUFFERS_SUFFIX)
-  call mpas_pool_add_field(domain % blocklist % allFields, &
-    dstInteger % fieldName, dstInteger)
-  call mpas_pool_get_array(domain % blocklist % allFields, &
-    dstInteger % fieldName, series % number_of_buffers, 1)
+  field_name = trim(storage_prefix) // trim(NUMBER_OF_BUFFERS_SUFFIX)
+  call add_new_integer(domain % blocklist % allFields, &
+    domain % blocklist % allFields, field_name, &
+    series % number_of_buffers)
 
   ! operation
-  call mpas_pool_get_field(domain % blocklist % allFields, &
-    ONE_INTEGER_MEMORY, srcInteger, 1)
-  call mpas_duplicate_field(srcInteger, dstInteger)
-  dstInteger % fieldName = &
-    trim(storage_prefix) // trim(OPERATION_SUFFIX)
-  call mpas_pool_add_field(domain % blocklist % allFields, &
-    dstInteger % fieldName, dstInteger)
-  call mpas_pool_get_array(domain % blocklist % allFields, &
-    dstInteger % fieldName, series % operation, 1)
+  field_name = trim(storage_prefix) // trim(OPERATION_SUFFIX)
+  call add_new_integer(domain % blocklist % allFields, &
+    domain % blocklist % allFields, field_name, &
+    series % operation)
 
   !
   ! assign some instance values
@@ -602,7 +697,8 @@ subroutine start_state(domain, instance, series, err)
   call mpas_pool_get_config(domain % configs, config, output_stream_name)
 
   if (output_stream_name == 'none') then
-    call mpas_dmpar_global_abort('MPAS-ocean: Error: stream cannot be "none" ' // &
+    call mpas_dmpar_global_abort( &
+      trim(CURRENT_CORE_NAME) // ' ERROR: stream cannot be "none" ' // &
       'for time series stats.')
   end if
 
@@ -638,7 +734,8 @@ subroutine start_state(domain, instance, series, err)
     series % operation = MAX_OP
   else
     ! error if unknown operation
-    call mpas_dmpar_global_abort('MPAS-ocean: Error: unknown operation in time ' // &
+    call mpas_dmpar_global_abort( &
+      trim(CURRENT_CORE_NAME) // ' ERROR: unknown operation in time ' // &
       'averaging analysis member configuration.')
   end if
 
@@ -660,14 +757,10 @@ subroutine start_state(domain, instance, series, err)
     var_prefix = trim(storage_prefix) // '_' // trim(var_identifier)
 
     ! input_name
-    call mpas_pool_get_field(domain % blocklist % allFields, &
-      ONE_STRING_MEMORY, srcString, 1)
-    call mpas_duplicate_field(srcString, dstString)
-    dstString % fieldName = trim(var_prefix) // trim(INPUT_NAME_SUFFIX)
-    call mpas_pool_add_field(domain % blocklist % allFields, &
-      dstString % fieldName, dstString)
-    call mpas_pool_get_array(domain % blocklist % allFields, &
-      dstString % fieldName, series % variables(v) % input_name, 1)
+    field_name = trim(var_prefix) // trim(INPUT_NAME_SUFFIX)
+    call add_new_string(domain % blocklist % allFields, &
+      domain % blocklist % allFields, field_name, &
+      series % variables(v) % input_name)
   end do
 
   ! create buffer space
@@ -677,74 +770,46 @@ subroutine start_state(domain, instance, series, err)
     buf_prefix = trim(storage_prefix) // '_' // trim(buf_identifier)
 
     ! started_flag
-    call mpas_pool_get_field(domain % blocklist % allFields, &
-      ONE_INTEGER_MEMORY, srcInteger, 1)
-    call mpas_duplicate_field(srcInteger, dstInteger)
-    dstInteger % fieldName = trim(buf_prefix) // trim(STARTED_FLAG_SUFFIX)
-    call mpas_pool_add_field(domain % blocklist % allFields, &
-      dstInteger % fieldName, dstInteger)
-    call mpas_pool_get_array(domain % blocklist % allFields, &
-      dstInteger % fieldName, series % buffers(b) % started_flag, 1)
+    field_name = trim(buf_prefix) // trim(STARTED_FLAG_SUFFIX)
+    call add_new_integer(domain % blocklist % allFields, &
+      domain % blocklist % allFields, field_name, &
+      series % buffers(b) % started_flag)
 
     ! accumulate_flag
-    call mpas_pool_get_field(domain % blocklist % allFields, &
-      ONE_INTEGER_MEMORY, srcInteger, 1)
-    call mpas_duplicate_field(srcInteger, dstInteger)
-    dstInteger % fieldName = trim(buf_prefix) // trim(ACCUMULATE_FLAG_SUFFIX)
-    call mpas_pool_add_field(domain % blocklist % allFields, &
-      dstInteger % fieldName, dstInteger)
-    call mpas_pool_get_array(domain % blocklist % allFields, &
-      dstInteger % fieldName, series % buffers(b) % accumulate_flag, 1)
+    field_name = trim(buf_prefix) // trim(ACCUMULATE_FLAG_SUFFIX)
+    call add_new_integer(domain % blocklist % allFields, &
+      domain % blocklist % allFields, field_name, &
+      series % buffers(b) % accumulate_flag)
 
     ! reset_flag
-    call mpas_pool_get_field(domain % blocklist % allFields, &
-      ONE_INTEGER_MEMORY, srcInteger, 1)
-    call mpas_duplicate_field(srcInteger, dstInteger)
-    dstInteger % fieldName = trim(buf_prefix) // trim(RESET_FLAG_SUFFIX)
-    call mpas_pool_add_field(domain % blocklist % allFields, &
-      dstInteger % fieldName, dstInteger)
-    call mpas_pool_get_array(domain % blocklist % allFields, &
-      dstInteger % fieldName, series % buffers(b) % reset_flag, 1)
+    field_name = trim(buf_prefix) // trim(RESET_FLAG_SUFFIX)
+    call add_new_integer(domain % blocklist % allFields, &
+      domain % blocklist % allFields, field_name, &
+      series % buffers(b) % reset_flag)
 
     ! start_alarm_ID
-    call mpas_pool_get_field(domain % blocklist % allFields, &
-      ONE_STRING_MEMORY, srcString, 1)
-    call mpas_duplicate_field(srcString, dstString)
-    dstString % fieldName = trim(buf_prefix) // trim(START_ALARM_ID_SUFFIX)
-    call mpas_pool_add_field(domain % blocklist % allFields, &
-      dstString % fieldName, dstString)
-    call mpas_pool_get_array(domain % blocklist % allFields, &
-      dstString % fieldName, series % buffers(b) % start_alarm_ID, 1)
+    field_name = trim(buf_prefix) // trim(START_ALARM_ID_SUFFIX)
+    call add_new_string(domain % blocklist % allFields, &
+      domain % blocklist % allFields, field_name, &
+      series % buffers(b) % start_alarm_ID)
 
     ! repeat_alarm_ID
-    call mpas_pool_get_field(domain % blocklist % allFields, &
-      ONE_STRING_MEMORY, srcString, 1)
-    call mpas_duplicate_field(srcString, dstString)
-    dstString % fieldName = trim(buf_prefix) // trim(REPEAT_ALARM_ID_SUFFIX)
-    call mpas_pool_add_field(domain % blocklist % allFields, &
-      dstString % fieldName, dstString)
-    call mpas_pool_get_array(domain % blocklist % allFields, &
-      dstString % fieldName, series % buffers(b) % repeat_alarm_ID, 1)
+    field_name = trim(buf_prefix) // trim(REPEAT_ALARM_ID_SUFFIX)
+    call add_new_string(domain % blocklist % allFields, &
+      domain % blocklist % allFields, field_name, &
+      series % buffers(b) % repeat_alarm_ID)
 
     ! duration_alarm_ID
-    call mpas_pool_get_field(domain % blocklist % allFields, &
-      ONE_STRING_MEMORY, srcString, 1)
-    call mpas_duplicate_field(srcString, dstString)
-    dstString % fieldName = trim(buf_prefix) // trim(DURATION_ALARM_ID_SUFFIX)
-    call mpas_pool_add_field(domain % blocklist % allFields, &
-      dstString % fieldName, dstString)
-    call mpas_pool_get_array(domain % blocklist % allFields, &
-      dstString % fieldName, series % buffers(b) % duration_alarm_ID, 1)
+    field_name = trim(buf_prefix) // trim(DURATION_ALARM_ID_SUFFIX)
+    call add_new_string(domain % blocklist % allFields, &
+      domain % blocklist % allFields, field_name, &
+      series % buffers(b) % duration_alarm_ID)
 
     ! reset_alarm_ID
-    call mpas_pool_get_field(domain % blocklist % allFields, &
-      ONE_STRING_MEMORY, srcString, 1)
-    call mpas_duplicate_field(srcString, dstString)
-    dstString % fieldName = trim(buf_prefix) // trim(RESET_ALARM_ID_SUFFIX)
-    call mpas_pool_add_field(domain % blocklist % allFields, &
-      dstString % fieldName, dstString)
-    call mpas_pool_get_array(domain % blocklist % allFields, &
-      dstString % fieldName, series % buffers(b) % reset_alarm_ID, 1)
+    field_name = trim(buf_prefix) // trim(RESET_ALARM_ID_SUFFIX)
+    call add_new_string(domain % blocklist % allFields, &
+      domain % blocklist % allFields, field_name, &
+      series % buffers(b) % reset_alarm_ID)
 
     !
     ! counter is not allocated here, because it is part of the restart stream,
@@ -784,7 +849,6 @@ subroutine modify_stream(domain, instance, series, err)!{{{
   logical :: emptyRestartStream
   character (len=StrKIND), pointer :: output_stream_name, restart_stream_name
   character (len=StrKIND) :: fieldName
-  type (field0DReal), pointer :: srcReal, dstReal
   logical, pointer :: copy_mesh
   character (len=StrKIND) :: field_name, config, op_name
   character (len=StrKIND) :: namelist_prefix, &
@@ -860,36 +924,31 @@ subroutine modify_stream(domain, instance, series, err)!{{{
   end do
 
   if (.not. emptyRestartStream) then
-    write(stderrUnit, *) 'ERROR: Stream named ''' // trim(restart_stream_name) // ''' is not empty, but is used in '
+    write(stderrUnit, *) trim(CURRENT_CORE_NAME) // ' ERROR: Stream named ''' // trim(restart_stream_name) // ''' is not empty, but is used in '
     write(stderrUnit, *) '       an instance of the time series stats analysis member. This stream will be built'
     write(stderrUnit, *) '       based on the contents of the ''' // trim(output_stream_name) // ''' stream.'
     write(stderrUnit, *) '       Please ensure it is empty in the streams file.'
-    call mpas_dmpar_global_abort('MPAS-ocean: ERROR: Misconfigured streams for time series stats analysis member.')
+    call mpas_dmpar_global_abort( &
+      trim(CURRENT_CORE_NAME) // 'ERROR: Misconfigured streams for time series stats analysis member.')
   end if
 
   ! create and put the counters in the streams
   do b = 1, series % number_of_buffers
     write(buf_identifier, '(I0)') b
 
-    field_name = counter_naming(storage_prefix, buf_identifier)
-
     ! allocate counter memory
-    call mpas_pool_get_field(domain % blocklist % allFields, &
-      ONE_REAL_MEMORY, srcReal, 1)
-    call mpas_duplicate_field(srcReal, dstReal)
-    dstReal % fieldName = field_name
-    call mpas_pool_add_field(domain % blocklist % allFields, &
-      dstReal % fieldName, dstReal)
-    call mpas_pool_get_array(domain % blocklist % allFields, &
-      dstReal % fieldName, series % buffers(b) % counter, 1)
+    field_name = counter_naming(storage_prefix, buf_identifier)
+    call add_new_real(domain % blocklist % allFields, &
+      domain % blocklist % allFields, field_name, &
+      series % buffers(b) % counter)
 
     ! put it in the output stream
     call mpas_stream_mgr_add_field(domain % streamManager, &
-      output_stream_name, dstReal % fieldName, ierr=err)
+      output_stream_name, field_name, ierr=err)
 
     ! put it in the restart stream
     call mpas_stream_mgr_add_field(domain % streamManager, &
-      restart_stream_name, dstReal % fieldName, ierr=err)
+      restart_stream_name, field_name, ierr=err)
   end do
 
   ! set up the variables
@@ -903,7 +962,8 @@ subroutine modify_stream(domain, instance, series, err)!{{{
     ! check if we can handle it
     if(.not. ((info % fieldType == MPAS_POOL_REAL) &
        .or. (info % fieldType == MPAS_POOL_INTEGER))) then
-      call mpas_dmpar_global_abort('MPAS-ocean: Error: field "' // &
+      call mpas_dmpar_global_abort(trim(CURRENT_CORE_NAME) // &
+        ' ERROR: field "' // &
         trim(series % variables(v) % input_name) // '" listed in the ' // &
         'output stream, for time series stats analysis member ' // &
         'stream, is not real or integer.')
@@ -1025,7 +1085,8 @@ subroutine get_alarms(domain, instance, series, alarms, err)
   call set_times(series, alarms, domain % clock, RESET_INTERVALS, &
     config_results, ok, err)
   if (.not. ok) then
-    call mpas_dmpar_global_abort('MPAS-ocean: Error: number of times in ' // &
+    call mpas_dmpar_global_abort(trim(CURRENT_CORE_NAME) // &
+      ' ERROR: number of times in ' // &
       'reset_intervals is not consistent with number of times ' // &
       'in reference_times in time series stats analysis member ' // &
       'configuration.')
@@ -1037,7 +1098,8 @@ subroutine get_alarms(domain, instance, series, alarms, err)
   call set_times(series, alarms, domain % clock, REPEAT_INTERVALS, &
     config_results, ok, err)
   if (.not. ok) then
-    call mpas_dmpar_global_abort('MPAS-ocean: Error: number of times in ' // &
+    call mpas_dmpar_global_abort(trim(CURRENT_CORE_NAME) // &
+      ' ERROR: number of times in ' // &
       'repeat_intervals is not consistent with number of times ' // &
       'in reference_times in time series stats analysis member ' // &
       'configuration.')
@@ -1049,7 +1111,8 @@ subroutine get_alarms(domain, instance, series, alarms, err)
   call set_times(series, alarms, domain % clock, DURATION_INTERVALS, &
     config_results, ok, err)
   if (.not. ok) then
-    call mpas_dmpar_global_abort('MPAS-ocean: Error: number of times in ' // &
+    call mpas_dmpar_global_abort(trim(CURRENT_CORE_NAME) // &
+      ' ERROR: number of times in ' // &
       'duration_intervals is not consistent with number of times ' // &
       'in reference_times in time series stats analysis member ' // &
       'configuration.')
@@ -1637,223 +1700,63 @@ end subroutine typed_operate!}}}
 !-----------------------------------------------------------------------
 
 subroutine copy_field_0r(inname, pool, outname)!{{{
-  character (len=StrKIND), intent(in) :: inname, outname
-  type (mpas_pool_type), intent(inout) :: pool
-
+#include "time_series_inc/copy_field_1.inc"
   type (field0DReal), pointer :: src, dst
-  integer :: i
-
-  call mpas_pool_get_field(pool, inname, src, 1)
-  call mpas_duplicate_field(src, dst)
-
-  dst % fieldName = outname
-
-  if (dst % isVarArray) then
-    do i = 1, size(dst % constituentNames)
-      dst % constituentNames(i) = trim(outname) // '_' // &
-        trim(dst % constituentNames(i))
-    end do
-  end if
-
-  call mpas_pool_add_field(pool, dst % fieldName, dst)
+#include "time_series_inc/copy_field_2.inc"
 end subroutine copy_field_0r!}}}
 
 subroutine copy_field_1r(inname, pool, outname)!{{{
-  character (len=StrKIND), intent(in) :: inname, outname
-  type (mpas_pool_type), intent(inout) :: pool
-
+#include "time_series_inc/copy_field_1.inc"
   type (field1DReal), pointer :: src, dst
-  integer :: i
-
-  call mpas_pool_get_field(pool, inname, src, 1)
-  call mpas_duplicate_field(src, dst)
-
-  dst % fieldName = outname
-
-  if (dst % isVarArray) then
-    do i = 1, size(dst % constituentNames)
-      dst % constituentNames(i) = trim(outname) // '_' // &
-        trim(dst % constituentNames(i))
-    end do
-  end if
-
-  call mpas_pool_add_field(pool, dst % fieldName, dst)
+#include "time_series_inc/copy_field_2.inc"
 end subroutine copy_field_1r!}}}
 
 subroutine copy_field_2r(inname, pool, outname)!{{{
-  character (len=StrKIND), intent(in) :: inname, outname
-  type (mpas_pool_type), intent(inout) :: pool
-
+#include "time_series_inc/copy_field_1.inc"
   type (field2DReal), pointer :: src, dst
-  integer :: i
-
-  call mpas_pool_get_field(pool, inname, src, 1)
-  call mpas_duplicate_field(src, dst)
-
-  dst % fieldName = outname
-
-  if (dst % isVarArray) then
-    do i = 1, size(dst % constituentNames)
-      dst % constituentNames(i) = trim(outname) // '_' // &
-        trim(dst % constituentNames(i))
-    end do
-  end if
-
-  call mpas_pool_add_field(pool, dst % fieldName, dst)
+#include "time_series_inc/copy_field_2.inc"
 end subroutine copy_field_2r!}}}
 
 subroutine copy_field_3r(inname, pool, outname)!{{{
-  character (len=StrKIND), intent(in) :: inname, outname
-  type (mpas_pool_type), intent(inout) :: pool
-
+#include "time_series_inc/copy_field_1.inc"
   type (field3DReal), pointer :: src, dst
-  integer :: i
-
-  call mpas_pool_get_field(pool, inname, src, 1)
-  call mpas_duplicate_field(src, dst)
-
-  dst % fieldName = outname
-
-  if (dst % isVarArray) then
-    do i = 1, size(dst % constituentNames)
-      dst % constituentNames(i) = trim(outname) // '_' // &
-        trim(dst % constituentNames(i))
-    end do
-  end if
-
-  call mpas_pool_add_field(pool, dst % fieldName, dst)
+#include "time_series_inc/copy_field_2.inc"
 end subroutine copy_field_3r!}}}
 
 subroutine copy_field_4r(inname, pool, outname)!{{{
-  character (len=StrKIND), intent(in) :: inname, outname
-  type (mpas_pool_type), intent(inout) :: pool
-
+#include "time_series_inc/copy_field_1.inc"
   type (field4DReal), pointer :: src, dst
-  integer :: i
-
-  call mpas_pool_get_field(pool, inname, src, 1)
-  call mpas_duplicate_field(src, dst)
-
-  dst % fieldName = outname
-
-  if (dst % isVarArray) then
-    do i = 1, size(dst % constituentNames)
-      dst % constituentNames(i) = trim(outname) // '_' // &
-        trim(dst % constituentNames(i))
-    end do
-  end if
-
-  call mpas_pool_add_field(pool, dst % fieldName, dst)
+#include "time_series_inc/copy_field_2.inc"
 end subroutine copy_field_4r!}}}
 
 subroutine copy_field_5r(inname, pool, outname)!{{{
-  character (len=StrKIND), intent(in) :: inname, outname
-  type (mpas_pool_type), intent(inout) :: pool
-
+#include "time_series_inc/copy_field_1.inc"
   type (field5DReal), pointer :: src, dst
-  integer :: i
-
-  call mpas_pool_get_field(pool, inname, src, 1)
-  call mpas_duplicate_field(src, dst)
-
-  dst % fieldName = outname
-
-  if (dst % isVarArray) then
-    do i = 1, size(dst % constituentNames)
-      dst % constituentNames(i) = trim(outname) // '_' // &
-        trim(dst % constituentNames(i))
-    end do
-  end if
-
-  call mpas_pool_add_field(pool, dst % fieldName, dst)
+#include "time_series_inc/copy_field_2.inc"
 end subroutine copy_field_5r!}}}
 
 subroutine copy_field_0i(inname, pool, outname)!{{{
-  character (len=StrKIND), intent(in) :: inname, outname
-  type (mpas_pool_type), intent(inout) :: pool
-
+#include "time_series_inc/copy_field_1.inc"
   type (field0DInteger), pointer :: src, dst
-  integer :: i
-
-  call mpas_pool_get_field(pool, inname, src, 1)
-  call mpas_duplicate_field(src, dst)
-
-  dst % fieldName = outname
-
-  if (dst % isVarArray) then
-    do i = 1, size(dst % constituentNames)
-      dst % constituentNames(i) = trim(outname) // '_' // &
-        trim(dst % constituentNames(i))
-    end do
-  end if
-
-  call mpas_pool_add_field(pool, dst % fieldName, dst)
+#include "time_series_inc/copy_field_2.inc"
 end subroutine copy_field_0i!}}}
 
 subroutine copy_field_1i(inname, pool, outname)!{{{
-  character (len=StrKIND), intent(in) :: inname, outname
-  type (mpas_pool_type), intent(inout) :: pool
-
+#include "time_series_inc/copy_field_1.inc"
   type (field1DInteger), pointer :: src, dst
-  integer :: i
-
-  call mpas_pool_get_field(pool, inname, src, 1)
-  call mpas_duplicate_field(src, dst)
-
-  dst % fieldName = outname
-
-  if (dst % isVarArray) then
-    do i = 1, size(dst % constituentNames)
-      dst % constituentNames(i) = trim(outname) // '_' // &
-        trim(dst % constituentNames(i))
-    end do
-  end if
-
-  call mpas_pool_add_field(pool, dst % fieldName, dst)
+#include "time_series_inc/copy_field_2.inc"
 end subroutine copy_field_1i!}}}
 
 subroutine copy_field_2i(inname, pool, outname)!{{{
-  character (len=StrKIND), intent(in) :: inname, outname
-  type (mpas_pool_type), intent(inout) :: pool
-
+#include "time_series_inc/copy_field_1.inc"
   type (field2DInteger), pointer :: src, dst
-  integer :: i
-
-  call mpas_pool_get_field(pool, inname, src, 1)
-  call mpas_duplicate_field(src, dst)
-
-  dst % fieldName = outname
-
-  if (dst % isVarArray) then
-    do i = 1, size(dst % constituentNames)
-      dst % constituentNames(i) = trim(outname) // '_' // &
-        trim(dst % constituentNames(i))
-    end do
-  end if
-
-  call mpas_pool_add_field(pool, dst % fieldName, dst)
+#include "time_series_inc/copy_field_2.inc"
 end subroutine copy_field_2i!}}}
 
 subroutine copy_field_3i(inname, pool, outname)!{{{
-  character (len=StrKIND), intent(in) :: inname, outname
-  type (mpas_pool_type), intent(inout) :: pool
-
+#include "time_series_inc/copy_field_1.inc"
   type (field3DInteger), pointer :: src, dst
-  integer :: i
-
-  call mpas_pool_get_field(pool, inname, src, 1)
-  call mpas_duplicate_field(src, dst)
-
-  dst % fieldName = outname
-
-  if (dst % isVarArray) then
-    do i = 1, size(dst % constituentNames)
-      dst % constituentNames(i) = trim(outname) // '_' // &
-        trim(dst % constituentNames(i))
-    end do
-  end if
-
-  call mpas_pool_add_field(pool, dst % fieldName, dst)
+#include "time_series_inc/copy_field_2.inc"
 end subroutine copy_field_3i!}}}
 
 
