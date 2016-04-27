@@ -31,9 +31,13 @@
 			description="Number of bins in South-to-North direction used for moc streamfunction calculation."
 			possible_values="Any positive integer value less than or equal to nMocStreamfunctionBins."
 		/>
-		<nml_option name="config_AM_mocStreamfunction_velocity_value" type="integer" default_value="1" units="unitless"
+		<nml_option name="config_AM_mocStreamfunction_velocity_value" type="character" default_value="vertVelocityTop" units="unitless"
 			description="The vertical velocity used for the computation of the MOC Streamfunction."
-			possible_values="1 for 'vertVelocityTop', 2 for 'vertTransportVelocityTop' or 3 for 'vertGMBolusVelocityTop' (all from diagnostics pool)."
+			possible_values="Either of 'vertVelocityTop', 'vertTransportVelocityTop' or 'vertGMBolusVelocityTop' (all from diagnostics pool)."
+		/>
+		<nml_option name="config_AM_mocStreamfunction_additionalRegion" type="character" default_value="all" units="unitless"
+			description="The region, for which the moc should be computed in addition to the global MOC."
+			possible_values="Either of '' or 'all' (which, incidentally, are exactly the same)."
 		/>
 	</nml_record>
 	<dims>
@@ -48,7 +52,10 @@
 		<package name="mocStreamfunctionAMPKG" description="This package includes variables required for the mocStreamfunction analysis member."/>
 	</packages>
 	<var_struct name="mocStreamfunctionAM" time_levs="1" packages="mocStreamfunctionAMPKG">
-		<var name="mocStreamvalLatAndDepth" type="real" dimensions="nMocStreamfunctionBins nVertLevelsP1 Time" units="sverdrups"
+		<var name="mocStreamvalLatAndDepth" type="real" dimensions="nMocStreamfunctionBinsP1 nVertLevelsP1 Time" units="sverdrups"
+			description="The value of the MOC streamfunction for each latitude-bin (first dimension) and depth (second dimension)"
+		/>
+		<var name="mocStreamvalLatAndDepthRegion" type="real" dimensions="nMocStreamfunctionBinsP1 nVertLevelsP1 Time" units="sverdrups"
 			description="The value of the MOC streamfunction for each latitude-bin (first dimension) and depth (second dimension)"
 		/>
 		<var name="binBoundaryMocStreamfunction" type="real" dimensions="nMocStreamfunctionBinsP1" units="varies"
@@ -56,7 +63,8 @@
 		/>
 	</var_struct>
 	<streams>
-		<stream name="mocStreamfunctionOutput" type="output"
+		<stream name="mocStreamfunctionOutput"
+		        type="output"
 				mode="forward;analysis"
 				filename_template="analysis_members/mocStreamfunction.$Y-$M-$D.nc"
 				filename_interval="01-00-00_00:00:00"
@@ -67,6 +75,7 @@
 				runtime_format="single_file">
 			<var name="xtime"/>
 			<var name="mocStreamvalLatAndDepth"/>
+			<var name="mocStreamvalLatAndDepthRegion"/>
 		    <var name="binBoundaryMocStreamfunction"/>
 		    <var name="refBottomDepth"/>
 			<!--<var name="example_variable2"/> -->
