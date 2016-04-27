@@ -289,8 +289,8 @@ contains
       !!!! REGION STUFF
       !! region moc calculation variables
       real (kind=RKIND) :: maskFactor
-      integer :: currentRegion
-      real (kind=RKIND), dimension(:,:), pointer :: mocStreamValLatAndDepthRegionLocal, &
+      integer :: currentRegion, i
+      real (kind=RKIND), dimension(:,:,:), pointer :: mocStreamValLatAndDepthRegionLocal, &
                          mocStreamvalLatAndDepthRegion, mocStreamValLatAndDepthRegionTotal, &
                          sumVertBinVelocityRegion
                          
@@ -364,18 +364,21 @@ contains
       allocate(mocStreamValLatAndDepthTotal(nMocStreamfunctionBinsUsed + 1, nVertLevels + 1))
       
       !! allocate regional moc calculation arrays
-      allocate(mocStreamValLatAndDepthRegionLocal(nMocStreamfunctionBinsUsed + 1, nVertLevels + 1))
-      allocate(sumVertBinVelocityRegion(nMocStreamfunctionBinsUsed + 1, nVertLevels))
-      allocate(mocStreamValLatAndDepthRegionTotal(nMocStreamfunctionBinsUsed + 1, nVertLevels + 1))
+      allocate(mocStreamValLatAndDepthRegionLocal(nMocStreamfunctionBinsUsed + 1, nVertLevels + 1, maxRegionsInGroup))
+      allocate(sumVertBinVelocityRegion(nMocStreamfunctionBinsUsed + 1, nVertLevels, maxRegionsInGroup))
+      allocate(mocStreamValLatAndDepthRegionTotal(nMocStreamfunctionBinsUsed + 1, nVertLevels + 1, maxRegionsInGroup))
       
       do iBin = 1, nMocStreamfunctionBinsUsed + 1
          mocStreamValLatAndDepthLocal(iBin,:) = 0.0_RKIND
          mocStreamValLatAndDepthTotal(iBin,:) = 0.0_RKIND
-         sumVertBinVelocity(iBin, :) = 0.0_RKIND
-         
-         mocStreamValLatAndDepthRegionLocal(iBin,:) = 0.0_RKIND
-         mocStreamValLatAndDepthRegionTotal(iBin,:) = 0.0_RKIND
-         sumVertBinVelocityRegion(iBin, :) = 0.0_RKIND
+         sumVertBinVelocity(iBin,:) = 0.0_RKIND
+         do k = 1, nVertLevels
+            mocStreamValLatAndDepthRegionLocal(iBin,k,:) = 0.0_RKIND
+            mocStreamValLatAndDepthRegionTotal(iBin,k,:) = 0.0_RKIND
+            sumVertBinVelocityRegion(iBin,k,:) = 0.0_RKIND
+         end do
+         mocStreamValLatAndDepthRegionLocal(iBin,nVertLevels + 1,:) = 0.0_RKIND
+         mocStreamValLatAndDepthRegionTotal(iBin,nVertLevels + 1,:) = 0.0_RKIND
       end do
       
       call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_velocity_value', &
@@ -409,6 +412,7 @@ contains
          do iCell = 1,nCellsSolve
 			do iBin = 1, nMocStreamfunctionBinsUsed
                if (latCell(iCell) .gt. binBoundaryMocStreamfunction(iBin) .and. latCell(iCell) .lt. binBoundaryMocStreamfunction(iBin + 1)) then
+                
                 ! TESTING CODE. THIS CODE ALTERS THE VERTICAL VELOCITY TO PRODUCE A PRDICTABLE PATTERN IF THE CALCULATION IS
                 ! CORRECT. TESTS SHOW THIS PREDICTABLE PATTERN SO THIS IS NOT USED ANYMORE.  
                 !  if (latCell(iCell) .lt. -0.785398_RKIND .or. latCell(iCell) .gt. 0.785398_RKIND) then
@@ -428,9 +432,9 @@ contains
                 !  end if
                   !!!!! REGION STUFF
 
-                  do k = 1, regionsInAddGroup
-                     currentRegion = regionsInGroup(k, regionGroupNumber)
-                     sumVertBinVelocityRegion(iBin, :) = sumVertBinVelocityRegion(iBin, :) + (vertVelocityTop(:, iCell) * &
+                  do i = 1, regionsInAddGroup   
+                     currentRegion = regionsInGroup(i, regionGroupNumber)
+                     sumVertBinVelocityRegion(iBin, :, i) = sumVertBinVelocityRegion(iBin, :, i) + (vertVelocityTop(:, iCell) * &
                               areaCell(iCell) * regionCellMasks(currentRegion, iCell))
                   end do
 
@@ -444,18 +448,20 @@ contains
             do k = 1, nVertLevels
                mocStreamValLatAndDepthLocal(iBin, k) = mocStreamValLatAndDepthLocal(iBin-1, k) &
                   + sumVertBinVelocity(iBin, k)
-               mocStreamValLatAndDepthRegionLocal(iBin, k) = mocStreamValLatAndDepthRegionLocal(iBin-1, k) &
-                  + sumVertBinVelocityRegion(iBin, k)
+               do i = 1, regionsInAddGroup
+                  mocStreamValLatAndDepthRegionLocal(iBin, k, i) = mocStreamValLatAndDepthRegionLocal(iBin-1, k, i) &
+                     + sumVertBinVelocityRegion(iBin, k, i)
+               end do
             end do
          end do  
 
          block => block % next
      end do
       
-     call mpas_dmpar_sum_real_array(dminfo, (nVertLevels+1) * nMocStreamfunctionBinsUsed + 1, mocStreamValLatAndDepthLocal, &
+     call mpas_dmpar_sum_real_array(dminfo, (nVertLevels+1) * (nMocStreamfunctionBinsUsed + 1), mocStreamValLatAndDepthLocal, &
          mocStreamvalLatAndDepthTotal)
          
-     call mpas_dmpar_sum_real_array(dminfo, (nVertLevels+1) * nMocStreamfunctionBinsUsed + 1, mocStreamValLatAndDepthRegionLocal, &
+     call mpas_dmpar_sum_real_array(dminfo, (nVertLevels+1) * (nMocStreamfunctionBinsUsed + 1) * maxRegionsInGroup, mocStreamValLatAndDepthRegionLocal, &
          mocStreamvalLatAndDepthRegionTotal)
          
 !     print *, 'sumVertBinVelocitry', sumVertBinVelocity

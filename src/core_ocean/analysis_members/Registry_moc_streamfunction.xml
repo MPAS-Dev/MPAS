@@ -55,7 +55,7 @@
 		<var name="mocStreamvalLatAndDepth" type="real" dimensions="nMocStreamfunctionBinsP1 nVertLevelsP1 Time" units="sverdrups"
 			description="The value of the MOC streamfunction for each latitude-bin (first dimension) and depth (second dimension)"
 		/>
-		<var name="mocStreamvalLatAndDepthRegion" type="real" dimensions="nMocStreamfunctionBinsP1 nVertLevelsP1 Time" units="sverdrups"
+		<var name="mocStreamvalLatAndDepthRegion" type="real" dimensions="nMocStreamfunctionBinsP1 nVertLevelsP1 maxRegionsInGroup Time" units="sverdrups"
 			description="The value of the MOC streamfunction for each latitude-bin (first dimension) and depth (second dimension)"
 		/>
 		<var name="binBoundaryMocStreamfunction" type="real" dimensions="nMocStreamfunctionBinsP1" units="varies"
@@ -78,6 +78,11 @@
 			<var name="mocStreamvalLatAndDepthRegion"/>
 		    <var name="binBoundaryMocStreamfunction"/>
 		    <var name="refBottomDepth"/>
-			<!--<var name="example_variable2"/> -->
+		   
+		    <!-- variables needed to correctly plot the regional mocs -->
+		    <var name="regionGroupNames"/>
+		    <var name="regionNames"/>
+		    <var name="nRegionsInGroup"/>
+		    <var name="regionsInGropu"/>
 		</stream>
 	</streams>
