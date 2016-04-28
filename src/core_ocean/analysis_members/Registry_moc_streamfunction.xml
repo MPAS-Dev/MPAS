@@ -52,10 +52,10 @@
 		<package name="mocStreamfunctionAMPKG" description="This package includes variables required for the mocStreamfunction analysis member."/>
 	</packages>
 	<var_struct name="mocStreamfunctionAM" time_levs="1" packages="mocStreamfunctionAMPKG">
-		<var name="mocStreamvalLatAndDepth" type="real" dimensions="nMocStreamfunctionBinsP1 nVertLevelsP1 Time" units="sverdrups"
+		<var name="mocStreamvalLatAndDepth" type="real" dimensions="nMocStreamfunctionBinsP1 nVertLevels Time" units="sverdrups"
 			description="The value of the MOC streamfunction for each latitude-bin (first dimension) and depth (second dimension)"
 		/>
-		<var name="mocStreamvalLatAndDepthRegion" type="real" dimensions="nMocStreamfunctionBinsP1 nVertLevelsP1 maxRegionsInGroup Time" units="sverdrups"
+		<var name="mocStreamvalLatAndDepthRegion" type="real" dimensions="nMocStreamfunctionBinsP1 nVertLevels maxRegionsInGroup Time" units="sverdrups"
 			description="The value of the MOC streamfunction for each latitude-bin (first dimension) and depth (second dimension)"
 		/>
 		<var name="binBoundaryMocStreamfunction" type="real" dimensions="nMocStreamfunctionBinsP1" units="varies"
@@ -83,6 +83,6 @@
 		    <var name="regionGroupNames"/>
 		    <var name="regionNames"/>
 		    <var name="nRegionsInGroup"/>
-		    <var name="regionsInGropu"/>
+		    <var name="regionsInGroup"/>
 		</stream>
 	</streams>

@@ -323,34 +323,34 @@ contains
       call mpas_pool_get_array(regionPool, 'regionNames', regionNames)
       call mpas_pool_get_array(regionPool, 'regionGroupNames', regionGroupNames)
       
-      print *, 'nRegions', nRegions
-      print *, 'nRegionGroups', nRegionGroups
-      print *, 'maxRegionsInGroup', maxRegionsInGroup
-      print *, 'regionsInGroup', regionsInGroup
-      print *, 'regionNames', regionNames
-      print *, 'regionGroupNames', regionGroupNames
+      !print *, 'nRegions', nRegions
+      !print *, 'nRegionGroups', nRegionGroups
+      !print *, 'maxRegionsInGroup', maxRegionsInGroup
+      !print *, 'regionsInGroup', regionsInGroup
+      !print *, 'regionNames', regionNames
+      !print *, 'regionGroupNames', regionGroupNames
       
       !!! region preliminaries
-      print *, 'additional Region: ', additionalRegion
+      !print *, 'additional Region: ', additionalRegion
       do k = 1, nRegionGroups
          if (regionGroupNames(k) .eq. additionalRegion) then
             regionGroupNumber = k
-            print *, 'found region with the same name:', regionGroupNames(k)
+      !      print *, 'found region with the same name:', regionGroupNames(k)
          end if
       end do
       
       regionsInAddGroup = nRegionsInGroup(regionGroupNumber)
-      print *, 'the region group has', regionsInAddGroup, ' regions'
+      !print *, 'the region group has', regionsInAddGroup, ' regions'
       
-      print *, 'the numbers of the regions in the group are:'
-      do k = 1, regionsInAddGroup
-         print *, regionsInGroup(k, regionGroupNumber)
-      end do
+      !print *, 'the numbers of the regions in the group are:'
+      !do k = 1, regionsInAddGroup
+      !   print *, regionsInGroup(k, regionGroupNumber)
+      !end do
       
-      print *, 'the names of the regions are:'
-      do k = 1, regionsInAddGroup
-         print *, regionNames(regionsInGroup(k, regionGroupNumber))
-      end do
+      !print *, 'the names of the regions are:'
+      !do k = 1, regionsInAddGroup
+      !   print *, regionNames(regionsInGroup(k, regionGroupNumber))
+      !end do
       !!!! END REGION STUFF
       
       err = 0
@@ -359,14 +359,14 @@ contains
       
       call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nVertLevels', nVertLevels)
       
-      allocate(mocStreamValLatAndDepthLocal(nMocStreamfunctionBinsUsed + 1, nVertLevels + 1))
+      allocate(mocStreamValLatAndDepthLocal(nMocStreamfunctionBinsUsed + 1, nVertLevels))
       allocate(sumVertBinVelocity(nMocStreamfunctionBinsUsed + 1, nVertLevels))
-      allocate(mocStreamValLatAndDepthTotal(nMocStreamfunctionBinsUsed + 1, nVertLevels + 1))
+      allocate(mocStreamValLatAndDepthTotal(nMocStreamfunctionBinsUsed + 1, nVertLevels))
       
       !! allocate regional moc calculation arrays
-      allocate(mocStreamValLatAndDepthRegionLocal(nMocStreamfunctionBinsUsed + 1, nVertLevels + 1, maxRegionsInGroup))
+      allocate(mocStreamValLatAndDepthRegionLocal(nMocStreamfunctionBinsUsed + 1, nVertLevels, maxRegionsInGroup))
       allocate(sumVertBinVelocityRegion(nMocStreamfunctionBinsUsed + 1, nVertLevels, maxRegionsInGroup))
-      allocate(mocStreamValLatAndDepthRegionTotal(nMocStreamfunctionBinsUsed + 1, nVertLevels + 1, maxRegionsInGroup))
+      allocate(mocStreamValLatAndDepthRegionTotal(nMocStreamfunctionBinsUsed + 1, nVertLevels, maxRegionsInGroup))
       
       do iBin = 1, nMocStreamfunctionBinsUsed + 1
          mocStreamValLatAndDepthLocal(iBin,:) = 0.0_RKIND
@@ -377,8 +377,6 @@ contains
             mocStreamValLatAndDepthRegionTotal(iBin,k,:) = 0.0_RKIND
             sumVertBinVelocityRegion(iBin,k,:) = 0.0_RKIND
          end do
-         mocStreamValLatAndDepthRegionLocal(iBin,nVertLevels + 1,:) = 0.0_RKIND
-         mocStreamValLatAndDepthRegionTotal(iBin,nVertLevels + 1,:) = 0.0_RKIND
       end do
       
       call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_velocity_value', &
@@ -458,10 +456,10 @@ contains
          block => block % next
      end do
       
-     call mpas_dmpar_sum_real_array(dminfo, (nVertLevels+1) * (nMocStreamfunctionBinsUsed + 1), mocStreamValLatAndDepthLocal, &
+     call mpas_dmpar_sum_real_array(dminfo, nVertLevels * (nMocStreamfunctionBinsUsed + 1), mocStreamValLatAndDepthLocal, &
          mocStreamvalLatAndDepthTotal)
          
-     call mpas_dmpar_sum_real_array(dminfo, (nVertLevels+1) * (nMocStreamfunctionBinsUsed + 1) * maxRegionsInGroup, mocStreamValLatAndDepthRegionLocal, &
+     call mpas_dmpar_sum_real_array(dminfo, nVertLevels * (nMocStreamfunctionBinsUsed + 1) * maxRegionsInGroup, mocStreamValLatAndDepthRegionLocal, &
          mocStreamvalLatAndDepthRegionTotal)
          
 !     print *, 'sumVertBinVelocitry', sumVertBinVelocity
@@ -474,7 +472,7 @@ contains
      !   call mpas_pool_get_array(mocStreamfunctionAMPool, 'mocStreamvalLatAndDepth', mocStreamvalLatAndDepth)
      !    
      !   do iBin = 1, nMocStreamfunctionBinsUsed
-     !      do k = 1, nVertLevels + 1
+     !      do k = 1, nVertLevels
      !         mocStreamvalLatAndDepth(iBin, k) = mocStreamvalLatAndDepthTotal(iBin, k)
      !      end do
      !   end do
