@@ -64,6 +64,18 @@
 		<var name="minMaxLatRegion" type="real" dimensions="TWO maxRegionsInGroup" units="varies"
 			 description="Coordinates of the southern and northern edge of each region (for drawing)."
 		/>
+		<var name="transectEdgeMasks" type="integer" dimensions="nTransects nEdges" units="NA"
+ 			 description="Mask of edges for measuring transport across transects"
+ 		/>
+ 		<var name="transectEdgeMaskSigns" type="integer" dimensions="nTransects nEdges" units="NA"
+ 			 description="Sign of normalVelocity on edge for this transect"
+ 		/>
+ 		<var name="transectVolumeTransport" type="real" dimensions="nTransects Time" units="Sv"
+ 			description="Transport through transect of edges."
+ 		/>
+ 		<var name="transectVolumeTransportZ" type="real" dimensions="nVertLevels nTransects Time" units="Sv"
+ 			description="Transport through transect of edges, with depth coordinate."
+ 		/>
 	</var_struct>
 	<streams>
 		<stream name="mocStreamfunctionOutput"

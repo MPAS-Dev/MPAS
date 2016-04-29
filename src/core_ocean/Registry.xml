@@ -71,6 +71,12 @@
 		<dim name="maxRegionsInGroup" units="unitless"
 			description="Maximum number of regions in a group."
 			definition="0"/>
+		<dim name="nTransects" definition="1" units="unitless"
+ 			 description="The number of transects for AM transectTransport"
+ 		/>
+ 		<dim name="maxEdgesInTransect" definition="1" units="unitless"
+ 			 description="Max number of edges in a transect for AM transectTransport"
+ 		/>
 	</dims>
 
 	<!--*************************************-->
