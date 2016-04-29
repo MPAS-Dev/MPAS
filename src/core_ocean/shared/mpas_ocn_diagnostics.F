@@ -113,8 +113,8 @@ contains
       real (kind=RKIND), dimension(:), allocatable:: pTop, div_hu,div_huTransport,div_huGMBolus
 
       real (kind=RKIND), dimension(:), pointer :: &
-        bottomDepth, fVertex, dvEdge, dcEdge, areaCell, areaTriangle, ssh, seaSurfacePressure, frazilSurfacePressure, &
-        pressureAdjustedSSH, gradSSH
+        bottomDepth, fVertex, dvEdge, dcEdge, areaCell, areaTriangle, ssh, seaSurfacePressure, seaSurfacePressureLimited, &
+        frazilSurfacePressure, pressureAdjustedSSH, gradSSH
       real (kind=RKIND), dimension(:,:), pointer :: &
         weightsOnEdge, kiteAreasOnVertex, layerThicknessEdge, layerThickness, normalVelocity, normalTransportVelocity, &
         normalGMBolusVelocity, tangentialVelocity, pressure, circulation, kineticEnergyCell, montgomeryPotential, &
@@ -140,7 +140,8 @@ contains
       integer :: timeLevel
       integer, pointer :: indexTemperature, indexSalinity
       logical, pointer :: config_use_cvmix_kpp
-      real (kind=RKIND), pointer :: config_apvm_scale_factor,  config_coef_3rd_order, config_cvmix_kpp_surface_layer_averaging
+      real (kind=RKIND), pointer :: config_apvm_scale_factor,  config_coef_3rd_order, config_cvmix_kpp_surface_layer_averaging, &
+                                    config_density0
       character (len=StrKIND), pointer :: config_pressure_gradient_type
 
       real (kind=RKIND), pointer :: config_flux_attenuation_coefficient
@@ -154,6 +155,7 @@ contains
          timeLevel = 1
       end if
 
+      call mpas_pool_get_config(ocnConfigs, 'config_density0', config_density0)
       call mpas_pool_get_config(ocnConfigs, 'config_apvm_scale_factor', config_apvm_scale_factor)
       call mpas_pool_get_config(ocnConfigs, 'config_pressure_gradient_type', config_pressure_gradient_type)
       call mpas_pool_get_config(ocnConfigs, 'config_coef_3rd_order', config_coef_3rd_order)
@@ -227,6 +229,7 @@ contains
       call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
       call mpas_pool_get_array(forcingPool, 'seaSurfacePressure', seaSurfacePressure)
+      call mpas_pool_get_array(forcingPool, 'seaSurfacePressureLimited', seaSurfacePressureLimited)
       call mpas_pool_get_array(forcingPool, 'frazilSurfacePressure', frazilSurfacePressure)
 
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
@@ -612,12 +615,19 @@ contains
 
         !$omp do schedule(runtime) private(k)
         do iCell = 1, nCells
+           ! Limit sea surface pressure, if it seems like it's too large for the column of water.
+           ! Limiting assumes atmospheric pressure is 1e5 Pa, and that we want
+           ! to cap the pressure at 80% of a column.
+           seaSurfacePressureLimited(iCell) = min( seaSurfacePressure(iCell), config_density0 * gravity &
+                                     * bottomDepth(iCell) * 0.8_RKIND + 1e5_RKIND)
+
+
            ! Pressure for generalized coordinates.
            ! Pressure at top surface may be due to atmospheric pressure
            ! or an ice-shelf depression.
            pressure(1,iCell) = 0.0_RKIND
            if ( associated(frazilSurfacePressure) ) pressure(1,iCell) = pressure(1,iCell) + frazilSurfacePressure(iCell)
-           pressure(1,iCell) = pressure(1,iCell) + seaSurfacePressure(iCell)
+           pressure(1,iCell) = pressure(1,iCell) + seaSurfacePressureLimited(iCell)
            pressure(1,iCell) = pressure(1,iCell) + density(1,iCell)*gravity*0.5_RKIND*layerThickness(1,iCell)
 
            do k = 2, maxLevelCell(iCell)
