@@ -61,28 +61,33 @@
 		<var name="binBoundaryMocStreamfunction" type="real" dimensions="nMocStreamfunctionBinsP1" units="varies"
 			 description="Coordinate of southern edge of meridional heat transport bin, either in latitude or y, for plotting."
 		/>
+		<var name="minMaxLatRegion" type="real" dimensions="TWO maxRegionsInGroup" units="varies"
+			 description="Coordinates of the southern and northern edge of each region (for drawing)."
+		/>
 	</var_struct>
 	<streams>
 		<stream name="mocStreamfunctionOutput"
-		        type="output"
-				mode="forward;analysis"
-				filename_template="analysis_members/mocStreamfunction.$Y-$M-$D.nc"
-				filename_interval="01-00-00_00:00:00"
-				output_interval="00-00-01_00:00:00"
-				reference_time="0000-01-01_00:00:00"
-				packages="mocStreamfunctionAMPKG"
-				clobber_mode="truncate"
-				runtime_format="single_file">
+			type="output"
+			mode="forward;analysis"
+			filename_template="analysis_members/mocStreamfunction.$Y-$M-$D.nc"
+			filename_interval="01-00-00_00:00:00"
+			output_interval="00-00-01_00:00:00"
+			reference_time="0000-01-01_00:00:00"
+			packages="mocStreamfunctionAMPKG"
+			clobber_mode="truncate"
+			runtime_format="single_file">
+			
 			<var name="xtime"/>
 			<var name="mocStreamvalLatAndDepth"/>
 			<var name="mocStreamvalLatAndDepthRegion"/>
-		    <var name="binBoundaryMocStreamfunction"/>
-		    <var name="refBottomDepth"/>
-		   
-		    <!-- variables needed to correctly plot the regional mocs -->
-		    <var name="regionGroupNames"/>
-		    <var name="regionNames"/>
-		    <var name="nRegionsInGroup"/>
-		    <var name="regionsInGroup"/>
+			<var name="binBoundaryMocStreamfunction"/>
+			<var name="refBottomDepth"/>
+
+			<!-- variables needed to correctly plot the regional mocs -->
+			<var name="regionGroupNames"/>
+			<var name="minMaxLatRegion"/>
+			<var name="regionNames"/>
+			<var name="nRegionsInGroup"/>
+			<var name="regionsInGroup"/>
 		</stream>
 	</streams>

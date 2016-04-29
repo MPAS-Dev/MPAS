@@ -152,6 +152,50 @@ contains
 
       !determines if the simulation was run on a sphere or on a plane
       logical, pointer :: on_a_sphere
+      
+      !!!! REGION STUFF
+      !! region moc calculation variables
+      real (kind=RKIND) :: maskFactor
+      integer :: currentRegion, i, iCell
+                         
+      !! region arrays/variables
+      character (len=STRKIND), dimension(:), pointer :: regionGroupNames
+      integer, dimension(:, :), pointer :: regionCellMasks, regionsInGroup
+      integer, dimension(:), pointer ::  nRegionsInGroup
+      integer, pointer :: nRegions, nRegionGroups, maxRegionsInGroup, nCellsSolve
+      real (kind=RKIND), dimension(:,:), pointer :: minMaxLatRegion
+      character (len=STRKIND), pointer :: additionalRegion
+      
+      !! region preliminary variables
+      integer :: regionGroupNumber, regionsInAddGroup
+      
+      !!region pool
+      type (mpas_pool_type), pointer :: regionPool
+      
+      !! region dimensions
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nRegions', nRegions)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nRegionGroups', nRegionGroups)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'maxRegionsInGroup', maxRegionsInGroup)
+      
+      !! region config for moc
+      call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_additionalRegion', &
+                                additionalRegion)
+      
+      !! get region values
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'regions', regionPool)
+      call mpas_pool_get_array(regionPool, 'regionsInGroup', regionsInGroup)
+      call mpas_pool_get_array(regionPool, 'nRegionsInGroup', nRegionsInGroup)
+      call mpas_pool_get_array(regionPool, 'regionGroupNames', regionGroupNames)
+      
+      !!! region preliminaries
+      do i = 1, nRegionGroups
+         if (regionGroupNames(i) .eq. additionalRegion) then
+            regionGroupNumber = i
+         end if
+      end do
+      
+      regionsInAddGroup = nRegionsInGroup(regionGroupNumber)
+      !!!! END REGION STUFF
 
       dminfo = domain % dminfo
 
@@ -168,7 +212,11 @@ contains
                                 config_AM_mocStreamfunction_min_bin)
       call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_max_bin', &
                                 config_AM_mocStreamfunction_max_bin)
-
+      
+      call mpas_pool_get_array(mocStreamfunctionAMPool, 'minMaxLatRegion', minMaxLatRegion)
+      minMaxLatRegion(1,:) = 4.0_RKIND
+      minMaxLatRegion(2,:) = -4.0_RKIND                      
+                             
       nMocStreamfunctionBinsUsed = config_AM_mocStreamfunction_num_bins
 
       call mpas_pool_get_array(mocStreamfunctionAMPool, 'binBoundaryMocStreamfunction', binBoundaryMocStreamfunction)
@@ -178,6 +226,9 @@ contains
       do while (associated(block))
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
          call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
+         call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
+         
+         call mpas_pool_get_array(regionPool, 'regionCellMasks', regionCellMasks)
 
          ! Bin by latitude on a sphere, by yCell otherwise.
          if (on_a_sphere) then
@@ -188,12 +239,28 @@ contains
 
          minBin = min(minBin, minval(binVariable) )
          maxBin = max(maxBin, maxval(binVariable) )
+         
+         do i = 1, regionsInAddGroup
+            currentRegion = regionsInGroup(i, regionGroupNumber)
+            do iCell = 1, nCellsSolve
+               if (regionCellMasks(currentRegion, iCell) .eq. 1) then
+                  minMaxLatRegion(1, i) = min(minMaxLatRegion(1, i), binVariable(iCell))
+                  minMaxLatRegion(2, i) = max(minMaxLatRegion(2, i), binVariable(iCell))
+               end if
+            end do
+         end do
 
          block => block % next
       end do
 
       call mpas_dmpar_min_real_array(dminfo, 1, minBin, minBinDomain)
       call mpas_dmpar_max_real_array(dminfo, 1, maxBin, maxBinDomain)
+      
+      call mpas_dmpar_min_real_array(dminfo, maxRegionsInGroup, minMaxLatRegion(1,:), minMaxLatRegion(1,:))
+      call mpas_dmpar_max_real_array(dminfo, maxRegionsInGroup, minMaxLatRegion(2,:), minMaxLatRegion(2,:))
+
+      !print *, 'mins:', minMaxLatRegion(1,:)
+      !print *, 'maxs:', minMaxLatRegion(2,:)
 
       ! Set up bins.
       binBoundaryMocStreamfunction = -1.0e34_RKIND
@@ -332,10 +399,10 @@ contains
       
       !!! region preliminaries
       !print *, 'additional Region: ', additionalRegion
-      do k = 1, nRegionGroups
-         if (regionGroupNames(k) .eq. additionalRegion) then
-            regionGroupNumber = k
-      !      print *, 'found region with the same name:', regionGroupNames(k)
+      do i = 1, nRegionGroups
+         if (regionGroupNames(i) .eq. additionalRegion) then
+            regionGroupNumber = i
+      !      print *, 'found region with the same name:', regionGroupNames(i)
          end if
       end do
       
@@ -343,13 +410,13 @@ contains
       !print *, 'the region group has', regionsInAddGroup, ' regions'
       
       !print *, 'the numbers of the regions in the group are:'
-      !do k = 1, regionsInAddGroup
-      !   print *, regionsInGroup(k, regionGroupNumber)
+      !do i = 1, regionsInAddGroup
+      !   print *, regionsInGroup(i, regionGroupNumber)
       !end do
       
       !print *, 'the names of the regions are:'
-      !do k = 1, regionsInAddGroup
-      !   print *, regionNames(regionsInGroup(k, regionGroupNumber))
+      !do i = 1, regionsInAddGroup
+      !   print *, regionNames(regionsInGroup(i, regionGroupNumber))
       !end do
       !!!! END REGION STUFF
       
@@ -372,10 +439,10 @@ contains
          mocStreamValLatAndDepthLocal(iBin,:) = 0.0_RKIND
          mocStreamValLatAndDepthTotal(iBin,:) = 0.0_RKIND
          sumVertBinVelocity(iBin,:) = 0.0_RKIND
-         do k = 1, nVertLevels
-            mocStreamValLatAndDepthRegionLocal(iBin,k,:) = 0.0_RKIND
-            mocStreamValLatAndDepthRegionTotal(iBin,k,:) = 0.0_RKIND
-            sumVertBinVelocityRegion(iBin,k,:) = 0.0_RKIND
+         do i = 1, nVertLevels
+            mocStreamValLatAndDepthRegionLocal(iBin,i,:) = 0.0_RKIND
+            mocStreamValLatAndDepthRegionTotal(iBin,i,:) = 0.0_RKIND
+            sumVertBinVelocityRegion(iBin,i,:) = 0.0_RKIND
          end do
       end do
       
