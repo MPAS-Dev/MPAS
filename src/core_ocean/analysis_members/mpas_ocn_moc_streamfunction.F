@@ -499,11 +499,12 @@ contains
          call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
          call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
          call mpas_pool_get_array(statePool, 'layerThickness', layerThickness) ! removed last parameter 1
+         
+         
          !!!! TRANSECT CALCULATION
-      
          sumTransport = 0.0_RKIND
          do iTransect = 1,nTransects
- 
+         
             do iEdge = 1,nEdgesSolve
                c1 = cellsOnEdge(1,iEdge)
                c2 = cellsOnEdge(2,iEdge)
@@ -513,6 +514,11 @@ contains
                      * normalVelocity(k,iEdge)*dvEdge(iEdge) &
                      * 0.5_RKIND*(layerThickness(k,c1) + layerThickness(k,c2))*m3ps_to_Sv
                end do
+            end do
+            do k = 2, nVertLevels
+               mocStreamValLatAndDepthRegionLocal(1, k, iTransect) = & 
+                  mocStreamValLatAndDepthRegionLocal(1, k - 1, iTransect) & 
+                  + sumTransport(k - 1, iTransect)
             end do
          end do
  
@@ -609,6 +615,10 @@ contains
      deallocate(mocStreamvalLatAndDepthRegionTotal)
      deallocate(mocStreamvalLatAndDepthRegionLocal)
      deallocate(sumVertBinVelocityRegion)
+     
+     !!!! TRANSECT CELANUP
+     deallocate(sumTransport)
+     deallocate(totalSumTransport)
 
    end subroutine ocn_compute_moc_streamfunction!}}}
 
