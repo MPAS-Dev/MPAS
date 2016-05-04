@@ -164,6 +164,7 @@ contains
       integer, dimension(:), pointer ::  nRegionsInGroup
       integer, pointer :: nRegions, nRegionGroups, maxRegionsInGroup, nCellsSolve
       real (kind=RKIND), dimension(:,:), pointer :: minMaxLatRegion
+      real (kind=RKIND), dimension(:)  , pointer :: minLatRegionLocal, maxLatRegionLocal
       character (len=STRKIND), pointer :: additionalRegion
       
       !! region preliminary variables
@@ -196,7 +197,10 @@ contains
       
       regionsInAddGroup = nRegionsInGroup(regionGroupNumber)
       !!!! END REGION STUFF
-
+      
+      allocate(minLatRegionLocal(maxRegionsInGroup))
+      allocate(maxLatRegionLocal(maxRegionsInGroup))
+      
       dminfo = domain % dminfo
 
       err = 0
@@ -214,8 +218,9 @@ contains
                                 config_AM_mocStreamfunction_max_bin)
       
       call mpas_pool_get_array(mocStreamfunctionAMPool, 'minMaxLatRegion', minMaxLatRegion)
-      minMaxLatRegion(1,:) = 4.0_RKIND
-      minMaxLatRegion(2,:) = -4.0_RKIND                      
+      
+      minLatRegionLocal(:) =  4.0_RKIND
+      maxLatRegionLocal(:) = -4.0_RKIND                      
                              
       nMocStreamfunctionBinsUsed = config_AM_mocStreamfunction_num_bins
 
@@ -244,8 +249,8 @@ contains
             currentRegion = regionsInGroup(i, regionGroupNumber)
             do iCell = 1, nCellsSolve
                if (regionCellMasks(currentRegion, iCell) .eq. 1) then
-                  minMaxLatRegion(1, i) = min(minMaxLatRegion(1, i), binVariable(iCell))
-                  minMaxLatRegion(2, i) = max(minMaxLatRegion(2, i), binVariable(iCell))
+                  minLatRegionLocal(i) = min(minLatRegionLocal(i), binVariable(iCell))
+                  maxLatRegionLocal(i) = max(maxLatRegionLocal(i), binVariable(iCell))
                end if
             end do
          end do
@@ -256,8 +261,14 @@ contains
       call mpas_dmpar_min_real_array(dminfo, 1, minBin, minBinDomain)
       call mpas_dmpar_max_real_array(dminfo, 1, maxBin, maxBinDomain)
       
-      call mpas_dmpar_min_real_array(dminfo, maxRegionsInGroup, minMaxLatRegion(1,:), minMaxLatRegion(1,:))
-      call mpas_dmpar_max_real_array(dminfo, maxRegionsInGroup, minMaxLatRegion(2,:), minMaxLatRegion(2,:))
+      call mpas_dmpar_min_real_array(dminfo, maxRegionsInGroup, minLatRegionLocal(:), minLatRegionLocal(:))
+      call mpas_dmpar_max_real_array(dminfo, maxRegionsInGroup, maxLatRegionLocal(:), maxLatRegionLocal(:))
+      
+      minMaxLatRegion(1, :) = minLatRegionLocal(:)
+      minMaxLatRegion(2, :) = maxLatRegionLocal(:)
+      
+      deallocate(minLatRegionLocal)
+      deallocate(maxLatRegionLocal)
 
       !print *, 'mins:', minMaxLatRegion(1,:)
       !print *, 'maxs:', minMaxLatRegion(2,:)
