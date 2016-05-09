@@ -382,8 +382,10 @@ contains
                cvmix_variables % Tdiff_iface(:) = cvmix_variables % Tdiff_iface(:) - config_cvmix_background_diffusion
             endif
 
-            vertViscTopOfCell(:,iCell) = vertViscTopOfCell(:,iCell) + cvmix_variables % Mdiff_iface(:)
-            vertDiffTopOfCell(:,iCell) = vertDiffTopOfCell(:,iCell) + cvmix_variables % Tdiff_iface(:)
+            do k = 1, maxLevelCell(iCell)
+               vertViscTopOfCell(k, iCell) = vertViscTopOfCell(k, iCell) + cvmix_variables % Mdiff_iface(k)
+               vertDiffTopOfCell(k, iCell) = vertDiffTopOfCell(k, iCell) + cvmix_variables % Tdiff_iface(k)
+            end do
 
          endif ! if (config_use_cvmix_shear)
          ! call kpp ocean mixed layer scheme
@@ -533,8 +535,21 @@ contains
             boundaryLayerDepth(iCell) = cvmix_variables % BoundaryLayerDepth
             indexBoundaryLayerDepth(iCell) = cvmix_variables % kOBL_depth
 
-            vertViscTopOfCell(:,iCell) = cvmix_variables % Mdiff_iface(:)
-            vertDiffTopOfCell(:,iCell) = cvmix_variables % Tdiff_iface(:)
+
+
+            if(config_cvmix_kpp_matching .eq. 'SimpleShapes') then
+                do k = 1, int(indexBoundaryLayerDepth(iCell)) 
+                   vertViscTopOfCell(k,iCell) = vertViscTopOfCell(k,iCell) + cvmix_variables % Mdiff_iface(k)
+                   vertDiffTopOfCell(k,iCell) = vertDiffTopOfCell(k,iCell) + cvmix_variables % Tdiff_iface(k)
+                end do
+                do k = int(indexBoundaryLayerDepth(iCell))+1, maxLevelCell(iCell)+1
+                   vertViscTopOfCell(k,iCell) = cvmix_variables % Mdiff_iface(k)
+                   vertDiffTopOfCell(k,iCell) = cvmix_variables % Tdiff_iface(k)
+                enddo
+            else
+                vertViscTopOfCell(:,iCell) = cvmix_variables % Mdiff_iface(:)
+                vertDiffTopOfCell(:,iCell) = cvmix_variables % Tdiff_iface(:)
+            endif
 
             ! store non-local flux terms
             ! these flux terms must be multiplied by the surfaceTracerFlux field
