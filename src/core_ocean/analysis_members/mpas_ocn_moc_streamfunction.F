@@ -505,7 +505,7 @@ contains
          call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
          call mpas_pool_get_dimension(block % dimensions, 'nEdgesSolve', nEdgesSolve)
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! REMEMBER TO LOAD THE CORRECT, SIGNED EDGE MASK!!!!!!!!!!!!!
-         call mpas_pool_get_array(mocStreamfunctionAMPool,'transectEdgeMasks',transectEdgeMaskSigns)
+         call mpas_pool_get_array(mocStreamfunctionAMPool,'transectEdgeMaskSigns',transectEdgeMaskSigns)
          call mpas_pool_get_subpool(block % structs, 'state', statePool)
          call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity) ! removed last parameter 1
          call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
@@ -587,7 +587,7 @@ contains
          block => block % next
      end do
      
-     print *, 'sumTransport', sumTransport
+!     print *, 'sumTransport', sumTransport
       
      call mpas_dmpar_sum_real_array(dminfo, nVertLevels * (nMocStreamfunctionBinsUsed + 1), mocStreamValLatAndDepthLocal, &
          mocStreamvalLatAndDepthTotal)
