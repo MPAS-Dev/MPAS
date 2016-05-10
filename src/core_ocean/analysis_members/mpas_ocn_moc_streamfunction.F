@@ -561,7 +561,7 @@ contains
                 
                   !!!!! REGION STUFF
 
-                  do i = 1, regionsInAddGroup   
+                  do i = 1, regionsInAddGroup
                      currentRegion = regionsInGroup(i, regionGroupNumber)
                      sumVertBinVelocityRegion(iBin, :, i) = sumVertBinVelocityRegion(iBin, :, i) + (vertVelocityTop(:, iCell) * &
                               areaCell(iCell) * regionCellMasks(currentRegion, iCell))
