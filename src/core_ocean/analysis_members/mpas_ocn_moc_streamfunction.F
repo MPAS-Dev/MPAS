@@ -178,7 +178,7 @@ contains
       call mpas_pool_get_dimension(domain % blocklist % dimensions, 'maxRegionsInGroup', maxRegionsInGroup)
       
       !! region config for moc
-      call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_additionalRegion', &
+      call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_region_group', &
                                 additionalRegion)
       
       !! get region values
@@ -364,7 +364,7 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: mocStreamvalLatAndDepth, mocStreamValLatAndDepthTotal
       real (kind=RKIND), dimension(:,:), pointer :: vertVelocityTop
       real (kind=RKIND), dimension(:,:), pointer :: sumVertBinVelocity
-      character (len=STRKIND), pointer :: verticalVelocityArrayName
+      character (len=STRKIND), pointer :: verticalVelocityArrayName, normalVelocityArrayName
       
       !!!! TRANSECT VARIABLES !!!!
       integer, pointer :: nEdgesSolve, num_tracers, nTransects
@@ -375,8 +375,8 @@ contains
       real (kind=RKIND) :: m3ps_to_Sv
       real (kind=RKIND), dimension(:), pointer ::  dvEdge, transectVolumeTransport,refLayerThickness
       real (kind=RKIND), dimension(:,:), pointer :: layerThickness, normalVelocity, transectVolumeTransportZ
- 
       real (kind=RKIND), dimension(:,:), allocatable ::  sumTransport, totalSumTransport
+      character (len=STRKIND), pointer :: additionalTransect
       !!!! END TRANSECT VARIABLES !!!!
       
       !!!! REGION VARIABLES
@@ -403,7 +403,7 @@ contains
       call mpas_pool_get_dimension(domain % blocklist % dimensions, 'maxRegionsInGroup', maxRegionsInGroup)
       
       !! region config for moc
-      call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_additionalRegion', &
+      call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_region_group', &
                                 additionalRegion)
       
       !! get region values
@@ -458,7 +458,10 @@ contains
       allocate(sumTransport(nVertLevels,nTransects))
       allocate(totalSumTransport(nVertLevels,nTransects))
       
-      m3ps_to_Sv = 1e-6;
+      m3ps_to_Sv = 1e-6
+
+      call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_transect_group', &
+                                additionalTransect)
       
       !!!! END TRANSECT INITIALIZATION
       
@@ -474,8 +477,11 @@ contains
       mocStreamValLatAndDepthTotal = 0.0_RKIND
       sumVertBinVelocity = 0.0_RKIND
       
-      call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_velocity_value', &
+      call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_vertical_velocity_value', &
                                 verticalVelocityArrayName)
+
+      call mpas_pool_get_config(domain % configs, 'config_AM_mocStreamfunction_normal_velocity_value', &
+                                normalVelocityArrayName)
       
       block => domain % blocklist
       do while (associated(block))
@@ -488,10 +494,6 @@ contains
          binWidth = (binBoundaryMocStreamfunction(nMocStreamfunctionBinsUsed + 1) - binBoundaryMocStreamfunction(1)) & 
          / nMocStreamfunctionBinsUsed
          
-         !call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere) might come in handy
-
-         ! Here are some example variables which may be needed for your analysis member
-
          call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
 
          call mpas_pool_get_array(diagnosticsPool, verticalVelocityArrayName, vertVelocityTop)
@@ -505,13 +507,19 @@ contains
          call mpas_pool_get_dimension(block % dimensions, 'nEdgesSolve', nEdgesSolve)
          call mpas_pool_get_array(mocStreamfunctionAMPool,'transectEdgeMaskSigns',transectEdgeMaskSigns)
          call mpas_pool_get_subpool(block % structs, 'state', statePool)
-         call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity)
+         call mpas_pool_get_array(statePool, normalVelocityArrayName, normalVelocity)
          call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
          call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
          call mpas_pool_get_array(statePool, 'layerThickness', layerThickness)
          
          
          !!!! TRANSECT CALCULATION
+         !!!! NOTE: iTransect == iRegion !!!! This might have to change!
+         !!!! Define transect group, find current transect group number, find
+         !!!! nTransects in that group, find transects in group. THEN for each
+         !!!! transect in the group, there should be a region in the region
+         !!!! group so that the region number equals the transect number
+
          sumTransport = 0.0_RKIND
          do iTransect = 1,nTransects
          
