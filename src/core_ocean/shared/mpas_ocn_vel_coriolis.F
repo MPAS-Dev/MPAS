@@ -13,8 +13,8 @@
 !> \author Mark Petersen, Doug Jacobsen, Todd Ringler
 !> \date   September 2011
 !> \details
-!>  This module contains the routine for computing 
-!>  tendencies from the coriolis force.  
+!>  This module contains the routine for computing
+!>  tendencies from the coriolis force.
 !>
 !
 !-----------------------------------------------------------------------
@@ -64,13 +64,14 @@ contains
 !> \brief   Computes tendency term for coriolis force
 !> \author  Mark Petersen, Doug Jacobsen, Todd Ringler
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the coriolis tendency for momentum
 !>  based on current state.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_coriolis_tend(meshPool, normalizedRelativeVorticityEdge, normalizedPlanetaryVorticityEdge, layerThicknessEdge, normalVelocity, kineticEnergyCell, tend, err)!{{{
+   subroutine ocn_vel_coriolis_tend(meshPool, normalizedRelativeVorticityEdge, normalizedPlanetaryVorticityEdge, &
+                                    layerThicknessEdge, normalVelocity, kineticEnergyCell, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -118,8 +119,9 @@ contains
 
       integer :: j, k
       integer :: cell1, cell2, iEdge, eoe
-      integer, pointer :: nEdgesSolve
-      real (kind=RKIND) :: workVorticity, q, invLength
+      integer, pointer :: nEdgesSolve, nVertLevels
+      real (kind=RKIND) :: workVorticity, invLength, edgeWeight, r_tmp
+      real (kind=RKIND), dimension(:), allocatable :: qArr
 
       err = 0
 
@@ -134,28 +136,43 @@ contains
       call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
       call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
+      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
 
+      allocate( qArr(nVertLevels) )
+
+      !$omp do schedule(runtime) private(cell1, cell2, invLength, k, j, eoe, workVorticity)
       do iEdge = 1, nEdgesSolve
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
 
-         invLength = 1.0 / dcEdge(iEdge)
+         invLength = 1.0_RKIND / dcEdge(iEdge)
 
          do k = 1, maxLevelEdgeTop(iEdge)
+            qArr(k) = 0.0_RKIND
+         end do
 
-            q = 0.0
-            do j = 1,nEdgesOnEdge(iEdge)
-               eoe = edgesOnEdge(j,iEdge)
-               workVorticity = 0.5 &
-                  * (  normalizedRelativeVorticityEdge(k,iEdge) + RK4On * normalizedPlanetaryVorticityEdge(k,iEdge) &
-                     + normalizedRelativeVorticityEdge(k,eoe)   + RK4On * normalizedPlanetaryVorticityEdge(k,eoe))
-               q = q + weightsOnEdge(j,iEdge) * normalVelocity(k,eoe) * workVorticity * layerThicknessEdge(k,eoe) 
+         do j = 1, nEdgesOnEdge(iEdge)
+            eoe = edgesOnEdge(j, iEdge)
+            edgeWeight = weightsOnEdge(j, iEdge)
+
+            do k = 1, maxLevelEdgeTop(iEdge)
+               workVorticity = 0.5_RKIND &
+                  * (  normalizedRelativeVorticityEdge(k, iEdge) + RK4On * normalizedPlanetaryVorticityEdge(k, iEdge) &
+                     + normalizedRelativeVorticityEdge(k, eoe)   + RK4On * normalizedPlanetaryVorticityEdge(k, eoe))
+               qArr(k) = qArr(k) + edgeWeight * normalVelocity(k, eoe) * workVorticity * layerThicknessEdge(k, eoe)
             end do
 
-           tend(k,iEdge) = tend(k,iEdge) + edgeMask(k, iEdge) * (q - (   kineticEnergyCell(k,cell2) - kineticEnergyCell(k,cell1) ) * invLength )
-
          end do
+
+         do k = 1, maxLevelEdgeTop(iEdge)
+            tend(k, iEdge) = tend(k, iEdge) + edgeMask(k, iEdge) * ( qArr(k) - ( kineticEnergyCell(k, cell2) &
+                          - kineticEnergyCell(k, cell1) ) * invLength )
+         end do
+
       end do
+      !$omp end do
+
+      deallocate( qArr )
 
    !--------------------------------------------------------------------
 
@@ -168,11 +185,11 @@ contains
 !> \brief   Initializes ocean momentum horizontal mixing quantities
 !> \author  Mark Petersen, Doug Jacobsen, Todd Ringler
 !> \date    September 2011
-!> \details 
-!>  This routine initializes a variety of quantities related to 
-!>  horizontal velocity mixing in the ocean. Since a variety of 
+!> \details
+!>  This routine initializes a variety of quantities related to
+!>  horizontal velocity mixing in the ocean. Since a variety of
 !>  parameterizations are available, this routine primarily calls the
-!>  individual init routines for each parameterization. 
+!>  individual init routines for each parameterization.
 !
 !-----------------------------------------------------------------------
 
@@ -205,7 +222,7 @@ contains
          RK4On = 1
       elseif ( trim( config_time_integrator ) == 'split_explicit' &
         .or. trim( config_time_integrator ) == 'unsplit_explicit') then
-         ! For split explicit, Coriolis tendency uses eta/h because the Coriolis term 
+         ! For split explicit, Coriolis tendency uses eta/h because the Coriolis term
          ! is added separately to the momentum tendencies.
          RK4On = 0
       end if

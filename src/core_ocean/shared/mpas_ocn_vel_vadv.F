@@ -9,11 +9,11 @@
 !
 !  ocn_vel_vadv
 !
-!> \brief MPAS ocean vertical advection 
+!> \brief MPAS ocean vertical advection
 !> \author Mark Petersen
 !> \date   September 2011
 !> \details
-!>  This module contains the routine for computing 
+!>  This module contains the routine for computing
 !>  tendencies for vertical advection.
 !>
 !
@@ -64,7 +64,7 @@ contains
 !> \brief   Computes tendency term for vertical advection
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the vertical advection tendency for momentum
 !>  based on current state.
 !
@@ -129,26 +129,30 @@ contains
       call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
       allocate(w_dudzTopEdge(nVertLevels+1))
-      w_dudzTopEdge = 0.0
+      w_dudzTopEdge = 0.0_RKIND
+
+      !$omp do schedule(runtime) private(cell1, cell2, k, vertAleTransportTopEdge)
       do iEdge = 1, nEdgesSolve
         cell1 = cellsOnEdge(1,iEdge)
         cell2 = cellsOnEdge(2,iEdge)
 
         do k = 2, maxLevelEdgeTop(iEdge)
           ! Average w from cell center to edge
-          vertAleTransportTopEdge = 0.5*(vertAleTransportTop(k,cell1) + vertAleTransportTop(k,cell2))
+          vertAleTransportTopEdge = 0.5_RKIND*(vertAleTransportTop(k,cell1) + vertAleTransportTop(k,cell2))
 
           ! compute dudz at vertical interface with first order derivative.
           w_dudzTopEdge(k) = vertAleTransportTopEdge * (normalVelocity(k-1,iEdge)-normalVelocity(k,iEdge)) &
-                       / (0.5*(layerThicknessEdge(k-1,iEdge) + layerThicknessEdge(k,iEdge)))
+                       / (0.5_RKIND*(layerThicknessEdge(k-1,iEdge) + layerThicknessEdge(k,iEdge)))
         end do
-        w_dudzTopEdge(maxLevelEdgeTop(iEdge)+1) = 0.0
+        w_dudzTopEdge(maxLevelEdgeTop(iEdge)+1) = 0.0_RKIND
         ! Average w*du/dz from vertical interface to vertical middle of cell
         do k = 1, maxLevelEdgeTop(iEdge)
 
           tend(k,iEdge) = tend(k,iEdge) - edgeMask(k, iEdge) * 0.5 * (w_dudzTopEdge(k) + w_dudzTopEdge(k+1))
         enddo
       enddo
+      !$omp end do
+
       deallocate(w_dudzTopEdge)
 
    !--------------------------------------------------------------------
@@ -162,9 +166,9 @@ contains
 !> \brief   Initializes ocean momentum vertical advection
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
-!>  This routine initializes a variety of quantities related to 
-!>  vertical velocity advection in the ocean. 
+!> \details
+!>  This routine initializes a variety of quantities related to
+!>  vertical velocity advection in the ocean.
 !
 !-----------------------------------------------------------------------
 

@@ -13,8 +13,8 @@
 !> \author Mark Petersen
 !> \date   September 2011
 !> \details
-!>  This module contains the routines for computing 
-!>  richardson vertical mixing coefficients.  
+!>  This module contains the routines for computing
+!>  richardson vertical mixing coefficients.
 !>
 !
 !-----------------------------------------------------------------------
@@ -25,6 +25,7 @@ module ocn_vmix_coefs_rich
    use mpas_pool_routines
    use mpas_constants
    use mpas_timer
+   use mpas_threading
 
    use ocn_constants
    use ocn_equation_of_state
@@ -67,12 +68,12 @@ contains
 !> \brief   Computes coefficients for vertical mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the vertical mixing coefficients for momentum
-!>  and tracers based user choices of mixing parameterization.
+!>  and activeTracers based user choices of mixing parameterization.
 !
 !-----------------------------------------------------------------------
-   subroutine ocn_vmix_coefs_rich_build(meshPool, statePool, diagnosticsPool, err, timeLevelIn)!{{{
+   subroutine ocn_vmix_coefs_rich_build(meshPool, statePool, diagnosticsPool, scratchPool, err, timeLevelIn)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -82,6 +83,8 @@ contains
 
       type (mpas_pool_type), intent(in) :: &
          meshPool          !< Input: mesh information
+
+      type (mpas_pool_type), intent(in) :: scratchPool !< Input/Output: Scratch structure
 
       integer, intent(in), optional :: timeLevelIn !< Input: Time level for state pool
 
@@ -112,24 +115,28 @@ contains
       !-----------------------------------------------------------------
 
       integer :: err1, err2, err3, timeLevel
-      integer, pointer :: indexT, indexS
+      integer, pointer :: indexTemperature, indexSalinity
+
+      type (mpas_pool_type), pointer :: tracersPool
 
       real (kind=RKIND), dimension(:,:), pointer :: &
         vertViscTopOfEdge, vertDiffTopOfCell, normalVelocity, layerThickness, layerThicknessEdge, density, displacedDensity
 
       real (kind=RKIND), dimension(:,:), pointer :: RiTopOfEdge, RiTopOfCell
 
-      real (kind=RKIND), dimension(:,:,:), pointer :: tracers
+      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
 
       !-----------------------------------------------------------------
       !
       ! call relevant routines for computing tendencies
-      ! note that the user can choose multiple options and the 
+      ! note that the user can choose multiple options and the
       !   tendencies will be added together
       !
       !-----------------------------------------------------------------
 
       err = 0
+
+      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
 
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
@@ -137,8 +144,8 @@ contains
          timeLevel = 1
       end if
 
-      call mpas_pool_get_dimension(statePool, 'index_temperature', indexT)
-      call mpas_pool_get_dimension(statePool, 'index_salinity', indexS)
+      call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
+      call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexSalinity)
 
       call mpas_pool_get_array(diagnosticsPool, 'vertViscTopOfEdge', vertViscTopOfEdge)
       call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
@@ -150,21 +157,23 @@ contains
 
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
-      call mpas_pool_get_array(statePool, 'tracers', tracers, timeLevel)
+      call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, timeLevel)
 
       call mpas_timer_start("eos rich")
 
       ! compute in-place density
-      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, 0, 'relative', density, err, timeLevelIn=timeLevel)
+      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, 0, 'relative', density, err, &
+                                         timeLevelIn=timeLevel)
 
-      ! compute displacedDensity, density displaced adiabatically to the mid-depth one layer deeper.  
+      ! compute displacedDensity, density displaced adiabatically to the mid-depth one layer deeper.
       ! That is, layer k has been displaced to the depth of layer k+1.
-      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, 1, 'relative', displacedDensity, err, timeLevelIn=timeLevel)
+      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, 1, 'relative', displacedDensity, err, &
+                                         timeLevelIn=timeLevel)
 
       call mpas_timer_stop("eos rich")
 
-      call ocn_vmix_get_rich_numbers(meshPool, indexT, indexS, normalVelocity, layerThickness, layerThicknessEdge, & 
-                                  density, displacedDensity, tracers, RiTopOfEdge, RiTopOfCell, err1)
+      call ocn_vmix_get_rich_numbers(meshPool, scratchPool, indexTemperature, indexSalinity, normalVelocity, layerThickness, &
+                                     layerThicknessEdge, density, displacedDensity, activeTracers, RiTopOfEdge, RiTopOfCell, err1)
 
       call ocn_vel_vmix_coefs_rich(meshPool, RiTopOfEdge, layerThicknessEdge, vertViscTopOfEdge, err2)
       call ocn_tracer_vmix_coefs_rich(meshPool, RiTopOfCell, layerThickness, vertDiffTopOfCell, err3)
@@ -182,7 +191,7 @@ contains
 !> \brief   Computes coefficients for vertical momentum mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the richardson vertical mixing coefficients for momentum
 !
 !-----------------------------------------------------------------------
@@ -245,13 +254,14 @@ contains
 
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
 
+      !$omp do schedule(runtime) private(k)
       do iEdge = 1, nEdges
          do k = 2, maxLevelEdgeTop(iEdge)
             ! efficiency note: these if statements are inside iEdge and k loops.
             ! Perhaps there is a more efficient way to do this.
-            if (RiTopOfEdge(k,iEdge)>0.0) then
+            if (RiTopOfEdge(k,iEdge)>0.0_RKIND) then
                vertViscTopOfEdge(k,iEdge) = vertViscTopOfEdge(k, iEdge) + config_bkrd_vert_visc &
-                  + config_rich_mix / (1.0 + 5.0*RiTopOfEdge(k,iEdge))**2
+                  + config_rich_mix / (1.0_RKIND + 5.0_RKIND*RiTopOfEdge(k,iEdge))**2
                if (vertViscTopOfEdge(k,iEdge) > config_convective_visc) then
                   vertViscTopOfEdge(k,iEdge) = config_convective_visc
                end if
@@ -261,6 +271,7 @@ contains
             end if
          end do
       end do
+      !$omp end do
 
 
    !--------------------------------------------------------------------
@@ -274,8 +285,8 @@ contains
 !> \brief   Computes coefficients for vertical tracer mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
-!>  This routine computes the richardson vertical mixing coefficients for tracers
+!> \details
+!>  This routine computes the richardson vertical mixing coefficients for activeTracers
 !
 !-----------------------------------------------------------------------
 
@@ -324,13 +335,12 @@ contains
       integer, dimension(:), pointer :: maxLevelCell
 
       real (kind=RKIND) :: coef
-      real (kind=RKIND), pointer :: config_density0, config_bkrd_vert_diff, config_bkrd_vert_visc, config_rich_mix, config_convective_diff
+      real (kind=RKIND), pointer :: config_bkrd_vert_diff, config_bkrd_vert_visc, config_rich_mix, config_convective_diff
 
       err = 0
 
       if(.not.richDiffOn) return
 
-      call mpas_pool_get_config(ocnConfigs, 'config_density0', config_density0)
       call mpas_pool_get_config(ocnConfigs, 'config_bkrd_vert_diff', config_bkrd_vert_diff)
       call mpas_pool_get_config(ocnConfigs, 'config_bkrd_vert_visc', config_bkrd_vert_visc)
       call mpas_pool_get_config(ocnConfigs, 'config_rich_mix', config_rich_mix)
@@ -340,16 +350,17 @@ contains
 
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
 
-      coef = -gravity / config_density0 / 2.0
+      coef = -gravity / rho_sw / 2.0_RKIND
+      !$omp do schedule(runtime) private(k)
       do iCell = 1, nCells
          do k = 2, maxLevelCell(iCell)
             ! efficiency note: these if statements are inside iEdge and k loops.
             ! Perhaps there is a more efficient way to do this.
-            if (RiTopOfCell(k,iCell)>0.0) then
+            if (RiTopOfCell(k,iCell)>0.0_RKIND) then
                vertDiffTopOfCell(k,iCell) = vertDiffTopOfCell(k, iCell) + config_bkrd_vert_diff &
-                  + (config_bkrd_vert_visc & 
-                     + config_rich_mix / (1.0 + 5.0*RiTopOfCell(k,iCell))**2) &
-                  / (1.0 + 5.0*RiTopOfCell(k,iCell))
+                  + (config_bkrd_vert_visc &
+                     + config_rich_mix / (1.0_RKIND + 5.0_RKIND*RiTopOfCell(k,iCell))**2) &
+                  / (1.0_RKIND + 5.0_RKIND*RiTopOfCell(k,iCell))
                if (vertDiffTopOfCell(k,iCell) > config_convective_diff) then
                   vertDiffTopOfCell(k,iCell) = config_convective_diff
                end if
@@ -359,7 +370,7 @@ contains
             end if
          end do
       end do
-
+      !$omp end do
 
    !--------------------------------------------------------------------
 
@@ -372,14 +383,15 @@ contains
 !> \brief   Build richardson numbers for vertical mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine builds the arrays needed for richardson number vertical
 !>  mixing coefficients.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vmix_get_rich_numbers(meshPool, indexT, indexS, normalVelocity, layerThickness, layerThicknessEdge, & !{{{
-                                 density, displacedDensity, tracers, RiTopOfEdge, RiTopOfCell, err)
+   subroutine ocn_vmix_get_rich_numbers(meshPool, scratchPool, indexTemperature, indexSalinity, normalVelocity, & !{{{
+                                        layerThickness, layerThicknessEdge, density, displacedDensity, activeTracers, &
+                                        RiTopOfEdge, RiTopOfCell, err)
 
       !-----------------------------------------------------------------
       !
@@ -390,14 +402,16 @@ contains
       type (mpas_pool_type), intent(in) :: &
          meshPool          !< Input: mesh information
 
-      integer, intent(in) :: indexT !< Input: index for temperature
-      integer, intent(in) :: indexS !< Input: index for salinity
+      type (mpas_pool_type), intent(in) :: scratchPool !< Input: scratch variables
+
+      integer, intent(in) :: indexTemperature !< Input: index for temperature
+      integer, intent(in) :: indexSalinity !< Input: index for salinity
 
       real (kind=RKIND), dimension(:,:), intent(in) :: normalVelocity       !< Input: horizontal velocity
       real (kind=RKIND), dimension(:,:), intent(in) :: layerThickness       !< Input: thickness
-      real (kind=RKIND), dimension(:,:), intent(in) :: layerThicknessEdge  !< Input: thickness at edge 
+      real (kind=RKIND), dimension(:,:), intent(in) :: layerThicknessEdge  !< Input: thickness at edge
 
-      real (kind=RKIND), dimension(:,:,:), intent(in) :: tracers !< Input: tracers
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: activeTracers !< Input: activeTracers
 
       !-----------------------------------------------------------------
       !
@@ -433,16 +447,14 @@ contains
 
       real (kind=RKIND) :: coef, invAreaCell
       real (kind=RKIND), dimension(:), pointer :: dcEdge, dvEdge, areaCell
-      real (kind=RKIND), dimension(:,:), allocatable :: ddensityTopOfCell, du2TopOfCell, &
-                                                        ddensityTopOfEdge, du2TopOfEdge
-
-      real (kind=RKIND), pointer :: config_density0
+      real (kind=RKIND), dimension(:,:), pointer :: ddensityTopOfCell, du2TopOfCell, &
+                                                    ddensityTopOfEdge, du2TopOfEdge
+      type (field2DReal), pointer :: ddensityTopOfCellField, du2TopOfCellField, &
+                                      ddensityTopOfEdgeField, du2TopOfEdgeField
 
       err = 0
 
       if ( ( .not. richViscOn ) .and. ( .not. richDiffOn ) ) return
-
-      call mpas_pool_get_config(ocnConfigs, 'config_density0', config_density0)
 
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
@@ -459,76 +471,114 @@ contains
       call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
       call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
 
-      allocate( &
-         ddensityTopOfCell(nVertLevels+1,nCells+1), ddensityTopOfEdge(nVertLevels+1,nEdges), &
-         du2TopOfCell(nVertLevels+1,nCells+1), du2TopOfEdge(nVertLevels+1,nEdges))
+      call mpas_pool_get_field(scratchPool, 'ddensityTopOfCell', ddensityTopOfCellField)
+      call mpas_pool_get_field(scratchPool, 'ddensityTopOfEdge', ddensityTopOfEdgeField)
+      call mpas_pool_get_field(scratchPool, 'du2TopOfCell', du2TopOfCellField)
+      call mpas_pool_get_field(scratchPool, 'du2TopOfEdge', du2TopOfEdgeField)
+      call mpas_allocate_scratch_field(ddensityTopOfCellField, .true.)
+      call mpas_allocate_scratch_field(ddensityTopOfEdgeField, .true.)
+      call mpas_allocate_scratch_field(du2TopOfCellField, .true.)
+      call mpas_allocate_scratch_field(du2TopOfEdgeField, .true.)
+      call mpas_threading_barrier()
+
+      ddensityTopOfCell => ddensityTopOfCellField % array
+      ddensityTopOfEdge => ddensityTopOfEdgeField % array
+      du2TopOfCell => du2TopOfCellField % array
+      du2TopOfEdge => du2TopOfEdgeField % array
 
       ! ddensityTopOfCell(k) = $\rho^*_{k-1}-\rho_k$, where $\rho^*$ has been adiabatically displaced to level k.
-      ddensityTopOfCell = 0.0
+      !$omp do schedule(runtime)
+      do iCell = 1, nCells
+         ddensityTopOfCell(:, iCell) = 0.0_RKIND
+         du2TopOfCell(:, iCell) = 0.0_RKIND
+         RiTopOfCell(:, iCell) = 0.0_RKIND
+      end do
+      !$omp end do
+
+      !$omp do schedule(runtime)
+      do iEdge = 1, nEdges
+         ddensityTopOfEdge(:, iEdge) = 0.0_RKIND
+         du2TopOfEdge(:, iEdge) = 0.0_RKIND
+         RiTopOfEdge(:, iEdge) = 0.0_RKIND
+      end do
+      !$omp end do
+
+      !$omp do schedule(runtime) private(k)
       do iCell = 1, nCells
          do k = 2, maxLevelCell(iCell)
             ddensityTopOfCell(k,iCell) = displacedDensity(k-1,iCell) - density(k,iCell)
           end do
       end do
+      !$omp end do
 
       ! interpolate ddensityTopOfCell to ddensityTopOfEdge
-      ddensityTopOfEdge = 0.0
+      !$omp do schedule(runtime) private(cell1, cell2, k)
       do iEdge = 1, nEdges
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
          do k = 2, maxLevelEdgeTop(iEdge)
             ddensityTopOfEdge(k,iEdge) = &
                (ddensityTopOfCell(k,cell1) + &
-                ddensityTopOfCell(k,cell2))/2  
+                ddensityTopOfCell(k,cell2))/2
          end do
        end do
+       !$omp end do
 
       ! du2TopOfEdge(k) = $u_{k-1}-u_k$
-      du2TopOfEdge=0.0
+      !$omp do schedule(runtime) private(k)
       do iEdge = 1, nEdges
          do k = 2, maxLevelEdgeTop(iEdge)
             du2TopOfEdge(k,iEdge) = (normalVelocity(k-1,iEdge) - normalVelocity(k,iEdge))**2
          end do
       end do
+      !$omp end do
 
       ! interpolate du2TopOfEdge to du2TopOfCell
-      du2TopOfCell = 0.0
+      !$omp do schedule(runtime) private(invAreaCell, i, iEdge, k)
       do iCell = 1, nCells
-        invAreaCell = 1.0 / areaCell(iCell)
+        invAreaCell = 1.0_RKIND / areaCell(iCell)
         do i = 1, nEdgesOnCell(iCell)
           iEdge = edgesOnCell(i, iCell)
 
           do k = 2, maxLevelEdgeBot(iEdge)
-            du2TopOfCell(k, iCell) = du2TopOfCell(k, iCell) + 0.5 * dcEdge(iEdge) * dvEdge(iEdge) * du2TopOfEdge(k, iEdge) * invAreaCell
+            du2TopOfCell(k, iCell) = du2TopOfCell(k, iCell) + 0.5_RKIND * dcEdge(iEdge) * dvEdge(iEdge) &
+                                   * du2TopOfEdge(k, iEdge) * invAreaCell
           end do
         end do
       end do
+      !$omp end do
 
       ! compute RiTopOfEdge using ddensityTopOfEdge and du2TopOfEdge
       ! coef = -g/density_0/2
-      RiTopOfEdge = 0.0
-      coef = -gravity / config_density0 / 2.0
+      coef = -gravity / rho_sw / 2.0_RKIND
+
+      !$omp do schedule(runtime) private(k)
       do iEdge = 1, nEdges
          do k = 2, maxLevelEdgeTop(iEdge)
             RiTopOfEdge(k,iEdge) = coef * ddensityTopOfEdge(k,iEdge) &
                * ( layerThicknessEdge(k-1,iEdge) + layerThicknessEdge(k,iEdge) ) &
-               / ( du2TopOfEdge(k,iEdge) + 1e-20 )
+               / ( du2TopOfEdge(k,iEdge) + 1e-20_RKIND )
          end do
       end do
+      !$omp end do
 
       ! compute RiTopOfCell using ddensityTopOfCell and du2TopOfCell
       ! coef = -g/density_0/2
-      RiTopOfCell = 0.0
+      !$omp do schedule(runtime) private(k)
       do iCell = 1,nCells
          do k = 2,maxLevelCell(iCell)
             RiTopOfCell(k,iCell) = coef * ddensityTopOfCell(k,iCell) &
                * (layerThickness(k-1,iCell) + layerThickness(k,iCell)) &
-               / (du2TopOfCell(k,iCell) + 1e-20)
+               / (du2TopOfCell(k,iCell) + 1e-20_RKIND)
          end do
       end do
+      !$omp end do
 
-      deallocate(ddensityTopOfCell, ddensityTopOfEdge, &
-        du2TopOfCell, du2TopOfEdge)
+      call mpas_threading_barrier()
+      call mpas_deallocate_scratch_field(ddensityTopOfCellField, .true.)
+      call mpas_deallocate_scratch_field(ddensityTopOfEdgeField, .true.)
+      call mpas_deallocate_scratch_field(du2TopOfCellField, .true.)
+      call mpas_deallocate_scratch_field(du2TopOfEdgeField, .true.)
 
    !--------------------------------------------------------------------
 
@@ -541,11 +591,11 @@ contains
 !> \brief   Initializes ocean momentum vertical mixing quantities
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
-!>  This routine initializes a variety of quantities related to 
-!>  vertical velocity mixing in the ocean. Since a variety of 
+!> \details
+!>  This routine initializes a variety of quantities related to
+!>  vertical velocity mixing in the ocean. Since a variety of
 !>  parameterizations are available, this routine primarily calls the
-!>  individual init routines for each parameterization. 
+!>  individual init routines for each parameterization.
 !
 !-----------------------------------------------------------------------
 

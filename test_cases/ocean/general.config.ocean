@@ -9,8 +9,8 @@
 # init namelists in the default_inputs directory after a successful build of
 # the ocean model.
 [namelists]
-forward = FULL_PATH_TO_FORWARD_TEMPLATE_NAMELIST
-init = FULL_PATH_TO_INIT_TEMPLATE_NAMELIST
+forward = /users/nilsfeige/git/moc_streamfunctionAM/namelist.ocean.forward
+init = /users/nilsfeige/git/moc_streamfunctionAM/namelist.ocean.init
 
 
 # The streams section defines paths to template streams files that will be used
@@ -18,8 +18,8 @@ init = FULL_PATH_TO_INIT_TEMPLATE_NAMELIST
 # init streams files in the default_inputs directory after a successful build of
 # the ocean model.
 [streams]
-forward = FULL_PATH_TO_FORWARD_TEMPLATE_STREAMS
-init = FULL_PATH_TO_INIT_TEMPLATE_STREAMS
+forward = /users/nilsfeige/git/moc_streamfunctionAM/streams.ocean.forward
+init = /users/nilsfeige/git/moc_streamfunctionAM/streams.ocean.init
 
 
 # The executables section defines paths to required executables. These
@@ -27,11 +27,10 @@ init = FULL_PATH_TO_INIT_TEMPLATE_STREAMS
 # Full paths should be provided in order to access the executables from
 # anywhere on the machine.
 [executables]
-model = FULL_PATH_TO_MODEL
-mesh_converter = FULL_PATH_TO_MESH_CONVERTER
-cell_culler = FULL_PATH_TO_CELL_CULLER
-metis = FULL_PATH_TO_METIS
-
+model = /users/nilsfeige/git/moc_streamfunctionAM/ocean_model
+mesh_converter = /turquoise/usr/projects/climate/mpeterse/mpas-tools_git/MPAS-Tools/grid_gen/mesh_conversion_tools/MpasMeshConverter.x
+cell_culler = /turquoise/usr/projects/climate/mpeterse/mpas-tools_git/MPAS-Tools/grid_gen/mesh_conversion_tools/MpasCellCuller.x
+metis = /turquoise/usr/projects/climate/mpeterse/software/metis-5.1.0/build/Linux-x86_64/programs/gpmetis
 
 # The paths section describes paths that are used within the ocean core test
 # cases.
@@ -42,5 +41,5 @@ metis = FULL_PATH_TO_METIS
 # the same directory, or different directory. Additionally, if they are empty
 # some test cases might download data into them, which will then be reused if
 # the test case is run again later.
-mesh_database = FULL_PATH_TO_LOCAL_MESH_DATABASE
-initial_condition_database = FULL_PATH_TO_LOCAL_INITIAL_CONDITION_DATABASE
+mesh_database = /usr/projects/regionalclimate/COMMON_MPAS/ocean/grids/mesh_database
+initial_condition_database = /usr/projects/regionalclimate/COMMON_MPAS/ocean/grids/initial_condition_database

@@ -133,9 +133,12 @@ contains
       call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nMerHeatTransBins', nMerHeatTransBins)
       call mpas_pool_get_subpool(domain % blocklist % structs, 'meridionalHeatTransportAM', meridionalHeatTransportAMPool)
 
-      call mpas_pool_get_config(domain % configs, 'config_AM_meridionalHeatTransport_num_bins', config_AM_meridionalHeatTransport_num_bins)
-      call mpas_pool_get_config(domain % configs, 'config_AM_meridionalHeatTransport_min_bin', config_AM_meridionalHeatTransport_min_bin)
-      call mpas_pool_get_config(domain % configs, 'config_AM_meridionalHeatTransport_max_bin', config_AM_meridionalHeatTransport_max_bin)
+      call mpas_pool_get_config(domain % configs, 'config_AM_meridionalHeatTransport_num_bins', &
+                                config_AM_meridionalHeatTransport_num_bins)
+      call mpas_pool_get_config(domain % configs, 'config_AM_meridionalHeatTransport_min_bin', &
+                                config_AM_meridionalHeatTransport_min_bin)
+      call mpas_pool_get_config(domain % configs, 'config_AM_meridionalHeatTransport_max_bin', &
+                                config_AM_meridionalHeatTransport_max_bin)
 
       nMerHeatTransBinsUsed = config_AM_meridionalHeatTransport_num_bins
 
@@ -163,7 +166,7 @@ contains
       call mpas_dmpar_min_real_array(dminfo, 1, minBin, minBinDomain)
       call mpas_dmpar_max_real_array(dminfo, 1, maxBin, maxBinDomain)
 
-      ! Set up bins. 
+      ! Set up bins.
       binBoundaryMerHeatTrans = -1.0e34_RKIND
 
       ! Change min and max bin bounds to configuration settings, if applicable.
@@ -240,6 +243,7 @@ contains
       type (block_type), pointer :: block
       type (mpas_pool_type), pointer :: meridionalHeatTransportAMPool
       type (mpas_pool_type), pointer :: statePool
+      type (mpas_pool_type), pointer :: tracersPool
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: diagnosticsPool
@@ -255,7 +259,7 @@ contains
       real (kind=RKIND), dimension(:), pointer ::  meridionalHeatTransportLat
       real (kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge, normalTransportVelocity
       real (kind=RKIND), dimension(:,:), pointer :: meridionalHeatTransportLatZ
-      real (kind=RKIND), dimension(:,:,:), pointer :: tracers
+      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
       real (kind=RKIND), dimension(:,:), allocatable :: mht_meridional_integral
       real (kind=RKIND), dimension(:,:,:), allocatable :: sumMerHeatTrans, totalSumMerHeatTrans
 
@@ -287,9 +291,11 @@ contains
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
          call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
+         call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+
 
          call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
-         call mpas_pool_get_dimension(statePool, 'index_temperature', indexTemperature)
+         call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
 
          call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
 
@@ -300,7 +306,7 @@ contains
          call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
          call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
          call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
-         call mpas_pool_get_array(statePool, 'tracers', tracers, timeLevel)
+         call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, timeLevel)
          call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
          call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
 
@@ -332,7 +338,8 @@ contains
                      do i = 1, nEdgesOnCell(iCell)
                         iEdge = edgesOnCell(i, iCell)
                         div_huT = div_huT - layerThicknessEdge(k, iEdge) * normalTransportVelocity(k, iEdge) &
-                             * 0.5_RKIND * (tracers(indexTemperature,k,cellsOnEdge(1,iEdge)) + tracers(indexTemperature,k,cellsOnEdge(2,iEdge))) &
+                             * 0.5_RKIND * (activeTracers(indexTemperature,k,cellsOnEdge(1,iEdge)) &
+                             + activeTracers(indexTemperature,k,cellsOnEdge(2,iEdge))) &
                              * edgeSignOnCell(i, iCell) * dvEdge(iEdge)
                      end do
                      sumMerHeatTrans(iField,k,iBin) = sumMerHeatTrans(iField,k,iBin) + div_huT
@@ -351,7 +358,8 @@ contains
       ! mpi summation over all processors
       ! Note the input and output arrays are of the same dimension, so summation is
       ! over the domain decompositon (by processor), not over an array index.
-      call mpas_dmpar_sum_real_array(dminfo, nVertLevels*nMerHeatTransBinsUsed*nMerHeatTransVariables, sumMerHeatTrans, totalSumMerHeatTrans)
+      call mpas_dmpar_sum_real_array(dminfo, nVertLevels*nMerHeatTransBinsUsed*nMerHeatTransVariables, &
+                                     sumMerHeatTrans, totalSumMerHeatTrans)
 
       ! Even though these variables do not include an index that is decomposed amongst
       ! domain partitions, we assign them within a block loop so that all blocks have the
