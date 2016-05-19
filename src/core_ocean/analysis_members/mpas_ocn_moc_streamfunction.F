@@ -155,7 +155,6 @@ contains
       
       !!!! REGION STUFF
       !! region moc calculation variables
-      real (kind=RKIND) :: maskFactor
       integer :: currentRegion, i, iCell
                          
       !! region arrays/variables
@@ -226,7 +225,8 @@ contains
 
       call mpas_pool_get_array(mocStreamfunctionAMPool, 'binBoundaryMocStreamfunction', binBoundaryMocStreamfunction)
 
-      ! Find min and max values of binning variable.
+      ! Find min and max values of binning variable. For the whole domain as well as for each region
+      ! in the current region group.
       block => domain % blocklist
       do while (associated(block))
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
@@ -294,6 +294,7 @@ contains
       binBoundaryMocStreamfunction(1) = minBinDomain(1)
       binWidth = (maxBinDomain(1) - minBinDomain(1)) / nMocStreamfunctionBinsUsed
 
+      ! Use the same bin boundaries for the regions and the global MOC.
       do iBin = 2, nMocStreamfunctionBinsUsed
          binBoundaryMocStreamfunction(iBin) = binBoundaryMocStreamfunction(iBin-1) + binWidth
       end do
@@ -315,7 +316,7 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_compute_moc_streamfunction(domain, timeLevel, err)!{{{
-	  implicit none
+      implicit none
       !-----------------------------------------------------------------
       !
       ! input variables
@@ -354,12 +355,11 @@ contains
       type (mpas_pool_type), pointer :: statePool
       type (mpas_pool_type), pointer :: regionPool
       
-      ! Here are some example variables which may be needed for your analysis member
       integer, pointer :: nVertLevels, nCellsSolve
       integer :: iCell, iBin, genericCounter, k
       real (kind=RKIND) :: binWidth
       real (kind=RKIND), dimension(:,:), pointer :: mocStreamValLatAndDepthLocal
-	  real (kind=RKIND), dimension(:), pointer :: latCell, lonCell
+	  real (kind=RKIND), dimension(:), pointer :: latCell
       real (kind=RKIND), dimension(:), pointer ::  areaCell, binBoundaryMocStreamfunction
       real (kind=RKIND), dimension(:,:), pointer :: mocStreamvalLatAndDepth, mocStreamValLatAndDepthTotal
       real (kind=RKIND), dimension(:,:), pointer :: vertVelocityTop
@@ -375,7 +375,6 @@ contains
       real (kind=RKIND) :: m3ps_to_Sv
       real (kind=RKIND), dimension(:), pointer ::  dvEdge, transectVolumeTransport,refLayerThickness
       real (kind=RKIND), dimension(:,:), pointer :: layerThickness, normalVelocity, transectVolumeTransportZ
-      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
  
       real (kind=RKIND), dimension(:,:), allocatable ::  sumTransport, totalSumTransport
       !!!! END TRANSECT VARIABLES !!!!
@@ -496,7 +495,7 @@ contains
          call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
 
          call mpas_pool_get_array(diagnosticsPool, verticalVelocityArrayName, vertVelocityTop)
-		 call mpas_pool_get_array(meshPool, 'latCell', latCell)
+         call mpas_pool_get_array(meshPool, 'latCell', latCell)
          call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
          
          call mpas_pool_get_array(regionPool, 'regionCellMasks', regionCellMasks)
@@ -504,13 +503,12 @@ contains
          !!!! TRANSECT DOMAINSPLIT VARIABLES
          call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
          call mpas_pool_get_dimension(block % dimensions, 'nEdgesSolve', nEdgesSolve)
-         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! REMEMBER TO LOAD THE CORRECT, SIGNED EDGE MASK!!!!!!!!!!!!!
          call mpas_pool_get_array(mocStreamfunctionAMPool,'transectEdgeMaskSigns',transectEdgeMaskSigns)
          call mpas_pool_get_subpool(block % structs, 'state', statePool)
-         call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity) ! removed last parameter 1
+         call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity)
          call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
          call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-         call mpas_pool_get_array(statePool, 'layerThickness', layerThickness) ! removed last parameter 1
+         call mpas_pool_get_array(statePool, 'layerThickness', layerThickness)
          
          
          !!!! TRANSECT CALCULATION
@@ -537,11 +535,13 @@ contains
          !!!! END TRANSECT CALCULATION
          
          do iCell = 1,nCellsSolve
-			do iBin = 1, nMocStreamfunctionBinsUsed
+            do iBin = 1, nMocStreamfunctionBinsUsed
                if (latCell(iCell) .gt. binBoundaryMocStreamfunction(iBin) .and. latCell(iCell) .lt. binBoundaryMocStreamfunction(iBin + 1)) then
                 
-                ! TESTING CODE. THIS CODE ALTERS THE VERTICAL VELOCITY TO PRODUCE A PRDICTABLE PATTERN IF THE CALCULATION IS
-                ! CORRECT. TESTS SHOW THIS PREDICTABLE PATTERN SO THIS IS NOT USED ANYMORE.  
+                !!!! TESTING CODE. THIS CODE ALTERS THE VERTICAL VELOCITY TO PRODUCE A PREDICTABLE 
+                ! PATTERN IF THE CALCULATION IS CORRECT. TESTS SHOW THIS PREDICTABLE PATTERN SO THIS 
+                ! IS NOT USED ANYMORE.  
+                !
                 !  if (latCell(iCell) .lt. -0.785398_RKIND .or. latCell(iCell) .gt. 0.785398_RKIND) then
                 !     vertVelocityTop(:, iCell) = 0.0_RKIND
                 !  else
@@ -587,41 +587,19 @@ contains
          block => block % next
      end do
      
-!     print *, 'sumTransport', sumTransport
-      
      call mpas_dmpar_sum_real_array(dminfo, nVertLevels * (nMocStreamfunctionBinsUsed + 1), mocStreamValLatAndDepthLocal, &
          mocStreamvalLatAndDepthTotal)
          
      call mpas_dmpar_sum_real_array(dminfo, nVertLevels * (nMocStreamfunctionBinsUsed + 1) * maxRegionsInGroup, mocStreamValLatAndDepthRegionLocal, &
          mocStreamvalLatAndDepthRegionTotal)
          
-!     print *, 'sumVertBinVelocitry', sumVertBinVelocity
-!     print *, 'mocStreamvalLatAndDepthLocal', mocStreamvalLatAndDepthLocal
-!     print *, 'mocStreamvalLatAndDepthTotal', mocStreamvalLatAndDepthTotal
-     
-     !block => domain % blocklist
-     !do while (associated(block))
-     !   call mpas_pool_get_subpool(block % structs, 'mocStreamfunctionAM', mocStreamfunctionAMPool)
-     !   call mpas_pool_get_array(mocStreamfunctionAMPool, 'mocStreamvalLatAndDepth', mocStreamvalLatAndDepth)
-     !    
-     !   do iBin = 1, nMocStreamfunctionBinsUsed
-     !      do k = 1, nVertLevels
-     !         mocStreamvalLatAndDepth(iBin, k) = mocStreamvalLatAndDepthTotal(iBin, k)
-     !      end do
-     !   end do
-     !    
-     !   block => block % next
-     !end do
-     
-     
-     
      call mpas_pool_get_subpool(domain % blocklist % structs, 'mocStreamfunctionAM', mocStreamfunctionAMPool)
      call mpas_pool_get_array(mocStreamfunctionAMPool, 'mocStreamvalLatAndDepth', mocStreamvalLatAndDepth)
      mocStreamvalLatAndDepth = mocStreamvalLatAndDepthTotal * m3ps_to_Sv
      
      call mpas_pool_get_array(mocStreamfunctionAMPool, 'mocStreamvalLatAndDepthRegion', mocStreamvalLatAndDepthRegion)
      mocStreamvalLatAndDepthRegion = mocStreamvalLatAndDepthRegionTotal * m3ps_to_Sv
-!     print *, 'mocStreamvalLatAndDepth', mocStreamvalLatAndDepth
+
      deallocate(mocStreamvalLatAndDepthTotal)
      deallocate(mocStreamvalLatAndDepthLocal)
      deallocate(sumVertBinVelocity)
