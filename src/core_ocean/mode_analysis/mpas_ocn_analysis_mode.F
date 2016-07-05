@@ -72,7 +72,9 @@ module ocn_analysis_mode
 
       ! remove dt later
       real (kind=RKIND) :: dt
-      character (len=StrKIND), pointer :: xtime
+      character (len=StrKIND), pointer :: xtime, simulationStartTime
+      real (kind=RKIND), pointer :: daysSinceStartOfSim
+      type (MPAS_Time_type) :: xtime_timeType, simulationStartTime_timeType
       type (MPAS_Time_Type) :: startTime
 
       ierr = 0
@@ -119,10 +121,24 @@ module ocn_analysis_mode
 
          call ocn_init_routines_block(block, dt, ierr)
          if(ierr.eq.1) then
-             call mpas_dmpar_global_abort('ERROR: An error was encountered in ocn_init_routines_block')
+             call mpas_dmpar_global_abort('MPAS-ocean: ERROR: An error was encountered in ocn_init_routines_block')
          endif
 
          xtime = startTimeStamp
+
+         ! Set simulationStartTime only if that variable is not read from the restart file.
+         call mpas_pool_get_array(diagnosticsPool, 'simulationStartTime', simulationStartTime)
+         if (trim(simulationStartTime)=="no_date_available") then
+            simulationStartTime = startTimeStamp
+         end if
+
+         ! compute time since start of simulation, in days
+         call mpas_pool_get_array(diagnosticsPool, 'daysSinceStartOfSim',daysSinceStartOfSim)
+         call mpas_set_time(xtime_timeType, dateTimeString=xtime)
+         call mpas_set_time(simulationStartTime_timeType, dateTimeString=simulationStartTime)
+         call mpas_get_timeInterval(xtime_timeType - simulationStartTime_timeType,dt=daysSinceStartOfSim)
+         daysSinceStartOfSim = daysSinceStartOfSim*days_per_second
+
          block => block % next
       end do
 
@@ -227,7 +243,7 @@ module ocn_analysis_mode
       write(stderrUnit,*) 'Initial time ', trim(timeStamp)
 
       ! fill in diagnostics variables
-      call mpas_timer_start("diagnostic solve", .false.)
+      call mpas_timer_start("diagnostic solve")
       block_ptr => domain % blocklist
       do while(associated(block_ptr))
          call mpas_pool_get_subpool(block_ptr % structs, 'state', statePool)
@@ -243,7 +259,7 @@ module ocn_analysis_mode
       call mpas_timer_stop("diagnostic solve")
 
       if (config_write_output_on_startup) then
-         call ocn_analysis_compute_startup(domain, err) 
+         call ocn_analysis_compute_startup(domain, err)
          call mpas_timer_start('io_write', .false.)
          call mpas_stream_mgr_write(domain % streamManager, ierr=ierr)
          call mpas_timer_stop('io_write')

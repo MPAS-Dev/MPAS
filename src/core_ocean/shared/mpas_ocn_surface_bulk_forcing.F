@@ -66,12 +66,13 @@ contains
 !> \brief   Determines the tracers forcing array used for the bulk forcing.
 !> \author  Doug Jacobsen
 !> \date    04/25/12
-!> \details 
+!> \details
 !>  This routine computes the tracers forcing arrays used later in MPAS.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_surface_bulk_forcing_tracers(meshPool, groupName, forcingPool, tracerGroup, tracersSurfaceFlux, err)!{{{
+   subroutine ocn_surface_bulk_forcing_tracers(meshPool, groupName, forcingPool, tracerGroup,   &
+      tracersSurfaceFlux, tracersSurfaceFluxRunoff, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -89,6 +90,8 @@ contains
       type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
       real (kind=RKIND), dimension(:,:,:), intent(inout) :: tracerGroup
       real (kind=RKIND), dimension(:,:), intent(inout) :: tracersSurfaceFlux !< Input/Output: Surface flux for tracer group
+      real (kind=RKIND), dimension(:,:), intent(inout) ::   &
+         tracersSurfaceFluxRunoff !< Input/Output: Surface flux for tracer group due to river runoff
 
       !-----------------------------------------------------------------
       !
@@ -107,7 +110,8 @@ contains
       err = 0
 
       if ( trim(groupName) == 'activeTracers' ) then
-         call ocn_surface_bulk_forcing_active_tracers(meshPool, forcingPool, tracerGroup, tracersSurfaceFlux, err)
+         call ocn_surface_bulk_forcing_active_tracers(meshPool, forcingPool, tracerGroup,  &
+            tracersSurfaceFlux, tracersSurfaceFluxRunoff, err)
       end if
 
    end subroutine ocn_surface_bulk_forcing_tracers!}}}
@@ -119,7 +123,7 @@ contains
 !> \brief   Determines the velocity forcing array used for the bulk forcing.
 !> \author  Doug Jacobsen
 !> \date    04/25/12
-!> \details 
+!> \details
 !>  This routine computes the velocity forcing arrays used later in MPAS.
 !
 !-----------------------------------------------------------------------
@@ -140,7 +144,7 @@ contains
       !
       !-----------------------------------------------------------------
       real (kind=RKIND), dimension(:), intent(inout) :: surfaceStress, & !< Input/Output: Array for surface stress
-                                                        surfaceStressMagnitude !< Input/Output: Array for magnitude of surface stress
+                                                  surfaceStressMagnitude !< Input/Output: Array for magnitude of surface stress
 
       !-----------------------------------------------------------------
       !
@@ -184,17 +188,19 @@ contains
         cell1 = cellsOnEdge(1, iEdge)
         cell2 = cellsOnEdge(2, iEdge)
 
-        zonalAverage = 0.5 * (windStressZonal(cell1) + windStressZonal(cell2))
-        meridionalAverage = 0.5 * (windStressMeridional(cell1) + windStressMeridional(cell2))
+        zonalAverage = 0.5_RKIND * (windStressZonal(cell1) + windStressZonal(cell2))
+        meridionalAverage = 0.5_RKIND * (windStressMeridional(cell1) + windStressMeridional(cell2))
 
-        surfaceStress(iEdge) = surfaceStress(iEdge) + cos(angleEdge(iEdge)) * zonalAverage + sin(angleEdge(iEdge)) * meridionalAverage
+        surfaceStress(iEdge) = surfaceStress(iEdge) + cos(angleEdge(iEdge)) * zonalAverage + sin(angleEdge(iEdge)) &
+                             * meridionalAverage
       end do
       !$omp end do
 
       ! Build surface fluxes at cell centers
       !$omp do schedule(runtime)
       do iCell = 1, nCells
-        surfaceStressMagnitude(iCell) = surfaceStressMagnitude(iCell) + sqrt(windStressZonal(iCell)**2 + windStressMeridional(iCell)**2)
+        surfaceStressMagnitude(iCell) = surfaceStressMagnitude(iCell) + sqrt( windStressZonal(iCell)**2 &
+                                      + windStressMeridional(iCell)**2 )
       end do
       !$omp end do
 
@@ -207,12 +213,12 @@ contains
 !> \brief   Determines the thickness forcing array used for the bulk forcing.
 !> \author  Doug Jacobsen
 !> \date    04/25/12
-!> \details 
+!> \details
 !>  This routine computes the thickness forcing arrays used later in MPAS.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_surface_bulk_forcing_thick(meshPool, forcingPool, surfaceThicknessFlux, err)!{{{
+   subroutine ocn_surface_bulk_forcing_thick(meshPool, forcingPool, surfaceThicknessFlux, surfaceThicknessFluxRunoff, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -228,6 +234,8 @@ contains
       !-----------------------------------------------------------------
       type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
       real (kind=RKIND), dimension(:), intent(inout) :: surfaceThicknessFlux !< Input/Output: Array for surface thickness flux
+      real (kind=RKIND), dimension(:), intent(inout) ::  &
+         surfaceThicknessFluxRunoff !< Input/Output: Array for surface thickness flux due to river runoff
 
       !-----------------------------------------------------------------
       !
@@ -270,8 +278,8 @@ contains
       !$omp do schedule(runtime)
       do iCell = 1, nCells
         surfaceThicknessFlux(iCell) = surfaceThicknessFlux(iCell) + ( snowFlux(iCell) + rainFlux(iCell) + evaporationFlux(iCell) &
-                                    + seaIceFreshWaterFlux(iCell) + iceRunoffFlux(iCell) &
-                                    + riverRunoffFlux(iCell) ) / rho_sw
+                                    + seaIceFreshWaterFlux(iCell) + iceRunoffFlux(iCell) ) / rho_sw
+        surfaceThicknessFluxRunoff(iCell) = riverRunoffFlux(iCell) / rho_sw
       end do
       !$omp end do
 
@@ -284,7 +292,7 @@ contains
 !> \brief   Initializes bulk forcing module
 !> \author  Doug Jacobsen
 !> \date    04/25/12
-!> \details 
+!> \details
 !>  This routine initializes the bulk forcing module.
 !
 !-----------------------------------------------------------------------
@@ -319,12 +327,13 @@ contains
 !> \brief   Determines the active tracers forcing array used for the bulk forcing.
 !> \author  Doug Jacobsen
 !> \date    04/25/12
-!> \details 
+!> \details
 !>  This routine computes the active tracers forcing arrays used later in MPAS.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_surface_bulk_forcing_active_tracers(meshPool, forcingPool, tracerGroup, tracersSurfaceFlux, err)!{{{
+   subroutine ocn_surface_bulk_forcing_active_tracers(meshPool, forcingPool, tracerGroup,  &
+      tracersSurfaceFlux, tracersSurfaceFluxRunoff, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -340,6 +349,7 @@ contains
       !-----------------------------------------------------------------
       type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
       real (kind=RKIND), dimension(:,:), intent(inout) :: tracersSurfaceFlux
+      real (kind=RKIND), dimension(:,:), intent(inout) :: tracersSurfaceFluxRunoff
       real (kind=RKIND), dimension(:,:,:), intent(inout) :: tracerGroup
 
       !-----------------------------------------------------------------
@@ -362,10 +372,10 @@ contains
 
       type(mpas_pool_type),pointer :: tracersSurfaceFluxPool
 
-      real (kind=RKIND), dimension(:), pointer :: latentHeatFlux, sensibleHeatFlux, longWaveHeatFluxUp, longWaveHeatFluxDown, seaIceHeatFlux
+      real (kind=RKIND), dimension(:), pointer :: latentHeatFlux, sensibleHeatFlux, longWaveHeatFluxUp, longWaveHeatFluxDown, &
+                                                  seaIceHeatFlux, evaporationFlux, riverRunoffFlux
       real (kind=RKIND), dimension(:), pointer :: seaIceFreshWaterFlux, seaIceSalinityFlux, iceRunoffFlux
       real (kind=RKIND), dimension(:), pointer :: shortWaveHeatFlux, penetrativeTemperatureFlux
-
       real (kind=RKIND), dimension(:), pointer :: snowFlux, rainFlux
 
       err = 0
@@ -385,42 +395,64 @@ contains
       call mpas_pool_get_array(forcingPool, 'rainFlux', rainFlux)
       call mpas_pool_get_array(forcingPool, 'snowFlux', snowFlux)
       call mpas_pool_get_array(forcingPool, 'shortWaveHeatFlux', shortWaveHeatFlux)
+      call mpas_pool_get_array(forcingPool, 'evaporationFlux', evaporationFlux)
 
+      call mpas_pool_get_array(forcingPool, 'seaIceFreshWaterFlux', seaIceFreshWaterFlux)
       call mpas_pool_get_array(forcingPool, 'seaIceSalinityFlux', seaIceSalinityFlux)
       call mpas_pool_get_array(forcingPool, 'iceRunoffFlux', iceRunoffFlux)
-
+      call mpas_pool_get_array(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
       call mpas_pool_get_array(forcingPool, 'penetrativeTemperatureFlux', penetrativeTemperatureFlux)
 
       ! Build surface fluxes at cell centers
       !$omp do schedule(runtime)
       do iCell = 1, nCells
         tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) &
-                                                           + (latentHeatFlux(iCell) + sensibleHeatFlux(iCell) + longWaveHeatFluxUp(iCell) + longWaveHeatFluxDown(iCell) &
-                                                           + seaIceHeatFlux(iCell) - (snowFlux(iCell) + iceRunoffFlux(iCell)) * latent_heat_fusion_mks) * hflux_factor
+                                                           + (latentHeatFlux(iCell) + sensibleHeatFlux(iCell) &
+                                                           + longWaveHeatFluxUp(iCell) + longWaveHeatFluxDown(iCell) &
+                                                           + seaIceHeatFlux(iCell) - (snowFlux(iCell) + iceRunoffFlux(iCell)) &
+                                                           * latent_heat_fusion_mks) * hflux_factor
 
         tracersSurfaceFlux(index_salinity_flux, iCell) = tracersSurfaceFlux(index_salinity_flux, iCell)  &
                                                         + seaIceSalinityFlux(iCell) * sflux_factor
       end do
       !$omp end do
+      ! assume that snow comes in at 0 C
 
       ! Surface fluxes of water have an associated heat content, but the coupled system does not account for this
-      ! Assume surface fluxes of water have a temperature equal to the surface temperature.
+      ! Assume surface fluxes of water have a temperature dependent on the incoming mass flux.
       ! Assume surface fluxes of water have zero salinity. So the RHS forcing is zero for salinity.
       ! Only include this heat forcing when bulk thickness is turned on
       ! indices on tracerGroup are (iTracer, iLevel, iCell)
       if (bulkThicknessFluxOn) then
          !$omp do schedule(runtime)
          do iCell = 1, nCells
+
+           ! Accumulate fluxes that use the surface temperature
+            tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) &
+                      + (rainFlux(iCell) + evaporationFlux(iCell)) * tracerGroup(index_temperature_flux,1,iCell) / rho_sw
+
+            ! Runoff can only have a minimum temperature of 0.0C, since it is fresh water.
+            tracersSurfaceFluxRunoff(index_temperature_flux,iCell) = riverRunoffFlux(iCell) &
+                      * max(tracerGroup(index_temperature_flux,1,iCell), 0.0_RKIND) / rho_sw
+
+           ! Accumulate fluxes that use the freezing point
            tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) &
-               + (snowFlux(iCell) + rainFlux(iCell))*tracerGroup(index_temperature_flux,1,iCell) / rho_sw
+               + seaIceFreshWaterFlux(iCell) * ocn_freezing_temperature( tracerGroup(index_salinity_flux, 1, iCell) ) / rho_sw
+
+           ! Fields with zero temperature are not accumulated. These include:
+           !    snowFlux
+           !    iceRunoffFlux
+
          end do
          !$omp end do
       endif ! bulkThicknessFluxOn
 
       ! convert short wave heat flux to a temperature flux
-      !$omp workshare
-      penetrativeTemperatureFlux = shortWaveHeatFlux * hflux_factor
-      !$omp end workshare
+      !$omp do schedule(runtime)
+      do iCell = 1, nCells
+         penetrativeTemperatureFlux(iCell) = shortWaveHeatFlux(iCell) * hflux_factor
+      end do
+      !$omp end do
 
    end subroutine ocn_surface_bulk_forcing_active_tracers!}}}
 

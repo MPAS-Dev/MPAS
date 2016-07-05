@@ -118,12 +118,13 @@ contains
          open(fileID,file=trim(config_AM_globalStats_directory)//'/stats_readme.txt',STATUS='UNKNOWN', POSITION='rewind')
 
             write (fileID,'(a)') 'readme file for MPAS-Ocean global statistics'
-            write (fileID,'(/,a)') 'stats_time.txt. contains: timeIndex, timestamp, CFLNumberGlobal'
-            write (fileID,'(/,a)') 'All other stats_*.txt. contain the following columns.  Rows correspond to timestamps in rows of stats_time.txt'
+            write (fileID,'(/,a)') 'stats_time.txt. contains: timestamp, time (in days), CFLNumberGlobal'
+            write (fileID,'(/,a)') 'All other stats_*.txt. contain the following columns.  Rows correspond to timestamps ' &
+                                // 'in rows of stats_time.txt'
             write (fileID,'(a)')   "See user's guide for units associated with these variables."
 
             i=1
-            write (fileID,'(i5,a)') i,'. time, in days, using a 360 day calendar'; i=i+1
+            write (fileID,'(i5,a)') i,'. time, in days'; i=i+1
             write (fileID,'(i5,a)') i,'. layerThickness'; i=i+1
             write (fileID,'(i5,a)') i,'. normalVelocity'; i=i+1
             write (fileID,'(i5,a)') i,'. tangentialVelocity'; i=i+1
@@ -131,7 +132,8 @@ contains
             write (fileID,'(i5,a)') i,'. relativeVorticity'; i=i+1
             write (fileID,'(i5,a)') i,'. enstrophy = relativeVorticity**2'; i=i+1
             write (fileID,'(i5,a)') i,'. kineticEnergyCell'; i=i+1
-            write (fileID,'(i5,a)') i,'. normalizedAbsoluteVorticity = (relative vorticity + planetary vorticity)/layer thickness'; i=i+1
+            write (fileID,'(i5,a)') i,'. normalizedAbsoluteVorticity = (relative vorticity + planetary vorticity)/layer ' &
+                                   // 'thickness'; i=i+1
             write (fileID,'(i5,a)') i,'. pressure'; i=i+1
             write (fileID,'(i5,a)') i,'. montgomeryPotential'; i=i+1
             write (fileID,'(i5,a)') i,'. vertVelocityTop vertical velocity'; i=i+1
@@ -140,7 +142,8 @@ contains
             write (fileID,'(i5,a)') i,'. highFreqThickness'; i=i+1
             write (fileID,'(i5,a)') i,'. Tracers: usually T, S, then others in remaining columns'
 
-            write (fileID,'(/,a)') 'A chain of simple unix commands may be used to access a specific part of the data. For example,'
+            write (fileID,'(/,a)') 'A chain of simple unix commands may be used to access a specific part of the data. ' &
+                                // 'For example,'
             write (fileID,'(a)') 'to view the last three values of column seven in the global average, use:'
             write (fileID,'(a)') "cat stats_avg.txt | awk '{print $7}' | tail -n3"
 
@@ -225,7 +228,7 @@ contains
 
       integer :: err_tmp
       integer :: nCellsGlobal, nEdgesGlobal, nVerticesGlobal, iTracer
-      integer :: elementIndex, variableIndex, nVariables, nSums, nMaxes, nMins
+      integer :: iEdge, variableIndex, nVariables, nSums, nMaxes, nMins
       integer :: k, i, fileID
       integer :: timeYYYY, timeMM, timeDD, timeH, timeM, timeS
       integer, pointer :: nVertLevels, nCellsSolve, nEdgesSolve, nVerticesSolve, num_activeTracers
@@ -233,19 +236,28 @@ contains
       integer, parameter :: kMaxVariables = 1024 ! this must be a little more than double the number of variables to be reduced
       integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeTop, maxLevelVertexBot
 
-      character (len=StrKIND), pointer :: xtime
+      character (len=StrKIND), pointer :: xtime, simulationStartTime
+      type (MPAS_Time_type) :: xtime_timeType, simulationStartTime_timeType
+      type (MPAS_TimeInterval_type) :: timeStep
 
-      real (kind=RKIND) :: volumeCellGlobal, volumeEdgeGlobal, CFLNumberGlobal, localCFL, localSum, areaCellGlobal, areaEdgeGlobal, areaTriangleGlobal, time_days
+      real (kind=RKIND) :: localCFL, localSum, dt
+      real (kind=RKIND), pointer :: volumeCellGlobal, volumeEdgeGlobal, CFLNumberGlobal, areaCellGlobal, &
+                                    areaEdgeGlobal, areaTriangleGlobal
       real (kind=RKIND), dimension(:), pointer ::  areaCell, dcEdge, dvEdge, areaTriangle, areaEdge
-      real (kind=RKIND), dimension(:,:), pointer :: layerThickness, normalVelocity, tangentialVelocity, layerThicknessEdge, relativeVorticity, kineticEnergyCell, &
-         normalizedRelativeVorticityEdge, normalizedPlanetaryVorticityEdge, pressure, montgomeryPotential, vertAleTransportTop, vertVelocityTop, &
-         lowFreqDivergence, highFreqThickness, density
+      real (kind=RKIND), dimension(:,:), pointer :: layerThickness, normalVelocity, tangentialVelocity, layerThicknessEdge, &
+                                                    relativeVorticity, kineticEnergyCell, normalizedRelativeVorticityEdge, &
+                                                    normalizedPlanetaryVorticityEdge, pressure, montgomeryPotential, &
+                                                    vertAleTransportTop, vertVelocityTop, lowFreqDivergence, highFreqThickness, &
+                                                    density
 
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
 
-      real (kind=RKIND), dimension(:), pointer :: minGlobalStats,maxGlobalStats,sumGlobalStats, averages, rms, verticalSumMins, verticalSumMaxes
+      real (kind=RKIND), pointer :: daysSinceStartOfSim
+      real (kind=RKIND), dimension(:), pointer :: minGlobalStats,maxGlobalStats,sumGlobalStats, averages, rms, verticalSumMins, &
+                                                  verticalSumMaxes
       real (kind=RKIND), dimension(kMaxVariables) :: sumSquares, reductions, sums, mins, maxes
-      real (kind=RKIND), dimension(kMaxVariables) :: sums_tmp, sumSquares_tmp, mins_tmp, maxes_tmp, averages_tmp, verticalSumMins_tmp, verticalSumMaxes_tmp
+      real (kind=RKIND), dimension(kMaxVariables) :: sums_tmp, sumSquares_tmp, mins_tmp, maxes_tmp, averages_tmp, &
+                                                     verticalSumMins_tmp, verticalSumMaxes_tmp
 
       real (kind=RKIND), dimension(:,:), allocatable :: enstrophy, normalizedAbsoluteVorticity, workArray
 
@@ -268,15 +280,24 @@ contains
       call mpas_pool_get_array(globalStatsAMPool, 'avgGlobalStats', averages)
       call mpas_pool_get_array(globalStatsAMPool, 'vertSumMinGlobalStats', verticalSumMins)
       call mpas_pool_get_array(globalStatsAMPool, 'vertSumMaxGlobalStats', verticalSumMaxes)
+      call mpas_pool_get_array(globalStatsAMPool, 'areaCellGlobal', areaCellGlobal)
+      call mpas_pool_get_array(globalStatsAMPool, 'areaEdgeGlobal', areaEdgeGlobal)
+      call mpas_pool_get_array(globalStatsAMPool, 'areaTriangleGlobal', areaTriangleGlobal)
+      call mpas_pool_get_array(globalStatsAMPool, 'volumeCellGlobal', volumeCellGlobal)
+      call mpas_pool_get_array(globalStatsAMPool, 'volumeEdgeGlobal', volumeEdgeGlobal)
+      call mpas_pool_get_array(globalStatsAMPool, 'CFLNumberGlobal', CFLNumberGlobal)
 
-      sums = 0.0
-      sumSquares = 0.0
-      mins = 1.0e34
-      maxes = -1.0e34
-      averages = 0.0
-      verticalSumMins = 1.0e34
-      verticalSumMaxes = -1.0e34
-      reductions = 0.0
+      sums = 0.0_RKIND
+      sumSquares = 0.0_RKIND
+      mins = 1.0e34_RKIND
+      maxes = -1.0e34_RKIND
+      averages = 0.0_RKIND
+      verticalSumMins = 1.0e34_RKIND
+      verticalSumMaxes = -1.0e34_RKIND
+      reductions = 0.0_RKIND
+
+      timeStep = mpas_get_clock_timestep(domain % clock, ierr=err_tmp)
+      call mpas_get_timeInterval(timeStep, dt=dt)
 
       block => domain % blocklist
       do while (associated(block))
@@ -321,8 +342,9 @@ contains
          call mpas_pool_get_array(diagnosticsPool, 'tangentialVelocity', tangentialVelocity)
          call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
          call mpas_pool_get_array(diagnosticsPool, 'kineticEnergyCell', kineticEnergyCell)
-
          call mpas_pool_get_array(diagnosticsPool, 'xtime', xtime)
+         call mpas_pool_get_array(diagnosticsPool, 'simulationStartTime',simulationStartTime)
+         call mpas_pool_get_array(diagnosticsPool, 'daysSinceStartOfSim',daysSinceStartOfSim)
 
          allocate(areaEdge(1:nEdgesSolve))
          areaEdge = dcEdge(1:nEdgesSolve)*dvEdge(1:nEdgesSolve)
@@ -332,8 +354,12 @@ contains
          variableIndex = 0
          ! layerThickness
          variableIndex = variableIndex + 1
-         call ocn_compute_field_area_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), layerThickness(:,1:nCellsSolve), &
-            sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_area_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, &
+                                                                    maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), &
+                                                                    layerThickness(:,1:nCellsSolve), sums_tmp(variableIndex), &
+                                                                    sumSquares_tmp(variableIndex), mins_tmp(variableIndex), &
+                                                                    maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
+                                                                    verticalSumMaxes_tmp(variableIndex))
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
          mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -343,9 +369,14 @@ contains
 
          ! normalVelocity
          variableIndex = variableIndex + 1
-         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nEdgesSolve, maxLevelEdgeTop(1:nEdgesSolve), areaEdge(1:nEdgesSolve), layerThicknessEdge(:,1:nEdgesSolve), &
-            normalVelocity(:,1:nEdgesSolve), sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
-            verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nEdgesSolve, &
+                                                                      maxLevelEdgeTop(1:nEdgesSolve), areaEdge(1:nEdgesSolve), &
+                                                                      layerThicknessEdge(:,1:nEdgesSolve), &
+                                                                      normalVelocity(:,1:nEdgesSolve), sums_tmp(variableIndex), &
+                                                                      sumSquares_tmp(variableIndex), mins_tmp(variableIndex), &
+                                                                      maxes_tmp(variableIndex), &
+                                                                      verticalSumMins_tmp(variableIndex), &
+                                                                      verticalSumMaxes_tmp(variableIndex))
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
          mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -355,9 +386,14 @@ contains
 
          ! tangentialVelocity
          variableIndex = variableIndex + 1
-         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nEdgesSolve, maxLevelEdgeTop(1:nEdgesSolve), areaEdge(1:nEdgesSolve), layerThicknessEdge(:,1:nEdgesSolve), &
-            tangentialVelocity(:,1:nEdgesSolve), sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
-            verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nEdgesSolve, &
+                                                                      maxLevelEdgeTop(1:nEdgesSolve), areaEdge(1:nEdgesSolve), &
+                                                                      layerThicknessEdge(:,1:nEdgesSolve), &
+                                                                      tangentialVelocity(:,1:nEdgesSolve), &
+                                                                      sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                      mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                      verticalSumMins_tmp(variableIndex), &
+                                                                      verticalSumMaxes_tmp(variableIndex))
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
          mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -367,8 +403,12 @@ contains
 
          ! layerThicknessEdge
          variableIndex = variableIndex + 1
-         call ocn_compute_field_area_weighted_local_stats_max_level(dminfo, nVertLevels, nEdgesSolve, maxLevelEdgeTop(1:nEdgesSolve), areaEdge(1:nEdgesSolve), layerThicknessEdge(:,1:nEdgesSolve), &
-            sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_area_weighted_local_stats_max_level(dminfo, nVertLevels, nEdgesSolve, &
+                                                                    maxLevelEdgeTop(1:nEdgesSolve), areaEdge(1:nEdgesSolve), &
+                                                                    layerThicknessEdge(:,1:nEdgesSolve), sums_tmp(variableIndex), &
+                                                                    sumSquares_tmp(variableIndex), mins_tmp(variableIndex), &
+                                                                    maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
+                                                                    verticalSumMaxes_tmp(variableIndex))
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
          mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -378,8 +418,14 @@ contains
 
          ! relativeVorticity
          variableIndex = variableIndex + 1
-         call ocn_compute_field_area_weighted_local_stats_max_level(dminfo, nVertLevels, nVerticesSolve, maxLevelVertexBot(1:nVerticesSolve), areaTriangle(1:nVerticesSolve), relativeVorticity(:,1:nVerticesSolve), &
-            sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_area_weighted_local_stats_max_level(dminfo, nVertLevels, nVerticesSolve, &
+                                                                    maxLevelVertexBot(1:nVerticesSolve), &
+                                                                    areaTriangle(1:nVerticesSolve), &
+                                                                    relativeVorticity(:,1:nVerticesSolve), &
+                                                                    sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                    mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                    verticalSumMins_tmp(variableIndex), &
+                                                                    verticalSumMaxes_tmp(variableIndex))
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
          mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -391,9 +437,13 @@ contains
          allocate(enstrophy(nVertLevels,nVerticesSolve))
          enstrophy(:,:)=relativeVorticity(:,1:nVerticesSolve)**2
          variableIndex = variableIndex + 1
-         call ocn_compute_field_area_weighted_local_stats_max_level(dminfo, nVertLevels, nVerticesSolve, maxLevelVertexBot(1:nVerticesSolve), areaTriangle(1:nVerticesSolve), &
-            enstrophy(:,:), sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), &
-            verticalSumMins_tmp(variableIndex), verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_area_weighted_local_stats_max_level(dminfo, nVertLevels, nVerticesSolve, &
+                                                                    maxLevelVertexBot(1:nVerticesSolve), &
+                                                                    areaTriangle(1:nVerticesSolve), enstrophy(:,:), &
+                                                                    sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                    mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                    verticalSumMins_tmp(variableIndex), &
+                                                                    verticalSumMaxes_tmp(variableIndex))
          deallocate(enstrophy)
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
@@ -404,9 +454,14 @@ contains
 
          ! kineticEnergyCell
          variableIndex = variableIndex + 1
-         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), layerThickness(:,1:nCellsSolve), &
-            kineticEnergyCell(:,1:nCellsSolve), sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
-            verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, &
+                                                                      maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), &
+                                                                      layerThickness(:,1:nCellsSolve), &
+                                                                      kineticEnergyCell(:,1:nCellsSolve), &
+                                                                      sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                      mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                      verticalSumMins_tmp(variableIndex), &
+                                                                      verticalSumMaxes_tmp(variableIndex))
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
          mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -416,11 +471,17 @@ contains
 
          ! normalizedAbsoluteVorticity
          allocate(normalizedAbsoluteVorticity(nVertLevels,nEdgesSolve))
-         normalizedAbsoluteVorticity(:,:) = normalizedRelativeVorticityEdge(:,1:nEdgesSolve) + normalizedPlanetaryVorticityEdge(:,1:nEdgesSolve)
+         normalizedAbsoluteVorticity(:,:) = normalizedRelativeVorticityEdge(:,1:nEdgesSolve) &
+                                          + normalizedPlanetaryVorticityEdge(:,1:nEdgesSolve)
          variableIndex = variableIndex + 1
-         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nEdgesSolve, maxLevelEdgeTop(1:nEdgesSolve), areaEdge(1:nEdgesSolve), layerThicknessEdge(:,1:nEdgesSolve), &
-            normalizedAbsoluteVorticity(:,1:nEdgesSolve), sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
-            verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nEdgesSolve, &
+                                                                      maxLevelEdgeTop(1:nEdgesSolve), areaEdge(1:nEdgesSolve), &
+                                                                      layerThicknessEdge(:,1:nEdgesSolve), &
+                                                                      normalizedAbsoluteVorticity(:,1:nEdgesSolve), &
+                                                                      sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                      mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                      verticalSumMins_tmp(variableIndex), &
+                                                                      verticalSumMaxes_tmp(variableIndex))
          deallocate(normalizedAbsoluteVorticity)
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
@@ -431,9 +492,13 @@ contains
 
          ! pressure
          variableIndex = variableIndex + 1
-         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), layerThickness(:,1:nCellsSolve), &
-            pressure(:,1:nCellsSolve), sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
-            verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, &
+                                                                      maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), &
+                                                                      layerThickness(:,1:nCellsSolve), pressure(:,1:nCellsSolve), &
+                                                                      sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                      mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                      verticalSumMins_tmp(variableIndex), &
+                                                                      verticalSumMaxes_tmp(variableIndex))
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
          mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -443,9 +508,14 @@ contains
 
          ! montgomeryPotential
          variableIndex = variableIndex + 1
-         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), layerThickness(:,1:nCellsSolve), &
-            montgomeryPotential(:,1:nCellsSolve), sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
-            verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, &
+                                                                      maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), &
+                                                                      layerThickness(:,1:nCellsSolve), &
+                                                                      montgomeryPotential(:,1:nCellsSolve), &
+                                                                      sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                      mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                      verticalSumMins_tmp(variableIndex), &
+                                                                      verticalSumMaxes_tmp(variableIndex))
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
          mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -456,9 +526,13 @@ contains
          ! vertVelocityTop vertical velocity
          variableIndex = variableIndex + 1
          workArray = vertVelocityTop(1:nVertLevels,1:nCellsSolve)
-         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), layerThickness(:,1:nCellsSolve), &
-            workArray, sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
-            verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, &
+                                                                      maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), &
+                                                                      layerThickness(:,1:nCellsSolve), workArray, &
+                                                                      sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                      mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                      verticalSumMins_tmp(variableIndex), &
+                                                                      verticalSumMaxes_tmp(variableIndex))
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
          mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -469,9 +543,13 @@ contains
          ! vertAleTransportTop vertical velocity
          variableIndex = variableIndex + 1
          workArray = vertAleTransportTop(1:nVertLevels,1:nCellsSolve)
-         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), layerThickness(:,1:nCellsSolve), &
-            workArray, sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
-            verticalSumMaxes_tmp(variableIndex))
+         call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, &
+                                                                      maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), &
+                                                                      layerThickness(:,1:nCellsSolve), workArray, &
+                                                                      sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                      mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                      verticalSumMins_tmp(variableIndex), &
+                                                                      verticalSumMaxes_tmp(variableIndex))
          sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
          sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
          mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -482,9 +560,14 @@ contains
          ! lowFreqDivergence
          variableIndex = variableIndex + 1
          if (thicknessFilterActive) then
-            call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), layerThickness(:,1:nCellsSolve), &
-               lowFreqDivergence(:,1:nCellsSolve), sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
-               verticalSumMaxes_tmp(variableIndex))
+            call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, &
+                                                                         maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), &
+                                                                         layerThickness(:,1:nCellsSolve), &
+                                                                         lowFreqDivergence(:,1:nCellsSolve), &
+                                                                         sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                         mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                         verticalSumMins_tmp(variableIndex), &
+                                                                         verticalSumMaxes_tmp(variableIndex))
             sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
             sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
             mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -496,9 +579,14 @@ contains
          ! highFreqThickness
          variableIndex = variableIndex + 1
          if (thicknessFilterActive) then
-            call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), layerThickness(:,1:nCellsSolve), &
-               highFreqThickness(:,1:nCellsSolve), sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
-               verticalSumMaxes_tmp(variableIndex))
+            call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, &
+                                                                         maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), &
+                                                                         layerThickness(:,1:nCellsSolve), &
+                                                                         highFreqThickness(:,1:nCellsSolve), &
+                                                                         sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                         mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                         verticalSumMins_tmp(variableIndex), &
+                                                                         verticalSumMaxes_tmp(variableIndex))
             sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
             sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
             mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -511,9 +599,13 @@ contains
          do iTracer=1,num_activeTracers
             variableIndex = variableIndex + 1
             workArray = activeTracers(iTracer,:,1:nCellsSolve)
-            call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), layerThickness(:,1:nCellsSolve), &
-               workArray, sums_tmp(variableIndex), sumSquares_tmp(variableIndex), mins_tmp(variableIndex), maxes_tmp(variableIndex), verticalSumMins_tmp(variableIndex), &
-               verticalSumMaxes_tmp(variableIndex))
+            call ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nCellsSolve, &
+                                                                         maxLevelCell(1:nCellsSolve), areaCell(1:nCellsSolve), &
+                                                                         layerThickness(:,1:nCellsSolve), workArray, &
+                                                                         sums_tmp(variableIndex), sumSquares_tmp(variableIndex), &
+                                                                         mins_tmp(variableIndex), maxes_tmp(variableIndex), &
+                                                                         verticalSumMins_tmp(variableIndex), &
+                                                                         verticalSumMaxes_tmp(variableIndex))
             sums(variableIndex) = sums(variableIndex) + sums_tmp(variableIndex)
             sumSquares(variableIndex) = sumSquares(variableIndex) + sumSquares_tmp(variableIndex)
             mins(variableIndex) = min(mins(variableIndex), mins_tmp(variableIndex))
@@ -546,14 +638,12 @@ contains
          nSums = nSums + 1
          sums(nSums) = sums(nSums) + nVerticesSolve
 
-         localCFL = 0.0
-         do elementIndex = 1,nEdgesSolve
-            ! note: dt not connected.  dt will not be available in post processing mode.
-            !localCFL = max(localCFL, maxval(dt*normalVelocity(:,elementIndex)/dcEdge(elementIndex)))
+         localCFL = 0.0_RKIND
+         do iEdge = 1,nEdgesSolve
+            localCFL = max(localCFL, maxval(dt*abs(normalVelocity(1:maxLevelEdgeTop(iEdge),iEdge))/dcEdge(iEdge)))
          end do
          nMaxes = nMaxes + 1
          maxes(nMaxes) = localCFL
-
          do i = 1, nVariables
             mins(nMins+i) = min(mins(nMins+i),verticalSumMins_tmp(i))
             maxes(nMaxes+i) = max(maxes(nMaxes+i),verticalSumMaxes_tmp(i))
@@ -593,11 +683,6 @@ contains
 
       ! compute the averages (slightly different depending on how the sum was computed)
       variableIndex = 0
-
-      ! time, in days, using a 360 day calendar
-      read (xtime, '(i4,10(a1,i2))') timeYYYY, timeChar, timeMM, timeChar, timeDD, timeChar, timeH, timeChar, timeM, timeChar, timeS
-      ! subtract 31.0 because calendar starts on 00-01-01
-      time_days = timeYYYY*360.0 + timeMM*30.0 + timeDD + (timeH + (timeM + timeS/60.0)/60.0)/24.0 - 31.0
 
       ! layerThickness
       variableIndex = variableIndex + 1
@@ -703,22 +788,22 @@ contains
          if (dminfo % my_proc_id == IO_NODE) then
             fileID = getFreeUnit()
             open(fileID,file=trim(config_AM_globalStats_directory)//'/stats_min.txt',STATUS='UNKNOWN', POSITION='append')
-            write (fileID,'(100es24.14)') time_days, mins(1:nVariables)
+            write (fileID,'(100es24.14)') daysSinceStartOfSim, mins(1:nVariables)
             close (fileID)
             open(fileID,file=trim(config_AM_globalStats_directory)//'/stats_max.txt',STATUS='UNKNOWN', POSITION='append')
-            write (fileID,'(100es24.14)') time_days, maxes(1:nVariables)
+            write (fileID,'(100es24.14)') daysSinceStartOfSim, maxes(1:nVariables)
             close (fileID)
             open(fileID,file=trim(config_AM_globalStats_directory)//'/stats_sum.txt',STATUS='UNKNOWN', POSITION='append')
-            write (fileID,'(100es24.14)') time_days, sums(1:nVariables)
+            write (fileID,'(100es24.14)') daysSinceStartOfSim, sums(1:nVariables)
             close (fileID)
             open(fileID,file=trim(config_AM_globalStats_directory)//'/stats_rms.txt',STATUS='UNKNOWN', POSITION='append')
-            write (fileID,'(100es24.14)') time_days, rms(1:nVariables)
+            write (fileID,'(100es24.14)') daysSinceStartOfSim, rms(1:nVariables)
             close (fileID)
             open(fileID,file=trim(config_AM_globalStats_directory)//'/stats_avg.txt',STATUS='UNKNOWN', POSITION='append')
-            write (fileID,'(100es24.14)') time_days, averages(1:nVariables)
+            write (fileID,'(100es24.14)') daysSinceStartOfSim, averages(1:nVariables)
             close (fileID)
             open(fileID,file=trim(config_AM_globalStats_directory)//'/stats_time.txt',STATUS='UNKNOWN', POSITION='append')
-            write (fileID,'(a)') trim(xtime)
+            write (fileID,'(a,2es24.14)') trim(xtime), daysSinceStartOfSim, CFLNumberGlobal
             close (fileID)
             open(fileID,file=trim(config_AM_globalStats_directory)//'/stats_colmin.txt',STATUS='UNKNOWN', POSITION='append')
             write (fileID,'(100es24.14)') verticalSumMins(1:nVariables)
@@ -842,12 +927,12 @@ contains
       integer :: elementIndex
       real (kind=RKIND) :: colSum, colRMS, colSumAbs
 
-      localSum = 0.0
-      localRMS = 0.0
-      localMin =  1.0e34
-      localMax = -1.0e34
-      localVertSumMin =  1.0e34
-      localVertSumMax = -1.0e34
+      localSum = 0.0_RKIND
+      localRMS = 0.0_RKIND
+      localMin =  1.0e34_RKIND
+      localMax = -1.0e34_RKIND
+      localVertSumMin =  1.0e34_RKIND
+      localVertSumMax = -1.0e34_RKIND
 
       do elementIndex = 1, nElements
         colSum = sum(field(1:maxLevel(elementIndex),elementIndex))
@@ -862,8 +947,9 @@ contains
 
    end subroutine ocn_compute_field_area_weighted_local_stats_max_level!}}}
 
-   subroutine ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nElements, maxLevel, areas, layerThickness, field, &!{{{
-      localSum, localRMS, localMin, localMax, localVertSumMin, localVertSumMax)
+   subroutine ocn_compute_field_volume_weighted_local_stats_max_level(dminfo, nVertLevels, nElements, maxLevel, areas, & !{{{
+                                                                      layerThickness, field, localSum, localRMS, localMin, &
+                                                                      localMax, localVertSumMin, localVertSumMax)
 
       implicit none
 
@@ -880,17 +966,19 @@ contains
       real (kind=RKIND) :: thicknessWeightedColSum, thicknessWeightedColRMS, thicknessWeightedColSumAbs
       real (kind=RKIND), dimension(nVertLevels, nElements) :: hTimesField
 
-      localSum = 0.0
-      localRMS = 0.0
-      localMin =  1.0e34
-      localMax = -1.0e34
-      localVertSumMin =  1.0e34
-      localVertSumMax = -1.0e34
+      localSum = 0.0_RKIND
+      localRMS = 0.0_RKIND
+      localMin =  1.0e34_RKIND
+      localMax = -1.0e34_RKIND
+      localVertSumMin =  1.0e34_RKIND
+      localVertSumMax = -1.0e34_RKIND
 
       do elementIndex = 1, nElements
-        thicknessWeightedColSum = sum(layerThickness(1:maxLevel(elementIndex),elementIndex)*field(1:maxLevel(elementIndex),elementIndex))
+        thicknessWeightedColSum = sum(layerThickness(1:maxLevel(elementIndex),elementIndex) &
+                                * field(1:maxLevel(elementIndex),elementIndex))
         localSum = localSum + areas(elementIndex) * thicknessWeightedColSum
-        thicknessWeightedColRMS = sum(layerThickness(1:maxLevel(elementIndex),elementIndex)*field(1:maxLevel(elementIndex),elementIndex)**2)
+        thicknessWeightedColRMS = sum(layerThickness(1:maxLevel(elementIndex),elementIndex) &
+                                * field(1:maxLevel(elementIndex),elementIndex)**2)
         localRMS = localRMS + areas(elementIndex) * thicknessWeightedColRMS
         localMin = min(localMin,minval(field(1:maxLevel(elementIndex),elementIndex)))
         localMax = max(localMax,maxval(field(1:maxLevel(elementIndex),elementIndex)))

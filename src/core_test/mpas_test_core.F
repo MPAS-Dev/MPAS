@@ -11,6 +11,7 @@ module test_core
    use mpas_timekeeping
 
    use test_core_halo_exch
+   use test_core_field_tests
    use mpas_stream_manager
 
    type (MPAS_Clock_type), pointer :: clock
@@ -40,6 +41,8 @@ module test_core
       character(len=*), intent(out) :: startTimeStamp
    
       type (MPAS_Time_Type) :: startTime
+      type (mpas_pool_type), pointer :: modelPool
+      character (len=StrKIND), pointer :: xtime
       integer :: iErr
 
 
@@ -55,6 +58,10 @@ module test_core
       !
       startTime = mpas_get_clock_time(clock, MPAS_START_TIME, iErr)
       call mpas_get_time(startTime, dateTimeString=startTimeStamp) 
+
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'model', modelPool)
+      call mpas_pool_get_array(modelPool, 'xtime', xtime)
+      xtime = startTimeStamp
 
       call mpas_stream_mgr_read(domain % streamManager, ierr=iErr)
       call mpas_stream_mgr_reset_alarms(domain % streamManager, direction=MPAS_STREAM_INPUT, ierr=iErr)
@@ -82,6 +89,7 @@ module test_core
       use mpas_timer
       use mpas_vector_operations
       use mpas_geometry_utils
+      use test_core_streams, only : test_core_streams_test
    
       implicit none
    
@@ -114,6 +122,23 @@ module test_core
       else
          write(stderrUnit, *) ' * Halo Exchange Test: FAILURE'
       end if
+
+      !$omp parallel default(firstprivate) shared(domain, threadErrs)
+      call test_core_test_fields(domain, threadErrs, ierr)
+       if ( iErr == 0 ) then
+         write(stderrUnit, *) ' * Field Tests: SUCCESS'
+      else
+         write(stderrUnit, *) ' * Field Tests: FAILURE'
+      end if     !$omp end parallel
+
+      call test_core_streams_test(domain, threadErrs, iErr)
+      if ( iErr == 0 ) then
+         write(stderrUnit, *) 'Stream I/O tests: SUCCESS'
+      else
+         write(stderrUnit, *) 'Stream I/O tests: FAILURE'
+      end if
+
+      call mpas_stream_mgr_write(domain % streamManager, forceWriteNow=.true.)
 
       deallocate(threadErrs)
 

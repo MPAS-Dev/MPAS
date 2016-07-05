@@ -70,13 +70,14 @@ contains
 !> \brief   Calls equation of state
 !> \author  Mark Petersen, Todd Ringler
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine uses a linear equation of state to update the density
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_equation_of_state_linear_density(meshPool, k_displaced, displacement_type, indexT, indexS, tracers, density, err, &
-      tracersSurfaceLayerValue, thermalExpansionCoeff, salineContractionCoeff)!{{{
+   subroutine ocn_equation_of_state_linear_density(meshPool, k_displaced, displacement_type, indexT, indexS, tracers, & !{{{
+                                                   density, err, tracersSurfaceLayerValue, thermalExpansionCoeff, &
+                                                   salineContractionCoeff)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    !  This module contains routines necessary for computing the density
    !  from model temperature and salinity using an equation of state.
@@ -137,7 +138,7 @@ contains
          write (stderrUnit,*) 'Abort: In equation_of_state_jm', &
              ' k_displaced must be between 1 and nVertLevels for ', &
              'displacement_type = absolute'
-         call mpas_dmpar_abort(dminfo)
+         call mpas_dmpar_global_abort('MPAS-ocean: Abort: In equation_of_state_jm')
       endif
 
       ! if surfaceDisplaced, then compute density at all levels based on surface values
@@ -214,11 +215,11 @@ contains
 !> \brief   Initializes ocean momentum horizontal mixing quantities
 !> \author  Mark Petersen, Todd Ringler
 !> \date    September 2011
-!> \details 
-!>  This routine initializes a variety of quantities related to 
-!>  horizontal velocity mixing in the ocean. Since a variety of 
+!> \details
+!>  This routine initializes a variety of quantities related to
+!>  horizontal velocity mixing in the ocean. Since a variety of
 !>  parameterizations are available, this routine primarily calls the
-!>  individual init routines for each parameterization. 
+!>  individual init routines for each parameterization.
 !
 !-----------------------------------------------------------------------
 

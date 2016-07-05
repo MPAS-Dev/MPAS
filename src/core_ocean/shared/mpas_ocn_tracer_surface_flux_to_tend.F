@@ -13,8 +13,8 @@
 !> \author Doug Jacobsen
 !> \date   12/17/12
 !> \details
-!>  This module contains the routine for computing 
-!>  surface flux tendencies.  
+!>  This module contains the routine for computing
+!>  surface flux tendencies.
 !
 !-----------------------------------------------------------------------
 
@@ -64,12 +64,13 @@ contains
 !> \brief   Computes tendency term for surface fluxes
 !> \author  Doug Jacobsen
 !> \date    12/17/12
-!> \details 
+!> \details
 !>  This routine computes the tendency for tracers based on surface fluxes.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tracer_surface_flux_tend(meshPool, fractionAbsorbed, layerThickness, surfaceTracerFlux, tend, err)!{{{
+   subroutine ocn_tracer_surface_flux_tend(meshPool, fractionAbsorbed, fractionAbsorbedRunoff, layerThickness,  &
+      surfaceTracerFlux, surfaceTracerFluxRunoff, tend, err)!{{{
       !-----------------------------------------------------------------
       !
       ! input variables
@@ -87,6 +88,12 @@ contains
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
         fractionAbsorbed !< Input: Coefficients for the application of surface fluxes
+
+      real (kind=RKIND), dimension(:,:), intent(in), pointer :: &
+        surfaceTracerFluxRunoff !< Input: surface tracer fluxes from river runoff
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+        fractionAbsorbedRunoff !< Input: Coefficients for the application of surface fluxes due to river runoff
 
       !-----------------------------------------------------------------
       !
@@ -140,11 +147,37 @@ contains
 
         if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
           do iTracer = 1, nTracers
-            tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) + surfaceTracerFlux(iTracer, iCell) * remainingFlux
+            tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) &
+                                                      + surfaceTracerFlux(iTracer, iCell) * remainingFlux
           end do
         end if
       end do
       !$omp end do
+
+      ! now do runoff component
+
+      if (associated(surfaceTracerFluxRunoff)) then
+      !$omp do schedule(runtime) private(remainingFlux, k, iTracer)
+      do iCell = 1, nCells
+        remainingFlux = 1.0_RKIND
+        do k = 1, maxLevelCell(iCell)
+          remainingFlux = remainingFlux - fractionAbsorbedRunoff(k, iCell)
+
+          do iTracer = 1, nTracers
+            tend(iTracer, k, iCell) = tend(iTracer, k, iCell) +  &
+               surfaceTracerFluxRunoff(iTracer, iCell) * fractionAbsorbedRunoff(k, iCell)
+          end do
+        end do
+
+        if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
+          do iTracer = 1, nTracers
+            tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) &
+                                                      + surfaceTracerFluxRunoff(iTracer, iCell) * remainingFlux
+          end do
+        end if
+      end do
+      !$omp end do
+      endif
 
    !--------------------------------------------------------------------
 
@@ -157,7 +190,7 @@ contains
 !> \brief   Initializes ocean tracer surface flux quantities
 !> \author  Doug Jacobsen
 !> \date    12/17/12
-!> \details 
+!> \details
 !>  This routine initializes quantities related to surface fluxes in the ocean.
 !
 !-----------------------------------------------------------------------

@@ -13,7 +13,7 @@
 !> \author Doug Jacobsen
 !> \date   02/18/2014
 !> \details
-!>  This module contains the routines for initializing the 
+!>  This module contains the routines for initializing the
 !>  the lock exchange test case
 !
 !-----------------------------------------------------------------------
@@ -24,6 +24,7 @@ module ocn_init_lock_exchange
    use mpas_io_units
    use mpas_derived_types
    use mpas_pool_routines
+   use mpas_dmpar
 
    use ocn_constants
    use ocn_init_vertical_grids
@@ -65,7 +66,7 @@ contains
 !> \brief   Setup for lock exchange test case
 !> \author  Doug Jacobsen
 !> \date    02/18/2014
-!> \details 
+!> \details
 !>  This routine sets up the initial conditions for the lock exchange test case.
 !>  It is setup in the y direction, such that everything in the southern half of
 !>  the domain has a temperature of 5.0C and the northern half has a value of
@@ -88,16 +89,19 @@ contains
 
       type (mpas_pool_type), pointer :: meshPool, statePool, verticalMeshPool, tracersPool
 
-      character (len=StrKIND), pointer :: config_init_configuration, config_vertical_grid, config_lock_exchange_layer_type
+      character (len=StrKIND), pointer :: config_init_configuration, config_vertical_grid, config_lock_exchange_layer_type, &
+            config_lock_exchange_direction
 
       integer, pointer :: nCellsSolve, nEdgesSolve, nVertLevels, nVertLevelsP1, index_temperature, index_salinity, index_tracer1
 
       integer, dimension(:), pointer :: maxLevelCell
 
-      real (kind=RKIND), pointer :: config_lock_exchange_south_temp, config_lock_exchange_north_temp, config_lock_exchange_salinity, &
-                                    config_lock_exchange_bottom_depth, config_lock_exchange_isopycnal_min_thickness
+      real (kind=RKIND), pointer :: config_lock_exchange_cold_temperature, config_lock_exchange_warm_temperature, &
+                                    config_lock_exchange_salinity, config_lock_exchange_bottom_depth, &
+                                    config_lock_exchange_isopycnal_min_thickness
 
-      real (kind=RKIND), dimension(:), pointer :: xCell, yCell, bottomDepth, refBottomDepthTopOfCell, refBottomDepth, vertCoordMovementWeights, dcEdge
+      real (kind=RKIND), dimension(:), pointer :: xCell, yCell, bottomDepth, refBottomDepthTopOfCell, refBottomDepth, &
+                                                  vertCoordMovementWeights, dcEdge
       real (kind=RKIND), dimension(:,:), pointer :: layerThickness, restingThickness
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers, debugTracers
 
@@ -111,22 +115,25 @@ contains
 
       call mpas_pool_get_config(ocnConfigs, 'config_init_configuration', config_init_configuration)
 
-      if(config_init_configuration .ne. trim('lock_exchange')) return
+      if (config_init_configuration .ne. trim('lock_exchange')) return
 
       call mpas_pool_get_config(ocnConfigs, 'config_vertical_grid', config_vertical_grid)
 
-      call mpas_pool_get_config(ocnConfigs, 'config_lock_exchange_south_temp', config_lock_exchange_south_temp)
-      call mpas_pool_get_config(ocnConfigs, 'config_lock_exchange_north_temp', config_lock_exchange_north_temp)
+      call mpas_pool_get_config(ocnConfigs, 'config_lock_exchange_cold_temperature', config_lock_exchange_cold_temperature)
+      call mpas_pool_get_config(ocnConfigs, 'config_lock_exchange_warm_temperature', config_lock_exchange_warm_temperature)
       call mpas_pool_get_config(ocnConfigs, 'config_lock_exchange_salinity', config_lock_exchange_salinity)
       call mpas_pool_get_config(ocnConfigs, 'config_lock_exchange_bottom_depth', config_lock_exchange_bottom_depth)
-      call mpas_pool_get_config(ocnConfigs, 'config_lock_exchange_isopycnal_min_thickness', config_lock_exchange_isopycnal_min_thickness)
+      call mpas_pool_get_config(ocnConfigs, 'config_lock_exchange_direction', config_lock_exchange_direction)
+      call mpas_pool_get_config(ocnConfigs, 'config_lock_exchange_isopycnal_min_thickness', &
+                                config_lock_exchange_isopycnal_min_thickness)
       call mpas_pool_get_config(ocnConfigs, 'config_lock_exchange_layer_type', config_lock_exchange_layer_type)
 
       call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
       call mpas_pool_get_dimension(meshPool, 'nVertLevelsP1', nVertLevelsP1)
       call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
 
-      if ( on_a_sphere ) call mpas_dmpar_global_abort('ERROR: The lock exchange configuration can not be applied to spherical meshes')
+      if ( on_a_sphere ) call mpas_dmpar_global_abort('MPAS-ocean: ERROR: The lock exchange configuration can not be ' &
+                                                   // 'applied to spherical meshes')
 
       ! Define interface locations
       allocate( interfaceLocations( nVertLevelsP1 ) )
@@ -197,40 +204,59 @@ contains
 
          call ocn_mark_north_boundary(meshPool, yMaxGlobal, dcEdgeMinGlobal, iErr)
          call ocn_mark_south_boundary(meshPool, yMinGlobal, dcEdgeMinGlobal, iErr)
-         call ocn_mark_east_boundary(meshPool, xMaxGlobal, dcEdgeMinGlobal, iErr)
-         call ocn_mark_west_boundary(meshPool, xMinGlobal, dcEdgeMinGlobal, iErr)
 
          do iCell = 1, nCellsSolve
-            ! Set temperature, layerThickness, and restingThickness
+            ! Set layerThickness, and restingThickness
+
             if ( trim(config_lock_exchange_layer_type) == 'z-level' ) then
+               ! Set layerThickness and restingThickness
+               do k = 1, nVertLevels
+                  layerThickness(k, iCell) = config_lock_exchange_bottom_depth * ( interfaceLocations(k+1) &
+                       - interfaceLocations(k) )
+                  restingThickness(k, iCell) = layerThickness(k, iCell)
+               end do
+
+               ! Set temperature
                if ( associated(activeTracers) ) then
-                  if(yCell(iCell) < (yMaxGlobal - yMinGlobal) * 0.5_RKIND) then
-                     activeTracers(index_temperature, :, iCell) = config_lock_exchange_south_temp
+                  if ( trim(config_lock_exchange_direction) == 'x' ) then
+                     if(xCell(iCell) < xMinGlobal + (xMaxGlobal - xMinGlobal) * 0.5_RKIND) then
+                        activeTracers(index_temperature, :, iCell) = config_lock_exchange_cold_temperature
+                     else
+                        activeTracers(index_temperature, :, iCell) = config_lock_exchange_warm_temperature
+                     end if
+
+                  elseif ( trim(config_lock_exchange_direction) == 'y' ) then
+                     if(yCell(iCell) < yMinGlobal + (yMaxGlobal - yMinGlobal) * 0.5_RKIND) then
+                        activeTracers(index_temperature, :, iCell) = config_lock_exchange_cold_temperature
+                     else
+                        activeTracers(index_temperature, :, iCell) = config_lock_exchange_warm_temperature
+                     end if
+
+                  elseif ( trim(config_lock_exchange_direction) == 'z' ) then
+                        activeTracers(index_temperature, 1:nVertLevels/2, iCell) = config_lock_exchange_warm_temperature
+                        activeTracers(index_temperature, nVertLevels/2+1:nVertLevels, iCell) = &
+                           config_lock_exchange_cold_temperature
                   else
-                     activeTracers(index_temperature, :, iCell) = config_lock_exchange_north_temp
+                     call mpas_dmpar_global_abort('MPAS-ocean: Error: wrong choice of config_lock_exchange_direction')
                   end if
                end if
 
-               ! Set layerThickness and restingThickness
-               do k = 1, nVertLevels
-                  layerThickness(k, iCell) = config_lock_exchange_bottom_depth * ( interfaceLocations(k+1) - interfaceLocations(k) )
-                  restingThickness(k, iCell) = layerThickness(k, iCell)
-               end do
             else if ( trim(config_lock_exchange_layer_type) == 'isopycnal' ) then
                if ( associated(activeTracers) ) then
-                  activeTracers(index_temperature, 1, iCell) = config_lock_exchange_north_temp
-                  activeTracers(index_temperature, 2:nVertLevels, iCell) = config_lock_exchange_south_temp
+                  activeTracers(index_temperature, 1, iCell) = config_lock_exchange_warm_temperature
+                  activeTracers(index_temperature, 2:nVertLevels, iCell) = config_lock_exchange_cold_temperature
                end if
 
                if(yCell(iCell) < (yMaxGlobal - yMinGlobal) * 0.5_RKIND) then
                   layerThickness(1, iCell) = config_lock_exchange_isopycnal_min_thickness
-                  layerThickness(2:nVertLevels, iCell) = config_lock_exchange_bottom_depth - config_lock_exchange_isopycnal_min_thickness
+                  layerThickness(2:nVertLevels, iCell) = config_lock_exchange_bottom_depth &
+                       - config_lock_exchange_isopycnal_min_thickness
                else
                   layerThickness(1, iCell) = config_lock_exchange_bottom_depth - config_lock_exchange_isopycnal_min_thickness
                   layerThickness(2:nVertLevels, iCell) = config_lock_exchange_isopycnal_min_thickness
                end if
             else
-              call mpas_dmpar_global_abort('Error: wrong choice of config_lock_exchange_layer_type')
+               call mpas_dmpar_global_abort('MPAS-ocean: Error: wrong choice of config_lock_exchange_layer_type')
             end if
 
             ! Set salinity
@@ -241,7 +267,7 @@ contains
             ! Set debugging tracer
             if ( associated(debugTracers) ) then
                do k = 1, nVertLevels
-                 debugTracers(index_tracer1, k, iCell) = 1.0_RKIND
+                  debugTracers(index_tracer1, k, iCell) = 1.0_RKIND
                enddo
             end if
 
@@ -279,7 +305,7 @@ contains
 !> \brief   Validation for lock exchange test case
 !> \author  Doug Jacobsen
 !> \date    02/20/2014
-!> \details 
+!> \details
 !>  This routine validates the configuration options for the lock exchange test case.
 !
 !-----------------------------------------------------------------------

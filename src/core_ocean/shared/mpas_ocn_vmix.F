@@ -13,8 +13,8 @@
 !> \author Mark Petersen
 !> \date   September 2011
 !> \details
-!>  This module is the main driver for 
-!>  vertical mixing in the ocean. 
+!>  This module is the main driver for
+!>  vertical mixing in the ocean.
 !>
 !
 !-----------------------------------------------------------------------
@@ -56,7 +56,7 @@ module ocn_vmix
              ocn_vel_vmix_tend_implicit, &
              ocn_tracer_vmix_tend_implicit, &
              ocn_vmix_init, &
-             ocn_vmix_implicit 
+             ocn_vmix_implicit
 
    !--------------------------------------------------------------------
    !
@@ -77,13 +77,13 @@ contains
 !> \brief   Computes coefficients for vertical mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the vertical mixing coefficients for momentum
 !>  and tracers based user choices of mixing parameterization.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, scratchPool, err, timeLevelIn)!{{{
+   subroutine ocn_vmix_coefs(meshPool, statePool, forcingPool, diagnosticsPool, scratchPool, err, timeLevelIn)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -95,7 +95,7 @@ contains
          meshPool          !< Input: mesh information
 
       type (mpas_pool_type), intent(in) :: scratchPool !< Input/Output: Scratch structure
-      
+
       integer, intent(in), optional :: timeLevelIn !< Input: Time level for state pool
 
       !-----------------------------------------------------------------
@@ -106,6 +106,9 @@ contains
 
       type (mpas_pool_type), intent(inout) :: &
          statePool             !< Input/Output: state information
+
+      type (mpas_pool_type), intent(inout) :: &
+         forcingPool             !< Input/Output: forcing information
 
       type (mpas_pool_type), intent(inout) :: &
          diagnosticsPool             !< Input/Output: diagnostic information
@@ -127,6 +130,9 @@ contains
       integer :: err1, err2, err3, err4, err5
       integer :: timeLevel
 
+      integer :: iEdge, iCell
+      integer, pointer :: nEdges, nCells
+
       real (kind=RKIND), dimension(:,:), pointer :: vertViscTopOfEdge, vertDiffTopOfCell
 
       !-----------------------------------------------------------------
@@ -143,12 +149,23 @@ contains
          timeLevel = 1
       end if
 
+      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
+
       call mpas_pool_get_array(diagnosticsPool, 'vertViscTopOfEdge', vertViscTopOfEdge)
       call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', vertDiffTopOfCell)
-      !$omp workshare
-      vertViscTopOfEdge = 0.0_RKIND
-      vertDiffTopOfCell = 0.0_RKIND
-      !$omp end workshare
+
+      !$omp do schedule(runtime)
+      do iEdge = 1, nEdges
+         vertViscTopOfEdge(:, iEdge) = 0.0_RKIND
+      end do
+      !$omp end do
+
+      !$omp do schedule(runtime)
+      do iCell = 1, nCells
+         vertDiffTopOfCell(:, iCell) = 0.0_RKIND
+      end do
+      !$omp end do
 
       call mpas_timer_start('coef const build', .false.)
       call ocn_vmix_coefs_const_build(meshPool, statePool, diagnosticsPool, err1, timeLevel)
@@ -163,7 +180,7 @@ contains
       call mpas_timer_stop('coef rich build')
 
       call mpas_timer_start('coef cvmix build', .false.)
-      call ocn_vmix_coefs_cvmix_build(meshPool, statePool, diagnosticsPool, err4, timeLevel)
+      call ocn_vmix_coefs_cvmix_build(meshPool, statePool, forcingPool, diagnosticsPool, err4, timeLevel)
       call mpas_timer_stop('coef cvmix build')
 
       call mpas_timer_start('coef redi build', .false.)
@@ -183,13 +200,14 @@ contains
 !> \brief   Computes tendencies for implicit momentum vertical mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the tendencies for implicit vertical mixing for momentum
 !>  using computed coefficients.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_vmix_tend_implicit(meshPool, dt, kineticEnergyCell, vertViscTopOfEdge, layerThickness, layerThicknessEdge, normalVelocity, err)!{{{
+   subroutine ocn_vel_vmix_tend_implicit(meshPool, dt, kineticEnergyCell, vertViscTopOfEdge, layerThickness, & !{{{
+                                         layerThicknessEdge, normalVelocity, err)
 
       !-----------------------------------------------------------------
       !
@@ -261,7 +279,7 @@ contains
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
       call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
 
-      allocate(A(nVertLevels),B(nVertLevels),C(nVertLevels),velTemp(nVertLevels)) 
+      allocate(A(nVertLevels),B(nVertLevels),C(nVertLevels),velTemp(nVertLevels))
       A(1)=0
 
       !$omp do schedule(runtime) private(N, cell1, cell2, k)
@@ -275,19 +293,19 @@ contains
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
          do k = 1, N
-            layerThicknessEdge(k,iEdge) = 0.5 * (layerThickness(k,cell1) + layerThickness(k,cell2))
+            layerThicknessEdge(k,iEdge) = 0.5_RKIND * (layerThickness(k,cell1) + layerThickness(k,cell2))
          end do
 
          ! A is lower diagonal term
          do k = 2, N
-            A(k) = -2.0*dt*vertViscTopOfEdge(k,iEdge) &
+            A(k) = -2.0_RKIND*dt*vertViscTopOfEdge(k,iEdge) &
                / (layerThicknessEdge(k-1,iEdge) + layerThicknessEdge(k,iEdge)) &
                / layerThicknessEdge(k,iEdge)
          enddo
 
          ! C is upper diagonal term
          do k = 1, N-1
-            C(k) = -2.0*dt*vertViscTopOfEdge(k+1,iEdge) &
+            C(k) = -2.0_RKIND*dt*vertViscTopOfEdge(k+1,iEdge) &
                / (layerThicknessEdge(k,iEdge) + layerThicknessEdge(k+1,iEdge)) &
                / layerThicknessEdge(k,iEdge)
          enddo
@@ -306,7 +324,7 @@ contains
          call tridiagonal_solve(A(2:N),B,C(1:N-1),normalVelocity(:,iEdge),velTemp,N)
 
          normalVelocity(1:N,iEdge) = velTemp(1:N)
-         normalVelocity(N+1:nVertLevels,iEdge) = 0.0
+         normalVelocity(N+1:nVertLevels,iEdge) = 0.0_RKIND
 
         end if
       end do
@@ -325,7 +343,7 @@ contains
 !> \brief   Computes tendencies for implicit tracer vertical mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the tendencies for implicit vertical mixing for
 !>  tracers using computed coefficients.
 !
@@ -403,16 +421,16 @@ contains
          ! A is lower diagonal term
          A(1)=0
          do k = 2, N
-            A(k) = -2.0*dt*vertDiffTopOfCell(k,iCell) &
+            A(k) = -2.0_RKIND*dt*vertDiffTopOfCell(k,iCell) &
                  / (layerThickness(k-1,iCell) + layerThickness(k,iCell)) / layerThickness(k,iCell)
          enddo
 
          ! C is upper diagonal term
          do k = 1, N-1
-            C(k) = -2.0*dt*vertDiffTopOfCell(k+1,iCell) &
+            C(k) = -2.0_RKIND*dt*vertDiffTopOfCell(k+1,iCell) &
                  / (layerThickness(k,iCell) + layerThickness(k+1,iCell)) / layerThickness(k,iCell)
          enddo
-         C(N) = 0.0
+         C(N) = 0.0_RKIND
 
          ! B is diagonal term
          do k = 1, N
@@ -441,18 +459,19 @@ contains
 !> \brief   Driver for implicit vertical mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine is a driver for handling implicit vertical mixing
 !>  of both momentum and tracers for a block. It's intended to reduce
 !>  redundant code.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vmix_implicit(dt, meshPool, diagnosticsPool, statePool, scratchPool, err, timeLevelIn)!{{{
+   subroutine ocn_vmix_implicit(dt, meshPool, diagnosticsPool, statePool, forcingPool, scratchPool, err, timeLevelIn)!{{{
       real (kind=RKIND), intent(in) :: dt
       type (mpas_pool_type), intent(in) :: meshPool
       type (mpas_pool_type), intent(inout) :: diagnosticsPool
       type (mpas_pool_type), intent(inout) :: statePool
+    type (mpas_pool_type), intent(inout) :: forcingPool
       type (mpas_pool_type), intent(in) :: scratchPool !< Input/Output: Scratch structure
       integer, intent(out) :: err
       integer, intent(in), optional :: timeLevelIn
@@ -461,7 +480,8 @@ contains
 
       integer :: timeLevel, k, cell1, cell2, iEdge
       integer, pointer :: nCells, nEdges
-      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, layerThickness, layerThicknessEdge, vertViscTopOfEdge, vertDiffTopOfCell, kineticEnergyCell
+      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, layerThickness, layerThicknessEdge, vertViscTopOfEdge, &
+                                                    vertDiffTopOfCell, kineticEnergyCell
       real (kind=RKIND), dimension(:,:), pointer :: vertViscTopOfCell
       real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroup
       integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeTop
@@ -493,27 +513,25 @@ contains
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
       call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
-               
+
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
 
       call mpas_timer_start('vmix coefs', .false.)
-      call ocn_vmix_coefs(meshPool, statePool, diagnosticsPool, scratchPool, err, timeLevel)
+      call ocn_vmix_coefs(meshPool, statePool, forcingPool, diagnosticsPool, scratchPool, err, timeLevel)
       call mpas_timer_stop('vmix coefs')
 
       ! if using CVMix, then viscosity has to be averaged from cell centers to cell edges
       if ( config_use_cvmix ) then
 
       call mpas_timer_start('CVMix avg', .false.)
-      !$omp workshare
-      vertViscTopOfEdge(:,:) = 0.0
-      !$omp end workshare
       !$omp do schedule(runtime) private(cell1, cell2, k)
       do iEdge=1,nEdges
+         vertViscTopOfEdge(:, iedge) = 0.0_RKIND
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
          do k=1,maxLevelEdgeTop(iEdge)
-           vertViscTopOfEdge(k,iEdge) = 0.5*(vertViscTopOfCell(k,cell2)+vertViscTopOfCell(k,cell1))
+           vertViscTopOfEdge(k,iEdge) = 0.5_RKIND*(vertViscTopOfCell(k,cell2)+vertViscTopOfCell(k,cell1))
          enddo
       enddo
       !$omp end do
@@ -525,7 +543,8 @@ contains
       !  Implicit vertical solve for momentum
       !
       call mpas_timer_start('vmix solve momentum', .false.)
-      call ocn_vel_vmix_tend_implicit(meshPool, dt, kineticEnergyCell, vertViscTopOfEdge, layerThickness, layerThicknessEdge, normalVelocity, err)
+      call ocn_vel_vmix_tend_implicit(meshPool, dt, kineticEnergyCell, vertViscTopOfEdge, layerThickness, layerThicknessEdge, &
+                                      normalVelocity, err)
       call mpas_timer_stop('vmix solve momentum')
 
       !
@@ -555,9 +574,9 @@ contains
 !> \brief   Initializes ocean vertical mixing quantities
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
-!>  This routine initializes a variety of quantities related to 
-!>  vertical mixing in the ocean. 
+!> \details
+!>  This routine initializes a variety of quantities related to
+!>  vertical mixing in the ocean.
 !
 !-----------------------------------------------------------------------
 
@@ -611,7 +630,7 @@ contains
 !> \brief   Solve the matrix equation Ax=r for x, where A is tridiagonal.
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  Solve the matrix equation Ax=r for x, where A is tridiagonal.
 !>  A is an nxn matrix, with:
 !>  a sub-diagonal, filled from 1:n-1 (a(1) appears on row 2)
@@ -620,7 +639,7 @@ contains
 !
 !-----------------------------------------------------------------------
    subroutine tridiagonal_solve(a,b,c,r,x,n) !{{{
-      
+
       !-----------------------------------------------------------------
       !
       ! input variables
@@ -651,14 +670,14 @@ contains
       ! Use work variables for b and r
       bTemp(1) = b(1)
       rTemp(1) = r(1)
-      
+
       ! First pass: set the coefficients
       do i = 2,n
          m = a(i-1)/bTemp(i-1)
          bTemp(i) = b(i) - m*c(i-1)
          rTemp(i) = r(i) - m*rTemp(i-1)
-      end do 
-      
+      end do
+
       x(n) = rTemp(n)/bTemp(n)
        ! Second pass: back-substition
       do i = n-1, 1, -1
@@ -674,7 +693,7 @@ contains
 !> \brief   Solve multiple matrix equations Ax=r for x, where A is tridiagonal.
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  Solve the matrix equation Ax=r for x, where A is tridiagonal.
 !>  A is an nxn matrix, with:
 !>  a sub-diagonal, filled from 1:n-1 (a(1) appears on row 2)
@@ -692,22 +711,22 @@ subroutine tridiagonal_solve_mult(a,b,c,r,x,n,nDim,nSystems)!{{{
    real (KIND=RKIND), dimension(nSystems,n) :: rTemp
    real (KIND=RKIND) :: m
    integer i,j
- 
+
    ! Use work variables for b and r
    bTemp(1) = b(1)
    do j = 1,nSystems
       rTemp(j,1) = r(j,1)
    end do
- 
+
    ! First pass: set the coefficients
    do i = 2,n
       m = a(i-1)/bTemp(i-1)
       bTemp(i) = b(i) - m*c(i-1)
       do j = 1,nSystems
          rTemp(j,i) = r(j,i) - m*rTemp(j,i-1)
-      end do 
-   end do 
- 
+      end do
+   end do
+
    do j = 1,nSystems
       x(j,n) = rTemp(j,n)/bTemp(n)
    end do
@@ -717,7 +736,7 @@ subroutine tridiagonal_solve_mult(a,b,c,r,x,n,nDim,nSystems)!{{{
          x(j,i) = (rTemp(j,i) - c(i)*x(j,i+1))/bTemp(i)
       end do
    end do
- 
+
 end subroutine tridiagonal_solve_mult!}}}
 
 !***********************************************************************

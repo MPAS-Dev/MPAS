@@ -63,12 +63,6 @@ module ocn_lagrangian_particle_tracking
    !
    !--------------------------------------------------------------------
 
-   ! timer
-   type (timer_node), pointer :: timerTotalLPT, timerInitAlarms, timerInit, timerComputeStartup, timerCompute, timerWrite, timerRestart, timerFinalize, timerValidatedCell
-   type (timer_node), pointer :: timerValidatedCell_out, timerValidatedCell_init, timerVerticalID, timerTransferParticles, timerVelTimeInterp
-   type (timer_node), pointer :: timerVelTimeInterp_out, timerHorizMovement, timerUpdateIOHalo, timerConvertXYZLatLon, timerCellID, timerCellID_init, timerReconstFilter
-   type (timer_node), pointer :: timerReconstFilter_init, timerVelocityPotDensity, timerTimeStepLPT, timerTransferParticles_init, timerTransferParticles_write, timerMemTasksLPT
-   type (timer_node), pointer ::  timerSinglePartStats, timerParticleAssignment, timerHorizVelInterp
    ! neighboring processors and arrays for send numbers / recvs, total number of neighboring processors to a particular processor
    ! allocated in init, deallocated in finalize
    ! these globals could be moved to the framework component, as well
@@ -129,8 +123,8 @@ contains
       err = 0
 
       LIGHT_DEBUG_WRITE('starting ocn_init_lagrangian_particle_tracking')
-      call mpas_timer_start("totalLPT", .false., timerTotalLPT)
-      call mpas_timer_start("initLPT", .false., timerInit)
+      call mpas_timer_start("totalLPT")
+      call mpas_timer_start("initLPT")
 
       ! resets likely are unnecessary
       !call mpas_stream_mgr_reset_alarms(stream_manager, streamID='lagrPartTrackInput', ierr=err)
@@ -160,14 +154,14 @@ contains
       ! transfer particles to their appropriate blocks (currentBlock) via MPI
       ! note, don't necessarily need to have g_ionSend and g_ionRecv comeout
 #ifdef MPAS_DEBUG
-      call mpas_timer_start("trans_from_block_to_blockLPT", .false., timerTransferParticles_init)
+      call mpas_timer_start("trans_from_block_to_blockLPT")
       call mpas_particle_list_test_numparticles_to_neighprocs(domain % dminfo % my_proc_id, g_compProcNeighsNearby, g_ioProcNeighs)
 #endif
       ! move particles to the 'currentBlock'
       call mpas_particle_list_transfer_particles_from_block_to_named_block(domain, err, .True., .False., 'currentBlock', &
         g_ioProcNeighs)
 #ifdef MPAS_DEBUG
-      call mpas_timer_stop("trans_from_block_to_blockLPT", timerTransferParticles_init)
+      call mpas_timer_stop("trans_from_block_to_blockLPT")
       !call MPI_Barrier(domain % dminfo % comm, err)
 #endif
 
@@ -195,9 +189,9 @@ contains
       call ocn_setup_particle_reset_condition(domain, err)
 
       LIGHT_DEBUG_WRITE('finished ocn_init_lagrangian_particle_tracking')
-      call mpas_timer_stop("initLPT", timerInit)
+      call mpas_timer_stop("initLPT")
 
-      call mpas_timer_stop("totalLPT", timerTotalLPT)
+      call mpas_timer_stop("totalLPT")
 
    end subroutine ocn_init_lagrangian_particle_tracking!}}}
 
@@ -260,14 +254,16 @@ contains
       type (mpas_particle_type), pointer :: particle
 
       real (kind=RKIND), dimension(3) :: particlePosition, particleVelocity
-      real (kind=RKIND), pointer :: xParticle, yParticle, zParticle, lonVel, latVel, buoyancyParticle, sumU, sumV, sumUU, sumUV, sumVV
+      real (kind=RKIND), pointer :: xParticle, yParticle, zParticle, lonVel, latVel, buoyancyParticle, sumU, sumV, sumUU, &
+                                    sumUV, sumVV
       real (kind=RKIND), dimension(3) :: xSubStep, diffSubStep, diffParticlePosition
       real (kind=RKIND), pointer :: zLevelParticle
       real (kind=RKIND), dimension(:,:), pointer :: zTop, vertVelocityTop, zMid, areaBArray
       real (kind=RKIND), dimension(:), pointer :: bottomDepth
       type (field2DReal), pointer :: normalVelocity, uVertexVelocity, vVertexVelocity, wVertexVelocity, layerThickness
 
-      real (kind=RKIND), dimension(:,:), pointer :: uVertexVelocityArray, vVertexVelocityArray, wVertexVelocityArray, buoyancyTimeInterp, potentialDensity
+      real (kind=RKIND), dimension(:,:), pointer :: uVertexVelocityArray, vVertexVelocityArray, wVertexVelocityArray, &
+                                                    buoyancyTimeInterp, potentialDensity
 
       real(kind=RKIND), dimension(:), pointer :: xCell, yCell, zCell
       real(kind=RKIND), dimension(:), pointer :: xVertex, yVertex, zVertex
@@ -312,8 +308,8 @@ contains
       dminfo = domain % dminfo
 
       LIGHT_DEBUG_WRITE('Computing Lagrangian Particle Tracking...')
-      call mpas_timer_start("totalLPT", .false., timerTotalLPT)
-      call mpas_timer_start("computeLPT", .false., timerCompute)
+      call mpas_timer_start("totalLPT")
+      call mpas_timer_start("computeLPT")
 
       call mpas_pool_get_config(ocnConfigs, 'config_AM_lagrPartTrack_filter_number', filterNum)
       call mpas_pool_get_config(ocnConfigs, 'config_AM_lagrPartTrack_reset_criteria', config_AM_lagrPartTrack_reset_criteria)
@@ -326,11 +322,11 @@ contains
 
       ! get the most recent velocities on the potential density surfaces
 #ifdef MPAS_DEBUG
-      call mpas_timer_start("velocity_pot_density_LPT", .false., timerVelocityPotDensity)
+      call mpas_timer_start("velocity_pot_density_LPT")
 #endif
       call compute_velocity_on_potentialdensity_surface(domain,err,2)
 #ifdef MPAS_DEBUG
-      call mpas_timer_stop("velocity_pot_density_LPT",timerVelocityPotDensity)
+      call mpas_timer_stop("velocity_pot_density_LPT")
 #endif
 
       resetParticleAny = .False.
@@ -338,7 +334,7 @@ contains
       block => domain % blocklist
       do while (associated(block)) !{{{
 #ifdef MPAS_DEBUG
-        call mpas_timer_start("memtasksLPT", .false., timerMemTasksLPT)
+        call mpas_timer_start("memtasksLPT")
 #endif
         ! allocate scratch memory / setup pointers / get block !{{{
         call mpas_pool_get_subpool(block % structs, 'state', statePool)
@@ -395,18 +391,18 @@ contains
         call mpas_pool_get_field(lagrPartTrackFieldsPool, 'vVertexVelocity', vVertexVelocity, timeLevel=2)
         call mpas_pool_get_field(lagrPartTrackFieldsPool, 'wVertexVelocity', wVertexVelocity, timeLevel=2)
 #ifdef MPAS_DEBUG
-        call mpas_timer_stop("memtasksLPT",timerMemTasksLPT)
+        call mpas_timer_stop("memtasksLPT")
 #endif
 
 #ifdef MPAS_DEBUG
-        call mpas_timer_start("reconst_filter_LPT", .false., timerReconstFilter)
+        call mpas_timer_start("reconst_filter_LPT")
 #endif
         ! need to handle periodicity within functions below for vertex reconstruction
         call ocn_vertex_reconstruction(filterNum, meshPool, lagrPartTrackScratchPool, lagrPartTrackCellsPool, &
           layerThickness % array, normalVelocity % array, &
           uVertexVelocity, vVertexVelocity, wVertexVelocity)
 #ifdef MPAS_DEBUG
-        call mpas_timer_stop("reconst_filter_LPT", timerReconstFilter)
+        call mpas_timer_stop("reconst_filter_LPT")
         LIGHT_DEBUG_ALL_WRITE('uVertexVelocity=' COMMA uVertexVelocity % array)
         LIGHT_DEBUG_ALL_WRITE('vVertexVelocity=' COMMA vVertexVelocity % array)
         LIGHT_DEBUG_ALL_WRITE('wVertexVelocity=' COMMA wVertexVelocity % array)
@@ -427,7 +423,7 @@ contains
 
           ! get values {{{
 #ifdef MPAS_DEBUG
-          call mpas_timer_start("memtasksLPT", .false., timerMemTasksLPT)
+          call mpas_timer_start("memtasksLPT")
 #endif
           call mpas_pool_get_array(particle % haloDataPool, 'xParticle', xParticle)
           call mpas_pool_get_array(particle % haloDataPool, 'yParticle', yParticle)
@@ -455,7 +451,7 @@ contains
           call mpas_pool_get_array(particle % haloDataPool, 'sumUV', sumUV)
           call mpas_pool_get_array(particle % haloDataPool, 'sumVV', sumVV)
 #ifdef MPAS_DEBUG
-          call mpas_timer_stop("memtasksLPT",timerMemTasksLPT)
+          call mpas_timer_stop("memtasksLPT")
 #endif
           ! process timers / particle reset functions here (need a timer and ability to reset particle to
           ! some set of initial values for the reset
@@ -463,7 +459,7 @@ contains
 
           !!!!!!!!!! COMPUTE TIME STEP INFORMATION !!!!!!!!!!
 #ifdef MPAS_DEBUG
-          call mpas_timer_start("time_step_LPT", .false., timerTimeStepLPT)
+          call mpas_timer_start("time_step_LPT")
 #endif
           ! would eventually need to correspond to domain dt, but for now this is a
           ! global constant
@@ -549,11 +545,11 @@ contains
               if(kWeightK(subStep) /= 0.0_RKIND) then
                 ! project substep to correct spherical shell because diffSubStep isn't 0 and particle moves
 #ifdef MPAS_DEBUG
-                call mpas_timer_start("particle_horizontal_movementLPT", .false., timerHorizMovement)
+                call mpas_timer_start("particle_horizontal_movementLPT")
 #endif
                 call particle_horizontal_movement(meshPool, xSubStep, diffSubStep)
 #ifdef MPAS_DEBUG
-                call mpas_timer_stop("particle_horizontal_movementLPT", timerHorizMovement)
+                call mpas_timer_stop("particle_horizontal_movementLPT")
 #endif
               end if
 
@@ -572,7 +568,7 @@ contains
 
               ! determine cell location
 #ifdef MPAS_DEBUG
-              call mpas_timer_start("get_validated_cell_idLPT", .false., timerValidatedCell)
+              call mpas_timer_start("get_validated_cell_idLPT")
 #endif
               LIGHT_DEBUG_WRITE('beginning of substeps')
               call get_validated_cell_id(nCells, xCell,yCell,zCell , xVertex,yVertex,zVertex, &
@@ -580,17 +576,17 @@ contains
                 nCellVerticesArray, verticesOnCell, iCell, nCellVertices, cellsOnCell)
               LIGHT_DEBUG_WRITE('iCell=' COMMA iCell)
 #ifdef MPAS_DEBUG
-              call mpas_timer_stop("get_validated_cell_idLPT", timerValidatedCell)
+              call mpas_timer_stop("get_validated_cell_idLPT")
 #endif
 
               if(verticalTreatment /= 4) then
                 ! other cases using zSubStep for iLevel and vertical interpolation
 #ifdef MPAS_DEBUG
-                call mpas_timer_start("mpas_get_vertical_idLPT", .false., timerVerticalID)
+                call mpas_timer_start("mpas_get_vertical_idLPT")
 #endif
                 iLevel = mpas_get_vertical_id(maxLevelCell(iCell), zSubStep, zMid(:,iCell))
 #ifdef MPAS_DEBUG
-                call mpas_timer_stop("mpas_get_vertical_idLPT", timerVerticalID)
+                call mpas_timer_stop("mpas_get_vertical_idLPT")
 #endif
                 LIGHT_DEBUG_WRITE('iLevel=' COMMA iLevel)
               end if
@@ -613,7 +609,7 @@ contains
               ! return interpolated horizontal velocity "particleVelocity" and vertical velocity "particleVelocityVert"
 
 #ifdef MPAS_DEBUG
-              call mpas_timer_start("velocity_time_interpolationLPT", .false., timerVelTimeInterp)
+              call mpas_timer_start("velocity_time_interpolationLPT")
 #endif
               call velocity_time_interpolation(particleVelocity, particleVelocityVert, &
                 diagnosticsPool, lagrPartTrackFieldsPool, &
@@ -621,7 +617,7 @@ contains
                 verticalTreatment, indexLevel, nCellVertices, verticesOnCell, boundaryVertex, &
                 xSubStep, zSubStep, zMid, zTop, vertVelocityTop, xVertex, yVertex, zVertex, meshPool, areaBArray)
 #ifdef MPAS_DEBUG
-              call mpas_timer_stop("velocity_time_interpolationLPT", timerVelTimeInterp)
+              call mpas_timer_stop("velocity_time_interpolationLPT")
 #endif
 
               !!!!!!!!!! FORM INTEGRATION WEIGHTS kj !!!!!!!!!!
@@ -640,11 +636,11 @@ contains
             end do
             ! now, make sure particle position is still on same spherical shell as before
 #ifdef MPAS_DEBUG
-            call mpas_timer_start("particle_horizontal_movementLPT", .false., timerHorizMovement)
+            call mpas_timer_start("particle_horizontal_movementLPT")
 #endif
             call particle_horizontal_movement(meshPool, particlePosition, diffParticlePosition)
 #ifdef MPAS_DEBUG
-            call mpas_timer_stop("particle_horizontal_movementLPT", timerHorizMovement)
+            call mpas_timer_stop("particle_horizontal_movementLPT")
 #endif
             ! now can do any vertical movements independent of the horizontal movement
             ! that was just calculated ( probably need to have more output from the vertical_treatment
@@ -653,7 +649,7 @@ contains
 
           end do !}}}
 #ifdef MPAS_DEBUG
-          call mpas_timer_stop("time_step_LPT", timerTimeStepLPT)
+          call mpas_timer_stop("time_step_LPT")
 #endif
           !}}}
 
@@ -665,14 +661,14 @@ contains
           ! probably need to store zMid too, including flipping it
           ! get updated cell location
 #ifdef MPAS_DEBUG
-          call mpas_timer_start("get_validated_cell_idLPT", .false., timerValidatedCell_out)
+          call mpas_timer_start("get_validated_cell_idLPT")
 #endif
           LIGHT_DEBUG_WRITE('do sampling')
           call get_validated_cell_id(nCells, xCell,yCell,zCell , xVertex,yVertex,zVertex, &
             particlePosition(1),particlePosition(2),particlePosition(3), meshPool, &
             nCellVerticesArray, verticesOnCell, iCell, nCellVertices, cellsOnCell)
 #ifdef MPAS_DEBUG
-          call mpas_timer_stop("get_validated_cell_idLPT", timerValidatedCell_out)
+          call mpas_timer_stop("get_validated_cell_idLPT")
 #endif
 
           if(verticalTreatment == 4) then  !('buoyancySurface') !{{{
@@ -691,11 +687,11 @@ contains
           else
             ! make sure final zLevelParticle is ok so that it can't extent past zMid range
 #ifdef MPAS_DEBUG
-            call mpas_timer_start("mpas_get_vertical_idLPT", .false., timerVerticalID)
+            call mpas_timer_start("mpas_get_vertical_idLPT")
 #endif
             iLevel = mpas_get_vertical_id(maxLevelCell(iCell), zLevelParticle, zMid(:,iCell))
 #ifdef MPAS_DEBUG
-            call mpas_timer_stop("mpas_get_vertical_idLPT", timerVerticalID)
+            call mpas_timer_stop("mpas_get_vertical_idLPT")
 #endif
           end if
 
@@ -710,7 +706,7 @@ contains
           ! return interpolated horizontal velocity "particleVelocity" and vertical velocity "particleVelocityVert"
           ! noting we use the final positions
 #ifdef MPAS_DEBUG
-          call mpas_timer_start("velocity_time_interpolationLPT", .false., timerVelTimeInterp_out)
+          call mpas_timer_start("velocity_time_interpolationLPT")
 #endif
           call velocity_time_interpolation(particleVelocity, particleVelocityVert, &
             diagnosticsPool, lagrPartTrackFieldsPool, &
@@ -719,22 +715,22 @@ contains
             particlePosition, zLevelParticle, zMid, zTop, vertVelocityTop, xVertex, yVertex, zVertex, &
             meshPool, areaBArray)
 #ifdef MPAS_DEBUG
-          call mpas_timer_stop("velocity_time_interpolationLPT", timerVelTimeInterp_out)
+          call mpas_timer_stop("velocity_time_interpolationLPT")
 #endif
           ! convert horizontal velocity to lat/lon velocity
 
           ! store velocity for use in computing normalized autocorrelation offline
 #ifdef MPAS_DEBUG
-          call mpas_timer_start("mpas_convert_xyz_velocity_to_latlonLPT", .false., timerConvertXYZLatLon)
+          call mpas_timer_start("mpas_convert_xyz_velocity_to_latlonLPT")
 #endif
           call mpas_convert_xyz_velocity_to_latlon(lonVel, latVel, particlePosition, particleVelocity)
 #ifdef MPAS_DEBUG
-          call mpas_timer_stop("mpas_convert_xyz_velocity_to_latlonLPT", timerConvertXYZLatLon)
+          call mpas_timer_stop("mpas_convert_xyz_velocity_to_latlonLPT")
 #endif
 
           ! now store components needed to compute integral timescale
 #ifdef MPAS_DEBUG
-          call mpas_timer_start("storeSingleParticleStats", .false., timerSinglePartStats)
+          call mpas_timer_start("storeSingleParticleStats")
 #endif
           sumU = sumU + lonVel
           sumV = sumV + latVel
@@ -742,7 +738,7 @@ contains
           sumUV = sumUV + lonVel*latVel
           sumVV = sumVV + latVel*latVel
 #ifdef MPAS_DEBUG
-          call mpas_timer_stop("storeSingleParticleStats", timerSinglePartStats)
+          call mpas_timer_stop("storeSingleParticleStats")
 #endif
           !}}}
 
@@ -760,7 +756,7 @@ contains
           ! determine currentBlock ownership of iCell
           ! and set cellOwnerBlock to be current block
 #ifdef MPAS_DEBUG
-          call mpas_timer_start("particleAssignments", .false., timerParticleAssignment)
+          call mpas_timer_start("particleAssignments")
 #endif
 
           resetParticle = .False.
@@ -776,7 +772,7 @@ contains
           end if
 
 #ifdef MPAS_DEBUG
-          call mpas_timer_stop("particleAssignments", timerParticleAssignment)
+          call mpas_timer_stop("particleAssignments")
 #endif
           !}}}
 
@@ -802,12 +798,14 @@ contains
 
       ! particle transfer can then occur from computational processor to computational processor
 #ifdef MPAS_DEBUG
-      call mpas_timer_start("trans_from_block_to_blockLPT", .false., timerTransferParticles)
+      call mpas_timer_start("trans_from_block_to_blockLPT")
 #endif
-      if (config_AM_lagrPartTrack_reset_particles .and. resetParticleAny) then   ! need to link to currentBlockReset for communication
+      if (config_AM_lagrPartTrack_reset_particles .and. resetParticleAny) then
+         ! need to link to currentBlockReset for communication
          call mpas_particle_list_build_halos(domain, err, 'currentBlockReset', g_compProcNeighs)
          ! take the union of this halo with the particle computation halos to build complete computational halo
-         call mpas_particle_list_self_union_halo_lists(g_compProcNeighs, g_compProcNeighsNearby, domain % dminfo % nprocs, domain % dminfo % my_proc_id)
+         call mpas_particle_list_self_union_halo_lists(g_compProcNeighs, g_compProcNeighsNearby, domain % dminfo % nprocs, &
+                                                       domain % dminfo % my_proc_id)
       else
         allocate(g_compProcNeighs(size(g_compProcNeighsNearby)))
         g_compProcNeighs = g_compProcNeighsNearby
@@ -816,16 +814,17 @@ contains
         g_compProcNeighs)
       deallocate(g_compProcNeighs)
 #ifdef MPAS_DEBUG
-      call mpas_timer_stop("trans_from_block_to_blockLPT", timerTransferParticles)
+      call mpas_timer_stop("trans_from_block_to_blockLPT")
 #endif
 
       ! do IO communications if this is an output time step
-      if (mpas_stream_mgr_ringing_alarms(domain % streamManager, streamID='lagrPartTrackOutput', direction=MPAS_STREAM_OUTPUT, ierr=err)) then
+      if (mpas_stream_mgr_ringing_alarms(domain % streamManager, streamID='lagrPartTrackOutput', &
+          direction=MPAS_STREAM_OUTPUT, ierr=err)) then
         call write_lagrangian_particle_tracking(domain, err)
       end if
 
-      call mpas_timer_stop("computeLPT", timerCompute)
-      call mpas_timer_stop("totalLPT", timerTotalLPT)
+      call mpas_timer_stop("computeLPT")
+      call mpas_timer_stop("totalLPT")
 
       LIGHT_DEBUG_WRITE('finished computing Lagrangian Particle Tracking')
 
@@ -876,38 +875,38 @@ contains
 
       err = 0
 
-      call mpas_timer_start("totalLPT", .false., timerTotalLPT)
-      call mpas_timer_start("restartLPT", .false., timerRestart)
+      call mpas_timer_start("totalLPT")
 
       ! do restart if this is a restart step
-      if (mpas_stream_mgr_ringing_alarms(domain % streamManager, streamID='lagrPartTrackRestart', direction=MPAS_STREAM_OUTPUT, ierr=err)) then
-        call mpas_timer_start("restartLPT", .false., timerRestart)
+      if (mpas_stream_mgr_ringing_alarms(domain % streamManager, streamID='lagrPartTrackRestart', &
+          direction=MPAS_STREAM_OUTPUT, ierr=err)) then
+        call mpas_timer_start("restartLPT")
 
-      LIGHT_DEBUG_WRITE('start ocn_restart_lagrangian_particle_tracking')
-      ! transfer particles to their appropriate blocks (ioBlock) via MPI
-      ! note, don't necessarily need to have g_ionSend and g_ionRecv comeout
-      call mpas_particle_list_build_halos(domain, err, 'ioBlock', g_ioProcNeighs)
-      call mpas_particle_list_transfer_particles_from_block_to_named_block(domain, err, .True., .True., 'ioBlock', &
-        g_ioProcNeighs)
-      deallocate(g_ioProcNeighs)
+        LIGHT_DEBUG_WRITE('start ocn_restart_lagrangian_particle_tracking')
+        ! transfer particles to their appropriate blocks (ioBlock) via MPI
+        ! note, don't necessarily need to have g_ionSend and g_ionRecv comeout
+        call mpas_particle_list_build_halos(domain, err, 'ioBlock', g_ioProcNeighs)
+        call mpas_particle_list_transfer_particles_from_block_to_named_block(domain, err, .True., .True., 'ioBlock', &
+          g_ioProcNeighs)
+        deallocate(g_ioProcNeighs)
 
-      ! write out all the data, sorting to make sure that shuffled particles
-      ! are ouptut correctly (done separately in each function, could be
-      ! pulled out as an optimization)
-      ! write halo data out, but don't need nonhalo data because it is
-      ! computed for output (diagnostic, not prognostic)
-      call mpas_particle_list_write_halo_data(domain, err)
-      !call mpas_particle_list_write_nonhalo_data(domain, err)
+        ! write out all the data, sorting to make sure that shuffled particles
+        ! are ouptut correctly (done separately in each function, could be
+        ! pulled out as an optimization)
+        ! write halo data out, but don't need nonhalo data because it is
+        ! computed for output (diagnostic, not prognostic)
+        call mpas_particle_list_write_halo_data(domain, err)
+        !call mpas_particle_list_write_nonhalo_data(domain, err)
 
-      ! need to now remove the io particles (remove particles that don't have the
-      ! correct currentBlock)
-      call mpas_particle_list_remove_particles_not_on_current_block(domain,err)
+        ! need to now remove the io particles (remove particles that don't have the
+        ! correct currentBlock)
+        call mpas_particle_list_remove_particles_not_on_current_block(domain,err)
 
-      LIGHT_DEBUG_WRITE('end ocn_restart_lagrangian_particle_tracking')
-      call mpas_timer_stop("restartLPT", timerRestart)
+        LIGHT_DEBUG_WRITE('end ocn_restart_lagrangian_particle_tracking')
+        call mpas_timer_stop("restartLPT")
       end if
 
-      call mpas_timer_stop("totalLPT", timerTotalLPT)
+      call mpas_timer_stop("totalLPT")
 
    end subroutine ocn_restart_lagrangian_particle_tracking!}}}
 
@@ -956,8 +955,8 @@ contains
       err = 0
 
       LIGHT_DEBUG_WRITE('start write_lagrangian_particle_tracking')
-      call mpas_timer_start("totalLPT", .false., timerTotalLPT)
-      call mpas_timer_start("writeLPT", .false., timerWrite)
+      call mpas_timer_start("totalLPT")
+      call mpas_timer_start("writeLPT")
 
       !call mpas_particle_list_test_num_current_particlelist(domain)
 
@@ -965,7 +964,7 @@ contains
       ! note, don't necessarily need to have g_ionSend and g_ionRecv comeout
       !write(stderrUnit,*) 'g_ioProcNeighs = ', g_ioProcNeighs
 #ifdef MPAS_DEBUG
-      call mpas_timer_start("trans_from_block_to_blockLPT", .false., timerTransferParticles_write)
+      call mpas_timer_start("trans_from_block_to_blockLPT")
 #endif
       ! depreciated (can just use update_halo_io to keep g_ioProcNeighs up to date)
       !! get "MPI halos" for IO communication during write and restart steps (currentBlock to ioBlock)
@@ -975,7 +974,7 @@ contains
         g_ioProcNeighs)
       deallocate(g_ioProcNeighs)
 #ifdef MPAS_DEBUG
-      call mpas_timer_stop("trans_from_block_to_blockLPT", timerTransferParticles_write)
+      call mpas_timer_stop("trans_from_block_to_blockLPT")
 #endif
 
       ! write out all the data, sorting to make sure that shuffled particles
@@ -995,8 +994,8 @@ contains
       call mpas_particle_list_test_num_current_particlelist(domain)
 #endif
       LIGHT_DEBUG_WRITE('end write_lagrangian_particle_tracking')
-      call mpas_timer_stop("writeLPT", timerWrite)
-      call mpas_timer_stop("totalLPT", timerTotalLPT)
+      call mpas_timer_stop("writeLPT")
+      call mpas_timer_stop("totalLPT")
 
 
    end subroutine write_lagrangian_particle_tracking!}}}
@@ -1047,8 +1046,8 @@ contains
       type (block_type), pointer :: block
       integer :: timeLev
 
-      call mpas_timer_start("totalLPT", .false., timerTotalLPT)
-      call mpas_timer_start("finalizeLPT", .false., timerFinalize)
+      call mpas_timer_start("totalLPT")
+      call mpas_timer_start("finalizeLPT")
       err = 0
 
       LIGHT_DEBUG_WRITE('start ocn_finalize_lagrangian_particle_tracking')
@@ -1061,8 +1060,8 @@ contains
       deallocate(g_compProcNeighsNearby)
 
       LIGHT_DEBUG_WRITE('end ocn_finalize_lagrangian_particle_tracking')
-      call mpas_timer_stop("finalizeLPT", timerFinalize)
-      call mpas_timer_stop("totalLPT", timerTotalLPT)
+      call mpas_timer_stop("finalizeLPT")
+      call mpas_timer_stop("totalLPT")
 
    end subroutine ocn_finalize_lagrangian_particle_tracking!}}}
 
@@ -1098,6 +1097,7 @@ contains
      !intent (out)
      integer, intent(inout) :: iCell
      integer, intent(out) :: nCellVertices
+     character (len=StrKIND) :: message
 #ifdef MPAS_DEBUG
      logical, pointer :: is_periodic
      real(kind=RKIND), pointer :: x_period, y_period
@@ -1128,8 +1128,10 @@ contains
          yVertex(verticesOnCell(1:nCellVertices,iCell)), &
          zVertex(verticesOnCell(1:nCellVertices,iCell)), &
          xSubStep,ySubStep,zSubStep , on_a_sphere)) then
-           LIGHT_DEBUG_WRITE('Point (' COMMA xSubStep COMMA ySubStep COMMA zSubStep  COMMA ') is horizontally outside cell ' COMMA iCell)
-           LIGHT_DEBUG_WRITE('Cell  (' COMMA xCell(iCell) COMMA yCell(iCell) COMMA zCell(iCell) COMMA ') with index ' COMMA iCell)
+           write(message, *) 'Point (', xSubStep, ySubStep, zSubStep , ') is horizontally outside cell ', iCell
+           LIGHT_DEBUG_WRITE(message)
+           write(message, *) 'Cell  (', xCell(iCell), yCell(iCell), zCell(iCell), ') with index ', iCell
+           LIGHT_DEBUG_WRITE(message)
            LIGHT_DEBUG_WRITE('xVertex = ' COMMA xVertex(verticesOnCell(1:nCellVertices,iCell)))
            LIGHT_DEBUG_WRITE('yVertex = ' COMMA yVertex(verticesOnCell(1:nCellVertices,iCell)))
            LIGHT_DEBUG_WRITE('zVertex = ' COMMA zVertex(verticesOnCell(1:nCellVertices,iCell)))
@@ -1143,8 +1145,10 @@ contains
        if(.not. point_in_cell(nCellVertices, xtmp, ytmp, &
          zVertex(verticesOnCell(1:nCellVertices,iCell)), &
          xSubStep,ySubStep,zSubStep , on_a_sphere)) then
-           LIGHT_DEBUG_WRITE('Point (' COMMA xSubStep COMMA ySubStep COMMA zSubStep  COMMA ') is horizontally outside cell ' COMMA iCell)
-           LIGHT_DEBUG_WRITE('Cell  (' COMMA xCell(iCell) COMMA yCell(iCell) COMMA zCell(iCell) COMMA ') with index ' COMMA iCell)
+           write(message, *) 'Point (', xSubStep, ySubStep, zSubStep, ') is horizontally outside cell ', iCell
+           LIGHT_DEBUG_WRITE(message)
+           write(message, *) 'Cell  (', xCell(iCell), yCell(iCell), zCell(iCell), ') with index ', iCell
+           LIGHT_DEBUG_WRITE(message)
            LIGHT_DEBUG_WRITE('xVertex = ' COMMA xtmp)
            LIGHT_DEBUG_WRITE('yVertex = ' COMMA ytmp)
            LIGHT_DEBUG_WRITE('zVertex = ' COMMA zVertex(verticesOnCell(1:nCellVertices,iCell)))
@@ -1313,12 +1317,12 @@ contains
           ! get new time level velocity (linear RBF)
           !write(stderrUnit,*) 'uVV= ', uVV % array
 #ifdef MPAS_DEBUG
-          call mpas_timer_start("init_reconst_filter_LPT", .false., timerReconstFilter_init)
+          call mpas_timer_start("init_reconst_filter_LPT")
 #endif
           call ocn_vertex_reconstruction(filterNum, meshPool, lagrPartTrackScratchPool, lagrPartTrackCellsPool, &
             layerThickness, normalVelocity, uVV, vVV, wVV)
 #ifdef MPAS_DEBUG
-          call mpas_timer_stop("init_reconst_filter_LPT", timerReconstFilter_init)
+          call mpas_timer_stop("init_reconst_filter_LPT")
 #endif
 
         end do
@@ -1629,14 +1633,16 @@ contains
       type (mpas_particle_type), pointer :: particle
 
       real (kind=RKIND), dimension(3) :: particlePosition, particleVelocity
-      real (kind=RKIND), pointer :: xParticle, yParticle, zParticle, lonVel, latVel, buoyancyParticle, sumU, sumV, sumUU, sumUV, sumVV
+      real (kind=RKIND), pointer :: xParticle, yParticle, zParticle, lonVel, latVel, buoyancyParticle, sumU, sumV, sumUU, &
+                                    sumUV, sumVV
       real (kind=RKIND), dimension(3) :: xSubStep, diffSubStep, diffParticlePosition
       real (kind=RKIND), pointer :: zLevelParticle
       real (kind=RKIND), dimension(:,:), pointer :: zTop, vertVelocityTop, zMid, areaBArray
       real (kind=RKIND), dimension(:), pointer :: bottomDepth
       type (field2DReal), pointer :: normalVelocity, uVertexVelocity, vVertexVelocity, wVertexVelocity, layerThickness
 
-      real (kind=RKIND), dimension(:,:), pointer :: uVertexVelocityArray, vVertexVelocityArray, wVertexVelocityArray, buoyancy, buoyancyTimeInterp, potentialDensity
+      real (kind=RKIND), dimension(:,:), pointer :: uVertexVelocityArray, vVertexVelocityArray, wVertexVelocityArray, buoyancy, &
+                                                    buoyancyTimeInterp, potentialDensity
 
       real(kind=RKIND), dimension(:), pointer :: xCell, yCell, zCell
       real(kind=RKIND), dimension(:), pointer :: xVertex, yVertex, zVertex
@@ -1759,14 +1765,14 @@ contains
           ! probably need to store zMid too, including flipping it
           ! get updated cell location
 #ifdef MPAS_DEBUG
-          call mpas_timer_start("get_validated_cell_idLPT", .false., timerValidatedCell_init)
+          call mpas_timer_start("get_validated_cell_idLPT")
 #endif
           LIGHT_DEBUG_WRITE('sampling initialization')
           call get_validated_cell_id(nCells, xCell,yCell,zCell , xVertex,yVertex,zVertex, &
             particlePosition(1),particlePosition(2),particlePosition(3), meshPool, &
             nCellVerticesArray, verticesOnCell, iCell, nCellVertices, cellsOnCell)
 #ifdef MPAS_DEBUG
-          call mpas_timer_stop("get_validated_cell_idLPT", timerValidatedCell_init)
+          call mpas_timer_stop("get_validated_cell_idLPT")
 #endif
 
           if(verticalTreatment == 4) then  !('buoyancySurface') !{{{
@@ -2021,7 +2027,7 @@ contains
     logical, pointer :: on_a_sphere, is_periodic
     real(kind=RKIND), pointer :: x_period, y_period
 #ifdef MPAS_DEBUG
-    call mpas_timer_start("velocity_time_interpolationLPT", .false., timerVelTimeInterp)
+    call mpas_timer_start("velocity_time_interpolationLPT")
 #endif
 
     call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
@@ -2089,14 +2095,14 @@ contains
       ! horizontal
       ! timer commented out because it is used in more than just compute...
 #ifdef MPAS_DEBUG
-      call mpas_timer_start("part_horiz_interpLPT", .false., timerHorizVelInterp)
+      call mpas_timer_start("part_horiz_interpLPT")
 #endif
       LIGHT_DEBUG_WRITE('particleVelocityVert=' COMMA particleVelocityVert)
       particleVelocity = particleVelocity + &
         timeCoeff(aTimeLevel) * particle_horizontal_interpolation(nCellVertices, vertCoords, &
         xSubStep, uvCell, meshPool, areaB)
 #ifdef MPAS_DEBUG
-      call mpas_timer_stop("part_horiz_interpLPT", timerHorizVelInterp)
+      call mpas_timer_stop("part_horiz_interpLPT")
 #endif
       LIGHT_DEBUG_WRITE('particleVelocity=' COMMA particleVelocity)
 
@@ -2107,7 +2113,7 @@ contains
     deallocate(vertCoords, uvCell, areaB)
 
 #ifdef MPAS_DEBUG
-    call mpas_timer_stop("velocity_time_interpolationLPT", timerVelTimeInterp)
+    call mpas_timer_stop("velocity_time_interpolationLPT")
 #endif
 
   end subroutine velocity_time_interpolation !}}}
@@ -2256,6 +2262,7 @@ contains
      real (kind=RKIND), parameter :: eps=1e-10_RKIND
      logical, pointer :: onSphere, is_periodic
      real(kind=RKIND), pointer :: x_period, y_period
+     character (len=StrKIND) :: message
      ! choosen based on the parameters, note that we loose about 6 - 7 units of precision because R is so large!
      ! therefore, eps = 1e-10 is conservative, if not too high!  this just helps with numerical stability
      !dpParticle    =   -4.2428037617887103E-011   4.3076544298828060E-011   5.0760704444480953E-011
@@ -2295,7 +2302,9 @@ contains
        LIGHT_DEBUG_ALL_WRITE('dpParticle    = ' COMMA dpParticle)
        LIGHT_DEBUG_ALL_WRITE('pParticle     = ' COMMA pParticle)
        LIGHT_DEBUG_ALL_WRITE('pParticleTemp = ' COMMA pParticleTemp)
-       LIGHT_DEBUG_ALL_WRITE('mpas_arc_length = ' COMMA  mpas_arc_length(pParticle(1),pParticle(2),pParticle(3) , pParticleTemp(1), pParticleTemp(2), pParticleTemp(3)) COMMA 'lenPath = ' COMMA lenPath)
+       write(message, *) 'mpas_arc_length = ',  mpas_arc_length( pParticle(1), pParticle(2), pParticle(3), &
+                         pParticleTemp(1), pParticleTemp(2), pParticleTemp(3)), 'lenPath = ', lenPath
+       LIGHT_DEBUG_ALL_WRITE(message)
        arcLen = mpas_arc_length(pParticle(1),pParticle(2),pParticle(3) , pParticleTemp(1),pParticleTemp(2),pParticleTemp(3))
        if (arcLen > eps) then
          alpha = lenPath / arcLen
@@ -2345,7 +2354,8 @@ contains
      integer, intent(in) :: iLevel                                    !< vertical level / cell of phiInterp
      integer, intent(in) :: nVertLevels                               !< number of vertical levels
      real (kind=RKIND), intent(in) :: zInterp                       !< location to interpolate
-     real (kind=RKIND), dimension(:), intent(in) :: phiVals           !< values at elevation of cell middle (where vertex velocities are defined)
+     real (kind=RKIND), dimension(:), intent(in) :: phiVals           !< values at elevation of cell middle (where vertex
+                                                                      !< velocities are defined)
 
      !-----------------------------------------------------------------
      ! output variables
@@ -2413,7 +2423,8 @@ contains
      integer, intent(in) :: iLevel                                    !< vertical level / cell of phiInterp
      integer, intent(in) :: nVertLevels                               !< number of vertical levels
      real (kind=RKIND), intent(in) :: phiInterp                       !< location to interpolate
-     real (kind=RKIND), dimension(:), intent(in) :: phiVals           !< values at elevation of cell middle (where vertex velocities are defined)
+     real (kind=RKIND), dimension(:), intent(in) :: phiVals           !< values at elevation of cell middle (where vertex
+                                                                      !< velocities are defined)
 
      !-----------------------------------------------------------------
      ! output variables
@@ -2468,7 +2479,8 @@ contains
      integer, intent(in) :: iLevel                                    !< vertical level / cell of phiInterp
      integer, intent(in) :: nVertLevels                               !< number of vertical levels
      real (kind=RKIND), intent(in) :: phiInterp                       !< location to interpolate
-     real (kind=RKIND), dimension(:), intent(in) :: phiVals           !< values at elevation of cell middle (where vertex velocities are defined)
+     real (kind=RKIND), dimension(:), intent(in) :: phiVals           !< values at elevation of cell middle (where vertex
+                                                                      !< velocities are defined)
 
      !-----------------------------------------------------------------
      ! output variables
@@ -2597,7 +2609,8 @@ contains
      integer, intent(in) :: iLevel                                    !< vertical level / cell of phiInterp
      integer, intent(in) :: nVertLevels                               !< number of vertical levels
      real (kind=RKIND), intent(in) :: phiInterp                       !< location to interpolate
-     real (kind=RKIND), dimension(:), intent(in) :: phiVals           !< values at elevation of cell middle (where vertex velocities are defined)
+     real (kind=RKIND), dimension(:), intent(in) :: phiVals           !< values at elevation of cell middle (where vertex
+                                                                      !< velocities are defined)
 
      !-----------------------------------------------------------------
      ! output variables
@@ -2645,7 +2658,8 @@ contains
      !-----------------------------------------------------------------
      integer, intent(in) :: nVertLevels                               !< number of vertical levels
      real (kind=RKIND), intent(in) :: phiInterp                       !< location to interpolate
-     real (kind=RKIND), dimension(:), intent(in) :: phiVals           !< values at elevation of cell middle (where vertex velocities are defined)
+     real (kind=RKIND), dimension(:), intent(in) :: phiVals           !< values at elevation of cell middle (where
+                                                                      !< vertex velocities are defined)
 
      !-----------------------------------------------------------------
      ! output variables
@@ -2656,6 +2670,7 @@ contains
      ! local variables
      !-----------------------------------------------------------------
      integer :: aLevel
+     character (len=StrKIND) :: message
 
      ! make no assumptions
      do aLevel = 1, nVertLevels-1
@@ -2675,9 +2690,11 @@ contains
        ! we are ok
        LIGHT_DEBUG_ALL_WRITE('brute force interpolation successful')
        LIGHT_DEBUG_ALL_WRITE('iLow = ' COMMA iLow COMMA ' iHigh = ' COMMA iHigh)
-       LIGHT_DEBUG_ALL_WRITE('phiInterp = ' COMMA phiInterp COMMA ' phiLow =' COMMA phiVals(iLow) COMMA ' phiHigh = ' COMMA phiVals(iHigh))
+       write(message, *) 'phiInterp = ', phiInterp, ' phiLow =', phiVals(iLow), ' phiHigh = ', phiVals(iHigh)
+       LIGHT_DEBUG_ALL_WRITE(message)
      else
-       write(stderrUnit,*) 'brute force interpolation failed with phiInterp = ', phiInterp, ' phiLow = ', phiVals(iLow), ' phiHigh = ', phiVals(iHigh)
+       write(stderrUnit,*) 'brute force interpolation failed with phiInterp = ', phiInterp, ' phiLow = ', phiVals(iLow), &
+                        ' phiHigh = ', phiVals(iHigh)
        LIGHT_DEBUG_ALL_WRITE(' phiVals = ' COMMA phiVals(1:nVertLevels))
      end if
 

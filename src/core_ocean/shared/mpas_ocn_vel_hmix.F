@@ -13,8 +13,8 @@
 !> \author Mark Petersen, Doug Jacobsen, Todd Ringler
 !> \date   September 2011
 !> \details
-!>  This module contains the main driver routine for computing 
-!>  horizontal mixing tendencies.  
+!>  This module contains the main driver routine for computing
+!>  horizontal mixing tendencies.
 !>
 !>  It provides an init and a tend function. Each are described below.
 !
@@ -57,8 +57,6 @@ module ocn_vel_hmix
    !--------------------------------------------------------------------
 
    logical :: hmixOn
-   type (timer_node), pointer :: del2Timer, del2TensorTimer, leithTimer, del4Timer, del4TensorTimer
-
 
 !***********************************************************************
 
@@ -71,7 +69,7 @@ contains
 !> \brief   Computes tendency term for horizontal momentum mixing
 !> \author  Mark Petersen, Doug Jacobsen, Todd Ringler
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the horizontal mixing tendency for momentum
 !>  based on current state and user choices of mixing parameterization.
 !>  Multiple parameterizations may be chosen and added together.  These
@@ -81,8 +79,8 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_hmix_tend(meshPool, scratchPool, divergence, relativeVorticity, normalVelocity, tangentialVelocity, viscosity, &
-      tend, err)!{{{
+   subroutine ocn_vel_hmix_tend(meshPool, scratchPool, divergence, relativeVorticity, normalVelocity, tangentialVelocity, &
+                                viscosity, tend, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -138,47 +136,39 @@ contains
       !-----------------------------------------------------------------
       !
       ! call relevant routines for computing tendencies
-      ! note that the user can choose multiple options and the 
+      ! note that the user can choose multiple options and the
       !   tendencies will be added together
       !
       !-----------------------------------------------------------------
 
       if(.not.hmixOn) return
 
-      viscosity = 0.0
+      viscosity = 0.0_RKIND
       err = 0
 
-      call mpas_timer_start("del2", .false., del2Timer)
+      call mpas_timer_start("del2")
       call ocn_vel_hmix_del2_tend(meshPool, divergence, relativeVorticity, viscosity, tend, err1)
-      call mpas_timer_stop("del2", del2Timer)
+      call mpas_timer_stop("del2")
       err = ior(err1, err)
 
-      call mpas_threading_barrier()
-
-      call mpas_timer_start("del2_tensor", .false., del2TensorTimer)
+      call mpas_timer_start("del2_tensor")
       call ocn_vel_hmix_del2_tensor_tend(meshPool, normalVelocity, tangentialVelocity, viscosity, scratchPool, tend, err1)
-      call mpas_timer_stop("del2_tensor", del2TensorTimer)
+      call mpas_timer_stop("del2_tensor")
       err = ior(err1, err)
 
-      call mpas_threading_barrier()
-
-      call mpas_timer_start("leith", .false., leithTimer)
+      call mpas_timer_start("leith")
       call ocn_vel_hmix_leith_tend(meshPool, divergence, relativeVorticity, viscosity, tend, err1)
-      call mpas_timer_stop("leith", leithTimer)
+      call mpas_timer_stop("leith")
       err = ior(err1, err)
 
-      call mpas_threading_barrier()
-
-      call mpas_timer_start("del4", .false., del4Timer)
+      call mpas_timer_start("del4")
       call ocn_vel_hmix_del4_tend(meshPool, scratchPool, divergence, relativeVorticity, tend, err1)
-      call mpas_timer_stop("del4", del4Timer)
+      call mpas_timer_stop("del4")
       err = ior(err1, err)
 
-      call mpas_threading_barrier()
-
-      call mpas_timer_start("del4_tensor", .false., del4TensorTimer)
+      call mpas_timer_start("del4_tensor")
       call ocn_vel_hmix_del4_tensor_tend(meshPool, normalVelocity, tangentialVelocity, viscosity, scratchPool, tend, err1)
-      call mpas_timer_stop("del4_tensor", del4TensorTimer)
+      call mpas_timer_stop("del4_tensor")
       err = ior(err1, err)
 
    !--------------------------------------------------------------------
@@ -192,11 +182,11 @@ contains
 !> \brief   Initializes ocean momentum horizontal mixing quantities
 !> \author  Mark Petersen, Doug Jacobsen, Todd Ringler
 !> \date    September 2011
-!> \details 
-!>  This routine initializes a variety of quantities related to 
-!>  horizontal velocity mixing in the ocean. Since a variety of 
+!> \details
+!>  This routine initializes a variety of quantities related to
+!>  horizontal velocity mixing in the ocean. Since a variety of
 !>  parameterizations are available, this routine primarily calls the
-!>  individual init routines for each parameterization. 
+!>  individual init routines for each parameterization.
 !
 !-----------------------------------------------------------------------
 

@@ -32,7 +32,7 @@ module ocn_constants
    private
    save
 
-   public :: ocn_constants_init
+   public :: ocn_constants_init, ocn_freezing_temperature
 
    type (mpas_pool_type), public, pointer :: ocnConfigs
    type (mpas_pool_type), public, pointer :: ocnPackages
@@ -64,6 +64,7 @@ module ocn_constants
       T0_Kelvin        ,&! zero point for Celsius
       mpercm           ,&! meters per m
       cmperm           ,&! m per meter
+      days_per_second  ,&! days per second
       salt_to_ppt      ,&! salt (kg/kg) to ppt
       ppt_to_salt      ,&! salt ppt to kg/kg
       mass_to_Sv       ,&! mass flux to Sverdrups
@@ -87,7 +88,7 @@ contains
 !> \brief   Initializes the ocean constants
 !> \author  Doug Jacobsen
 !> \date    04/25/12
-!> \details 
+!> \details
 !>  This routine sets up constants for use in the ocean model.
 !
 !-----------------------------------------------------------------------
@@ -135,6 +136,7 @@ contains
        !
        !-----------------------------------------------------------------------
 
+       days_per_second = 1._RKIND/86400._RKIND     ! days per second
        salt_to_ppt   = 1000._RKIND        ! salt (kg/kg) to ppt
        ppt_to_salt   = 1.e-3_RKIND        ! salt ppt to kg/kg
        mass_to_Sv    = 1.0e-12_RKIND      ! mass flux to Sverdrups
@@ -159,7 +161,7 @@ contains
        vonkar                 = SHR_CONST_KARMAN
        stefan_boltzmann       = SHR_CONST_STEBOL        ! W/m^2/K^4
        latent_heat_vapor_mks  = SHR_CONST_LATVAP        ! J/kg
-       latent_heat_fusion_mks = SHR_CONST_LATICE        ! J/kg 
+       latent_heat_fusion_mks = SHR_CONST_LATICE        ! J/kg
        ocn_ref_salinity       = SHR_CONST_OCN_REF_SAL   ! psu
        sea_ice_salinity       = SHR_CONST_ICE_REF_SAL   ! psu
 #endif
@@ -260,6 +262,24 @@ contains
        fwmass_to_fwflux = 0.1_RKIND
 
    end subroutine ocn_constants_init!}}}
+
+!***********************************************************************
+!
+!  function ocn_freezing_temperature
+!
+!> \brief   Computes the freezing temperature of the ocean.
+!> \author  Doug Jacobsen
+!> \date    08/29/2013
+!> \details
+!>  This routine computes the freezing temperature of the ocean at a given
+!>  salinity value.
+!
+!-----------------------------------------------------------------------
+    real (kind=RKIND) function ocn_freezing_temperature(salinity)!{{{
+      real (kind=RKIND) :: salinity !< Input: Salinity value of water for freezing temperature
+
+      ocn_freezing_temperature = -1.8_RKIND
+    end function ocn_freezing_temperature!}}}
 
 !***********************************************************************
 

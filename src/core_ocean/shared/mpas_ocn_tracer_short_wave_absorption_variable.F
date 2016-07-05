@@ -6,7 +6,7 @@
 !> \author Doug Jacobsen
 !> \date   12/17/12
 !> \details
-!>  This module contains the routine for computing 
+!>  This module contains the routine for computing
 !>  short wave tendencies using Jerlov
 !
 !-----------------------------------------------------------------------
@@ -22,7 +22,7 @@ module ocn_tracer_short_wave_absorption_variable
 
    implicit none
    type(MPAS_forcing_group_type),pointer :: shortwaveForcingGroup
-   
+
    private
    save
 
@@ -64,13 +64,14 @@ contains
 !> \brief   Computes tendency term for surface fluxes
 !> \author  Luke Van Roekel
 !> \date    11/10/2015
-!> \details 
+!> \details
 !>  This routine computes the tendency for tracers based on surface fluxes.
 !>  This computation is now based on spatially variable chlorophyll, cloud fraction, and zenith angle
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tracer_short_wave_absorption_variable_tend(meshPool, swForcingPool, forcingPool, index_temperature, layerThickness, penetrativeTemperatureFlux, tend, err)!{{{
+   subroutine ocn_tracer_short_wave_absorption_variable_tend(meshPool, swForcingPool, forcingPool, index_temperature, & !{{{
+                                  layerThickness, penetrativeTemperatureFlux, penetrativeTemperatureFluxOBL, tend, err)
 
       !-----------------------------------------------------------------
       !
@@ -86,6 +87,9 @@ contains
 
       real (kind=RKIND), dimension(:), intent(in) :: &
         penetrativeTemperatureFlux !< Input: penetrative temperature flux through the surface
+
+      real (kind=RKIND), dimension(:), intent(out) :: &
+        penetrativeTemperatureFluxOBL
 
       real (kind=RKIND), dimension(:,:), intent(in) :: layerThickness !< Input: Layer thicknesses
 
@@ -114,11 +118,12 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iCell, k
+      integer :: iCell, k, depLev
       integer, pointer :: nCells, nVertLevels
 
       integer, dimension(:), pointer :: maxLevelCell
 
+      real (kind=RKIND), pointer :: config_surface_buoyancy_depth
       real (kind=RKIND) :: depth
       real (kind=RKIND), dimension(:), pointer :: refBottomDepth
       real (kind=RKIND), dimension(:), allocatable :: weights
@@ -134,6 +139,7 @@ contains
 
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
       call mpas_pool_get_array(meshPool, 'refBottomDepth', refBottomDepth)
+      call mpas_pool_get_config(ocnConfigs, 'config_surface_buoyancy_depth', config_surface_buoyancy_depth)
 
       allocate(weights(nVertLevels+1))
       weights = 0.0_RKIND
@@ -144,27 +150,41 @@ contains
       call mpas_pool_get_config(ocnConfigs, 'config_sw_absorption_type', config_sw_absorption_type)
       call mpas_pool_get_array(swForcingPool,'chlorophyllData',chlorophyllA)
 
-      select case ( trim(config_sw_absorption_type) ) 
-      case('ohlmann00')
-         call mpas_pool_get_array(swForcingPool,'zenithAngle',zenithAngle)
-         call mpas_pool_get_array(swForcingPool,'clearSkyRadiation',clearSkyRadiation)
-         !$omp do schedule(runtime) private(depth, k)
-         do iCell = 1, nCells
-           depth = 0.0_RKIND
-           cloudRatio = min(1.0_RKIND, 1.0_RKIND - penetrativeTemperatureFlux(iCell)/hflux_factor/clearSkyRadiation(iCell))
-           cloudRatio = max(0.0_RKIND, cloudRatio)
+      call mpas_pool_get_array(swForcingPool,'zenithAngle',zenithAngle)
+      call mpas_pool_get_array(swForcingPool,'clearSkyRadiation',clearSkyRadiation)
 
-           call ocn_get_os00_coeffs(chlorophyllA(iCell),zenithAngle(iCell),cloudRatio,Avals, Kvals)
+      !$omp do schedule(runtime) private(depth, k, cloudRatio, depLev)
+      do iCell = 1, nCells
+        depth = 0.0_RKIND
+        cloudRatio = min(1.0_RKIND, 1.0_RKIND - penetrativeTemperatureFlux(iCell)/(hflux_factor*(1.0E-15_RKIND + &
+                                                     clearSkyRadiation(iCell))))
+        cloudRatio = max(0.0_RKIND, cloudRatio)
 
-           do k = 1, maxLevelCell(iCell)
-             depth = depth + layerThickness(k, iCell)
+        call ocn_get_os00_coeffs(chlorophyllA(iCell),zenithAngle(iCell),cloudRatio,Avals, Kvals)
 
-             call ocn_get_variable_sw_fraction(depth, weights(k+1), Avals, Kvals)
-             tend(index_temperature, k, iCell) = tend(index_temperature, k, iCell) + penetrativeTemperatureFlux(iCell)*(weights(k) - weights(k+1))
-           end do
-         end do
-         !$omp end do
-      end select
+        do k = 1, maxLevelCell(iCell)
+          depth = depth + layerThickness(k, iCell)
+
+          call ocn_get_variable_sw_fraction(depth, weights(k+1), Avals, Kvals)
+          tend(index_temperature, k, iCell) = tend(index_temperature, k, iCell) + penetrativeTemperatureFlux(iCell) &
+                                            * (weights(k) - weights(k+1) )
+        end do
+
+        depth = 0.0_RKIND
+        do k=1,maxLevelCell(iCell)
+           depth = depth + layerThickness(k,iCell)
+           if(depth > abs(config_surface_buoyancy_depth)) exit
+        enddo
+
+        if(k == maxLevelCell(iCell) .or. k == 1) then
+           depLev=2
+        else
+           depLev=k
+        endif
+        penetrativeTemperatureFluxOBL(iCell)=penetrativeTemperatureFlux(iCell)*weights(depLev)
+
+      end do
+      !$omp end do
 
       deallocate(weights)
 
@@ -179,7 +199,7 @@ contains
 !> \brief   Initializes ocean tracer surface flux quantities
 !> \author  Luke Van Roekel
 !> \date    11/10/15
-!> \details 
+!> \details
 !>  This routine initializes quantities related to surface fluxes in the ocean.
 !
 !-----------------------------------------------------------------------
@@ -198,12 +218,12 @@ contains
 
       call mpas_pool_get_config(ocnConfigs, 'config_sw_absorption_type', config_sw_absorption_type)
 
-      select case ( trim(config_sw_absorption_type) ) 
+      select case ( trim(config_sw_absorption_type) )
       case ('ohlmann00')
          call ocn_init_shortwave_forcing_ohlmann(domain)
       case default
          write(stderrUnit,*) "Shortwave parameterization type unknown: ", trim(config_sw_absorption_type)
-         call MPAS_dmpar_global_abort('Unknown config_sw_absortion_type')
+         call MPAS_dmpar_global_abort('MPAS-ocean: Unknown config_sw_absortion_type')
       end select
 
 
@@ -219,25 +239,25 @@ contains
 !>          This parameterization only requires chlorophyll-a concentrations, so only add that
 !> \author  Luke Van Roekel
 !> \date    11/10/15
-!> \details 
+!> \details
 !>  This routine initializes forcing stream for Ohlmann and Siegel (2000) or Ohlman (2003) parameterization
 !
 !-----------------------------------------------------------------------
 
    subroutine ocn_init_shortwave_forcing_ohlmann(domain)!{{{
-   
+
    type(domain_type) :: domain
-   
+
    character(len=strKind), pointer :: &
         config_forcing_restart_file
-        
+
    logical, pointer :: &
         config_do_restart
-        
+
    character(len=strKIND) :: &
         forcingIntervalMonthly,  &
         forcingReferenceTimeMonthly
-        
+
    call MPAS_pool_get_config(domain % configs, 'config_do_restart', config_do_restart)
    call MPAS_pool_get_config(domain % configs, 'config_forcing_restart_file', config_forcing_restart_file)
 
@@ -274,7 +294,7 @@ contains
         'constant',  &
         forcingReferenceTimeMonthly,  &
         forcingIntervalMonthly)
-  
+
    call MPAS_forcing_init_field( domain % streamManager, &
         shortwaveForcingGroup, &
         'shortwave_monthly_observations', &
@@ -301,7 +321,7 @@ contains
 !> \brief   retrieve data needed to compute penetration of shortwave radiation
 !> \author  Luke Van Roekel
 !> \date    11/10/15
-!> \details 
+!> \details
 !>  This routine calls mpas_forcing routines to acquire needed shortwave data and interpolates
 !>    between time levels
 !
@@ -325,7 +345,8 @@ contains
         real(kind=RKIND) :: dt
 
 
-        call MPAS_pool_get_config(domain%configs, 'config_use_activeTracers_surface_bulk_forcing', config_use_activeTracers_surface_bulk_forcing)
+        call MPAS_pool_get_config(domain%configs, 'config_use_activeTracers_surface_bulk_forcing', &
+                                  config_use_activeTracers_surface_bulk_forcing)
         call MPAS_pool_get_config(domain%configs, 'config_sw_absorption_type', config_sw_absorption_type)
         call MPAS_pool_get_config(domain%configs, 'config_dt', config_dt)
 
@@ -350,7 +371,7 @@ contains
 !> \brief   Computes short wave absorption fractions
 !> \author  Luke Van Roekel
 !> \date    11/10/2015
-!> \details 
+!> \details
 !>  Computes fraction of solar short-wave flux penetrating to
 !>  specified depth due to time and space varying chlorophyll, cloud fraction, and zenith angle
 !> based on:
@@ -360,7 +381,7 @@ contains
 !-----------------------------------------------------------------------
    subroutine ocn_get_variable_sw_fraction(depth, weight, Avals, Kvals)!{{{
 !  Note: below 200m the solar penetration gets set to zero,
-!     otherwise the limit for the exponent ($+/- 5678$) needs to be 
+!     otherwise the limit for the exponent ($+/- 5678$) needs to be
 !     taken care of.
 
       real (kind=RKIND), intent(in) :: depth !< Input: Depth of bottom of cell
@@ -378,7 +399,7 @@ contains
       integer :: k
 
       real (kind=RKIND), parameter :: depth_cutoff = -200.0_RKIND
-   
+
 !-----------------------------------------------------------------------
 !
 !  compute absorption fraction
@@ -394,7 +415,7 @@ contains
          enddo
       endif
    end subroutine ocn_get_variable_sw_fraction!}}}
-   
+
 !***********************************************************************
 
 
@@ -406,45 +427,45 @@ contains
 !> \brief   Computes coefficients for spatially varying penetrating shortwave via Ohlmann and Siegel 2000
 !> \author  Luke Van Roekel
 !> \date    11/10/2015
-!> \details 
+!> \details
 !>   This will fill in coefficients for the penetrating shortwave parameterization
 !>      A1*exp(-K1*depth) + A2*exp(-K2*depth) + A3*exp(-K3*depth) + A4*exp(-K4*depth)
 !>   For Ohlmann and Siegel (2000) A4 no approximations are made
-!>   Here the IR portion of the spectrum is also decomposed.  Four exponential terms are used 
-!>   NOTE: other schemes can be easily recovered.  For example, Ohlmann (2003) requires a 
-!>      coefficient changes only Use equations 6a - 6d and 7 
+!>   Here the IR portion of the spectrum is also decomposed.  Four exponential terms are used
+!>   NOTE: other schemes can be easily recovered.  For example, Ohlmann (2003) requires a
+!>      coefficient changes only Use equations 6a - 6d and 7
 !            Ohlmann, JC, 2003: Ocean Radiant Heating in Climate Models, J.Clim, v16, 1337-1351
 !     To recover the Morel (1988) scheme used in Manizza et al. (2005), use equations 1-4 of
 !           Manizza, M, C LeQuere, AJ Watson, ET Buitenhuis, 2005: Bio-optical feedbacks among phytoplankton
 !              upper ocean physics and sea-ice in a global model, Geophys, Res. Lett
 !
-!-----------------------------------------------------------------------   
-  
+!-----------------------------------------------------------------------
+
   subroutine ocn_get_os00_coeffs(chlorophyllA,zenithAngle,cloudFraction,Avals,Kvals)!{{{
-  
+
      real(kind=RKIND), intent(in) :: chlorophyllA, zenithAngle, cloudFraction
      real(kind=RKIND), intent(out), dimension(4) :: Avals, Kvals
 
-     if(cloudFraction > 0.1) then ! cloudy skies
-         Avals(1) = 0.026_RKIND*chlorophyllA + 0.112_RKIND*cloudFraction + 0.366_RKIND  
-         Avals(2) = -0.009_RKIND*chlorophyllA + 0.034_RKIND*cloudFraction + 0.207_RKIND  
-         Avals(3) = -0.015_RKIND*chlorophyllA -0.006_RKIND*cloudFraction + 0.188_RKIND  
-         Avals(4) = -0.003_RKIND*chlorophyllA -0.131_RKIND*cloudFraction + 0.169_RKIND  
-         Kvals(1) = 0.063_RKIND*chlorophyllA -0.015_RKIND*cloudFraction + 0.082_RKIND  
-         Kvals(2) = 0.278_RKIND*chlorophyllA -0.562_RKIND*cloudFraction + 1.02_RKIND  
-         Kvals(3) = 3.91_RKIND*chlorophyllA -12.91_RKIND*cloudFraction + 16.62_RKIND  
-         Kvals(4) = 16.64_RKIND*chlorophyllA -478.28_RKIND*cloudFraction + 736.56_RKIND  
+     if(cloudFraction > 0.1_RKIND) then ! cloudy skies
+         Avals(1) = 0.026_RKIND*chlorophyllA + 0.112_RKIND*cloudFraction + 0.366_RKIND
+         Avals(2) = -0.009_RKIND*chlorophyllA + 0.034_RKIND*cloudFraction + 0.207_RKIND
+         Avals(3) = -0.015_RKIND*chlorophyllA -0.006_RKIND*cloudFraction + 0.188_RKIND
+         Avals(4) = -0.003_RKIND*chlorophyllA -0.131_RKIND*cloudFraction + 0.169_RKIND
+         Kvals(1) = 0.063_RKIND*chlorophyllA -0.015_RKIND*cloudFraction + 0.082_RKIND
+         Kvals(2) = 0.278_RKIND*chlorophyllA -0.562_RKIND*cloudFraction + 1.02_RKIND
+         Kvals(3) = 3.91_RKIND*chlorophyllA -12.91_RKIND*cloudFraction + 16.62_RKIND
+         Kvals(4) = 16.64_RKIND*chlorophyllA -478.28_RKIND*cloudFraction + 736.56_RKIND
      else ! clear skies
-         Avals(1) = 0.033_RKIND*chlorophyllA -0.025_RKIND*zenithAngle + 0.419_RKIND  
-         Avals(2) = -0.010_RKIND*chlorophyllA -0.007_RKIND*zenithAngle + 0.231_RKIND  
-         Avals(3) = -0.019_RKIND*chlorophyllA -0.003_RKIND*zenithAngle + 0.195_RKIND  
-         Avals(4) = -0.006_RKIND*chlorophyllA -0.004_RKIND*zenithAngle + 0.154_RKIND  
-         Kvals(1) = 0.066_RKIND*chlorophyllA + 0.006_RKIND*zenithAngle + 0.066_RKIND  
-         Kvals(2) = 0.396_RKIND*chlorophyllA -0.027_RKIND*zenithAngle + 0.866_RKIND  
-         Kvals(3) = 7.68_RKIND*chlorophyllA -2.49_RKIND*zenithAngle + 17.81_RKIND  
-         Kvals(4) = 51.27_RKIND*chlorophyllA + 13.14_RKIND*zenithAngle + 665.19_RKIND  
+         Avals(1) = 0.033_RKIND*chlorophyllA -0.025_RKIND*zenithAngle + 0.419_RKIND
+         Avals(2) = -0.010_RKIND*chlorophyllA -0.007_RKIND*zenithAngle + 0.231_RKIND
+         Avals(3) = -0.019_RKIND*chlorophyllA -0.003_RKIND*zenithAngle + 0.195_RKIND
+         Avals(4) = -0.006_RKIND*chlorophyllA -0.004_RKIND*zenithAngle + 0.154_RKIND
+         Kvals(1) = 0.066_RKIND*chlorophyllA + 0.006_RKIND*zenithAngle + 0.066_RKIND
+         Kvals(2) = 0.396_RKIND*chlorophyllA -0.027_RKIND*zenithAngle + 0.866_RKIND
+         Kvals(3) = 7.68_RKIND*chlorophyllA -2.49_RKIND*zenithAngle + 17.81_RKIND
+         Kvals(4) = 51.27_RKIND*chlorophyllA + 13.14_RKIND*zenithAngle + 665.19_RKIND
      endif
-   
+
    end subroutine ocn_get_os00_coeffs!}}}
 
 !***********************************************************************
@@ -459,10 +480,10 @@ contains
 !> \date    11/16/2015
 
 !
-!-----------------------------------------------------------------------   
+!-----------------------------------------------------------------------
 
    subroutine ocn_shortwave_forcing_write_restart(domain)!{{{
-   
+
       type(domain_type) :: domain
 
       character(len=strKind), pointer :: config_forcing_restart_file,   &

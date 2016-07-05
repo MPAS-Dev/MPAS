@@ -13,8 +13,8 @@
 !> \author Mark Petersen
 !> \date   September 2011
 !> \details
-!>  This module contains the routines for computing 
-!>  richardson vertical mixing coefficients.  
+!>  This module contains the routines for computing
+!>  richardson vertical mixing coefficients.
 !>
 !
 !-----------------------------------------------------------------------
@@ -33,8 +33,6 @@ module ocn_vmix_coefs_rich
    implicit none
    private
    save
-
-   type (timer_node), pointer :: richEOSTimer
 
    !--------------------------------------------------------------------
    !
@@ -70,7 +68,7 @@ contains
 !> \brief   Computes coefficients for vertical mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the vertical mixing coefficients for momentum
 !>  and activeTracers based user choices of mixing parameterization.
 !
@@ -131,7 +129,7 @@ contains
       !-----------------------------------------------------------------
       !
       ! call relevant routines for computing tendencies
-      ! note that the user can choose multiple options and the 
+      ! note that the user can choose multiple options and the
       !   tendencies will be added together
       !
       !-----------------------------------------------------------------
@@ -161,19 +159,21 @@ contains
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
       call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, timeLevel)
 
-      call mpas_timer_start("eos rich", .false., richEOSTimer)
+      call mpas_timer_start("eos rich")
 
       ! compute in-place density
-      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, 0, 'relative', density, err, timeLevelIn=timeLevel)
+      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, 0, 'relative', density, err, &
+                                         timeLevelIn=timeLevel)
 
-      ! compute displacedDensity, density displaced adiabatically to the mid-depth one layer deeper.  
+      ! compute displacedDensity, density displaced adiabatically to the mid-depth one layer deeper.
       ! That is, layer k has been displaced to the depth of layer k+1.
-      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, 1, 'relative', displacedDensity, err, timeLevelIn=timeLevel)
+      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, 1, 'relative', displacedDensity, err, &
+                                         timeLevelIn=timeLevel)
 
-      call mpas_timer_stop("eos rich", richEOSTimer)
+      call mpas_timer_stop("eos rich")
 
-      call ocn_vmix_get_rich_numbers(meshPool, scratchPool, indexTemperature, indexSalinity, normalVelocity, layerThickness, layerThicknessEdge, & 
-                                  density, displacedDensity, activeTracers, RiTopOfEdge, RiTopOfCell, err1)
+      call ocn_vmix_get_rich_numbers(meshPool, scratchPool, indexTemperature, indexSalinity, normalVelocity, layerThickness, &
+                                     layerThicknessEdge, density, displacedDensity, activeTracers, RiTopOfEdge, RiTopOfCell, err1)
 
       call ocn_vel_vmix_coefs_rich(meshPool, RiTopOfEdge, layerThicknessEdge, vertViscTopOfEdge, err2)
       call ocn_tracer_vmix_coefs_rich(meshPool, RiTopOfCell, layerThickness, vertDiffTopOfCell, err3)
@@ -191,7 +191,7 @@ contains
 !> \brief   Computes coefficients for vertical momentum mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the richardson vertical mixing coefficients for momentum
 !
 !-----------------------------------------------------------------------
@@ -259,9 +259,9 @@ contains
          do k = 2, maxLevelEdgeTop(iEdge)
             ! efficiency note: these if statements are inside iEdge and k loops.
             ! Perhaps there is a more efficient way to do this.
-            if (RiTopOfEdge(k,iEdge)>0.0) then
+            if (RiTopOfEdge(k,iEdge)>0.0_RKIND) then
                vertViscTopOfEdge(k,iEdge) = vertViscTopOfEdge(k, iEdge) + config_bkrd_vert_visc &
-                  + config_rich_mix / (1.0 + 5.0*RiTopOfEdge(k,iEdge))**2
+                  + config_rich_mix / (1.0_RKIND + 5.0_RKIND*RiTopOfEdge(k,iEdge))**2
                if (vertViscTopOfEdge(k,iEdge) > config_convective_visc) then
                   vertViscTopOfEdge(k,iEdge) = config_convective_visc
                end if
@@ -285,7 +285,7 @@ contains
 !> \brief   Computes coefficients for vertical tracer mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the richardson vertical mixing coefficients for activeTracers
 !
 !-----------------------------------------------------------------------
@@ -356,11 +356,11 @@ contains
          do k = 2, maxLevelCell(iCell)
             ! efficiency note: these if statements are inside iEdge and k loops.
             ! Perhaps there is a more efficient way to do this.
-            if (RiTopOfCell(k,iCell)>0.0) then
+            if (RiTopOfCell(k,iCell)>0.0_RKIND) then
                vertDiffTopOfCell(k,iCell) = vertDiffTopOfCell(k, iCell) + config_bkrd_vert_diff &
-                  + (config_bkrd_vert_visc & 
-                     + config_rich_mix / (1.0 + 5.0*RiTopOfCell(k,iCell))**2) &
-                  / (1.0 + 5.0*RiTopOfCell(k,iCell))
+                  + (config_bkrd_vert_visc &
+                     + config_rich_mix / (1.0_RKIND + 5.0_RKIND*RiTopOfCell(k,iCell))**2) &
+                  / (1.0_RKIND + 5.0_RKIND*RiTopOfCell(k,iCell))
                if (vertDiffTopOfCell(k,iCell) > config_convective_diff) then
                   vertDiffTopOfCell(k,iCell) = config_convective_diff
                end if
@@ -383,14 +383,15 @@ contains
 !> \brief   Build richardson numbers for vertical mixing
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine builds the arrays needed for richardson number vertical
 !>  mixing coefficients.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vmix_get_rich_numbers(meshPool, scratchPool, indexTemperature, indexSalinity, normalVelocity, layerThickness, layerThicknessEdge, & !{{{
-                                 density, displacedDensity, activeTracers, RiTopOfEdge, RiTopOfCell, err)
+   subroutine ocn_vmix_get_rich_numbers(meshPool, scratchPool, indexTemperature, indexSalinity, normalVelocity, & !{{{
+                                        layerThickness, layerThicknessEdge, density, displacedDensity, activeTracers, &
+                                        RiTopOfEdge, RiTopOfCell, err)
 
       !-----------------------------------------------------------------
       !
@@ -408,7 +409,7 @@ contains
 
       real (kind=RKIND), dimension(:,:), intent(in) :: normalVelocity       !< Input: horizontal velocity
       real (kind=RKIND), dimension(:,:), intent(in) :: layerThickness       !< Input: thickness
-      real (kind=RKIND), dimension(:,:), intent(in) :: layerThicknessEdge  !< Input: thickness at edge 
+      real (kind=RKIND), dimension(:,:), intent(in) :: layerThicknessEdge  !< Input: thickness at edge
 
       real (kind=RKIND), dimension(:,:,:), intent(in) :: activeTracers !< Input: activeTracers
 
@@ -486,14 +487,21 @@ contains
       du2TopOfEdge => du2TopOfEdgeField % array
 
       ! ddensityTopOfCell(k) = $\rho^*_{k-1}-\rho_k$, where $\rho^*$ has been adiabatically displaced to level k.
-      !$omp workshare
-      ddensityTopOfCell = 0.0
-      ddensityTopOfEdge = 0.0
-      du2TopOfEdge=0.0
-      du2TopOfCell = 0.0
-      RiTopOfEdge = 0.0
-      RiTopOfCell = 0.0
-      !$omp end workshare
+      !$omp do schedule(runtime)
+      do iCell = 1, nCells
+         ddensityTopOfCell(:, iCell) = 0.0_RKIND
+         du2TopOfCell(:, iCell) = 0.0_RKIND
+         RiTopOfCell(:, iCell) = 0.0_RKIND
+      end do
+      !$omp end do
+
+      !$omp do schedule(runtime)
+      do iEdge = 1, nEdges
+         ddensityTopOfEdge(:, iEdge) = 0.0_RKIND
+         du2TopOfEdge(:, iEdge) = 0.0_RKIND
+         RiTopOfEdge(:, iEdge) = 0.0_RKIND
+      end do
+      !$omp end do
 
       !$omp do schedule(runtime) private(k)
       do iCell = 1, nCells
@@ -511,7 +519,7 @@ contains
          do k = 2, maxLevelEdgeTop(iEdge)
             ddensityTopOfEdge(k,iEdge) = &
                (ddensityTopOfCell(k,cell1) + &
-                ddensityTopOfCell(k,cell2))/2  
+                ddensityTopOfCell(k,cell2))/2
          end do
        end do
        !$omp end do
@@ -533,7 +541,8 @@ contains
           iEdge = edgesOnCell(i, iCell)
 
           do k = 2, maxLevelEdgeBot(iEdge)
-            du2TopOfCell(k, iCell) = du2TopOfCell(k, iCell) + 0.5_RKIND * dcEdge(iEdge) * dvEdge(iEdge) * du2TopOfEdge(k, iEdge) * invAreaCell
+            du2TopOfCell(k, iCell) = du2TopOfCell(k, iCell) + 0.5_RKIND * dcEdge(iEdge) * dvEdge(iEdge) &
+                                   * du2TopOfEdge(k, iEdge) * invAreaCell
           end do
         end do
       end do
@@ -541,7 +550,7 @@ contains
 
       ! compute RiTopOfEdge using ddensityTopOfEdge and du2TopOfEdge
       ! coef = -g/density_0/2
-      coef = -gravity / rho_sw / 2.0
+      coef = -gravity / rho_sw / 2.0_RKIND
 
       !$omp do schedule(runtime) private(k)
       do iEdge = 1, nEdges
@@ -582,11 +591,11 @@ contains
 !> \brief   Initializes ocean momentum vertical mixing quantities
 !> \author  Mark Petersen
 !> \date    September 2011
-!> \details 
-!>  This routine initializes a variety of quantities related to 
-!>  vertical velocity mixing in the ocean. Since a variety of 
+!> \details
+!>  This routine initializes a variety of quantities related to
+!>  vertical velocity mixing in the ocean. Since a variety of
 !>  parameterizations are available, this routine primarily calls the
-!>  individual init routines for each parameterization. 
+!>  individual init routines for each parameterization.
 !
 !-----------------------------------------------------------------------
 

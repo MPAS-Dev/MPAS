@@ -13,8 +13,8 @@
 !> \author Doug Jacobsen, Mark Petersen, Todd Ringler
 !> \date   September 2011
 !> \details
-!>  This module contains the main driver routine for computing 
-!>  horizontal mixing tendencies.  
+!>  This module contains the main driver routine for computing
+!>  horizontal mixing tendencies.
 !>
 !>  It provides an init and a tend function. Each are described below.
 !
@@ -71,7 +71,7 @@ contains
 !> \brief   Computes Laplacian tendency term for horizontal tracer mixing
 !> \author  Doug Jacobsen, Mark Petersen, Todd Ringler
 !> \date    September 2011
-!> \details 
+!> \details
 !>  This routine computes the horizontal mixing tendency for tracers
 !>  based on current state using a Laplacian parameterization.
 !
@@ -140,8 +140,8 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: gradTracerEdge, gradTracerTopOfEdge, gradHTracerSlopedTopOfCell, &
          dTracerdZTopOfCell, dTracerdZTopOfEdge, areaCellSum
 
-      type (field2DReal), pointer :: gradTracerEdgeField, gradTracerTopOfEdgeField, gradHTracerSlopedTopOfCellField, dTracerdZTopOfCellField, dTracerdZTopOfEdgeField, &
-         areaCellSumField
+      type (field2DReal), pointer :: gradTracerEdgeField, gradTracerTopOfEdgeField, gradHTracerSlopedTopOfCellField, &
+                                     dTracerdZTopOfCellField, dTracerdZTopOfEdgeField, areaCellSumField
 
       err = 0
 
@@ -172,7 +172,6 @@ contains
       ! COMPUTE the extra terms arising due to mismatch between the constant coordinate surfaces and the
       ! isopycnal surfaces.
       !
-      ! mrp note: Redi diffusion should be put in a separate subroutine
 
       call mpas_pool_get_field(scratchPool, 'gradTracerEdge', gradTracerEdgeField)
       call mpas_pool_get_field(scratchPool, 'gradTracerTopOfEdge', gradTracerTopOfEdgeField)
@@ -196,20 +195,27 @@ contains
       dTracerdZTopOfEdge => dTracerdZTopOfEdgeField % array
       areaCellSum => areaCellSumField % array
 
-      !$omp workshare
-      gradTracerEdge = 0.0
-      gradTracerTopOfEdge = 0.0
-      gradHTracerSlopedTopOfCell = 0.0
-      dTracerdZTopOfCell = 0.0
-      dTracerdZTopOfEdge = 0.0
-      !$omp end workshare
+      !$omp do schedule(runtime)
+      do iCell = 1, nCells
+        gradHTracerSlopedTopOfCell(:, iCell) = 0.0_RKIND
+        dTracerdZTopOfCell(:, iCell) = 0.0_RKIND
+      end do
+      !$omp end do
+
+      !$omp do schedule(runtime)
+      do iEdge = 1, nEdges
+         gradTracerEdge(:, iEdge) = 0.0_RKIND
+         gradTracerTopOfEdge(:, iEdge) = 0.0_RKIND
+         dTracerdZTopOfEdge(:, iEdge) = 0.0_RKIND
+      end do
+      !$omp end do
 
       ! this is the "standard" del2 term, but forced to use config_redi_kappa
       if(.not.config_disable_redi_horizontal_term1) then
 
          !$omp do schedule(runtime) private(invAreaCell, i, iEdge, cell1, cell2, r_tmp, k, s_tmp, iTracer, tracer_turb_flux, flux)
          do iCell = 1, nCells
-            invAreaCell = 1.0 / areaCell(iCell)
+            invAreaCell = 1.0_RKIND / areaCell(iCell)
             do i = 1, nEdgesOnCell(iCell)
                iEdge = edgesOnCell(i, iCell)
                cell1 = cellsOnEdge(1,iEdge)
@@ -219,17 +225,15 @@ contains
 
                do k = 1, maxLevelEdgeTop(iEdge)
 
-                  ! this is the tapering of config_redi_kappa where abs(slope) > config_max_relative_slope
-                  s_tmp = relativeSlopeTapering(k,iEdge)
-
                   do iTracer = 1, num_tracers
                      ! \kappa_2 \nabla \phi on edge
                      tracer_turb_flux = tracers(iTracer, k, cell2) - tracers(iTracer, k, cell1)
 
                      ! div(h \kappa_2 \nabla \phi) at cell center
-                     flux = layerThicknessEdge(k, iEdge) * tracer_turb_flux * r_tmp * s_tmp
+                     flux = layerThicknessEdge(k, iEdge) * tracer_turb_flux * r_tmp
 
                      tend(iTracer, k, iCell) = tend(iTracer, k, iCell) - edgeSignOnCell(i, iCell) * flux * invAreaCell
+
                   end do
                end do
 
@@ -247,14 +251,15 @@ contains
          !$omp do schedule(runtime) private(k)
          do iCell = 1, nCells
             do k = 2, maxLevelCell(iCell)
-               dTracerdZTopOfCell(k,iCell) = (tracers(iTracer,k-1,iCell) - tracers(iTracer,k,iCell)) / (zMid(k-1,iCell) - zMid(k,iCell))
+               dTracerdZTopOfCell(k,iCell) = (tracers(iTracer,k-1,iCell) - tracers(iTracer,k,iCell)) &
+                                           / (zMid(k-1,iCell) - zMid(k,iCell))
             end do
 
             ! Approximation of dTracerdZTopOfCell on the top and bottom interfaces through the idea of having
             ! ghost cells above the top and below the bottom layers of the same depths and tracer density.
             ! Essentially, this enforces the boundary condition (d tracer)/dz = 0 at the top and bottom.
-            dTracerdZTopOfCell(1,iCell) = 0.0
-            dTracerdZTopOfCell(maxLevelCell(iCell)+1,iCell) = 0.0
+            dTracerdZTopOfCell(1,iCell) = 0.0_RKIND
+            dTracerdZTopOfCell(maxLevelCell(iCell)+1,iCell) = 0.0_RKIND
          end do
          !$omp end do
 
@@ -277,9 +282,9 @@ contains
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
             do k = 1, maxLevelEdgeTop(iEdge)
-               dTracerdZTopOfEdge(k,iEdge) = 0.5 * (dTracerdZTopOfCell(k,cell1) + dTracerdZTopOfCell(k,cell2)) 
+               dTracerdZTopOfEdge(k,iEdge) = 0.5_RKIND * (dTracerdZTopOfCell(k,cell1) + dTracerdZTopOfCell(k,cell2))
             end do
-            dTracerdZTopOfEdge(maxLevelEdgeTop(iEdge)+1,iEdge) = 0.0
+            dTracerdZTopOfEdge(maxLevelEdgeTop(iEdge)+1,iEdge) = 0.0_RKIND
          end do
          !$omp end do
 
@@ -296,7 +301,7 @@ contains
 
             ! Approximation of values on the top and bottom interfaces through the idea of having ghost cells above
             ! the top and below the bottom layers of the same depths and tracer concentration.
-            gradTracerTopOfEdge(1,iEdge) = gradTracerEdge(1,iEdge)
+            gradTracerTopOfEdge(1,iEdge) = gradTracerEdge(2,iEdge)
             gradTracerTopOfEdge(maxLevelEdgeTop(iEdge)+1,iEdge) = gradTracerEdge(max(maxLevelEdgeTop(iEdge),1),iEdge)
          end do
          !$omp end do
@@ -310,11 +315,13 @@ contains
                   iEdge = edgesOnCell(i, iCell)
                   do k = 1, maxLevelEdgeTop(iEdge)
                      s_tmpU = relativeSlopeTapering(k, iEdge) * relativeSlopeTopOfEdge(k, iEdge) * dTracerdZTopOfEdge(k, iEdge)
-                     s_tmpD = relativeSlopeTapering(k+1, iEdge) * relativeSlopeTopOfEdge(k+1, iEdge) * dTracerdZTopOfEdge(k+1, iEdge)
+                     s_tmpD = relativeSlopeTapering(k+1, iEdge) * relativeSlopeTopOfEdge(k+1, iEdge) &
+                            * dTracerdZTopOfEdge(k+1, iEdge)
 
                      flux = 0.5 * dvEdge(iEdge) * ( s_tmpU + s_tmpD )
                      flux = flux * layerThicknessEdge(k, iEdge)
-                     tend(iTracer, k, iCell) = tend(iTracer, k, iCell) + edgeSignOnCell(i, iCell) * config_Redi_kappa * flux * invAreaCell
+                     tend(iTracer, k, iCell) = tend(iTracer, k, iCell) + edgeSignOnCell(i, iCell) * config_Redi_kappa * flux &
+                                             * invAreaCell
                   end do
                end do
             end do
@@ -322,20 +329,18 @@ contains
          endif
 
          ! Compute dz * d(relativeSlope\cdot\nabla\phi)/dz  (so the dz cancel out)
-         !$omp workshare
-         gradHTracerSlopedTopOfCell = 0.0
-         !$omp end workshare
 
          ! Compute relativeSlope\cdot\nabla\phi (variable gradHTracerSlopedTopOfCell) at non-boundary edges
-         areaCellSum = 1.0e-34
+         areaCellSum = 1.0e-34_RKIND
 
          !$omp do schedule(runtime) private(i, iedge, areaEdge, k, r_tmp)
          do iCell = 1, nCells
+            gradHTracerSlopedTopOfCell(:, iCell) = 0.0_RKIND
             do i = 1, nEdgesOnCell(iCell)
                iEdge = edgesOnCell(i, iCell)
-               areaEdge = 0.5 * dcEdge(iEdge) * dvEdge(iEdge)
+               areaEdge = 0.5_RKIND * dcEdge(iEdge) * dvEdge(iEdge)
                do k = 1, maxLevelEdgeTop(iEdge)
-                  r_tmp = areaEdge * relativeSlopeTopOfEdge(k,iEdge) * gradTracerTopOfEdge(k,iEdge)
+                  r_tmp = areaEdge * relativeSlopeTapering(k, iEdge) * relativeSlopeTopOfEdge(k,iEdge) * gradTracerTopOfEdge(k,iEdge)
                   gradHTracerSlopedTopOfCell(k, iCell) = gradHTracerSlopedTopOfCell(k, iCell) + r_tmp
                   areaCellSum(k, iCell) = areaCellSum(k, iCell) + areaEdge
                end do
@@ -355,11 +360,10 @@ contains
             !$omp do schedule(runtime) private(k, s_tmp)
             do iCell = 1, nCells
                ! impose no-flux boundary conditions at top and bottom of column
-               gradHTracerSlopedTopOfCell(1,iCell) = 0.0
-               gradHTracerSlopedTopOfCell(maxLevelCell(iCell)+1,iCell) = 0.0
+               gradHTracerSlopedTopOfCell(1,iCell) = 0.0_RKIND
+               gradHTracerSlopedTopOfCell(maxLevelCell(iCell)+1,iCell) = 0.0_RKIND
                do k = 1, maxLevelCell(iCell)
-                  s_tmp = relativeSlopeTaperingCell(k,iCell)
-                  tend(iTracer,k,iCell) = tend(iTracer,k,iCell) + s_tmp * config_Redi_kappa * &
+                  tend(iTracer,k,iCell) = tend(iTracer,k,iCell) + config_Redi_kappa * &
                       (gradHTracerSlopedTopOfCell(k,iCell) - gradHTracerSlopedTopOfCell(k+1,iCell))
                end do
             end do
@@ -386,9 +390,9 @@ contains
 !> \brief   Initializes ocean tracer horizontal mixing quantities
 !> \author  Doug Jacobsen, Mark Petersen, Todd Ringler
 !> \date    September 2011
-!> \details 
-!>  This routine initializes a variety of quantities related to 
-!>  Laplacian horizontal velocity mixing in the ocean. 
+!> \details
+!>  This routine initializes a variety of quantities related to
+!>  Laplacian horizontal velocity mixing in the ocean.
 !
 !-----------------------------------------------------------------------
 

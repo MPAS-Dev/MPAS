@@ -26,6 +26,7 @@ module ocn_time_filters
    use mpas_dmpar
    use mpas_timekeeping
    use mpas_stream_manager
+   use mpas_vector_reconstruction
 
    use ocn_constants
    use ocn_diagnostics_routines
@@ -183,7 +184,8 @@ contains
       call mpas_pool_get_subpool(block % structs, 'mesh', statePool)
       call mpas_pool_get_array(statePool, 'latEdge', latEdge)
       call mpas_pool_get_array(statePool, 'lonEdge', lonEdge)
-      write(stderrUnit,*) 'lon = ', 180.0_RKIND/pii*lonEdge(iEdgeOutput), ' lat = ', 180.0_RKIND/pii*latEdge(iEdgeOutput), ' iklevel=',iklevel, ' iEdgeOutput=',iEdgeOutput, ' iBlockOutput = ', iBlockOutput
+      write(stderrUnit,*) 'lon = ', 180.0_RKIND/pii*lonEdge(iEdgeOutput), ' lat = ', 180.0_RKIND/pii*latEdge(iEdgeOutput), &
+                          ' iklevel=',iklevel, ' iEdgeOutput=',iEdgeOutput, ' iBlockOutput = ', iBlockOutput
 #endif
 
 #ifdef TIME_FILTERS_DEBUG
@@ -245,13 +247,22 @@ contains
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: diagnosticsPool
       type (mpas_pool_type), pointer :: timeFiltersAM
-      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, normalVelocityLowPass, normalVelocityHighPass, normalVelocityTest
+      real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, normalVelocityLowPass, normalVelocityHighPass, &
+                                                    normalVelocityTest
+
+      type (field2DReal), pointer :: normalVelocityLowPassField, normalVelocityHighPassField
+
+      real (kind=RKIND), dimension(:,:), pointer :: velocityZonalLowPass, velocityMeridionalLowPass, &
+                                                    velocityXLowPass, velocityYLowPass, velocityZLowPass, &
+                                                    velocityZonalHighPass, velocityMeridionalHighPass, &
+                                                    velocityXHighPass, velocityYHighPass, velocityZHighPass
       integer, pointer :: nVertLevels, nEdgesSolve
       integer :: k, iEdge
       integer, dimension(:), pointer :: maxLevelEdgeBot
 
       type (MPAS_timeInterval_type) :: timeStepESMF
       character(len=StrKIND), pointer :: config_dt
+      logical, pointer :: computeCC
       real (kind=RKIND) :: dt, tau
 #ifdef TIME_FILTERS_DEBUG
       integer :: iBlock
@@ -317,9 +328,49 @@ contains
             end if
 #endif
          end do
+         ! exchange halo information in order to ensure that particles on halo are advected properly
+         call mpas_pool_get_field(timeFiltersAMPool, 'normalVelocityLowPass', normalVelocityLowPassField)
+         call mpas_pool_get_field(timeFiltersAMPool, 'normalVelocityHighPass', normalVelocityHighPassField)
+         call mpas_dmpar_exch_halo_field(normalVelocityLowPassField)
+         call mpas_dmpar_exch_halo_field(normalVelocityHighPassField)
 
          block => block % next
       end do
+
+      ! do IO communications if this is an output time step
+      call mpas_pool_get_config(domain % configs, 'config_AM_timeFilters_compute_cell_centered_values', computeCC)
+      if (mpas_stream_mgr_ringing_alarms(domain % streamManager, streamID='timeFiltersOutput', direction=MPAS_STREAM_OUTPUT, ierr=err) &
+        .and. computeCC) then
+        block => domain % blocklist
+        do while (associated(block))
+           call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+           call mpas_pool_get_subpool(block % structs, 'timeFiltersAM', timeFiltersAMPool)
+           ! get variables for computations
+           call mpas_pool_get_array(timeFiltersAMPool, 'normalVelocityLowPass', normalVelocityLowPass)
+           call mpas_pool_get_array(timeFiltersAMPool, 'velocityZonalLowPass', velocityZonalLowPass)
+           call mpas_pool_get_array(timeFiltersAMPool, 'velocityMeridionalLowPass', velocityMeridionalLowPass)
+           call mpas_pool_get_array(timeFiltersAMPool, 'velocityXLowPass', velocityXLowPass)
+           call mpas_pool_get_array(timeFiltersAMPool, 'velocityYLowPass', velocityYLowPass)
+           call mpas_pool_get_array(timeFiltersAMPool, 'velocityZLowPass', velocityZLowPass)
+           call mpas_pool_get_array(timeFiltersAMPool, 'normalVelocityHighPass', normalVelocityHighPass)
+           call mpas_pool_get_array(timeFiltersAMPool, 'velocityZonalHighPass', velocityZonalHighPass)
+           call mpas_pool_get_array(timeFiltersAMPool, 'velocityMeridionalHighPass', velocityMeridionalHighPass)
+           call mpas_pool_get_array(timeFiltersAMPool, 'velocityXHighPass', velocityXHighPass)
+           call mpas_pool_get_array(timeFiltersAMPool, 'velocityYHighPass', velocityYHighPass)
+           call mpas_pool_get_array(timeFiltersAMPool, 'velocityZHighPass', velocityZHighPass)
+          ! must perform reconstruction for cell centered values
+           call mpas_reconstruct(meshPool, normalVelocityLowPass,  &
+                            velocityXLowPass, velocityYLowPass, velocityZLowPass,   &
+                            velocityZonalLowPass, velocityMeridionalLowPass, &
+                            includeHalos = .false.)
+          ! must perform reconstruction for cell centered values
+           call mpas_reconstruct(meshPool, normalVelocityHighPass,  &
+                            velocityXHighPass, velocityYHighPass, velocityZHighPass,   &
+                            velocityZonalHighPass, velocityMeridionalHighPass, &
+                            includeHalos = .false.)
+          block => block % next
+        end do
+      end if
 
 #ifdef TIME_FILTERS_DEBUG
         write(stderrUnit,*) 'finished computing time filters'

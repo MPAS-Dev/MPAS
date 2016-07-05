@@ -12,11 +12,12 @@ xlf:
 	"FC_SERIAL = xlf90" \
 	"CC_SERIAL = xlc" \
 	"CXX_SERIAL = xlcxx" \
-	"FFLAGS_OPT = -O3 -qrealsize=8" \
+	"FFLAGS_PROMOTION = -qrealsize=8" \
+	"FFLAGS_OPT = -O3" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
-	"FFLAGS_DEBUG = -O0 -g -C -qrealsize=8" \
+	"FFLAGS_DEBUG = -O0 -g -C" \
 	"CFLAGS_DEBUG = -O0 -g" \
 	"CXXFLAGS_DEBUG = -O0 -g" \
 	"LDFLAGS_DEBUG = -O0 -g" \
@@ -36,7 +37,8 @@ ftn:
 	"FC_SERIAL = ftn" \
 	"CC_SERIAL = cc" \
 	"CXX_SERIAL = CC" \
-	"FFLAGS_OPT = -i4 -r8 -gopt -O2 -Mvect=nosse -Kieee -convert big_endian" \
+	"FFLAGS_PROMOTION = -r8" \
+	"FFLAGS_OPT = -i4 -gopt -O2 -Mvect=nosse -Kieee -convert big_endian" \
 	"CFLAGS_OPT = -fast" \
 	"CXXFLAGS_OPT = -fast" \
 	"LDFLAGS_OPT = " \
@@ -56,9 +58,10 @@ titan-cray:
 	"FC_SERIAL = ftn" \
 	"CC_SERIAL = gcc" \
 	"CXX_SERIAL = gcc" \
-	"FFLAGS_OPT = -s integer32 -default64 -O2 -f free -N 255 -em -ef -h acc" \
-	"CFLAGS_OPT = -O2" \
-	"LDFLAGS_OPT = -O2 -s integer32 -default64 -N 255 -em -ef -h acc" \
+	"FFLAGS_PROMOTION = -default64" \
+	"FFLAGS_OPT = -s integer32 -O3 -f free -N 255 -em -ef" \
+	"CFLAGS_OPT = -O3" \
+	"LDFLAGS_OPT = -O3" \
 	"FFLAGS_DEBUG = -s integer32 -default64 -O0 -g " \
 	"CFLAGS_DEBUG = -s integer32 -default64 -O0 -g " \
 	"CXXFLAGS_DEBUG = -s integer32 -default64 -O0 -g " \
@@ -105,11 +108,12 @@ pgi:
 	"FC_SERIAL = pgf90" \
 	"CC_SERIAL = pgcc" \
 	"CXX_SERIAL = pgc++" \
-	"FFLAGS_OPT = -r8 -O3 -byteswapio -Mfree" \
+	"FFLAGS_PROMOTION = -r8" \
+	"FFLAGS_OPT = -O3 -byteswapio -Mfree" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
-	"FFLAGS_DEBUG = -r8 -O0 -g -Mbounds -Mchkptr -byteswapio -Mfree -Ktrap=divz,fp,inv,ovf -traceback" \
+	"FFLAGS_DEBUG = -O0 -g -Mbounds -Mchkptr -byteswapio -Mfree -Ktrap=divz,fp,inv,ovf -traceback" \
 	"CFLAGS_DEBUG = -O0 -g -traceback" \
 	"CXXFLAGS_DEBUG = -O0 -g -traceback" \
 	"LDFLAGS_DEBUG = -O0 -g -Mbounds -Mchkptr -Ktrap=divz,fp,inv,ovf -traceback" \
@@ -129,7 +133,8 @@ pgi-nersc:
 	"FC_SERIAL = ftn" \
 	"CC_SERIAL = cc" \
 	"CXX_SERIAL = CC" \
-	"FFLAGS_OPT = -r8 -O3 -byteswapio -Mfree" \
+	"FFLAGS_PROMOTION = -r8" \
+	"FFLAGS_OPT = -O3 -byteswapio -Mfree" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
@@ -149,7 +154,8 @@ pgi-llnl:
 	"FC_SERIAL = pgf90" \
 	"CC_SERIAL = pgcc" \
 	"CXX_SERIAL = pgc++" \
-	"FFLAGS_OPT = -i4 -r8 -g -O2 -byteswapio" \
+	"FFLAGS_PROMOTION = -r8" \
+	"FFLAGS_OPT = -i4 -g -O2 -byteswapio" \
 	"CFLAGS_OPT = -fast" \
 	"CXXFLAGS_OPT = -fast" \
 	"LDFLAGS_OPT = " \
@@ -169,11 +175,12 @@ ifort:
 	"FC_SERIAL = ifort" \
 	"CC_SERIAL = icc" \
 	"CXX_SERIAL = icpc" \
-	"FFLAGS_OPT = -real-size 64 -O3 -convert big_endian -FR" \
+	"FFLAGS_PROMOTION = -real-size 64" \
+	"FFLAGS_OPT = -O3 -convert big_endian -FR" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
-	"FFLAGS_DEBUG = -real-size 64 -g -convert big_endian -FR -CU -CB -check all -fpe0 -traceback" \
+	"FFLAGS_DEBUG = -g -convert big_endian -FR -CU -CB -check all -fpe0 -traceback" \
 	"CFLAGS_DEBUG = -g -fpe0 -traceback" \
 	"CXXFLAGS_DEBUG = -g -fpe0 -traceback" \
 	"LDFLAGS_DEBUG = -g -fpe0 -traceback" \
@@ -193,11 +200,12 @@ ifort-gcc:
 	"FC_SERIAL = ifort" \
 	"CC_SERIAL = gcc" \
 	"CXX_SERIAL = g++" \
-	"FFLAGS_OPT = -real-size 64 -O3 -convert big_endian -FR" \
+	"FFLAGS_PROMOTION = -real-size 64" \
+	"FFLAGS_OPT = -O3 -convert big_endian -FR" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
-	"FFLAGS_DEBUG = -real-size 64 -g -convert big_endian -FR -CU -CB -check all -fpe0 -traceback" \
+	"FFLAGS_DEBUG = -g -convert big_endian -FR -CU -CB -check all -fpe0 -traceback" \
 	"CFLAGS_DEBUG = -g" \
 	"CXXFLAGS_DEBUG = -g" \
 	"LDFLAGS_DEBUG = -g -fpe0 -traceback" \
@@ -217,11 +225,12 @@ gfortran:
 	"FC_SERIAL = gfortran" \
 	"CC_SERIAL = gcc" \
 	"CXX_SERIAL = g++" \
-	"FFLAGS_OPT = -O3 -m64 -ffree-line-length-none -fdefault-real-8 -fdefault-double-8 -fconvert=big-endian -ffree-form" \
+	"FFLAGS_PROMOTION = -fdefault-real-8 -fdefault-double-8" \
+	"FFLAGS_OPT = -O3 -m64 -ffree-line-length-none -fconvert=big-endian -ffree-form" \
 	"CFLAGS_OPT = -O3 -m64" \
 	"CXXFLAGS_OPT = -O3 -m64" \
 	"LDFLAGS_OPT = -O3 -m64" \
-	"FFLAGS_DEBUG = -g -m64 -ffree-line-length-none -fdefault-real-8 -fdefault-double-8 -fconvert=big-endian -ffree-form -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,overflow" \
+	"FFLAGS_DEBUG = -g -m64 -ffree-line-length-none -fconvert=big-endian -ffree-form -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,overflow" \
 	"CFLAGS_DEBUG = -g -m64" \
 	"CXXFLAGS_DEBUG = -O3 -m64" \
 	"LDFLAGS_DEBUG = -g -m64" \
@@ -241,7 +250,8 @@ g95:
 	"FC_SERIAL = g95" \
 	"CC_SERIAL = gcc" \
 	"CXX_SERIAL = g++" \
-	"FFLAGS_OPT = -O3 -ffree-line-length-huge -r8 -fendian=big" \
+	"FFLAGS_PROMOTION = -r8" \
+	"FFLAGS_OPT = -O3 -ffree-line-length-huge -fendian=big" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
@@ -261,7 +271,8 @@ pathscale-nersc:
 	"FC_SERIAL = ftn" \
 	"CC_SERIAL = cc" \
 	"CXX_SERIAL = CC" \
-	"FFLAGS_OPT = -r8 -O3 -freeform -extend-source" \
+	"FFLAGS_PROMOTION = -r8" \
+	"FFLAGS_OPT = -O3 -freeform -extend-source" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
@@ -281,7 +292,8 @@ cray-nersc:
 	"FC_SERIAL = ftn" \
 	"CC_SERIAL = cc" \
 	"CXX_SERIAL = CC" \
-	"FFLAGS_OPT = -default64 -O3 -f free" \
+	"FFLAGS_PROMOTION = -default64" \
+	"FFLAGS_OPT = -O3 -f free" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
@@ -301,11 +313,12 @@ gnu-nersc:
 	"FC_SERIAL = ftn" \
 	"CC_SERIAL = cc" \
 	"CXX_SERIAL = CC" \
-	"FFLAGS_OPT = -O3 -m64 -ffree-line-length-none -fdefault-real-8 -fdefault-double-8 -fconvert=big-endian -ffree-form" \
+	"FFLAGS_PROMOTION = -fdefault-real-8 -fdefault-double-8" \
+	"FFLAGS_OPT = -O3 -m64 -ffree-line-length-none -fconvert=big-endian -ffree-form" \
 	"CFLAGS_OPT = -O3 -m64" \
 	"CXXFLAGS_OPT = -O3 -m64" \
 	"LDFLAGS_OPT = -O3 -m64" \
-	"FFLAGS_DEBUG = -g -m64 -ffree-line-length-none -fdefault-real-8 -fdefault-double-8 -fconvert=big-endian -ffree-form" \
+	"FFLAGS_DEBUG = -g -m64 -ffree-line-length-none -fconvert=big-endian -ffree-form" \
 	"CFLAGS_DEBUG = -g -m64" \
 	"CXXFLAGS_DEBUG = -g -m64" \
 	"LDFLAGS_DEBUG = -g -m64" \
@@ -323,7 +336,8 @@ intel-nersc:
 	"FC_SERIAL = ftn" \
 	"CC_SERIAL = cc" \
 	"CXX_SERIAL = CC" \
-	"FFLAGS_OPT = -real-size 64 -O3 -convert big_endian -FR" \
+	"FFLAGS_PROMOTION = -real-size 64" \
+	"FFLAGS_OPT = -O3 -convert big_endian -FR" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
@@ -347,11 +361,12 @@ bluegene:
 	"FC_SERIAL = bgxlf95_r" \
 	"CC_SERIAL = bgxlc_r" \
 	"CXX_SERIAL = bgxlc++_r" \
-	"FFLAGS_OPT = -O2 -g -qrealsize=8" \
+	"FFLAGS_PROMOTION = -qrealsize=8" \
+	"FFLAGS_OPT = -O2 -g" \
 	"CFLAGS_OPT = -O2 -g" \
 	"CXXFLAGS_OPT = -O2 -g" \
 	"LDFLAGS_OPT = -O2 -g" \
-	"FFLAGS_DEBUG = -O0 -g -C -qinitalloc -qinitauto -qrealsize=8" \
+	"FFLAGS_DEBUG = -O0 -g -C -qinitalloc -qinitauto" \
 	"CFLAGS_DEBUG = -O0 -g" \
 	"CXXFLAGS_DEBUG = -O0 -g" \
 	"LDFLAGS_DEBUG = -O0 -g" \
@@ -367,13 +382,25 @@ CPPINCLUDES =
 FCINCLUDES = 
 LIBS = 
 ifneq ($(wildcard $(PIO)/lib), ) # Check for newer PIO version
+ifeq "$(USE_PIO2)" "true"
+	CPPINCLUDES = -DUSE_PIO2 -I$(PIO)/include
+	FCINCLUDES = -DUSE_PIO2 -I$(PIO)/include
+	LIBS = -L$(PIO)/lib -lpiof -lpioc
+else
 	CPPINCLUDES = -I$(PIO)/include
 	FCINCLUDES = -I$(PIO)/include
 	LIBS = -L$(PIO)/lib -lpio
+endif
+else
+ifeq "$(USE_PIO2)" "true"
+	CPPINCLUDES = -DUSE_PIO2 -I$(PIO)/include
+	FCINCLUDES = -DUSE_PIO2 -I$(PIO)/include
+	LIBS = -L$(PIO) -lpiof -lpioc
 else
 	CPPINCLUDES = -I$(PIO)
 	FCINCLUDES = -I$(PIO)
 	LIBS = -L$(PIO) -lpio
+endif
 endif
 
 ifneq "$(PNETCDF)" ""
@@ -458,6 +485,17 @@ ifeq "$(OPENMP)" "true"
 	LDFLAGS += $(FFLAGS_OMP)
 endif #OPENMP IF
 
+ifeq "$(PRECISION)" "single"
+	FFLAGS += "-DSINGLE_PRECISION"
+	CFLAGS += "-DSINGLE_PRECISION"
+	CXXFLAGS += "-DSINGLE_PRECISION"
+	override CPPFLAGS += "-DSINGLE_PRECISION"
+	PRECISION_MESSAGE="MPAS was built with default single-precision reals."
+else
+	FFLAGS += $(FFLAGS_PROMOTION)
+	PRECISION_MESSAGE="MPAS was built with default double-precision reals."
+endif #PRECISION IF
+
 ifeq "$(USE_PAPI)" "true"
 	CPPINCLUDES += -I$(PAPI)/include -D_PAPI
 	FCINCLUDES += -I$(PAPI)/include
@@ -466,6 +504,12 @@ ifeq "$(USE_PAPI)" "true"
 else # USE_PAPI IF
 	PAPI_MESSAGE="Papi libraries are off."
 endif # USE_PAPI IF
+
+ifeq "$(USE_PIO2)" "true"
+	PIO_MESSAGE="Using the PIO 2 library."
+else # USE_PIO2 IF
+	PIO_MESSAGE="Using the PIO 1.x library."
+endif # USE_PIO2 IF
 
 ifdef TIMER_LIB
 ifeq "$(TIMER_LIB)" "tau"
@@ -628,6 +672,7 @@ endif
 	if [ -e src/$(EXE_NAME) ]; then mv src/$(EXE_NAME) .; fi
 	( cd src/core_$(CORE); $(MAKE) ROOT_DIR="$(PWD)" post_build )
 	@echo "*******************************************************************************"
+	@echo $(PRECISION_MESSAGE)
 	@echo $(DEBUG_MESSAGE)
 	@echo $(PARALLEL_MESSAGE)
 	@echo $(PAPI_MESSAGE)
@@ -638,6 +683,7 @@ ifeq "$(AUTOCLEAN)" "true"
 endif
 	@echo $(GEN_F90_MESSAGE)
 	@echo $(TIMER_MESSAGE)
+	@echo $(PIO_MESSAGE)
 	@echo "*******************************************************************************"
 clean:
 	cd src; $(MAKE) clean RM="$(RM)" CORE="$(CORE)"
@@ -713,6 +759,8 @@ errmsg:
 	@echo "                    TIMER_LIB=gptl - Uses gptl for the timer interface instead of the native interface"
 	@echo "                    TIMER_LIB=tau - Uses TAU for the timer interface instead of the native interface"
 	@echo "    OPENMP=true   - builds and links with OpenMP flags. Default is to not use OpenMP."
+	@echo "    USE_PIO2=true - links with the PIO 2 library. Default is to use the PIO 1.x library."
+	@echo "    PRECISION=single - builds with default single-precision real kind. Default is to use double-precision."
 	@echo ""
 	@echo "Ensure that NETCDF, PNETCDF, PIO, and PAPI (if USE_PAPI=true) are environment variables"
 	@echo "that point to the absolute paths for the libraries."

@@ -13,7 +13,7 @@
 !> \author Doug Jacobsen, Mark Petersen, Todd Ringler
 !> \date   September 2011
 !> \details
-!>  This module contains initialization and timestep drivers for 
+!>  This module contains initialization and timestep drivers for
 !>  the MPAS ocean core.
 !
 !-----------------------------------------------------------------------
@@ -33,6 +33,8 @@ module ocn_init_mode
 
    use ocn_init_routines
 
+   use ocn_equation_of_state
+
    use ocn_constants
 
    use ocn_init_spherical_utils
@@ -51,14 +53,13 @@ module ocn_init_mode
    use ocn_init_periodic_planar
    use ocn_init_ecosys_column
    use ocn_init_sea_mount
+   use ocn_init_isomip
 
    implicit none
    private
 
    public :: ocn_init_mode_init, ocn_init_mode_run, ocn_init_mode_finalize
    public :: ocn_init_mode_setup_clock, ocn_init_mode_validate_configuration
-
-   type (timer_node), pointer :: globalDiagTimer, timeIntTimer, testSuiteTimer
 
    contains
 
@@ -69,7 +70,7 @@ module ocn_init_mode
 !> \brief   Initialize MPAS-Ocean core in init mode
 !> \author  Doug Jacobsen
 !> \date    06/15/2015
-!> \details 
+!> \details
 !>  This function calls all initializations required to start MPAS-Ocean in
 !>  init mode.
 !
@@ -106,14 +107,14 @@ module ocn_init_mode
       ! Set startTimeStamp based on the start time of the simulation clock
       !
       startTime = mpas_get_clock_time(domain % clock, MPAS_START_TIME, err_tmp)
-      call mpas_get_time(startTime, dateTimeString=startTimeStamp) 
+      call mpas_get_time(startTime, dateTimeString=startTimeStamp)
       ierr = ior(ierr, err_tmp)
 
       ! Setup ocean config pool
       call ocn_constants_init(domain % configs, domain % packages)
 
       if ( ierr /= 0 ) then
-         call mpas_dmpar_global_abort("ERROR: Failed validation...")
+         call mpas_dmpar_global_abort("MPAS-ocean: ERROR: Failed validation...")
       end if
 
       !
@@ -128,6 +129,23 @@ module ocn_init_mode
    !  call mpas_stream_mgr_reset_alarms(domain % streamManager, direction=MPAS_STREAM_OUTPUT, ierr=err_tmp)
       call mpas_timer_stop('reset_io_alarms')
 
+      ! Read the remaining input streams
+      call mpas_timer_start('io_read', .false.)
+      call mpas_stream_mgr_read(domain % streamManager, ierr=err_tmp)
+      ierr = ior(ierr, err_tmp)
+      call mpas_timer_stop('io_read')
+      call mpas_timer_start('reset_io_alarms', .false.)
+      call mpas_stream_mgr_reset_alarms(domain % streamManager, direction=MPAS_STREAM_INPUT, ierr=err_tmp)
+      ierr = ior(ierr, err_tmp)
+      call mpas_timer_stop('reset_io_alarms')
+
+      ! Initialize submodules before initializing blocks.
+      call ocn_equation_of_state_init(err_tmp)
+      ierr = ior(ierr, err_tmp)
+      if(ierr.eq.1) then
+          call mpas_dmpar_global_abort('MPAS-ocean: ERROR: An error was encountered while initializing the MPAS-Ocean init mode')
+      endif
+
       !
       ! Initialize core
       !
@@ -138,7 +156,7 @@ module ocn_init_mode
       do while (associated(block))
          call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
          call mpas_pool_get_array(diagnosticsPool, 'xtime', xtime)
-         xtime = startTimeStamp 
+         xtime = startTimeStamp
          block => block % next
       end do
 
@@ -154,7 +172,7 @@ module ocn_init_mode
 !> \brief   Setup MPAS-Ocean clock
 !> \author  Doug Jacobsen
 !> \date    06/15/2015
-!> \details 
+!> \details
 !>  This function initializes the MPAS-Ocean clock for the init mode.
 !
 !-----------------------------------------------------------------------
@@ -211,7 +229,7 @@ module ocn_init_mode
 !> \brief   MPAS-Ocean init mode run step
 !> \author  Doug Jacobsen
 !> \date    06/15/2015
-!> \details 
+!> \details
 !>  This function sets up the initial configuration using the MPAS-Ocean init
 !>  mode.
 !
@@ -221,7 +239,7 @@ module ocn_init_mode
 
       type (domain_type), intent(inout) :: domain
       integer :: iErr
-   
+
       integer :: itimestep
       real (kind=RKIND) :: dt
       type (block_type), pointer :: block_ptr
@@ -239,7 +257,7 @@ module ocn_init_mode
       character (len=StrKIND), pointer :: config_init_configuration
 
       ierr = 0
-   
+
       ! Eventually, dt should be domain specific
       timeStep = mpas_get_clock_timestep(domain % clock, ierr=ierr)
       call mpas_get_timeInterval(timeStep, dt=dt)
@@ -263,6 +281,7 @@ module ocn_init_mode
       call ocn_init_setup_periodic_planar(domain, ierr)
       call ocn_init_setup_ecosys_column(domain, ierr)
       call ocn_init_setup_sea_mount(domain, ierr)
+      call ocn_init_setup_isomip(domain, ierr)
       !call ocn_init_setup_TEMPLATE(domain, ierr)
 
       write(stderrUnit, *) ' Completed setup of: ' // trim(config_init_configuration)
@@ -282,15 +301,15 @@ module ocn_init_mode
 !> \brief   MPAS-Ocean init mode run step
 !> \author  Doug Jacobsen
 !> \date    06/15/2015
-!> \details 
+!> \details
 !>  This function sets up the initial configuration using the MPAS-Ocean init
 !>  mode.
 !
 !-----------------------------------------------------------------------
-   
+
    function ocn_init_mode_finalize(domain) result(iErr)!{{{
-   
-      type (domain_type), intent(inout) :: domain 
+
+      type (domain_type), intent(inout) :: domain
       integer :: ierr
 
       iErr = 0
@@ -308,7 +327,7 @@ module ocn_init_mode
 !> \brief   Configuration validation routine
 !> \author  Doug Jacobsen
 !> \date    03/20/2015
-!> \details 
+!> \details
 !>  This routine is used to validate the namelist options against the
 !>  configuration definition. It will call the validate routines for each of the
 !>  configurations to ensure namelist options are set in a valid way.
@@ -362,7 +381,9 @@ module ocn_init_mode
       iErr = ior(iErr, err_tmp)
       call ocn_init_validate_sea_mount(configPool, packagePool, iocontext, iErr=err_tmp)
       iErr = ior(iErr, err_tmp)
-      ! call ocn_config_TEMPLATE_validate(configPool, packagePool, iocontext, iErr=err_tmp)
+      call ocn_init_validate_isomip(configPool, packagePool, iocontext, iErr=err_tmp)
+      iErr = ior(iErr, err_tmp)
+      ! call ocn_init_validate_TEMPLATE(configPool, packagePool, iocontext, iErr=err_tmp)
       ! iErr = ior(iErr, err_tmp)
    end subroutine ocn_init_mode_validate_configuration!}}}
 

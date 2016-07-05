@@ -69,7 +69,7 @@ contains
 !> \brief   Initializes forcing module
 !> \author  Doug Jacobsen
 !> \date    12/13/12
-!> \details 
+!> \details
 !>  This routine initializes the forcing modules.
 !
 !-----------------------------------------------------------------------
@@ -89,7 +89,7 @@ contains
 !> \brief   fraction absorbed coefficient array for surface forcing.
 !> \author  Doug Jacobsen
 !> \date    10/03/2013
-!> \details 
+!> \details
 !>  This subroutine builds the fractionAbsorbed coefficient array for use in
 !>  applying surface fluxes deeper than the surface layer.
 !
@@ -112,7 +112,8 @@ contains
         real (kind=RKIND) :: zTop, zBot, transmissionCoeffTop, transmissionCoeffBot
 
         real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficient
-        real (kind=RKIND), dimension(:,:), pointer :: layerThickness, fractionAbsorbed
+        real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientRunoff
+        real (kind=RKIND), dimension(:,:), pointer :: layerThickness, fractionAbsorbed, fractionAbsorbedRunoff
 
         integer :: iCell, k, timeLevel
         integer, pointer :: nCells
@@ -134,8 +135,11 @@ contains
         call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
 
         call mpas_pool_get_array(diagnosticsPool, 'surfaceFluxAttenuationCoefficient', surfaceFluxAttenuationCoefficient)
+        call mpas_pool_get_array(diagnosticsPool, 'surfaceFluxAttenuationCoefficientRunoff',  &
+                                                   surfaceFluxAttenuationCoefficientRunoff)
 
         call mpas_pool_get_array(forcingPool, 'fractionAbsorbed', fractionAbsorbed)
+        call mpas_pool_get_array(forcingPool, 'fractionAbsorbedRunoff', fractionAbsorbedRunoff)
 
         do iCell = 1, nCells
            zTop = 0.0_RKIND
@@ -151,6 +155,22 @@ contains
            end do
         end do
 
+!  now do river runoff separately
+
+        do iCell = 1, nCells
+           zTop = 0.0_RKIND
+           transmissionCoeffTop = ocn_forcing_transmission(zTop, surfaceFluxAttenuationCoefficientRunoff(iCell))
+           do k = 1, maxLevelCell(iCell)
+              zBot = zTop - layerThickness(k,iCell)
+              transmissionCoeffBot = ocn_forcing_transmission(zBot, surfaceFluxAttenuationCoefficientRunoff(iCell))
+
+              fractionAbsorbedRunoff(k, iCell) = transmissionCoeffTop - transmissionCoeffBot
+
+              zTop = zBot
+              transmissionCoeffTop = transmissionCoeffBot
+           end do
+        end do
+
     end subroutine ocn_forcing_build_fraction_absorbed_array!}}}
 
 !***********************************************************************
@@ -160,7 +180,7 @@ contains
 !> \brief   Transmission coefficient for surface forcing.
 !> \author  Doug Jacobsen
 !> \date    05/03/2013
-!> \details 
+!> \details
 !>  This function computes and returns the transmission coefficient for surface
 !>  forcing based on depth. It uses an exponential decay function to determine the
 !>  coefficients.
@@ -170,7 +190,7 @@ contains
    real (kind=RKIND) function ocn_forcing_transmission(z, attenuationCoefficient)!{{{
       real (kind=RKIND), intent(in) :: z, attenuationCoefficient
 
-      ocn_forcing_transmission = exp( z / attenuationCoefficient )
+      ocn_forcing_transmission = exp( max(z / attenuationCoefficient, -100.0_RKIND) )
 
    end function ocn_forcing_transmission!}}}
 
