@@ -35,7 +35,7 @@
 	<namelist name="namelist.ocean" mode="init">
 		<template file="template_init2.xml" path_base="script_configuration_dir"/>
 		<template file="template_init_with_land_ice.xml" path_base="script_configuration_dir"/>
-		<option name="config_read_ssh_and_ssp_from_stream">.true.</option>
+		<option name="config_effective_density_from_top">.true.</option>
 	</namelist>
 
 	<streams name="streams.ocean" keep="immutable" mode="init">

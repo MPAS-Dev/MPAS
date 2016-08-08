@@ -9,7 +9,7 @@
 	<namelist name="namelist.ocean" mode="init">
 		<template file="template_init.xml" path_base="script_configuration_dir"/>
 		<option name="config_write_cull_cell_mask">.false.</option>
-		<option name="config_read_ssh_and_ssp_from_stream">.true.</option>
+		<option name="config_effective_density_from_top">.true.</option>
 	</namelist>
 
 	<streams name="streams.ocean" keep="immutable" mode="init">
