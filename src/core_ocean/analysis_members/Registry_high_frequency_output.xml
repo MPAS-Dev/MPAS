@@ -7,7 +7,7 @@
 			description="Timestamp determining how often analysis member computation should be performed."
 			possible_values="Any valid time stamp, 'dt', or 'output_interval'"
 		/>
-		<nml_option name="config_AM_highFrequencyOutput_stream_name" type="character" default_value="highFrequencyOutput" units="unitless"
+		<nml_option name="config_AM_highFrequencyOutput_output_stream" type="character" default_value="highFrequencyOutput" units="unitless"
 			description="Name of the stream that the highFrequencyOutput analysis member should be tied to."
 			possible_values="Any existing stream name or 'none'"
 		/>
@@ -27,14 +27,26 @@
 		<var name="kineticEnergyAt100m" type="real" dimensions="nCells Time" units="m^2 s^{-2}"
 			description="kinetic energy at a depth of approximately 100 m"
 		/>
+		<var name="barotropicSpeed" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="speed = sqrt(2*ke), where kinetic energy is computed from barotropic velocity = sum(h*u)/sum(h) over the full depth of an edge"
+		/>
+		<var name="columnIntegratedSpeed" type="real" dimensions="nCells Time" units="m^2 s^{-1}"
+			description="speed = sum(h*sqrt(2*ke)), where ke is kineticEnergyCell and the sum is over the full column at cell centers."
+		/>
 		<var name="relativeVorticityAt100m" type="real" dimensions="nCells Time" units="s^{-1}"
 			description="relative vorticity at cell centers at a depth of approximately 100 m"
 		/>
-		<var_array name="tracersAtSurface" type="real" dimensions="nCells Time">
-			<var name="temperatureAtSurface" array_group="tracersAtSurface" units="^\circ C" name_in_code="temperatureAtSurface"
+		<var name="divergenceAt100m" type="real" dimensions="nCells Time" units="s^{-1}"
+			description="divergence at cell centers at a depth of approximately 100 m"
+		/>
+		<var name="relativeVorticityVertexAt100m" type="real" dimensions="nVertices Time" units="s^{-1}"
+			description="relative vorticity at cell vertices at a depth of approximately 100 m"
+		/>
+		<var_array name="activeTracersAtSurface" type="real" dimensions="nCells Time">
+			<var name="temperatureAtSurface" array_group="activeTracersAtSurface" units="^\circ C" name_in_code="temperatureAtSurface"
 				description="sea surface temperature"
 			/>
-			<var name="salinityAtSurface" array_group="tracersAtSurface" units="PSU" name_in_code="salinityAtSurface"
+			<var name="salinityAtSurface" array_group="activeTracersAtSurface" units="PSU" name_in_code="salinityAtSurface"
 				description="sea surface salinity"
 			/>
 	</var_array>
@@ -52,8 +64,10 @@
 			<stream name="mesh"/>
 			<var name="xtime"/>
 			<var name="kineticEnergyAt100m"/>
+			<var name="barotropicSpeed"/>
+			<var name="columnIntegratedSpeed"/>
 			<var name="relativeVorticityAt100m"/>
-			<var_array name="tracersAtSurface"/>
+			<var_array name="activeTracersAtSurface"/>
 		</stream>
 	</streams>
 

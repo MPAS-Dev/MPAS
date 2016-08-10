@@ -9,19 +9,21 @@
 !
 !  ocn_vel_hmix_del2
 !
-!> \brief Ocean horizontal mixing - Laplacian parameterization 
+!> \brief Ocean horizontal mixing - Laplacian parameterization
 !> \author Mark Petersen, Doug Jacobsen, Todd Ringler
 !> \date   September 2011
 !> \details
-!>  This module contains routines for computing horizontal mixing 
+!>  This module contains routines for computing horizontal mixing
 !>  tendencies using a Laplacian formulation.
 !
 !-----------------------------------------------------------------------
 
 module ocn_vel_hmix_del2
 
+   use mpas_timer
    use mpas_derived_types
    use mpas_pool_routines
+   use mpas_threading
    use mpas_vector_operations
    use mpas_matrix_operations
    use mpas_tensor_operations
@@ -66,7 +68,7 @@ contains
 !> \brief   Computes tendency term for Laplacian horizontal momentum mixing
 !> \author  Mark Petersen, Doug Jacobsen, Todd Ringler
 !> \date    22 August 2011
-!> \details 
+!> \details
 !>  This routine computes the horizontal mixing tendency for momentum
 !>  based on a Laplacian form for the mixing, \f$\nu_2 \nabla^2 u\f$
 !>  This tendency takes the
@@ -92,9 +94,9 @@ contains
 
       type (mpas_pool_type), intent(in) :: &
          meshPool            !< Input: mesh information
-              
+
       !------ -----------------------------------------------------------
-      !       
+      !
       ! input /output variables
       !
       !-----------------------------------------------------------------
@@ -140,6 +142,8 @@ contains
 
       if(.not.hmixDel2On) return
 
+      call mpas_timer_start("vel del2")
+
       call mpas_pool_get_config(ocnConfigs, 'config_mom_del2', config_mom_del2)
 
       call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
@@ -152,19 +156,20 @@ contains
       call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
       call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
 
+      !$omp do schedule(runtime) private(cell1, cell2, vertex1, vertex2, invLength1, invLength2, k, u_diffusion, visc2)
       do iEdge = 1, nEdgesSolve
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
          vertex1 = verticesOnEdge(1,iEdge)
          vertex2 = verticesOnEdge(2,iEdge)
 
-         invLength1 = 1.0 / dcEdge(iEdge)
-         invLength2 = 1.0 / dvEdge(iEdge)
+         invLength1 = 1.0_RKIND / dcEdge(iEdge)
+         invLength2 = 1.0_RKIND / dvEdge(iEdge)
 
          do k = 1, maxLevelEdgeTop(iEdge)
 
             ! Here -( relativeVorticity(k,vertex2) - relativeVorticity(k,vertex1) ) / dvEdge(iEdge)
-            ! is - \nabla relativeVorticity pointing from vertex 2 to vertex 1, or equivalently 
+            ! is - \nabla relativeVorticity pointing from vertex 2 to vertex 1, or equivalently
             !    + k \times \nabla relativeVorticity pointing from cell1 to cell2.
 
             u_diffusion = ( divergence(k,cell2)  - divergence(k,cell1) ) * invLength1 &
@@ -178,6 +183,9 @@ contains
 
          end do
       end do
+      !$omp end do
+
+      call mpas_timer_stop("vel del2")
 
    !--------------------------------------------------------------------
 
@@ -190,9 +198,9 @@ contains
 !> \brief   Computes tendency term for Laplacian horizontal momentum mixing
 !> \author  Mark Petersen
 !> \date    July 2013
-!> \details 
+!> \details
 !>  This routine computes the horizontal mixing tendency for momentum
-!>  using tensor operations, 
+!>  using tensor operations,
 !>  based on a Laplacian form for the mixing, \f$\nabla\cdot( \nu_2 \nabla(u))\f$
 !>  where \f$\nu_2\f$ is a viscosity.
 !
@@ -259,7 +267,7 @@ contains
       type (field3DReal), pointer :: strainRateR3CellField, strainRateR3EdgeField, divTensorR3CellField, outerProductEdgeField
 
       logical, pointer :: config_use_mom_del2_tensor
-      real (kind=RKIND), pointer :: config_mom_del2_tensor 
+      real (kind=RKIND), pointer :: config_mom_del2_tensor
 
       !-----------------------------------------------------------------
       !
@@ -271,6 +279,8 @@ contains
       call mpas_pool_get_config(ocnConfigs, 'config_use_mom_del2_tensor', config_use_mom_del2_tensor)
 
       if ( .not. config_use_mom_del2_tensor ) return
+
+      call mpas_timer_start("vel del2_tensor")
 
       call mpas_pool_get_config(ocnConfigs, 'config_mom_del2_tensor ', config_mom_del2_tensor )
 
@@ -295,6 +305,7 @@ contains
       call mpas_allocate_scratch_field(divTensorR3CellField, .true.)
       call mpas_allocate_scratch_field(outerProductEdgeField, .true.)
       call mpas_allocate_scratch_field(normalVectorEdgeField, .true.)
+      call mpas_threading_barrier()
 
       strainRateR3Cell => strainRateR3CellField % array
       strainRateR3Edge => strainRateR3EdgeField % array
@@ -309,17 +320,19 @@ contains
       call mpas_matrix_cell_to_edge(strainRateR3Cell, meshPool, .true., strainRateR3Edge)
 
       ! The following loop could possibly be reduced to nEdgesSolve
-      do iEdge = 1, nEdges  
+      !$omp do schedule(runtime) private(visc2, k)
+      do iEdge = 1, nEdges
          visc2 = config_mom_del2_tensor * meshScalingDel2(iEdge)
          do k = 1, maxLevelEdgeTop(iEdge)
-            strainRateR3Edge(:,k,iEdge) = visc2 * strainRateR3Edge(:,k,iEdge) 
+            strainRateR3Edge(:,k,iEdge) = visc2 * strainRateR3Edge(:,k,iEdge)
             viscosity(k,iEdge) = viscosity(k,iEdge) + visc2
          end do
          ! Impose zero strain rate at land boundaries
          do k = maxLevelEdgeTop(iEdge)+1, nVertLevels
-            strainRateR3Edge(:,k,iEdge) = 0.0
+            strainRateR3Edge(:,k,iEdge) = 0.0_RKIND
          end do
       end do
+      !$omp end do
 
       ! may change boundaries to false later
       call mpas_divergence_of_tensor_R3Cell(strainRateR3Edge, meshPool, edgeSignOnCell, .true., divTensorR3Cell)
@@ -327,17 +340,22 @@ contains
       call mpas_vector_R3Cell_to_normalVectorEdge(divTensorR3Cell, meshPool, .true., normalVectorEdge)
 
       ! The following loop could possibly be reduced to nEdgesSolve
-      do iEdge = 1, nEdges 
+      !$omp do schedule(runtime) private(k)
+      do iEdge = 1, nEdges
          do k = 1, maxLevelEdgeTop(iEdge)
             tend(k,iEdge) = tend(k,iEdge) + edgeMask(k, iEdge) * normalVectorEdge(k,iEdge)
          end do
       end do
+      !$omp end do
 
+      call mpas_threading_barrier()
       call mpas_deallocate_scratch_field(strainRateR3CellField, .true.)
       call mpas_deallocate_scratch_field(strainRateR3EdgeField, .true.)
       call mpas_deallocate_scratch_field(divTensorR3CellField, .true.)
       call mpas_deallocate_scratch_field(outerProductEdgeField, .true.)
       call mpas_deallocate_scratch_field(normalVectorEdgeField, .true.)
+
+      call mpas_timer_stop("vel del2_tensor")
 
    !--------------------------------------------------------------------
 
@@ -350,9 +368,9 @@ contains
 !> \brief   Initializes ocean momentum Laplacian horizontal mixing
 !> \author  Mark Petersen, Doug Jacobsen, Todd Ringler
 !> \date    September 2011
-!> \details 
-!>  This routine initializes a variety of quantities related to 
-!>  Laplacian horizontal momentum mixing in the ocean.  
+!> \details
+!>  This routine initializes a variety of quantities related to
+!>  Laplacian horizontal momentum mixing in the ocean.
 !
 !-----------------------------------------------------------------------
 
@@ -377,7 +395,7 @@ contains
 
    hmixDel2On = .false.
 
-   if ( config_mom_del2 > 0.0 ) then
+   if ( config_mom_del2 > 0.0_RKIND ) then
       hmixDel2On = .true.
    endif
 

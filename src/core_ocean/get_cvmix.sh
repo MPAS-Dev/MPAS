@@ -1,8 +1,7 @@
 #!/bin/bash
 
 ## CVMix Tag for build
-CVMIX_TAG=v0.64-beta
-
+CVMIX_TAG=v0.84-beta
 ## Subdirectory in CVMix repo to use
 CVMIX_SUBDIR=src/shared
 
@@ -41,16 +40,16 @@ if [ ! -d cvmix ]; then
 
 	if [ "${GIT}" != "" ]; then 
 		echo " ** Using git to acquire cvmix source. ** "
-		PROTOCOL="git https"
-		git clone ${CVMIX_GIT_HTTP_ADDRESS} .cvmix_all &> /dev/null
+		PROTOCOL="git ssh"
+		git clone ${CVMIX_GIT_SSH_ADDRESS} .cvmix_all &> /dev/null
 		if [ -d .cvmix_all ]; then 
 			cd .cvmix_all 
 			git checkout ${CVMIX_TAG} &> /dev/null
 			cd ../ 
 			ln -sf .cvmix_all/${CVMIX_SUBDIR} cvmix 
 		else 
-			git clone ${CVMIX_GIT_SSH_ADDRESS} .cvmix_all &> /dev/null
-			PROTOCOL="git ssh"
+			git clone ${CVMIX_GIT_HTTP_ADDRESS} .cvmix_all &> /dev/null
+			PROTOCOL="git http"
 			if [ -d .cvmix_all ]; then 
 				cd .cvmix_all 
 				git checkout ${CVMIX_TAG} &> /dev/null
