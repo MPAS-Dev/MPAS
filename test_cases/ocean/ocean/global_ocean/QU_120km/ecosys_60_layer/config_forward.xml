@@ -25,7 +25,7 @@
 		<stream name="input">
 			<attribute name="filename_template">init.nc</attribute>
 		</stream>
-		<template file="minimal_output.xml" path_base="script_core_dir" path="templates/streams"/>
+		<template file="minimal_and_ecosys_output.xml" path_base="script_core_dir" path="templates/streams"/>
 		<template file="forcing_data.xml" path_base="script_core_dir" path="templates/streams"/>
 		<template file="shortwave_forcing_data.xml" path_base="script_core_dir" path="templates/streams"/>
 		<template file="global_stats.xml" path_base="script_core_dir" path="templates/analysis_members"/>
