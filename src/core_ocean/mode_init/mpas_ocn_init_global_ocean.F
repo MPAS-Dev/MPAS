@@ -2089,7 +2089,7 @@ contains
        ecosysForcingIC % isVarArray = .false.
        ecosysForcingIC % isPersistent = .true.
        ecosysForcingIC % isActive = .true.
-       ecosysForcingIC % hasTimeDimension = .false.
+       ecosysForcingIC % hasTimeDimension = .true.
        ecosysForcingIC % block => domain % blocklist
 
        ! Add ecosys field to stream

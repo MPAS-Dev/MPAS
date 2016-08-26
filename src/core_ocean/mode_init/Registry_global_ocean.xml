@@ -319,7 +319,7 @@
 					description="Method to interpolate shortwave data to MPAS mesh."
 					possible_values="bilinear_interpolation, nearest_neighbor"
 		/>
-		<nml_option name="config_global_ocean_ecosys_forcing_time_dimname" type="character" default_value="none" units="unitless"
+		<nml_option name="config_global_ocean_ecosys_forcing_time_dimname" type="character" default_value="record" units="unitless"
 					description="Name of the dimension that determines the times in ecosys forcing files."
 					possible_values="Dim name from input files."
 		/>

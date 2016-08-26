@@ -131,6 +131,7 @@
 				<member name="density" type="var"/>
 				<member name="rx1InitSmoothingMask" type="var"/>
 				<member name="verticalStretch" type="var"/>
+				<member name="ecosysAuxiliary" type="var_struct"/>
 			</add_contents>
 		</stream>
 		<stream name="forcing_data_init">
