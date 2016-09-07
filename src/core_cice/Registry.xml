@@ -441,6 +441,7 @@
 		  immutable="true">
 	    <stream name="mesh"/>
 	    <var name="fVertex"/>
+	    <var name="landIceMask"/>
 	  </stream>
 
 	  <stream name="regions"
@@ -498,6 +499,7 @@
 	    <var name="oceanStressCellU"/>
 	    <var name="oceanStressCellV"/>
 	    <var name="seaSurfaceTemperature"/>
+	    <var name="landIceMask"/>
 	    <var name="freezingMeltingPotential"/>
 	    <var name="airOceanDragCoefficientRatio"/>
 	    <var name="skeletalAlgaeConc"/>
