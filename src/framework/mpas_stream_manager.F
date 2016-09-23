@@ -1632,6 +1632,12 @@ module mpas_stream_manager
                    case (MPAS_STREAM_PROPERTY_FILENAME_INTV)
                        stream_cursor % filename_interval = propertyValue
 
+                   case (MPAS_STREAM_PROPERTY_INTERVAL_IN)
+                       stream_cursor % interval_in = propertyValue
+
+                   case (MPAS_STREAM_PROPERTY_INTERVAL_OUT)
+                       stream_cursor % interval_out = propertyValue
+
                    case (MPAS_STREAM_PROPERTY_REF_TIME)
                        call mpas_set_time(stream_cursor % referenceTime, dateTimeString=propertyValue)
 
@@ -2140,7 +2146,7 @@ module mpas_stream_manager
         if (present(streamID)) then
             addedAttribute = .false.
             nullify(stream_cursor)
-            do while (MPAS_stream_list_query(manager % streams, streamID, stream_cursor, ierr=err_local))
+            do while (.not. MPAS_stream_list_query(manager % streams, streamID, stream_cursor, ierr=err_local))
                 addedAttribute = .true.
                 att_pool => stream_cursor % att_pool
                 err_level = mpas_pool_get_error_level()
@@ -2858,7 +2864,7 @@ module mpas_stream_manager
         integer, intent(out) :: ierr
 
         type (MPAS_stream_list_type), pointer :: alarm_cursor
-        type (MPAS_Time_type) :: ref_time
+        type (MPAS_Time_type) :: now_time, ref_time
         type (MPAS_TimeInterval_type) :: temp_interval
         type (MPAS_TimeInterval_type) :: filename_interval
         character (len=StrKIND) :: now_string, time_string
@@ -2868,6 +2874,8 @@ module mpas_stream_manager
         logical :: clobberRecords, clobberFiles, truncateFiles
         integer :: maxRecords, tempRecord
         integer :: local_ierr, threadNum
+        logical :: final_input_only
+        logical :: final_output_only
 
         threadNum = mpas_threading_get_thread_num()
 
@@ -2899,6 +2907,16 @@ module mpas_stream_manager
            alarm_cursor => stream % alarmList_out % head
            do while (associated(alarm_cursor))
                if (mpas_is_alarm_ringing(manager % streamClock, alarm_cursor % name, ierr=local_ierr)) then
+                   if (trim(stream % interval_in) == 'final_only') then
+                       final_input_only = .true.
+                   else
+                       final_input_only = .false.
+                   end if
+                   if (trim(stream % interval_out) == 'final_only') then
+                       final_output_only = .true.
+                   else
+                       final_output_only = .false.
+                   end if
                    ringing_alarm = .true.
                    exit
                end if
@@ -2940,6 +2958,10 @@ module mpas_stream_manager
                if ( stream % filename_interval /= 'none' ) then
                    call mpas_set_timeInterval(filename_interval, timeString=stream % filename_interval)
                    call mpas_build_stream_filename(stream % referenceTime, writeTime, filename_interval, stream % filename_template, blockID, stream % filename, ierr=local_ierr)
+               else if (final_input_only .or. final_output_only) then
+                   now_time = mpas_get_clock_time(manager % streamClock, MPAS_NOW, ierr=local_ierr)
+                   call mpas_get_time(now_time, dateTimeString=time_string)
+                   call mpas_expand_string(time_string, blockID, stream % filename_template, stream % filename)
                else
                    call mpas_get_time(stream % referenceTime, dateTimeString=time_string)
                    call mpas_expand_string(time_string, blockID, stream % filename_template, stream % filename)
@@ -3011,8 +3033,11 @@ module mpas_stream_manager
            else
                if ( stream % filename_interval /= 'none' ) then
                    call mpas_set_timeInterval(filename_interval, timeString=stream % filename_interval)
-    
                    call mpas_build_stream_filename(stream % referenceTime, writeTime, filename_interval, stream % filename_template, blockID, temp_filename, ierr=local_ierr)
+               else if (final_input_only .or. final_output_only) then
+                   now_time = mpas_get_clock_time(manager % streamClock, MPAS_NOW, ierr=local_ierr)
+                   call mpas_get_time(now_time, dateTimeString=time_string)
+                   call mpas_expand_string(time_string, blockID, stream % filename_template, temp_filename)
                else
                    call mpas_get_time(stream % referenceTime, dateTimeString=time_string)
                    call mpas_expand_string(time_string, blockID, stream % filename_template, temp_filename)
@@ -3906,13 +3931,13 @@ module mpas_stream_manager
            direction = -1
         end if
 
-!       call mpas_get_time(when, dateTimeString=temp_string)
+        call mpas_get_time(when, dateTimeString=temp_string)
         STREAM_DEBUG_WRITE(' ** when is: ' COMMA trim(temp_string))
 
-!       call mpas_get_time(ref_time, dateTimeString=temp_string)
+        call mpas_get_time(ref_time, dateTimeString=temp_string)
         STREAM_DEBUG_WRITE(' ** ref_time is: ' COMMA trim(temp_string))
 
-!       call mpas_get_timeInterval(intv, timeString=temp_string)
+        call mpas_get_timeInterval(intv, timeString=temp_string)
         STREAM_DEBUG_WRITE(' ** intv is: ' COMMA trim(temp_string))
 
         call mpas_interval_division(ref_time, intv, filename_interval, nrecs, rem) 
@@ -4295,8 +4320,8 @@ module mpas_stream_manager
         end if
 
     end function stream_active_pkg_check !}}}
-
-
+    
+    
     !-----------------------------------------------------------------------
     !  routine parse_package_list
     !
@@ -5545,19 +5570,22 @@ end module mpas_stream_manager
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filename_c, filename_intv_c, ref_time_c, rec_intv_c, &
-                                      immutable_c, precision_c, clobber_c, iotype_c, ierr_c) bind(c) !{{{
+subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filename_c, filename_intv_c, interval_in_c, interval_out_c, &
+                                      ref_time_c, rec_intv_c, immutable_c, precision_c, clobber_c, iotype_c, ierr_c) bind(c) !{{{
 
     use mpas_c_interfacing, only : mpas_c_to_f_string
     use iso_c_binding, only : c_char, c_int, c_ptr, c_f_pointer
-    use mpas_derived_types, only : MPAS_streamManager_type, &
+    use mpas_derived_types, only : MPAS_streamManager_type, MPAS_TimeInterval_type, &
                                         MPAS_STREAM_MGR_NOERR, MPAS_STREAM_PROPERTY_FILENAME, &
                                         MPAS_STREAM_PROPERTY_FILENAME_INTV, MPAS_STREAM_PROPERTY_REF_TIME, &
                                         MPAS_STREAM_PROPERTY_RECORD_INTV, MPAS_STREAM_PROPERTY_PRECISION, &
                                         MPAS_STREAM_PROPERTY_CLOBBER, MPAS_STREAM_CLOBBER_NEVER, MPAS_STREAM_CLOBBER_APPEND, &
-                                        MPAS_STREAM_CLOBBER_TRUNCATE, MPAS_STREAM_CLOBBER_OVERWRITE, MPAS_STREAM_PROPERTY_IOTYPE
+                                        MPAS_STREAM_CLOBBER_TRUNCATE, MPAS_STREAM_CLOBBER_OVERWRITE, MPAS_STREAM_PROPERTY_IOTYPE, &
+                                        MPAS_STREAM_PROPERTY_INTERVAL_IN, MPAS_STREAM_PROPERTY_INTERVAL_OUT, &
+                                        MPAS_STREAM_PROPERTY_ACTIVE
     use mpas_stream_manager, only : MPAS_stream_mgr_create_stream, MPAS_stream_mgr_set_property
     use mpas_kind_types, only : StrKIND
+    use mpas_timekeeping
     use mpas_io, only : MPAS_IO_SINGLE_PRECISION, MPAS_IO_DOUBLE_PRECISION, MPAS_IO_NATIVE_PRECISION, &
                         MPAS_IO_NETCDF, MPAS_IO_PNETCDF, MPAS_IO_NETCDF4, MPAS_IO_PNETCDF5
     use mpas_io_units, only : stderrUnit
@@ -5569,6 +5597,8 @@ subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filena
     integer(kind=c_int) :: direction_c
     character(kind=c_char) :: filename_c(*)
     character(kind=c_char) :: filename_intv_c(*)
+    character(kind=c_char) :: interval_in_c(*)
+    character(kind=c_char) :: interval_out_c(*)
     character(kind=c_char) :: ref_time_c(*)
     character(kind=c_char) :: rec_intv_c(*)
     integer(kind=c_int) :: immutable_c
@@ -5578,7 +5608,7 @@ subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filena
     integer(kind=c_int) :: ierr_c
 
     type (MPAS_streamManager_type), pointer :: manager
-    character(len=StrKIND) :: streamID, filename, filename_interval, reference_time, record_interval
+    character(len=StrKIND) :: streamID, filename, filename_interval, interval_in, interval_out, reference_time, record_interval
     integer :: direction, immutable, prec, ierr
     integer :: clobber_mode, iotype
 
@@ -5587,6 +5617,8 @@ subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filena
     direction = direction_c
     call mpas_c_to_f_string(filename_c, filename)
     call mpas_c_to_f_string(filename_intv_c, filename_interval)
+    call mpas_c_to_f_string(interval_in_c, interval_in)
+    call mpas_c_to_f_string(interval_out_c, interval_out)
     call mpas_c_to_f_string(ref_time_c, reference_time)
     call mpas_c_to_f_string(rec_intv_c, record_interval)
     immutable = immutable_c
@@ -5652,6 +5684,9 @@ subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filena
                                            clobberMode=clobber_mode, ioType=iotype, ierr=ierr)
     end if
 
+    call MPAS_stream_mgr_set_property(manager, streamID, MPAS_STREAM_PROPERTY_INTERVAL_IN, interval_in, ierr=ierr)
+    call MPAS_stream_mgr_set_property(manager, streamID, MPAS_STREAM_PROPERTY_INTERVAL_OUT, interval_out, ierr=ierr)
+
     if (reference_time /= 'initial_time') then
         call MPAS_stream_mgr_set_property(manager, streamID, MPAS_STREAM_PROPERTY_REF_TIME, reference_time, ierr=ierr)
     end if
@@ -5662,6 +5697,10 @@ subroutine stream_mgr_create_stream_c(manager_c, streamID_c, direction_c, filena
 
     if (trim(filename_interval) /= 'none') then
         call MPAS_stream_mgr_set_property(manager, streamID, MPAS_STREAM_PROPERTY_FILENAME_INTV, filename_interval, ierr=ierr)
+    end if
+
+    if (direction_c == 4) then
+       call MPAS_stream_mgr_set_property(manager, streamID, MPAS_STREAM_PROPERTY_ACTIVE, .false., ierr=ierr)
     end if
 
     if (ierr == MPAS_STREAM_MGR_NOERR) then
@@ -5813,7 +5852,8 @@ subroutine stream_mgr_add_alarm_c(manager_c, streamID_c, direction_c, alarmTime_
     use mpas_c_interfacing, only : mpas_c_to_f_string
     use iso_c_binding, only : c_char, c_int, c_ptr, c_f_pointer
     use mpas_derived_types, only : MPAS_streamManager_type, MPAS_Clock_type, MPAS_Time_type, MPAS_TimeInterval_type, &
-                                        MPAS_STREAM_MGR_NOERR, MPAS_STREAM_INPUT, MPAS_STREAM_OUTPUT, MPAS_START_TIME
+                                   MPAS_STREAM_MGR_NOERR, MPAS_STREAM_INPUT, MPAS_STREAM_OUTPUT, MPAS_START_TIME, &
+                                   MPAS_STOP_TIME
     use mpas_stream_manager, only : MPAS_stream_mgr_get_clock, MPAS_stream_mgr_add_alarm
     use mpas_kind_types, only : StrKIND
     use mpas_timekeeping, only : mpas_add_clock_alarm, mpas_set_time, mpas_set_timeInterval, mpas_get_clock_time
@@ -5858,13 +5898,15 @@ subroutine stream_mgr_add_alarm_c(manager_c, streamID_c, direction_c, alarmTime_
 
     call MPAS_stream_mgr_get_clock(manager, clock)
 
-    if (trim(alarmTime) == 'start') then
+    if (trim(alarmTime) == 'start' .and. trim(alarmInterval) == 'final_only') then
+        alarmTime_local = mpas_get_clock_time(clock, MPAS_STOP_TIME, ierr=ierr)
+    else if (trim(alarmTime) == 'start') then
         alarmTime_local = mpas_get_clock_time(clock, MPAS_START_TIME, ierr=ierr)
     else
         call mpas_set_time(alarmTime_local, dateTimeString=alarmTime)
     end if
 
-    if (trim(alarmInterval) == 'initial_only') then
+    if (trim(alarmInterval) == 'initial_only' .or. trim(alarmInterval) == 'final_only') then
         call mpas_add_clock_alarm(clock, alarmID, alarmTime_local, ierr=ierr)
     else
         call mpas_set_timeInterval(alarmInterval_local, timeString=alarmInterval)
