@@ -20,6 +20,7 @@
 
 module ocn_vel_hmix_del4
 
+   use mpas_timer
    use mpas_derived_types
    use mpas_pool_routines
    use mpas_threading
@@ -121,8 +122,9 @@ contains
       !-----------------------------------------------------------------
 
       integer :: iEdge, cell1, cell2, vertex1, vertex2, k, i
-      integer :: iCell, iVertex
-      integer, pointer :: nVertices, nVertLevels, nCells, nEdges, nEdgesSolve, vertexDegree
+      integer :: iCell, iVertex, nEdges, nCells, nVertices
+      integer, pointer :: nVertLevels, vertexDegree
+      integer, dimension(:), pointer :: nEdgesArray, nCellsArray, nVerticesArray
 
       integer, dimension(:), pointer :: maxLevelEdgeTop, maxLevelVertexTop, &
             maxLevelCell, nEdgesOnCell
@@ -144,13 +146,14 @@ contains
 
       if(.not.hmixDel4On) return
 
+      call mpas_timer_start("vel del4")
+
       call mpas_pool_get_config(ocnConfigs, 'config_mom_del4', config_mom_del4)
       call mpas_pool_get_config(ocnConfigs, 'config_mom_del4_div_factor', config_mom_del4_div_factor)
 
-      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
-      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
-      call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
-      call mpas_pool_get_dimension(meshPool, 'nVertices', nVertices)
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+      call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
+      call mpas_pool_get_dimension(meshPool, 'nVerticesArray', nVerticesArray)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       call mpas_pool_get_dimension(meshPool, 'vertexDegree', vertexDegree)
 
@@ -174,14 +177,16 @@ contains
       call mpas_pool_get_field(scratchPool, 'delsq_u', delsq_uField)
       call mpas_pool_get_field(scratchPool, 'delsq_divergence', delsq_divergenceField)
       call mpas_pool_get_field(scratchPool, 'delsq_relativeVorticity', delsq_relativeVorticityField)
-      call mpas_allocate_scratch_field(delsq_uField, .true.)
-      call mpas_allocate_scratch_field(delsq_divergenceField, .true.)
-      call mpas_allocate_scratch_field(delsq_relativeVorticityField, .true.)
+      call mpas_allocate_scratch_field(delsq_uField, .true., .false.)
+      call mpas_allocate_scratch_field(delsq_divergenceField, .true., .false.)
+      call mpas_allocate_scratch_field(delsq_relativeVorticityField, .true., .false.)
       call mpas_threading_barrier()
 
       delsq_u => delsq_uField % array
       delsq_divergence => delsq_divergenceField % array
       delsq_relativeVorticity => delsq_relativeVorticityField % array
+
+      nEdges = nEdgesArray( 3 )
 
       !Compute delsq_u
       !$omp do schedule(runtime) private(cell1, cell2, vertex1, vertex2, invDcEdge, invDvEdge)
@@ -204,6 +209,8 @@ contains
       end do
       !$omp end do
 
+      nVertices = nVerticesArray( 2 )
+
       ! Compute delsq_relativeVorticity
       !$omp do schedule(runtime) private(invAreaTri1, i, iEdge, k)
       do iVertex = 1, nVertices
@@ -218,6 +225,8 @@ contains
          end do
       end do
       !$omp end do
+
+      nCells = nCellsArray( 2 )
 
       ! Compute delsq_divergence
       !$omp do schedule(runtime) private(invAreaCell1, i, iEdge, k)
@@ -234,10 +243,12 @@ contains
       end do
       !$omp end do
 
+      nEdges = nEdgesArray( 1 )
+
       ! Compute - \kappa \nabla^4 u
       ! as  \nabla div(\nabla^2 u) + k \times \nabla ( k \cross curl(\nabla^2 u) )
       !$omp do schedule(runtime) private(cell1, cell2, vertex1, vertex2, invDcEdge, invDvEdge, r_tmp, u_diffusion, k)
-      do iEdge=1,nEdgesSolve
+      do iEdge = 1, nEdges
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
          vertex1 = verticesOnEdge(1,iEdge)
@@ -260,6 +271,8 @@ contains
       call mpas_deallocate_scratch_field(delsq_uField, .true.)
       call mpas_deallocate_scratch_field(delsq_divergenceField, .true.)
       call mpas_deallocate_scratch_field(delsq_relativeVorticityField, .true.)
+
+      call mpas_timer_stop("vel del4")
 
    !--------------------------------------------------------------------
 
@@ -327,8 +340,9 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, k
-      integer, pointer :: nEdgesSolve, nEdges, nVertLevels
+      integer :: iEdge, k, nEdges
+      integer, pointer :: nVertLevels
+      integer, dimension(:), pointer :: nEdgesArray
       integer, dimension(:), pointer :: maxLevelEdgeTop
       integer, dimension(:,:), pointer :: edgeMask, edgeSignOnCell
 
@@ -357,11 +371,12 @@ contains
 
       if(.not.config_use_mom_del4_tensor) return
 
+      call mpas_timer_start("vel del4_tensor")
+
       call mpas_pool_get_config(ocnConfigs, 'config_mom_del4_tensor', config_mom_del4_tensor)
 
-      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
+      call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-      call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
       call mpas_pool_get_array(meshPool, 'meshScalingDel4', meshScalingDel4)
       call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
@@ -397,6 +412,9 @@ contains
          outerProductEdge, strainRateR3Cell)
 
       call mpas_matrix_cell_to_edge(strainRateR3Cell, meshPool, .true., strainRateR3Edge)
+
+      ! Need to compute strain rate on all edges
+      nEdges = nEdgesArray( size(nEdgesArray) )
 
       ! The following loop could possibly be reduced to nEdgesSolve
       !$omp do schedule(runtime) private(visc4_sqrt, k)
@@ -446,6 +464,9 @@ contains
 
       call mpas_vector_R3Cell_to_normalVectorEdge(divTensorR3Cell, meshPool, .true., normalVectorEdge)
 
+      ! only need to compute tendency on owned edges
+      nEdges = nEdgesArray( 1 )
+
       ! The following loop could possibly be reduced to nEdgesSolve
       !$omp do schedule(runtime) private(k)
       do iEdge = 1,nEdges
@@ -462,6 +483,8 @@ contains
       call mpas_deallocate_scratch_field(outerProductEdgeField, .true.)
       call mpas_deallocate_scratch_field(normalVectorEdgeField, .true.)
       call mpas_deallocate_scratch_field(tangentialVectorEdgeField, .true.)
+
+      call mpas_timer_stop("vel del4_tensor")
 
    !--------------------------------------------------------------------
 

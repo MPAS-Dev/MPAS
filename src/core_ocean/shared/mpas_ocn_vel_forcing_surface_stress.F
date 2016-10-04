@@ -22,6 +22,7 @@ module ocn_vel_forcing_surface_stress
 
    use mpas_derived_types
    use mpas_pool_routines
+   use mpas_timer
 
    use ocn_constants
    use ocn_forcing
@@ -112,8 +113,8 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, k, cell1, cell2
-      integer, pointer :: nEdgesSolve
+      integer :: iEdge, k, cell1, cell2, nEdges
+      integer, dimension(:), pointer :: nEdgesArray
       integer, dimension(:), pointer :: maxLevelEdgeTop
       integer, dimension(:,:), pointer :: edgeMask, cellsOnEdge
 
@@ -132,15 +133,19 @@ contains
 
       if ( .not. surfaceStressOn ) return
 
-      call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
+      call mpas_timer_start('vel surface stress')
+
+      call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
 
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
       call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
       call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
 
+      nEdges = nEdgesArray ( 1 )
+
       !$omp do schedule(runtime) private(zTop, transmissionCoeffBot, remainingStress, k, transmissionCoeffTop, &
       !$omp                              cell1, cell2, attenuationCoeff, zBot)
-      do iEdge = 1, nEdgesSolve
+      do iEdge = 1, nEdges
         zTop = 0.0_RKIND
         cell1 = cellsOnEdge(1,iEdge)
         cell2 = cellsOnEdge(2,iEdge)
@@ -169,6 +174,8 @@ contains
         end if
       enddo
       !$omp end do
+
+      call mpas_timer_stop('vel surface stress')
 
    !--------------------------------------------------------------------
 

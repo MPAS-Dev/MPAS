@@ -22,6 +22,10 @@ module ocn_tracer_ecosys
    use mpas_kind_types
    use mpas_derived_types
    use mpas_pool_routines
+   use mpas_timer
+   use mpas_timekeeping
+   use mpas_forcing
+   use mpas_stream_manager
    use ocn_constants
 
 !  use BGC_mod
@@ -30,6 +34,9 @@ module ocn_tracer_ecosys
    use bgc_parms
 
    implicit none
+
+   type(MPAS_forcing_group_type),pointer :: ecosysForcingGroup
+
    private
    save
 
@@ -47,6 +54,8 @@ module ocn_tracer_ecosys
 
    public :: ocn_tracer_ecosys_compute, &
              ocn_tracer_ecosys_surface_flux_compute,  &
+             ocn_get_ecosysData,  &
+             ocn_ecosys_forcing_write_restart,  &
              ocn_tracer_ecosys_init
 
    integer, public:: &
@@ -212,6 +221,8 @@ contains
 
       err = 0
 
+      call mpas_timer_start("ecosys source-sink")
+
       call mpas_pool_get_subpool(forcingPool, 'ecosysAuxiliary', ecosysAuxiliary)
 
       call mpas_pool_get_array(ecosysAuxiliary, 'PH_PREV_3D', PH_PREV_3D)
@@ -274,6 +285,7 @@ contains
 
       numColumns = 1
       column = 1
+      !DWJ 08/05/2016: This loop needs OpenMP added to it.
       do iCell=1,nCellsSolve
          BGC_input%number_of_active_levels(column) = maxLevelCell(iCell)
          BGC_forcing%dust_FLUX_IN(column) = dust_FLUX_IN(iCell)
@@ -556,6 +568,8 @@ contains
 
       enddo  !  iCell
 
+      call mpas_timer_stop("ecosys source-sink")
+
    !--------------------------------------------------------------------
 
    end subroutine ocn_tracer_ecosys_compute!}}}
@@ -623,10 +637,14 @@ contains
 
       integer :: numColumns, column, iCell, iTracer, iLevelSurface
 
-! input flux components in ecosysAuxiliary
+! input flux components in forcing pool
       real (kind=RKIND), dimension(:), pointer :: &
          seaSurfacePressure,   &
          iceFraction,          &
+         landIceFraction
+
+! input flux components in ecosysAuxiliary
+      real (kind=RKIND), dimension(:), pointer :: &
          windSpeedSquared10m,  &
          depositionFluxNO3,    &
          depositionFluxNH4,    &
@@ -676,10 +694,14 @@ contains
 !        PascalsToAtmospheres = 0.0_RKIND,  &
 !        mSquared_to_cmSquared = 1.0_RKIND
 
+      logical, pointer :: config_use_ecosysTracers_sea_ice_coupling
+
+      call mpas_timer_start("ecosys surface flux")
       err = 0
 
       call mpas_pool_get_array(forcingPool, 'seaSurfacePressure', seaSurfacePressure)
       call mpas_pool_get_array(forcingPool, 'iceFraction', iceFraction)
+      call mpas_pool_get_array(forcingPool, 'landIceFraction', landIceFraction)
 
       call mpas_pool_get_subpool(forcingPool, 'ecosysAuxiliary', ecosysAuxiliary)
 
@@ -704,17 +726,24 @@ contains
       call mpas_pool_get_array(ecosysAuxiliary, 'CO2_gas_flux', CO2_gas_flux)
       call mpas_pool_get_array(ecosysAuxiliary, 'CO2_alt_gas_flux', CO2_alt_gas_flux)
 
-      call mpas_pool_get_subpool(forcingPool, 'ecosysSeaIceCoupling', ecosysSeaIceCoupling)
+      call mpas_pool_get_config(ocnConfigs, 'config_use_ecosysTracers_sea_ice_coupling',  &
+                                             config_use_ecosysTracers_sea_ice_coupling)
 
-      call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxPhytoC', iceFluxPhytoC)
-      call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxDIC', iceFluxDIC)
-      call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxNO3', iceFluxNO3)
-      call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxSiO3', iceFluxSiO3)
-      call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxNH4', iceFluxNH4)
-      call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxDOCr', iceFluxDOCr)
-      call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxDOC', iceFluxDOC)
-      call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxDON', iceFluxDON)
-      call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxFeDissolved', iceFluxFeDissolved)
+      if (config_use_ecosysTracers_sea_ice_coupling) then
+
+         call mpas_pool_get_subpool(forcingPool, 'ecosysSeaIceCoupling', ecosysSeaIceCoupling)
+
+         call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxPhytoC', iceFluxPhytoC)
+         call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxDIC', iceFluxDIC)
+         call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxNO3', iceFluxNO3)
+         call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxSiO3', iceFluxSiO3)
+         call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxNH4', iceFluxNH4)
+         call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxDOCr', iceFluxDOCr)
+         call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxDOC', iceFluxDOC)
+         call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxDON', iceFluxDON)
+         call mpas_pool_get_array(ecosysSeaIceCoupling, 'iceFluxFeDissolved', iceFluxFeDissolved)
+
+      endif
 
       BGC_forcing%lcalc_O2_gas_flux  = .true.
       BGC_forcing%lcalc_CO2_gas_flux = .true.
@@ -722,10 +751,17 @@ contains
       numColumns = 1
       column = 1
       iLevelSurface = 1
+      !DWJ 08/05/2016: This loop needs OpenMP added to it.
       do iCell=1,nCellsSolve
 
-         BGC_forcing%surfacePressure(column) = seaSurfacePressure(iCell)*PascalsToAtmospheres
+!maltrud we really want sea level pressure for this, but it isnt available so just use 1 atm
+!        BGC_forcing%surfacePressure(column) = seaSurfacePressure(iCell)*PascalsToAtmospheres
+         BGC_forcing%surfacePressure(column) = 1.0_RKIND
          BGC_forcing%iceFraction(column) = iceFraction(iCell)
+!maltrud assume for now that if there is any land ice, it is all land ice
+         if (associated(landIceFraction)) then
+            if (landIceFraction(iCell) > 0.0_RKIND) BGC_forcing%iceFraction(column) = 1.0_RKIND
+         endif
          BGC_forcing%windSpeedSquared10m(column) = windSpeedSquared10m(iCell)*mSquared_to_cmSquared
          BGC_forcing%atmCO2(column) = atmosphericCO2(iCell)
          BGC_forcing%atmCO2_ALT_CO2(column) = atmosphericCO2_ALT_CO2(iCell)
@@ -739,7 +775,6 @@ contains
          BGC_input%BGC_tracers(1,column,BGC_indices%alk_ind) = ecosysTracers(ecosysIndices%alk_ind,1,iCell)
          BGC_input%BGC_tracers(1,column,BGC_indices%po4_ind) = ecosysTracers(ecosysIndices%po4_ind,1,iCell)
          BGC_input%BGC_tracers(1,column,BGC_indices%sio3_ind) = ecosysTracers(ecosysIndices%sio3_ind,1,iCell)
-
          BGC_input%BGC_tracers(1,column,BGC_indices%o2_ind) = ecosysTracers(ecosysIndices%o2_ind,1,iCell)
 
 ! NOTE pass in total Fe and mult by parm_Fe_bioavail inside the flux routine
@@ -762,23 +797,27 @@ contains
          BGC_forcing%riverFlux(column,BGC_indices%alk_ind)         = riverFluxALK(iCell)
          BGC_forcing%riverFlux(column,BGC_indices%doc_ind)         = riverFluxDOC(iCell)
 
-!maltrud debug
-!        BGC_forcing%seaIceFlux(column,BGC_indices%no3_ind)         = iceFluxNO3(iCell)
-!        BGC_forcing%seaIceFlux(column,BGC_indices%don_ind)         = iceFluxDON(iCell)
-!maltrud renorm value?
-!        BGC_forcing%seaIceFlux(column,BGC_indices%donr_ind)        = iceFluxDOCr(iCell) * ????
-!        BGC_forcing%seaIceFlux(column,BGC_indices%donr_ind)        = iceFluxDOCr(iCell)
-!        BGC_forcing%seaIceFlux(column,BGC_indices%sio3_ind)        = iceFluxSiO3(iCell)
-!        BGC_forcing%seaIceFlux(column,BGC_indices%nh4_ind)         = iceFluxNH4(iCell)
-!        BGC_forcing%seaIceFlux(column,BGC_indices%fe_ind)          = iceFluxFeDissolved(iCell) / parm_Fe_bioavail
-!        BGC_forcing%seaIceFlux(column,BGC_indices%dic_ind)         = iceFluxDIC(iCell)
-!        BGC_forcing%seaIceFlux(column,BGC_indices%dic_alt_co2_ind) = iceFluxDIC(iCell)
+         if (config_use_ecosysTracers_sea_ice_coupling) then
 
-!        BGC_forcing%seaIceFlux(column,BGC_indices%doc_ind)         = iceFluxDOC(1,iCell) + iceFluxDOC(2,iCell)
+!maltrud sea ice fluxes are already correct MPAS units, so change to POP units
+            BGC_forcing%seaIceFlux(column,BGC_indices%no3_ind)         = iceFluxNO3(iCell)/renormFluxes
+            BGC_forcing%seaIceFlux(column,BGC_indices%don_ind)         = iceFluxDON(iCell)/renormFluxes
+!maltrud sea ice BGC doesnt care about C or N--this is just a placeholder--so assume N units
+            BGC_forcing%seaIceFlux(column,BGC_indices%donr_ind)        = iceFluxDOCr(iCell)/renormFluxes
+            BGC_forcing%seaIceFlux(column,BGC_indices%sio3_ind)        = iceFluxSiO3(iCell)/renormFluxes
+            BGC_forcing%seaIceFlux(column,BGC_indices%nh4_ind)         = iceFluxNH4(iCell)/renormFluxes
+            BGC_forcing%seaIceFlux(column,BGC_indices%fe_ind)          = iceFluxFeDissolved(iCell)/renormFluxes/ parm_Fe_bioavail
+            BGC_forcing%seaIceFlux(column,BGC_indices%dic_ind)         = iceFluxDIC(iCell)/renormFluxes
+            BGC_forcing%seaIceFlux(column,BGC_indices%dic_alt_co2_ind) = iceFluxDIC(iCell)/renormFluxes
 
-!        BGC_forcing%seaIceFlux(column,BGC_indices%diatC_ind)       = iceFluxPhytoC(1,iCell)
-!        BGC_forcing%seaIceFlux(column,BGC_indices%spC_ind)         = iceFluxPhytoC(2,iCell)
-!        BGC_forcing%seaIceFlux(column,BGC_indices%phaeoC_ind)      = iceFluxPhytoC(3,iCell)
+            BGC_forcing%seaIceFlux(column,BGC_indices%doc_ind)         = iceFluxDOC(1,iCell)/renormFluxes + &
+                                                                         iceFluxDOC(2,iCell)/renormFluxes
+
+            BGC_forcing%seaIceFlux(column,BGC_indices%diatC_ind)       = iceFluxPhytoC(1,iCell)/renormFluxes
+            BGC_forcing%seaIceFlux(column,BGC_indices%spC_ind)         = iceFluxPhytoC(2,iCell)/renormFluxes
+            BGC_forcing%seaIceFlux(column,BGC_indices%phaeoC_ind)      = iceFluxPhytoC(3,iCell)/renormFluxes
+
+         endif
 
          call BGC_SurfaceFluxes(BGC_indices, BGC_input, BGC_forcing,   &
                                 BGC_flux_diagnostic_fields,   &
@@ -802,23 +841,22 @@ contains
          ecosysSurfaceFlux(ecosysIndices%dic_ind,iCell) = BGC_forcing%netFlux(column,BGC_indices%dic_ind)*renormFluxes
          ecosysSurfaceFlux(ecosysIndices%dic_alt_co2_ind,iCell) =   &
             BGC_forcing%netFlux(column,BGC_indices%dic_alt_co2_ind)*renormFluxes
+         ecosysSurfaceFlux(ecosysIndices%diatC_ind,iCell) = BGC_forcing%netFlux(column,BGC_indices%diatC_ind)*renormFluxes
+         ecosysSurfaceFlux(ecosysIndices%spC_ind,iCell) = BGC_forcing%netFlux(column,BGC_indices%spC_ind)*renormFluxes
+         ecosysSurfaceFlux(ecosysIndices%phaeoC_ind,iCell) = BGC_forcing%netFlux(column,BGC_indices%phaeoC_ind)*renormFluxes
 
 !explicitly set the rest to 0
-! NOTE:  some will not be zero when we get sea ice fluxes
          ecosysSurfaceFlux(ecosysIndices%dofe_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%zooC_ind,iCell) = 0.0_RKIND
-         ecosysSurfaceFlux(ecosysIndices%spC_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%spChl_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%spFe_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%spCaCO3_ind,iCell) = 0.0_RKIND
-         ecosysSurfaceFlux(ecosysIndices%diatC_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%diatChl_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%diatFe_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%diatSi_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%diazC_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%diazChl_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%diazFe_ind,iCell) = 0.0_RKIND
-         ecosysSurfaceFlux(ecosysIndices%phaeoC_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%phaeoChl_ind,iCell) = 0.0_RKIND
          ecosysSurfaceFlux(ecosysIndices%phaeoFe_ind,iCell) = 0.0_RKIND
 
@@ -826,6 +864,8 @@ contains
          CO2_alt_gas_flux(iCell) = BGC_forcing%gasFlux(column,BGC_indices%dic_alt_co2_ind)*renormFluxes
 
       enddo  !  iCell
+
+      call mpas_timer_stop("ecosys surface flux")
 
    !--------------------------------------------------------------------
 
@@ -853,16 +893,62 @@ contains
 
       type (mpas_pool_type), pointer :: statePool
       type (mpas_pool_type), pointer :: tracersPool
+      type (mpas_pool_type), pointer :: forcingPool
+      type (mpas_pool_type), pointer :: ecosysAuxiliary
+      type (mpas_pool_type), pointer :: ecosysMonthlyForcing
 
       ! three dimensional pointers
       real (kind=RKIND), dimension(:,:,:), pointer :: &
         ecosysTracers
+
+! input flux components in ecosysAuxiliary
+      real (kind=RKIND), dimension(:), pointer :: &
+         depositionFluxNO3,    &
+         depositionFluxNH4,    &
+         IRON_FLUX_IN,         &
+         dust_FLUX_IN,         &
+         riverFluxNO3,         &
+         riverFluxPO4,         &
+         riverFluxDON,         &
+         riverFluxDOP,         &
+         riverFluxSiO3,        &
+         riverFluxFe,          &
+         riverFluxDIC,         &
+         riverFluxALK,         &
+         riverFluxDOC
+
+! input flux components in ecosysMonthlyForcing
+      real (kind=RKIND), dimension(:), pointer :: &
+         depositionFluzNO3,    &
+         depositionFluzNH4,    &
+         IRON_FLUZ_IN,         &
+         dust_FLUZ_IN,         &
+         riverFluzNO3,         &
+         riverFluzPO4,         &
+         riverFluzDON,         &
+         riverFluzDOP,         &
+         riverFluzSiO3,        &
+         riverFluzFe,          &
+         riverFluzDIC,         &
+         riverFluzALK,         &
+         riverFluzDOC
 
       ! scalars
       integer :: nTracers, numColumnsMax
 
       ! scalar pointers
       integer, pointer :: nVertLevels, index_dummy
+
+      character(len=strKIND) :: &
+         forcingIntervalMonthly,  &
+         forcingReferenceTimeMonthly
+
+      character(len=strKind), pointer :: &
+         config_forcing_restart_file
+
+      logical, pointer :: &
+         config_do_restart
+
 
       !
       ! get tracers pools
@@ -1202,6 +1288,204 @@ contains
       allocate (BGC_diagnostic_fields%diag_O2_ZMIN(numColumnsMax) )
       allocate (BGC_diagnostic_fields%diag_O2_ZMIN_DEPTH(numColumnsMax) )
 
+! initialize monthly forcing to be read from file
+
+      forcingIntervalMonthly = "0000-01-00_00:00:00"
+      forcingReferenceTimeMonthly = "0000-01-01_00:00:00"
+
+      call MPAS_pool_get_config(domain % configs, 'config_do_restart', config_do_restart)
+      call MPAS_pool_get_config(domain % configs, 'config_forcing_restart_file', config_forcing_restart_file)
+
+      call MPAS_forcing_init_group( ecosysForcingGroup,  &
+                "ecosysMonthlyClimatology", &
+                domain, &
+                '0000-01-01_00:00:00', &
+                '0000-01-01_00:00:00', &
+                '0001-00-00_00:00:00', &
+                config_do_restart, &
+                config_forcing_restart_file)
+!        .false.)  ! OPTIONAL?
+
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'forcing', forcingPool)
+      call mpas_pool_get_subpool(forcingPool, 'ecosysAuxiliary', ecosysAuxiliary)
+
+      call mpas_pool_get_array(ecosysAuxiliary, 'depositionFluxNO3', depositionFluxNO3)
+      call mpas_pool_get_array(ecosysAuxiliary, 'depositionFluxNH4', depositionFluxNH4)
+      call mpas_pool_get_array(ecosysAuxiliary, 'IRON_FLUX_IN', IRON_FLUX_IN)
+      call mpas_pool_get_array(ecosysAuxiliary, 'dust_FLUX_IN', dust_FLUX_IN)
+      call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxNO3', riverFluxNO3)
+      call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxPO4', riverFluxPO4)
+      call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxDON', riverFluxDON)
+      call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxDOP', riverFluxDOP)
+      call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxSiO3', riverFluxSiO3)
+      call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxFe', riverFluxFe)
+      call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxDIC', riverFluxDIC)
+      call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxALK', riverFluxALK)
+      call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxDOC', riverFluxDOC)
+
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'ecosysMonthlyForcing', ecosysMonthlyForcing)
+
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'depositionFluzNO3', depositionFluzNO3)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'depositionFluzNH4', depositionFluzNH4)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'IRON_FLUZ_IN', IRON_FLUZ_IN)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'dust_FLUZ_IN', dust_FLUZ_IN)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzNO3', riverFluzNO3)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzPO4', riverFluzPO4)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzDON', riverFluzDON)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzDOP', riverFluzDOP)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzSiO3', riverFluzSiO3)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzFe', riverFluzFe)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzDIC', riverFluzDIC)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzALK', riverFluzALK)
+      call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzDOC', riverFluzDOC)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'depositionFluzNO3', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'depositionFluzNO3',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'depositionFluzNH4', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'depositionFluzNH4',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'IRON_FLUZ_IN', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'IRON_FLUZ_IN',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'dust_FLUZ_IN', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'dust_FLUZ_IN',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'riverFluzNO3', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'riverFluzNO3',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'riverFluzPO4', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'riverFluzPO4',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'riverFluzDON', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'riverFluzDON',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'riverFluzDOP', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'riverFluzDOP',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'riverFluzSiO3', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'riverFluzSiO3',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'riverFluzFe', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'riverFluzFe',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'riverFluzDIC', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'riverFluzDIC',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'riverFluzALK', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'riverFluzALK',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field( domain % streamManager, &
+                ecosysForcingGroup, &
+                'ecosysMonthlyClimatology', &
+                'riverFluzDOC', &
+                'ecosys_monthly_flux', &
+                'ecosysMonthlyForcing',  &
+                'riverFluzDOC',  &
+                'linear',  &
+                forcingReferenceTimeMonthly,  &
+                forcingIntervalMonthly)
+
+      call MPAS_forcing_init_field_data( ecosysForcingGroup, &
+         'ecosysMonthlyClimatology', &
+         domain % streamManager)
+
       end if  !  associated(ecosysTracers)
 
    !--------------------------------------------------------------------
@@ -1209,6 +1493,157 @@ contains
    end subroutine ocn_tracer_ecosys_init!}}}
 
 !***********************************************************************
+
+!***********************************************************************
+!
+!  routine get_ecosysData
+!
+!> \brief   retrieve data needed to compute ecosys deposition and runoff inputs
+!> \author  Mathew Maltrud
+!> \date    03/07/16
+!> \details
+!>  This routine calls mpas_forcing routines to acquire needed ecosys forcing data and interpolates
+!>    between time levels.  directly copied from ocn_get_shortWaveData.
+!
+!-----------------------------------------------------------------------
+
+    subroutine ocn_get_ecosysData( streamManager, &
+        domain, &
+        simulationClock, &
+        firstTimeStep) !{{{
+
+        type (MPAS_streamManager_type), intent(inout) :: streamManager
+
+        type (domain_type) :: domain
+        type (MPAS_timeInterval_type) :: timeStepEco
+        type (MPAS_clock_type) :: simulationClock
+
+        logical, intent(in) :: firstTimeStep
+        character(len=strKind), pointer :: config_dt
+        real(kind=RKIND) :: dt
+
+        type (mpas_pool_type), pointer :: forcingPool
+        type (mpas_pool_type), pointer :: meshPool
+        type (mpas_pool_type), pointer :: ecosysAuxiliary
+        type (mpas_pool_type), pointer :: ecosysMonthlyForcing
+
+        real (kind=RKIND), dimension(:), pointer :: &
+         depositionFluxNO3,    &
+         depositionFluxNH4,    &
+         IRON_FLUX_IN,         &
+         dust_FLUX_IN,         &
+         riverFluxNO3,         &
+         riverFluxPO4,         &
+         riverFluxDON,         &
+         riverFluxDOP,         &
+         riverFluxSiO3,        &
+         riverFluxFe,          &
+         riverFluxDIC,         &
+         riverFluxALK,         &
+         riverFluxDOC
+
+! input flux components in ecosysMonthlyForcing
+        real (kind=RKIND), dimension(:), pointer :: &
+         depositionFluzNO3,    &
+         depositionFluzNH4,    &
+         IRON_FLUZ_IN,         &
+         dust_FLUZ_IN,         &
+         riverFluzNO3,         &
+         riverFluzPO4,         &
+         riverFluzDON,         &
+         riverFluzDOP,         &
+         riverFluzSiO3,        &
+         riverFluzFe,          &
+         riverFluzDIC,         &
+         riverFluzALK,         &
+         riverFluzDOC
+
+        integer, pointer :: nCells
+        integer :: iCell
+
+        call MPAS_pool_get_config(domain%configs, 'config_dt', config_dt)
+
+        call mpas_set_timeInterval(timeStepEco,timeString=config_dt)
+        call mpas_get_timeInterval(timeStepEco,dt=dt)
+
+        call MPAS_forcing_get_forcing(ecosysForcingGroup, &
+             'ecosysMonthlyClimatology', streamManager, dt)
+
+        call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
+        call mpas_pool_get_subpool(domain % blocklist % structs, 'forcing', forcingPool)
+        call mpas_pool_get_subpool(forcingPool, 'ecosysAuxiliary', ecosysAuxiliary)
+        call mpas_pool_get_subpool(domain % blocklist % structs, 'ecosysMonthlyForcing', ecosysMonthlyForcing)
+
+        call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+
+        call mpas_pool_get_array(ecosysAuxiliary, 'depositionFluxNO3', depositionFluxNO3)
+        call mpas_pool_get_array(ecosysAuxiliary, 'depositionFluxNH4', depositionFluxNH4)
+        call mpas_pool_get_array(ecosysAuxiliary, 'IRON_FLUX_IN', IRON_FLUX_IN)
+        call mpas_pool_get_array(ecosysAuxiliary, 'dust_FLUX_IN', dust_FLUX_IN)
+        call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxNO3', riverFluxNO3)
+        call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxPO4', riverFluxPO4)
+        call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxDON', riverFluxDON)
+        call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxDOP', riverFluxDOP)
+        call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxSiO3', riverFluxSiO3)
+        call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxFe', riverFluxFe)
+        call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxDIC', riverFluxDIC)
+        call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxALK', riverFluxALK)
+        call mpas_pool_get_array(ecosysAuxiliary, 'riverFluxDOC', riverFluxDOC)
+
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'depositionFluzNO3', depositionFluzNO3)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'depositionFluzNH4', depositionFluzNH4)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'IRON_FLUZ_IN', IRON_FLUZ_IN)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'dust_FLUZ_IN', dust_FLUZ_IN)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzNO3', riverFluzNO3)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzPO4', riverFluzPO4)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzDON', riverFluzDON)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzDOP', riverFluzDOP)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzSiO3', riverFluzSiO3)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzFe', riverFluzFe)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzDIC', riverFluzDIC)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzALK', riverFluzALK)
+        call mpas_pool_get_array(ecosysMonthlyForcing, 'riverFluzDOC', riverFluzDOC)
+
+        do iCell = 1, nCells
+           depositionFluxNO3(iCell) = depositionFluzNO3(iCell)
+           depositionFluxNH4(iCell) = depositionFluzNH4(iCell)
+           IRON_FLUX_IN(iCell)      = IRON_FLUZ_IN(iCell)
+           dust_FLUX_IN(iCell)      = dust_FLUZ_IN(iCell)
+           riverFluxNO3(iCell)      = riverFluzNO3(iCell)
+           riverFluxPO4(iCell)      = riverFluzPO4(iCell)
+           riverFluxDON(iCell)      = riverFluzDON(iCell)
+           riverFluxDOP(iCell)      = riverFluzDOP(iCell)
+           riverFluxSiO3(iCell)     = riverFluzSiO3(iCell)
+           riverFluxFe(iCell)       = riverFluzFe(iCell)
+           riverFluxDIC(iCell)      = riverFluzDIC(iCell)
+           riverFluxALK(iCell)      = riverFluzALK(iCell)
+           riverFluxDOC(iCell)      = riverFluzDOC(iCell)
+        enddo
+
+    end subroutine ocn_get_ecosysData!}}}
+
+!***********************************************************************
+!
+!  routine ocn_ecosys_forcing_write_restart
+!
+!> \brief   writes restart timestamp for ecosys data to be read in on future restart
+!> \author  Mathew Maltrud
+!> \date    03/07/2016
+
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_ecosys_forcing_write_restart(domain)!{{{
+
+      type(domain_type) :: domain
+
+      character(len=strKind), pointer :: config_forcing_restart_file
+
+      call MPAS_pool_get_config(domain % configs, "config_forcing_restart_file", config_forcing_restart_file)
+
+      call MPAS_forcing_write_restart_times(ecosysForcingGroup, config_forcing_restart_file)
+
+    end subroutine ocn_ecosys_forcing_write_restart!}}}
 
 end module ocn_tracer_ecosys
 

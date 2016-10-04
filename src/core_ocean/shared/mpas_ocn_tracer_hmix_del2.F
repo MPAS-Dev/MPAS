@@ -22,6 +22,7 @@
 
 module ocn_tracer_hmix_del2
 
+   use mpas_timer
    use mpas_derived_types
    use mpas_pool_routines
    use mpas_threading
@@ -113,8 +114,9 @@ contains
       !-----------------------------------------------------------------
 
       integer :: iCell, iEdge, cell1, cell2
-      integer :: i, k, iTracer, num_tracers
-      integer, pointer :: nCells, nVertLevels
+      integer :: i, k, iTracer, num_tracers, nCells
+      integer, pointer :: nVertLevels
+      integer, dimension(:), pointer :: nCellsArray
 
       integer, dimension(:), pointer :: maxLevelEdgeTop, nEdgesOnCell
       integer, dimension(:,:), pointer :: cellsOnEdge, edgesOnCell, edgeSignOnCell
@@ -129,7 +131,9 @@ contains
 
       if (.not.del2On) return
 
-      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+      call mpas_timer_start("tracer del2")
+
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
       num_tracers = size(tracers, dim=1)
 
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
@@ -142,6 +146,8 @@ contains
       call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
       call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
       call mpas_pool_get_array(meshPool, 'edgeSignOnCell', edgeSignOnCell)
+
+      nCells = nCellsArray( 1 )
 
       !
       ! compute a boundary mask to enforce insulating boundary conditions in the horizontal
@@ -171,6 +177,8 @@ contains
         end do
       end do
       !$omp end do
+
+      call mpas_timer_stop("tracer del2")
 
    !--------------------------------------------------------------------
 

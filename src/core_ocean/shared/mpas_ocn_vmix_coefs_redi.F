@@ -173,8 +173,8 @@ contains
 
       real (kind=RKIND), dimension(:,:), intent(in)    :: vertRediDiff !< Output: Vertical diffusion
 
-      integer :: iCell
-      integer, pointer :: nCells
+      integer :: iCell, nCells
+      integer, pointer :: nCellsSolve
 
       integer, intent(out) :: err !< Output: error flag
 
@@ -188,13 +188,19 @@ contains
 
       if(.not.rediDiffOn) return
 
-      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+      call mpas_timer_start('tracer redi coef')
+
+      call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
+
+      nCells = nCellsSolve
 
       !$omp do schedule(runtime)
       do iCell = 1, nCells
          vertDiffTopOfCell(:, iCell) = vertDiffTopOfCell(:, iCell) + vertRediDiff(:, iCell)
       end do
       !$omp end do
+
+      call mpas_timer_stop('tracer redi coef')
 
    !--------------------------------------------------------------------
 

@@ -20,6 +20,7 @@
 
 module ocn_equation_of_state
 
+   use mpas_timer
    use mpas_kind_types
    use mpas_derived_types
    use mpas_pool_routines
@@ -45,7 +46,9 @@ module ocn_equation_of_state
    !--------------------------------------------------------------------
 
    public :: ocn_equation_of_state_density, &
-             ocn_equation_of_state_init
+             ocn_equation_of_state_init, &
+             ocn_freezing_temperature, &
+             ocn_freezing_temperature_salinity_deriv
 
    !--------------------------------------------------------------------
    !
@@ -72,7 +75,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, k_displaced, & !{{{
+   subroutine ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, nCells, k_displaced, & !{{{
                                             displacement_type, density, err, thermalExpansionCoeff, &
                                             salineContractionCoeff, timeLevelIn)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -98,6 +101,7 @@ contains
       type (mpas_pool_type), intent(inout) :: diagnosticsPool
       type (mpas_pool_type), intent(in) :: meshPool
       type (mpas_pool_type), intent(in) :: scratchPool !< Input/Output: Scratch structure
+      integer, intent(in) :: nCells
       integer, intent(in), optional :: timeLevelIn
       type (mpas_pool_type), pointer :: tracersPool
       integer :: k_displaced
@@ -118,6 +122,8 @@ contains
 
       err = 0
 
+      call mpas_timer_start("equation of state")
+
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
       else
@@ -132,17 +138,19 @@ contains
 
       if (linearEos) then
 
-         call ocn_equation_of_state_linear_density(meshPool, k_displaced, displacement_type, indexT, indexS, &
+         call ocn_equation_of_state_linear_density(meshPool, nCells, k_displaced, displacement_type, indexT, indexS, &
                                                    activeTracers, density, err, tracersSurfaceValue, &
                                                    thermalExpansionCoeff, salineContractionCoeff)
 
       elseif (jmEos) then
 
-         call ocn_equation_of_state_jm_density(meshPool, scratchPool, k_displaced, displacement_type, indexT, indexS, &
+         call ocn_equation_of_state_jm_density(meshPool, scratchPool, nCells, k_displaced, displacement_type, indexT, indexS, &
                                                activeTracers, density, err, tracersSurfaceValue, thermalExpansionCoeff, &
                                                salineContractionCoeff)
 
       endif
+
+      call mpas_timer_stop("equation of state")
 
    end subroutine ocn_equation_of_state_density!}}}
 
@@ -197,6 +205,81 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_equation_of_state_init!}}}
+
+
+!***********************************************************************
+!
+!  function ocn_freezing_temperature
+!
+!> \brief   Computes the freezing temperature of the ocean.
+!> \author  Xylar Asay-Davis
+!> \date    08/14/2016
+!> \details
+!>  This routine computes the freezing temperature of the ocean at a given
+!>  salinity and pressure.
+!
+!-----------------------------------------------------------------------
+    real (kind=RKIND) function ocn_freezing_temperature(salinity, pressure)!{{{
+      real (kind=RKIND), intent(in) :: salinity !< Input: Salinity value of water for freezing temperature
+      real (kind=RKIND), intent(in) :: pressure !< Input: Pressure value for freezing temperature
+
+      real (kind=RKIND), pointer :: config_freezing_temperature_coeff_0
+      real (kind=RKIND), pointer :: config_freezing_temperature_coeff_S
+      real (kind=RKIND), pointer :: config_freezing_temperature_coeff_p
+      real (kind=RKIND), pointer :: config_freezing_temperature_coeff_pS
+      real (kind=RKIND), pointer :: config_freezing_temperature_reference_pressure
+
+      real (kind=RKIND) :: pressureOffset
+
+      call mpas_pool_get_config(ocnConfigs, 'config_freezing_temperature_coeff_0', config_freezing_temperature_coeff_0)
+      call mpas_pool_get_config(ocnConfigs, 'config_freezing_temperature_coeff_S', config_freezing_temperature_coeff_S)
+      call mpas_pool_get_config(ocnConfigs, 'config_freezing_temperature_coeff_p', config_freezing_temperature_coeff_p)
+      call mpas_pool_get_config(ocnConfigs, 'config_freezing_temperature_coeff_pS', config_freezing_temperature_coeff_pS)
+      call mpas_pool_get_config(ocnConfigs, 'config_freezing_temperature_reference_pressure', &
+                                config_freezing_temperature_reference_pressure)
+
+      pressureOffset = max(pressure - config_freezing_temperature_reference_pressure, 0.0_RKIND)
+
+      ocn_freezing_temperature = config_freezing_temperature_coeff_0 &
+        + config_freezing_temperature_coeff_S * salinity &
+        + config_freezing_temperature_coeff_p * pressureOffset &
+        + config_freezing_temperature_coeff_pS * pressureOffset * salinity
+
+    end function ocn_freezing_temperature!}}}
+
+!***********************************************************************
+!
+!  function ocn_freezing_temperature_salinity_deriv
+!
+!> \brief   Computes the freezing-temperature salinity derivative
+!> \author  Xylar Asay-Davis
+!> \date    08/14/2016
+!> \details
+!>  This routine computes the derivative of the freezing temperature of the ocean with
+!>  respect to salinity at a given salinity and pressure.
+!
+!-----------------------------------------------------------------------
+    real (kind=RKIND) function ocn_freezing_temperature_salinity_deriv(salinity, pressure)!{{{
+      real (kind=RKIND), intent(in) :: salinity !< Input: Salinity value of water for freezing temperature
+      real (kind=RKIND), intent(in) :: pressure !< Input: Pressure value for freezing temperature
+
+      real (kind=RKIND), pointer :: config_freezing_temperature_coeff_S
+      real (kind=RKIND), pointer :: config_freezing_temperature_coeff_pS
+      real (kind=RKIND), pointer :: config_freezing_temperature_reference_pressure
+
+      real (kind=RKIND) :: pressureOffset
+
+      call mpas_pool_get_config(ocnConfigs, 'config_freezing_temperature_coeff_S', config_freezing_temperature_coeff_S)
+      call mpas_pool_get_config(ocnConfigs, 'config_freezing_temperature_coeff_pS', config_freezing_temperature_coeff_pS)
+      call mpas_pool_get_config(ocnConfigs, 'config_freezing_temperature_reference_pressure', &
+                                config_freezing_temperature_reference_pressure)
+
+      pressureOffset = max(pressure - config_freezing_temperature_reference_pressure, 0.0_RKIND)
+
+      ocn_freezing_temperature_salinity_deriv = config_freezing_temperature_coeff_S &
+        + config_freezing_temperature_coeff_pS * pressureOffset
+
+    end function ocn_freezing_temperature_salinity_deriv!}}}
 
 !***********************************************************************
 

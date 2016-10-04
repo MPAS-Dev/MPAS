@@ -21,6 +21,7 @@
 
 module ocn_tracer_nonlocalflux
 
+   use mpas_timer
    use mpas_derived_types
    use mpas_pool_routines
    use ocn_constants
@@ -107,8 +108,9 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iCell, k, iTracer, nTracers
-      integer, pointer :: nCells, nVertLevels
+      integer :: iCell, k, iTracer, nTracers, nCells
+      integer, pointer :: nVertLevels
+      integer, dimension(:), pointer :: nCellsArray
       integer, dimension(:), pointer :: maxLevelCell
       real (kind=RKIND) :: fluxTopOfCell, fluxBottomOfCell
 
@@ -116,11 +118,15 @@ contains
 
       if (.not. nonLocalFluxOn) return
 
-      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+      call mpas_timer_start('non-local flux')
+
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       nTracers = size(tend, dim=1)
 
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+
+      nCells = nCellsArray( 1 )
 
       !$omp do schedule(runtime) private(k, iTracer, fluxTopOfCell, fluxBottomOfCell)
       do iCell = 1, nCells
@@ -152,6 +158,8 @@ contains
 
       end do
       !$omp end do
+
+      call mpas_timer_stop('non-local flux')
 
    !--------------------------------------------------------------------
 

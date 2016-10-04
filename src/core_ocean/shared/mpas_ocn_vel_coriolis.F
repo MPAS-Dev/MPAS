@@ -21,6 +21,7 @@
 
 module ocn_vel_coriolis
 
+   use mpas_timer
    use mpas_derived_types
    use mpas_pool_routines
    use ocn_constants
@@ -118,14 +119,17 @@ contains
       real (kind=RKIND), dimension(:), pointer :: dcEdge
 
       integer :: j, k
-      integer :: cell1, cell2, iEdge, eoe
-      integer, pointer :: nEdgesSolve, nVertLevels
+      integer :: cell1, cell2, iEdge, eoe, nEdges
+      integer, pointer :: nVertLevels
+      integer, dimension(:), pointer :: nEdgesArray
       real (kind=RKIND) :: workVorticity, invLength, edgeWeight, r_tmp
       real (kind=RKIND), dimension(:), allocatable :: qArr
 
       err = 0
 
       if ( .not. coriolisOn ) return
+
+      call mpas_timer_start("coriolis")
 
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
       call mpas_pool_get_array(meshPool, 'nEdgesOnEdge', nEdgesOnEdge)
@@ -135,13 +139,15 @@ contains
       call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
       call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
-      call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
+      call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+
+      nEdges = nEdgesArray( 1 )
 
       allocate( qArr(nVertLevels) )
 
       !$omp do schedule(runtime) private(cell1, cell2, invLength, k, j, eoe, workVorticity)
-      do iEdge = 1, nEdgesSolve
+      do iEdge = 1, nEdges
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
 
@@ -173,6 +179,8 @@ contains
       !$omp end do
 
       deallocate( qArr )
+
+      call mpas_timer_stop("coriolis")
 
    !--------------------------------------------------------------------
 

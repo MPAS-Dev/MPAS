@@ -19,6 +19,7 @@
 
 module ocn_tracer_DMS
 
+   use mpas_timer
    use mpas_kind_types
    use mpas_derived_types
    use mpas_pool_routines
@@ -158,6 +159,8 @@ contains
 
       integer :: iCell, iLevel, iTracer, numColumns, column, iLevelSurface
 
+      call mpas_timer_start("DMS source-sink")
+
       err = 0
 
       call mpas_pool_get_array(forcingPool, 'shortWaveHeatFlux', shortWaveHeatFlux)
@@ -165,6 +168,8 @@ contains
       numColumns = 1
       column = 1
       iLevelSurface = 1
+
+      !DWJ 08/05/2016: This loop needs OpenMP added to it.
       do iCell=1,nCellsSolve
          DMS_input%number_of_active_levels(column) = maxLevelCell(iCell)
 
@@ -207,6 +212,8 @@ contains
          enddo
 
       enddo  !  iCell
+
+      call mpas_timer_stop("DMS source-sink")
 
    !--------------------------------------------------------------------
 
@@ -279,6 +286,7 @@ contains
       real (kind=RKIND), dimension(:), pointer :: &
          seaSurfacePressure,   &
          iceFraction,          &
+         landIceFraction,      &
          windSpeedSquared10m,  &
          iceFluxDMS,           &
          iceFluxDMSP,          &
@@ -302,8 +310,11 @@ contains
 
       err = 0
 
+      call mpas_timer_start("DMS surface flux")
+
       call mpas_pool_get_array(forcingPool, 'seaSurfacePressure', seaSurfacePressure)
       call mpas_pool_get_array(forcingPool, 'iceFraction', iceFraction)
+      call mpas_pool_get_array(forcingPool, 'landIceFraction', landIceFraction)
 
       call mpas_pool_get_subpool(forcingPool, 'ecosysAuxiliary', ecosysAuxiliary)
       call mpas_pool_get_array(ecosysAuxiliary, 'windSpeedSquared10m', windSpeedSquared10m)
@@ -327,10 +338,16 @@ contains
       numColumns = 1
       column = 1
       iLevelSurface = 1
+
+      !DWJ 08/05/2016: This loop needs OpenMP added to it.
       do iCell=1,nCellsSolve
 
          DMS_forcing%surfacePressure(column) = seaSurfacePressure(iCell)*PascalsToAtmospheres
          DMS_forcing%iceFraction(column) = iceFraction(iCell)
+!maltrud assume for now that if there is any land ice, it is all land ice
+         if (associated(landIceFraction)) then
+            if (landIceFraction(iCell) > 0.0_RKIND) DMS_forcing%iceFraction(column) = 1.0_RKIND
+         endif
          DMS_forcing%windSpeedSquared10m(column) = windSpeedSquared10m(iCell)*mSquared_to_cmSquared
          DMS_forcing%SST(column) = activeTracers(indexTemperature,iLevelSurface,iCell)
          DMS_forcing%SSS(column) = activeTracers(indexSalinity,iLevelSurface,iCell)
@@ -357,6 +374,8 @@ contains
          dms_flux_diag_ws(iCell)        = DMS_flux_diagnostic_fields%diag_DMS_WS(column)
 
       enddo  !  iCell
+
+      call mpas_timer_stop("DMS surface flux")
 
    !--------------------------------------------------------------------
 

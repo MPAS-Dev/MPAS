@@ -21,6 +21,7 @@
 
 module ocn_vel_vadv
 
+   use mpas_timer
    use mpas_derived_types
    use mpas_pool_routines
    use ocn_constants
@@ -110,8 +111,9 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, cell1, cell2, k
-      integer, pointer :: nEdgesSolve, nVertLevels
+      integer :: iEdge, cell1, cell2, k, nEdges
+      integer, pointer :: nVertLevels
+      integer, dimension(:), pointer :: nEdgesArray
       integer, dimension(:), pointer :: maxLevelEdgeTop
       integer, dimension(:,:), pointer :: cellsOnEdge, edgeMask
 
@@ -120,10 +122,12 @@ contains
 
       if (.not. velVadvOn) return
 
+      call mpas_timer_start("vel vadv")
+
       err = 0
 
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-      call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
+      call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
       call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
       call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
@@ -131,8 +135,10 @@ contains
       allocate(w_dudzTopEdge(nVertLevels+1))
       w_dudzTopEdge = 0.0_RKIND
 
+      nEdges = nEdgesArray( 1 )
+
       !$omp do schedule(runtime) private(cell1, cell2, k, vertAleTransportTopEdge)
-      do iEdge = 1, nEdgesSolve
+      do iEdge = 1, nEdges
         cell1 = cellsOnEdge(1,iEdge)
         cell2 = cellsOnEdge(2,iEdge)
 
@@ -154,6 +160,8 @@ contains
       !$omp end do
 
       deallocate(w_dudzTopEdge)
+
+      call mpas_timer_stop("vel vadv")
 
    !--------------------------------------------------------------------
 

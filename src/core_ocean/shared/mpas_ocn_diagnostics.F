@@ -20,10 +20,10 @@
 
 module ocn_diagnostics
 
+   use mpas_timer
    use mpas_derived_types
    use mpas_pool_routines
    use mpas_constants
-   use mpas_timer
    use mpas_threading
    use mpas_vector_reconstruction
 
@@ -56,7 +56,8 @@ module ocn_diagnostics
              ocn_filter_btr_mode_tend_vel, &
              ocn_reconstruct_gm_vectors, &
              ocn_diagnostics_init, &
-             ocn_compute_kpp_input_fields
+             ocn_compute_kpp_input_fields, &
+             ocn_validate_state
 
    !--------------------------------------------------------------------
    !
@@ -97,8 +98,9 @@ contains
       integer, intent(in), optional :: timeLevelIn !< Input: Time level in state
 
       integer :: iEdge, iCell, iVertex, k, cell1, cell2, vertex1, vertex2, eoe, i, j
-      integer :: boundaryMask, velMask, err
-      integer, pointer  :: nEdgesSolve, nCells, nEdges, nVertices, nVertLevels, vertexDegree
+      integer :: boundaryMask, velMask, err, nCells, nEdges, nVertices
+      integer, pointer  :: nVertLevels, vertexDegree
+      integer, dimension(:), pointer :: nCellsArray, nEdgesArray, nVerticesArray
 
       integer, dimension(:), pointer :: nEdgesOnCell, nEdgesOnEdge, &
         maxLevelCell, maxLevelEdgeTop, maxLevelEdgeBot, &
@@ -115,7 +117,7 @@ contains
 
       real (kind=RKIND), dimension(:), pointer :: &
         bottomDepth, fVertex, dvEdge, dcEdge, areaCell, areaTriangle, ssh, seaSurfacePressure, frazilSurfacePressure, &
-        pressureAdjustedSSH, gradSSH
+        pressureAdjustedSSH, gradSSH, landIcePressure, landIceDraft
       real (kind=RKIND), dimension(:,:), pointer :: &
         weightsOnEdge, kiteAreasOnVertex, layerThicknessEdge, layerThickness, normalVelocity, normalTransportVelocity, &
         normalGMBolusVelocity, tangentialVelocity, pressure, circulation, kineticEnergyCell, montgomeryPotential, &
@@ -148,6 +150,8 @@ contains
       real (kind=RKIND), pointer :: config_flux_attenuation_coefficient_runoff
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficient
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientRunoff
+
+      call mpas_timer_start('diagnostic solve')
 
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
@@ -228,12 +232,13 @@ contains
       call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
       call mpas_pool_get_array(forcingPool, 'seaSurfacePressure', seaSurfacePressure)
+      call mpas_pool_get_array(forcingPool, 'landIcePressure', landIcePressure)
+      call mpas_pool_get_array(forcingPool, 'landIceDraft', landIceDraft)
       call mpas_pool_get_array(forcingPool, 'frazilSurfacePressure', frazilSurfacePressure)
 
-      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
-      call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
-      call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
-      call mpas_pool_get_dimension(meshPool, 'nVertices', nVertices)
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+      call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
+      call mpas_pool_get_dimension(meshPool, 'nVerticesArray', nVerticesArray)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       call mpas_pool_get_dimension(meshPool, 'vertexDegree', vertexDegree)
 
@@ -248,6 +253,10 @@ contains
       ! Compute height on cell edges at velocity locations
       !   Namelist options control the order of accuracy of the reconstructed layerThicknessEdge value
       !
+
+      nEdges = nEdgesArray( size(nEdgesArray) )
+      nCells = nCellsArray( size(nCellsArray) )
+      nVertices = nVerticesArray( size(nVerticesArray) )
 
       ! initialize layerThicknessEdge to avoid divide by zero and NaN problems.
       !$omp do schedule(runtime)
@@ -299,6 +308,9 @@ contains
 
       call mpas_threading_barrier()
 
+      ! Need owned cells for relativeVorticityCell
+      nCells = nCellsArray( 1 )
+
       !$omp do schedule(runtime) private(invAreaCell1, i, j, k, iVertex)
       do iCell = 1, nCells
         relativeVorticityCell(:,iCell) = 0.0_RKIND
@@ -315,6 +327,8 @@ contains
       end do
       !$omp end do
 
+      ! Need 0 and 1 halo cells
+      nCells = nCellsArray( 2 )
       !
       ! Compute divergence, kinetic energy, and vertical velocity
       !
@@ -354,6 +368,8 @@ contains
 
       deallocate(div_hu,div_huTransport,div_huGMBolus)
 
+      nEdges = nEdgesArray( 2 )
+
       !$omp do schedule(runtime) private(eoe, i, k)
       do iEdge = 1, nEdges
          ! Compute v (tangential) velocities
@@ -366,73 +382,79 @@ contains
       end do
       !$omp end do
 
+      nCells = nCellsArray( size(nCellsArray) )
+
       !
       ! Compute kinetic energy
       !
-      call mpas_pool_get_field(scratchPool, 'kineticEnergyVertex', kineticEnergyVertexField)
-      call mpas_pool_get_field(scratchPool, 'kineticEnergyVertexOnCells', kineticEnergyVertexOnCellsField)
-      call mpas_allocate_scratch_field(kineticEnergyVertexField, .true.)
-      call mpas_allocate_scratch_field(kineticEnergyVertexOnCellsField, .true.)
-      call mpas_threading_barrier()
+      if ( ke_vertex_flag == 1 ) then
+         call mpas_pool_get_field(scratchPool, 'kineticEnergyVertex', kineticEnergyVertexField)
+         call mpas_pool_get_field(scratchPool, 'kineticEnergyVertexOnCells', kineticEnergyVertexOnCellsField)
+         call mpas_allocate_scratch_field(kineticEnergyVertexField, .true.)
+         call mpas_allocate_scratch_field(kineticEnergyVertexOnCellsField, .true.)
+         call mpas_threading_barrier()
 
-      kineticEnergyVertex         => kineticEnergyVertexField % array
-      kineticEnergyVertexOnCells  => kineticEnergyVertexOnCellsField % array
+         kineticEnergyVertex         => kineticEnergyVertexField % array
+         kineticEnergyVertexOnCells  => kineticEnergyVertexOnCellsField % array
 
-      !$omp do schedule(runtime) private(i, iEdge, r_tmp, k)
-      do iVertex = 1, nVertices*ke_vertex_flag
-        kineticEnergyVertex(:, iVertex) = 0.0_RKIND
-        do i = 1, vertexDegree
-          iEdge = edgesOnVertex(i, iVertex)
-          r_tmp = dcEdge(iEdge) * dvEdge(iEdge) * 0.25_RKIND / areaTriangle(iVertex)
-          do k = 1, nVertLevels
-            kineticEnergyVertex(k, iVertex) = kineticEnergyVertex(k, iVertex) + r_tmp * normalVelocity(k, iEdge)**2
-          end do
-        end do
-      end do
-      !$omp end do
-
-      !$omp do schedule(runtime) private(invAreaCell1, i, j, iVertex, k)
-      do iCell = 1, nCells*ke_vertex_flag
-        kineticEnergyVertexOnCells(:, iCell) = 0.0_RKIND
-        invAreaCell1 = 1.0_RKIND / areaCell(iCell)
-        do i = 1, nEdgesOnCell(iCell)
-          j = kiteIndexOnCell(i, iCell)
-          iVertex = verticesOnCell(i, iCell)
-          do k = 1, nVertLevels
-            kineticEnergyVertexOnCells(k, iCell) = kineticEnergyVertexOnCells(k, iCell) + kiteAreasOnVertex(j, iVertex) &
-                                                 * kineticEnergyVertex(k, iVertex) * invAreaCell1
-          end do
-        end do
-      end do
-      !$omp end do
-
-      !
-      ! Compute kinetic energy in each cell by blending kineticEnergyCell and kineticEnergyVertexOnCells
-      !
-      !$omp do schedule(runtime) private(k)
-      do iCell = 1, nCells * ke_vertex_flag
-         do k = 1, nVertLevels
-            kineticEnergyCell(k,iCell) = 5.0_RKIND / 8.0_RKIND * kineticEnergyCell(k,iCell) + 3.0_RKIND / 8.0_RKIND &
-                                       * kineticEnergyVertexOnCells(k,iCell)
+         !$omp do schedule(runtime) private(i, iEdge, r_tmp, k)
+         do iVertex = 1, nVertices*ke_vertex_flag
+           kineticEnergyVertex(:, iVertex) = 0.0_RKIND
+           do i = 1, vertexDegree
+             iEdge = edgesOnVertex(i, iVertex)
+             r_tmp = dcEdge(iEdge) * dvEdge(iEdge) * 0.25_RKIND / areaTriangle(iVertex)
+             do k = 1, nVertLevels
+               kineticEnergyVertex(k, iVertex) = kineticEnergyVertex(k, iVertex) + r_tmp * normalVelocity(k, iEdge)**2
+             end do
+           end do
          end do
-      end do
-      !$omp end do
+         !$omp end do
 
-      call mpas_threading_barrier()
-      call mpas_deallocate_scratch_field(kineticEnergyVertexField, .true.)
-      call mpas_deallocate_scratch_field(kineticEnergyVertexOnCellsField, .true.)
+         !$omp do schedule(runtime) private(invAreaCell1, i, j, iVertex, k)
+         do iCell = 1, nCells*ke_vertex_flag
+           kineticEnergyVertexOnCells(:, iCell) = 0.0_RKIND
+           invAreaCell1 = 1.0_RKIND / areaCell(iCell)
+           do i = 1, nEdgesOnCell(iCell)
+             j = kiteIndexOnCell(i, iCell)
+             iVertex = verticesOnCell(i, iCell)
+             do k = 1, nVertLevels
+               kineticEnergyVertexOnCells(k, iCell) = kineticEnergyVertexOnCells(k, iCell) + kiteAreasOnVertex(j, iVertex) &
+                                                    * kineticEnergyVertex(k, iVertex) * invAreaCell1
+             end do
+           end do
+         end do
+         !$omp end do
+
+         !
+         ! Compute kinetic energy in each cell by blending kineticEnergyCell and kineticEnergyVertexOnCells
+         !
+         !$omp do schedule(runtime) private(k)
+         do iCell = 1, nCells * ke_vertex_flag
+            do k = 1, nVertLevels
+               kineticEnergyCell(k,iCell) = 5.0_RKIND / 8.0_RKIND * kineticEnergyCell(k,iCell) + 3.0_RKIND / 8.0_RKIND &
+                                          * kineticEnergyVertexOnCells(k,iCell)
+            end do
+         end do
+         !$omp end do
+
+         call mpas_threading_barrier()
+         call mpas_deallocate_scratch_field(kineticEnergyVertexField, .true.)
+         call mpas_deallocate_scratch_field(kineticEnergyVertexOnCellsField, .true.)
+      end if
 
       !
       ! Compute normalized relative and planetary vorticity
       !
       call mpas_pool_get_field(scratchPool, 'normalizedRelativeVorticityVertex', normalizedRelativeVorticityVertexField)
       call mpas_pool_get_field(scratchPool, 'normalizedPlanetaryVorticityVertex', normalizedPlanetaryVorticityVertexField)
-      call mpas_allocate_scratch_field(normalizedRelativeVorticityVertexField, .true.)
-      call mpas_allocate_scratch_field(normalizedPlanetaryVorticityVertexField, .true.)
+      call mpas_allocate_scratch_field(normalizedRelativeVorticityVertexField, .true., .false.)
+      call mpas_allocate_scratch_field(normalizedPlanetaryVorticityVertexField, .true., .false.)
       call mpas_threading_barrier()
 
       normalizedPlanetaryVorticityVertex  => normalizedPlanetaryVorticityVertexField % array
       normalizedRelativeVorticityVertex  => normalizedRelativeVorticityVertexField % array
+
+      nVertices = nVerticesArray( 3 )
 
       !$omp do schedule(runtime) private(invAreaTri1, k, layerThicknessVertex, i)
       do iVertex = 1, nVertices
@@ -451,6 +473,8 @@ contains
       end do
       !$omp end do
 
+      nEdges = nEdgesArray( 3 )
+
       !$omp do schedule(runtime) private(vertex1, vertex2, k)
       do iEdge = 1, nEdges
         normalizedRelativeVorticityEdge(:, iEdge) = 0.0_RKIND
@@ -465,6 +489,8 @@ contains
         end do
       end do
       !$omp end do
+
+      nCells = nCellsArray( 2 )
 
       !$omp do schedule(runtime) private(invAreaCell1, i, j, iVertex, k)
       do iCell = 1, nCells
@@ -482,6 +508,10 @@ contains
       end do
       !$omp end do
 
+      nCells = nCellsArray( size(nCellsArray) )
+      nVertices = nVerticesArray( size(nVerticesArray) )
+      nEdges = nCellsArray( size(nCellsArray) )
+
       ! Diagnostics required for the Anticipated Potential Vorticity Method (apvm).
       if (config_apvm_scale_factor>1e-10) then
 
@@ -493,6 +523,8 @@ contains
 
          vorticityGradientNormalComponent => vorticityGradientNormalComponentField % array
          vorticityGradientTangentialComponent => vorticityGradientTangentialComponentField % array
+
+         nEdges = nEdgesArray( 2 )
 
          !$omp do schedule(runtime) private(cell1, cell2, vertex1, vertex2, invLength, k)
          do iEdge = 1,nEdges
@@ -547,37 +579,43 @@ contains
       !
       ! equation of state
       !
-      call mpas_timer_start("equation of state")
+
+      ! Only need densities on 0, 1, and 2 halo cells
+      nCells = nCellsArray( 3 )
 
       ! compute in-place density
       if (config_pressure_gradient_type.eq.'Jacobian_from_TS') then
          ! only compute EOS derivatives if needed.
          call mpas_pool_get_array(diagnosticsPool, 'inSituThermalExpansionCoeff',inSituThermalExpansionCoeff)
          call mpas_pool_get_array(diagnosticsPool, 'inSituSalineContractionCoeff', inSituSalineContractionCoeff)
-         call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, 0, 'relative', density, err, &
-              inSituThermalExpansionCoeff, inSituSalineContractionCoeff, timeLevelIn=timeLevel)
+         call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, &
+                                            nCells, 0, 'relative', density, err, &
+                                            inSituThermalExpansionCoeff, inSituSalineContractionCoeff, &
+                                            timeLevelIn=timeLevel)
       else
-         call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, 0, 'relative', density, err, &
-              timeLevelIn=timeLevel)
+         call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, &
+                                            nCells, 0, 'relative', density, err, &
+                                            timeLevelIn=timeLevel)
       endif
       call mpas_threading_barrier()
 
       ! compute potentialDensity, the density displaced adiabatically to the mid-depth of top layer.
-      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, 1, 'absolute', potentialDensity, &
+      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, &
+                                         nCells, 1, 'absolute', potentialDensity, &
                                          err, timeLevelIn=timeLevel)
 
       ! compute displacedDensity, density displaced adiabatically to the mid-depth one layer deeper.
       ! That is, layer k has been displaced to the depth of layer k+1.
-      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, 1, 'relative', displacedDensity, &
+      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, &
+                                         nCells, 1, 'relative', displacedDensity, &
                                          err, timeLevelIn=timeLevel)
       call mpas_threading_barrier()
-
-      call mpas_timer_stop("equation of state")
 
       !
       ! Pressure
       ! This section must be placed in the code after computing the density.
       !
+      nCells = nCellsArray( size(nCellsArray) )
       if (config_pressure_gradient_type.eq.'MontgomeryPotential') then
 
         ! use Montgomery Potential when layers are isopycnal.
@@ -618,6 +656,7 @@ contains
            ! or an ice-shelf depression.
            pressure(1,iCell) = 0.0_RKIND
            if ( associated(frazilSurfacePressure) ) pressure(1,iCell) = pressure(1,iCell) + frazilSurfacePressure(iCell)
+           if ( associated(landIcePressure) ) pressure(1,iCell) = pressure(1,iCell) + landIcePressure(iCell)
            pressure(1,iCell) = pressure(1,iCell) + seaSurfacePressure(iCell)
            pressure(1,iCell) = pressure(1,iCell) + density(1,iCell)*gravity*0.5_RKIND*layerThickness(1,iCell)
 
@@ -650,6 +689,8 @@ contains
         !$omp end do
 
       endif
+
+      nCells = nCellsArray( 3 )
 
       !
       ! Brunt-Vaisala frequency (this has units of s^{-2})
@@ -712,6 +753,8 @@ contains
       ! the ocean surface layer is generally assumed to be about 0.1 of the boundary layer depth
       if(config_use_cvmix_kpp) then
 
+        nCells = nCellsArray( 1 )
+
         !$omp do schedule(runtime)
         do iCell = 1, nCells
            tracersSurfaceLayerValue(:, iCell) = 0.0_RKIND
@@ -743,6 +786,8 @@ contains
           tracersSurfaceLayerValue(:,iCell) = tracersSurfaceLayerValue(:,iCell) / surfaceLayerDepth
         enddo
         !$omp end do
+
+        nEdges = nEdgesArray( 1 )
 
         !
         ! average normal velocity values over the ocean surface layer
@@ -785,6 +830,8 @@ contains
 
       endif
 
+      nCells = nCellsArray( 2 )
+
       ! compute the attenuation coefficient for surface fluxes
       !$omp do schedule(runtime)
       do iCell = 1, nCells
@@ -795,16 +842,27 @@ contains
 
       !
       !  compute fields needed to compute land-ice fluxes, either in the ocean model or in the coupler
-      call mpas_timer_start("land_ice_diagnostic_fields", .false.)
       call ocn_compute_land_ice_flux_input_fields(meshPool, statePool, forcingPool, scratchPool, &
                                          diagnosticsPool, timeLevel)
-      call mpas_timer_stop("land_ice_diagnostic_fields")
 
+      nCells = nCellsArray( 2 )
       !$omp do schedule(runtime)
       do iCell = 1, nCells
          pressureAdjustedSSH(iCell) = ssh(iCell) + ( seaSurfacePressure(iCell) / ( gravity * rho_sw ) )
       end do
       !$omp end do
+
+      if(associated(landIceDraft)) then
+         !$omp do schedule(runtime)
+         do iCell = 1, nCells
+            ! subtract the land ice draft from the SSH so sea ice doesn't experience tilt
+            ! toward land ice
+            pressureAdjustedSSH(iCell) = pressureAdjustedSSH(iCell) - landIceDraft(iCell)
+         end do
+         !$omp end do
+      end if
+
+      nEdges = nEdgesArray( 2 )
 
       !$omp do schedule(runtime) private(cell1, cell2)
       do iEdge = 1, nEdges
@@ -815,9 +873,11 @@ contains
       end do
       !$omp end do
 
-     call mpas_threading_barrier()
+      call mpas_threading_barrier()
 
-
+      call mpas_deallocate_scratch_field(normalizedRelativeVorticityVertexField, .true.)
+      call mpas_deallocate_scratch_field(normalizedPlanetaryVorticityVertexField, .true.)
+      call mpas_timer_stop('diagnostic solve')
 
    end subroutine ocn_diagnostic_solve!}}}
 
@@ -885,8 +945,9 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, iCell, k, i
-      integer, pointer :: nCells, nVertLevels
+      integer :: iEdge, iCell, k, i, nCells
+      integer, pointer :: nVertLevels
+      integer, dimension(:), pointer :: nCellsArray
       integer, dimension(:), pointer :: nEdgesOnCell, nEdgesOnEdge, &
         maxLevelCell, maxLevelEdgeBot
       integer, dimension(:,:), pointer :: edgesOnCell, edgeSignOnCell
@@ -915,7 +976,7 @@ contains
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeBot', maxLevelEdgeBot)
       call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
 
-      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
 
       if (config_vert_coord_movement.eq.'impermeable_interfaces') then
@@ -923,6 +984,8 @@ contains
         return
       end if
 
+      ! Only need to compute over 0 and 1 halos
+      nCells = nCellsArray( 2 )
 
       call mpas_pool_get_field(scratchPool, 'div_hu', div_huField)
       call mpas_pool_get_field(scratchPool, 'projectedSSH', projectedSSHField)
@@ -1288,7 +1351,9 @@ contains
       type (mpas_pool_type), pointer :: tracersPool
 
       ! scalars
-      integer, pointer :: nCells, nVertLevels
+      integer :: nCells
+      integer, pointer :: nVertLevels
+      integer, dimension(:), pointer :: nCellsArray
 
       ! integer pointers
       integer, dimension(:), pointer :: maxLevelCell, nEdgesOnCell
@@ -1324,6 +1389,8 @@ contains
 
       type (field2DReal), pointer :: densitySurfaceDisplacedField, thermalExpansionCoeffField, salineContractionCoeffField
 
+      call mpas_timer_start('KPP input fields')
+
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
       else
@@ -1339,7 +1406,7 @@ contains
       turbulentVelocitySquared = 0.001_RKIND
 
       ! set scalar values
-      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_temperatureSurfaceFlux', indexTempFlux)
       call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_salinitySurfaceFlux', indexSaltFlux)
@@ -1378,17 +1445,20 @@ contains
       call mpas_pool_get_field(scratchPool, 'densitySurfaceDisplaced', densitySurfaceDisplacedField)
       call mpas_pool_get_field(scratchPool, 'thermalExpansionCoeff', thermalExpansionCoeffField)
       call mpas_pool_get_field(scratchPool, 'salineContractionCoeff', salineContractionCoeffField)
-      call mpas_allocate_scratch_field(densitySurfaceDisplacedField, .true.)
-      call mpas_allocate_scratch_field(thermalExpansionCoeffField, .true.)
-      call mpas_allocate_scratch_field(salineContractionCoeffField, .true.)
+      call mpas_allocate_scratch_field(densitySurfaceDisplacedField, .true., .false.)
+      call mpas_allocate_scratch_field(thermalExpansionCoeffField, .true., .false.)
+      call mpas_allocate_scratch_field(salineContractionCoeffField, .true., .false.)
       call mpas_threading_barrier()
 
       densitySurfaceDisplaced => densitySurfaceDisplacedField % array
       thermalExpansionCoeff => thermalExpansionCoeffField % array
       salineContractionCoeff => salineContractionCoeffField % array
 
+      ! Only need to compute over the 0 and 1 halos
+      nCells = nCellsArray( 2 )
+
       ! compute EOS by displacing SST/SSS to every vertical layer in column
-      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, 0, 'surfaceDisplaced', &
+      call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, nCells, 0, 'surfaceDisplaced', &
                                          densitySurfaceDisplaced, err, thermalExpansionCoeff, salineContractionCoeff, &
                                          timeLevel)
 
@@ -1463,6 +1533,8 @@ contains
       call mpas_deallocate_scratch_field(salineContractionCoeffField, .true.)
       call mpas_deallocate_scratch_field(densitySurfaceDisplacedField, .true.)
 
+      call mpas_timer_stop('KPP input fields')
+
     end subroutine ocn_compute_KPP_input_fields!}}}
 
 
@@ -1526,6 +1598,8 @@ contains
                                                   blTempScratch, blSaltScratch, &
                                                   surfaceFluxAttenuationCoefficient
 
+      integer, dimension(:), pointer :: landIceMask
+
       real (kind=RKIND), dimension(:,:), pointer :: kineticEnergyCell, layerThickness, normalVelocity, &
                                                     landIceBoundaryLayerTracers, landIceTracerTransferVelocities
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
@@ -1543,10 +1617,35 @@ contains
 
 
       call mpas_pool_get_config(ocnConfigs, 'config_land_ice_flux_mode', config_land_ice_flux_mode)
-      if ( trim(config_land_ice_flux_mode) == 'off') then
+      if ( trim(config_land_ice_flux_mode) .ne. 'off' ) then
+
+         ! we need to compute the landiceMask regardless of which mode we're in so it can be
+         ! added to the restart file
+
+         call mpas_pool_get_array(forcingPool, 'landIceFraction', landIceFraction)
+         call mpas_pool_get_array(forcingPool, 'landIceMask', landIceMask)
+
+         call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+         ! compute landIceMask from landIceFraction
+         !$omp do schedule(runtime)
+         do iCell = 1, nCells
+            if (landIceFraction(iCell) >= 0.5_RKIND) then
+               landIceMask(iCell) = 1
+            else
+               landIceMask(iCell) = 0
+               ! don't allow land-ice fluxes if land ice is masked out
+               landIceFraction(iCell) = 0.0_RKIND
+            end if
+         end do
+         !$omp end do
+
+      end if
+
+      if ( trim(config_land_ice_flux_mode) .ne. 'standalone' .and. trim(config_land_ice_flux_mode) .ne. 'coupled' ) then
          return
       end if
 
+      call mpas_timer_start("land_ice_diagnostic_fields", .false.)
 
       jenkinsOn = .false.
       hollandJenkinsOn = .false.
@@ -1727,13 +1826,16 @@ contains
       call mpas_deallocate_scratch_field(boundaryLayerTemperatureField, .true.)
       call mpas_deallocate_scratch_field(boundaryLayerSalinityField, .true.)
 
-      ! recompute the spatially-varying attenuation coefficient based on landIceFraction
+      ! modify the spatially-varying attenuation coefficient where there is land ice
       !$omp do schedule(runtime)
       do iCell = 1, nCells
-         surfaceFluxAttenuationCoefficient(iCell) = landIceFraction(iCell)*config_land_ice_flux_attenuation_coefficient &
-           + (1.0_RKIND - landIceFraction(iCell))*surfaceFluxAttenuationCoefficient(iCell)
+         if(landIceMask(iCell) == 1) then
+            surfaceFluxAttenuationCoefficient(iCell) = config_land_ice_flux_attenuation_coefficient
+         end if
       end do
       !$omp end do
+
+      call mpas_timer_stop("land_ice_diagnostic_fields")
 
    !--------------------------------------------------------------------
 
@@ -1763,73 +1865,670 @@ contains
          relativeSlopeTopOfCellY, relativeSlopeTopOfCellZ, relativeSlopeTopOfCellZonal, relativeSlopeTopOfCellMeridional, &
          gmStreamFuncTopOfEdge, GMStreamFuncX, GMStreamFuncY, GMStreamFuncZ, GMStreamFuncZonal, GMStreamFuncMeridional
 
-         call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
-         call mpas_pool_get_array(diagnosticsPool, 'transportVelocityX', transportVelocityX)
-         call mpas_pool_get_array(diagnosticsPool, 'transportVelocityY', transportVelocityY)
-         call mpas_pool_get_array(diagnosticsPool, 'transportVelocityZ', transportVelocityZ)
-         call mpas_pool_get_array(diagnosticsPool, 'transportVelocityZonal', transportVelocityZonal)
-         call mpas_pool_get_array(diagnosticsPool, 'transportVelocityMeridional', transportVelocityMeridional)
+      call mpas_timer_start('reconstruct gm vecs')
 
-         call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
-         call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityX', GMBolusVelocityX)
-         call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityY', GMBolusVelocityY)
-         call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityZ', GMBolusVelocityZ)
-         call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityZonal', GMBolusVelocityZonal)
-         call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityMeridional', GMBolusVelocityMeridional)
+      call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
+      call mpas_pool_get_array(diagnosticsPool, 'transportVelocityX', transportVelocityX)
+      call mpas_pool_get_array(diagnosticsPool, 'transportVelocityY', transportVelocityY)
+      call mpas_pool_get_array(diagnosticsPool, 'transportVelocityZ', transportVelocityZ)
+      call mpas_pool_get_array(diagnosticsPool, 'transportVelocityZonal', transportVelocityZonal)
+      call mpas_pool_get_array(diagnosticsPool, 'transportVelocityMeridional', transportVelocityMeridional)
 
-         call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfEdge', relativeSlopeTopOfEdge)
-         call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfCellX', relativeSlopeTopOfCellX)
-         call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfCellY', relativeSlopeTopOfCellY)
-         call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfCellZ', relativeSlopeTopOfCellZ)
-         call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfCellZonal', relativeSlopeTopOfCellZonal)
-         call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfCellMeridional', relativeSlopeTopOfCellMeridional)
+      call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
+      call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityX', GMBolusVelocityX)
+      call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityY', GMBolusVelocityY)
+      call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityZ', GMBolusVelocityZ)
+      call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityZonal', GMBolusVelocityZonal)
+      call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityMeridional', GMBolusVelocityMeridional)
 
-         call mpas_pool_get_array(diagnosticsPool, 'gmStreamFuncTopOfEdge', gmStreamFuncTopOfEdge)
-         call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncX', GMStreamFuncX)
-         call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncY', GMStreamFuncY)
-         call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncZ', GMStreamFuncZ)
-         call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncZonal', GMStreamFuncZonal)
-         call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncMeridional', GMStreamFuncMeridional)
+      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfEdge', relativeSlopeTopOfEdge)
+      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfCellX', relativeSlopeTopOfCellX)
+      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfCellY', relativeSlopeTopOfCellY)
+      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfCellZ', relativeSlopeTopOfCellZ)
+      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfCellZonal', relativeSlopeTopOfCellZonal)
+      call mpas_pool_get_array(diagnosticsPool, 'relativeSlopeTopOfCellMeridional', relativeSlopeTopOfCellMeridional)
 
-         !$omp sections
-         !$omp section
-         call mpas_reconstruct(meshPool, normalTransportVelocity,          &
-                          transportVelocityX,            &
-                          transportVelocityY,            &
-                          transportVelocityZ,            &
-                          transportVelocityZonal,        &
-                          transportVelocityMeridional    &
-                         )
+      call mpas_pool_get_array(diagnosticsPool, 'gmStreamFuncTopOfEdge', gmStreamFuncTopOfEdge)
+      call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncX', GMStreamFuncX)
+      call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncY', GMStreamFuncY)
+      call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncZ', GMStreamFuncZ)
+      call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncZonal', GMStreamFuncZonal)
+      call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncMeridional', GMStreamFuncMeridional)
 
-         !$omp section
-         call mpas_reconstruct(meshPool, normalGMBolusVelocity,          &
-                          GMBolusVelocityX,            &
-                          GMBolusVelocityY,            &
-                          GMBolusVelocityZ,            &
-                          GMBolusVelocityZonal,        &
-                          GMBolusVelocityMeridional    &
-                         )
+      !$omp sections
+      !$omp section
+      call mpas_reconstruct(meshPool, normalTransportVelocity,          &
+                       transportVelocityX,            &
+                       transportVelocityY,            &
+                       transportVelocityZ,            &
+                       transportVelocityZonal,        &
+                       transportVelocityMeridional    &
+                      )
 
-         !$omp section
-         call mpas_reconstruct(meshPool, relativeSlopeTopOfEdge,          &
-                         relativeSlopeTopOfCellX,            &
-                         relativeSlopeTopOfCellY,            &
-                         relativeSlopeTopOfCellZ,            &
-                         relativeSlopeTopOfCellZonal,        &
-                         relativeSlopeTopOfCellMeridional    &
-                        )
+      !$omp section
+      call mpas_reconstruct(meshPool, normalGMBolusVelocity,          &
+                       GMBolusVelocityX,            &
+                       GMBolusVelocityY,            &
+                       GMBolusVelocityZ,            &
+                       GMBolusVelocityZonal,        &
+                       GMBolusVelocityMeridional    &
+                      )
 
-         !$omp section
-         call mpas_reconstruct(meshPool, gmStreamFuncTopOfEdge,          &
-                         GMStreamFuncX,            &
-                         GMStreamFuncY,            &
-                         GMStreamFuncZ,            &
-                         GMStreamFuncZonal,        &
-                         GMStreamFuncMeridional    &
-                        )
-         !$omp end sections
+      !$omp section
+      call mpas_reconstruct(meshPool, relativeSlopeTopOfEdge,          &
+                      relativeSlopeTopOfCellX,            &
+                      relativeSlopeTopOfCellY,            &
+                      relativeSlopeTopOfCellZ,            &
+                      relativeSlopeTopOfCellZonal,        &
+                      relativeSlopeTopOfCellMeridional    &
+                     )
+
+      !$omp section
+      call mpas_reconstruct(meshPool, gmStreamFuncTopOfEdge,          &
+                      GMStreamFuncX,            &
+                      GMStreamFuncY,            &
+                      GMStreamFuncZ,            &
+                      GMStreamFuncZonal,        &
+                      GMStreamFuncMeridional    &
+                     )
+      !$omp end sections
+
+      call mpas_timer_stop('reconstruct gm vecs')
 
    end subroutine ocn_reconstruct_gm_vectors!}}}
+
+
+!***********************************************************************
+!
+!  routine ocn_validate_state
+!
+!> \brief   Ocean state validation routine
+!> \author  Doug Jacobsen
+!> \date    08/11/2016
+!> \details
+!>  This routine validates that the ocean state is able to continue running
+!>  with for the next time step.
+!>  If a processor detects that it is unable to continue running, some
+!>  diagnostic information is written out about it.
+!>  This routine relies on the definition that a NaN does not equal itself
+!>  for detecting issues with the state.
+!
+!-----------------------------------------------------------------------
+   subroutine ocn_validate_state(domain, timeLevel)!{{{
+      type (domain_type), intent(inout) :: domain 
+      integer, intent(in), optional :: timeLevel
+
+      integer :: timeLevelLocal
+
+      type (block_type), pointer :: block
+
+      integer, pointer :: nCellsSolve, nEdgesSolve, nVerticesSolve
+
+      type (mpas_pool_type), pointer :: meshPool, statePool, tracersPool
+      type (mpas_pool_type), pointer :: forcingPool
+
+      real (kind=RKIND), dimension(:, :), pointer :: layerThickness, normalVelocity
+      real (kind=RKIND), dimension(:, :, :), pointer :: activeTracers
+
+      integer, dimension(:), pointer :: maxLevelCell, maxLevelEdgeBot, maxLevelVertexBot
+
+      real (kind=RKIND), dimension(:), pointer :: real1DArr
+      real (kind=RKIND), dimension(:, :), pointer :: real2DArr
+      real (kind=RKIND), dimension(:, :, :), pointer :: real3DArr
+      real (kind=RKIND), dimension(:, :, :, :), pointer :: real4DArr
+      real (kind=RKIND), dimension(:, :, :, :, :), pointer :: real5DArr
+      integer, dimension(:), pointer :: int1DArr
+      integer, dimension(:, :), pointer :: int2DArr
+      integer, dimension(:, :, :), pointer :: int3DArr
+
+      integer :: iCell, iEdge, iVertex, iTracer, k
+
+      logical :: fatalErrorDetected
+
+      logical :: thickNanFound, velNanFound, tracersNanFound
+
+      real (kind=RKIND) :: minValue, maxValue
+
+      integer :: debugUnit
+      character (len=StrKIND) :: debugFilename, fieldName
+
+      if ( present(timeLevel) ) then
+         timeLevelLocal = timeLevel
+      else
+         timeLevelLocal = 1
+      end if
+
+      fatalErrorDetected = .false.
+
+      call mpas_new_unit(debugUnit)
+
+      block => domain % blocklist
+      do while ( associated(block) )
+         thickNanFound = .false.
+         velNanFound = .false.
+         tracersNanFound = .false.
+
+         debugFilename = ocn_build_log_filename('mpas_ocean_block_stats_', block % blockID)
+
+         ! Get standard fields, for checking errors
+         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+         call mpas_pool_get_subpool(block % structs, 'state', statePool)
+         call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
+         call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+
+         call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
+         call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
+         call mpas_pool_get_dimension(meshPool, 'nVerticesSolve', nVerticesSolve)
+
+         call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+         call mpas_pool_get_array(meshPool, 'maxLevelEdgeBot', maxLevelEdgeBot)
+         call mpas_pool_get_array(meshPool, 'maxLevelVertexBot', maxLevelVertexBot)
+
+         call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel=timeLevelLocal)
+         call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel=timeLevelLocal)
+         call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, timeLevel=timeLevelLocal)
+
+         ! Check for errors in the state fields
+         do iCell = 1, nCellsSolve
+            do k = 1, maxLevelCell(iCell)
+               thickNanFound = thickNanFound .or. ( .not. layerThickness(k, iCell) == layerThickness(k, iCell) )
+               do iTracer = 1, size(activeTracers, dim=1)
+                  tracersNanFound = tracersNanFound .or. &
+                                  ( .not. activeTracers(iTracer, k, iCell) == activeTracers(iTracer, k, iCell) )
+               end do
+            end do
+         end do
+
+         do iEdge = 1, nEdgesSolve
+            do k = 1, maxLevelEdgeBot(iEdge)
+               velNanFound = velNanFound .or. ( .not. normalVelocity(k, iEdge) == normalVelocity(k, iEdge) )
+            end do
+         end do
+
+         ! If an error was found, we need to open the file to write data out.
+         if ( thickNanFound .or. tracersNanFound .or. velNanFound ) then!{{{
+            open(unit=debugUnit, file=debugFilename, form='formatted', status='unknown')
+
+            write(debugUnit, *) 'ERROR: NaN Detected in state see below for which field contained a NaN.'
+            write(debugUnit, *) '  -- Statistics information for block fields'
+
+            ! Also, write general block information, like lat/lon bounds
+
+            ! Test latCell
+            fieldName = 'latCell'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(meshPool, fieldName, real1DArr)
+            do iCell = 1, nCellsSolve
+               minValue = min( minValue, real1DArr(iCell) )
+               maxValue = max( maxValue, real1DArr(iCell) )
+            end do
+            call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+
+            ! Test lonCell
+            fieldName = 'lonCell'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(meshPool, fieldName, real1DArr)
+            do iCell = 1, nCellsSolve
+               minValue = min( minValue, real1DArr(iCell) )
+               maxValue = max( maxValue, real1DArr(iCell) )
+            end do
+            call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+
+            ! Test xCell
+            fieldName = 'xCell'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(meshPool, fieldName, real1DArr)
+            do iCell = 1, nCellsSolve
+               minValue = min( minValue, real1DArr(iCell) )
+               maxValue = max( maxValue, real1DArr(iCell) )
+            end do
+            call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+
+            ! Test yCell
+            fieldName = 'yCell'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(meshPool, fieldName, real1DArr)
+            do iCell = 1, nCellsSolve
+               minValue = min( minValue, real1DArr(iCell) )
+               maxValue = max( maxValue, real1DArr(iCell) )
+            end do
+            call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+
+            ! Test zCell
+            fieldName = 'zCell'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(meshPool, fieldName, real1DArr)
+            do iCell = 1, nCellsSolve
+               minValue = min( minValue, real1DArr(iCell) )
+               maxValue = max( maxValue, real1DArr(iCell) )
+            end do
+            call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+
+            ! Test areaCell
+            fieldName = 'areaCell'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(meshPool, fieldName, real1DArr)
+            do iCell = 1, nCellsSolve
+               minValue = min( minValue, real1DArr(iCell) )
+               maxValue = max( maxValue, real1DArr(iCell) )
+            end do
+            call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+         end if!}}}
+
+         ! If there was a thickness NaN found, write out information about fields that affect thickness
+         if ( thickNanFound ) then!{{{
+            write(debugUnit, *) ''
+            write(debugUnit, *) ''
+            write(debugUnit, *) 'ERROR: NaN Detected in layerThickness.'
+            write(debugUnit, *) '  -- Statistics information for layerThickness fields'
+
+            ! Test rainFlux
+            fieldName = 'seaSurfacePressure'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test rainFlux
+            fieldName = 'rainFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test evaporationFlux
+            fieldName = 'evaporationFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test snowFlow
+            fieldName = 'snowFlow'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test seaIceFreshWaterFlux
+            fieldName = 'seaIceFreshWaterFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test iceRunoffFlux
+            fieldName = 'iceRunoffFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test riverRunoffFlux
+            fieldName = 'riverRunoffFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+         end if!}}}
+
+         ! If there was a velocity NaN found, write out information about fields that affect velocity
+         if ( velNanFound ) then!{{{
+            write(debugUnit, *) ''
+            write(debugUnit, *) ''
+            write(debugUnit, *) 'ERROR: NaN Detected in normalVelocity.'
+            write(debugUnit, *) '  -- Statistics information for normalVelocity fields'
+
+            ! Test seaSurfacePressure
+            fieldName = 'seaSurfacePressure'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test windStressZonal
+            fieldName = 'windStressZonal'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test windStressMeridional
+            fieldName = 'windStressMeridional'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test surfaceStressMagnitude
+            fieldName = 'surfaceStressMagnitude'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test surfaceStress
+            fieldName = 'surfaceStress'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iEdge = 1, nEdgesSolve
+                  minValue = min( minValue, real1DArr(iEdge) )
+                  maxValue = max( maxValue, real1DArr(iEdge) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test angleEdge
+            fieldName = 'angleEdge'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(meshPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iEdge = 1, nEdgesSolve
+                  minValue = min( minValue, real1DArr(iEdge) )
+                  maxValue = max( maxValue, real1DArr(iEdge) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+         end if!}}}
+
+         ! If there was a tracers NaN found, write out information about fields that affect tracers
+         if ( tracersNanFound ) then!{{{
+            write(debugUnit, *) ''
+            write(debugUnit, *) ''
+            write(debugUnit, *) 'ERROR: NaN Detected in activeTracers.'
+            write(debugUnit, *) '  -- Statistics information for activeTracers fields'
+
+            ! Test latentHeatFlux
+            fieldName = 'latentHeatFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test sensibleHeatFlux
+            fieldName = 'sensibleHeatFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test longWaveHeatFluxUp
+            fieldName = 'longWaveHeatFluxUp'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test longWaveHeatFluxDown
+            fieldName = 'longWaveHeatFluxDown'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test seaIceHeatFlux
+            fieldName = 'seaIceHeatFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test seaIceFreshWaterFlux
+            fieldName = 'snowFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+
+            ! Test rainFlux
+            fieldName = 'rainFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test snowFlux
+            fieldName = 'snowFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test iceRunoffFlux
+            fieldName = 'iceRunoffFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test riverRunoffFlux
+            fieldName = 'riverRunoffFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test seaIceSalinityFlux
+            fieldName = 'seaIceSalinityFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+
+            ! Test shortWaveHeatFlux
+            fieldName = 'shortWaveHeatFlux'
+            minValue = HUGE(minValue)
+            maxValue = -HUGE(maxValue)
+            call mpas_pool_get_array(forcingPool, fieldName, real1DArr)
+            if ( associated(real1DArr) ) then
+               do iCell = 1, nCellsSolve
+                  minValue = min( minValue, real1DArr(iCell) )
+                  maxValue = max( maxValue, real1DArr(iCell) )
+               end do
+               call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
+            end if
+         end if!}}}
+
+         ! If an error was found, we need to close the file now.
+         if ( thickNanFound .or. tracersNanFound .or. velNanFound ) then!{{{
+            flush(debugUnit)
+            close(debugUnit)
+            fatalErrorDetected = .true.
+         end if!}}}
+
+         block => block % next
+      end do
+
+      call mpas_release_unit(debugUnit)
+
+      if ( fatalErrorDetected ) then
+         call mpas_dmpar_global_abort('ERROR: MPAS-O: State validation failed. See block stats files for more information.')
+      end if
+
+   end subroutine ocn_validate_state!}}}
+
+   function ocn_build_log_filename(prefix, identifier) result(filename)!{{{
+      character (len=*), intent(in) :: prefix
+      integer, intent(in) :: identifier
+
+      character (len=StrKIND) :: filename
+      
+      character (len=StrKIND) :: identifierString
+
+      if ( identifier .lt. 10 ) then
+         write(identifierString, '(I1)') identifier
+      else if ( identifier .lt. 100 ) then
+         write(identifierString, '(I2)') identifier
+      else if ( identifier .lt. 1000 ) then
+         write(identifierString, '(I3)') identifier
+      else if ( identifier .lt. 10000 ) then
+         write(identifierString, '(I4)') identifier
+      else if ( identifier .lt. 100000 ) then
+         write(identifierString, '(I5)') identifier
+      else if ( identifier .lt. 1000000 ) then
+         write(identifierString, '(I6)') identifier
+      else if ( identifier .lt. 10000000 ) then
+         write(identifierString, '(I7)') identifier
+      else
+         write(identifierString, '(I99)') identifier
+      end if
+
+      filename = trim(prefix) // trim(identifierString)
+
+   end function ocn_build_log_filename!}}}
+
+   subroutine ocn_write_field_statistics(unitNumber, fieldName, minValue, maxValue)!{{{
+      integer, intent(in) :: unitNumber
+      character (len=*), intent(in) :: fieldName
+      real (kind=RKIND), intent(in) :: minValue, maxValue
+
+      write(unitNumber, *) '    Field: ', trim(fieldName)
+      write(unitNumber, *) '        Min: ', minValue
+      write(unitNumber, *) '        Max: ', maxValue
+
+   end subroutine ocn_write_field_statistics!}}}
 
 !***********************************************************************
 

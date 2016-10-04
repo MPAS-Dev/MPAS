@@ -20,6 +20,7 @@
 
 module ocn_vel_hmix_leith
 
+   use mpas_timer
    use mpas_derived_types
    use mpas_pool_routines
    use mpas_constants
@@ -123,8 +124,8 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, cell1, cell2, vertex1, vertex2, k
-      integer, pointer :: nEdgesSolve
+      integer :: iEdge, cell1, cell2, vertex1, vertex2, k, nEdges
+      integer, dimension(:), pointer :: nEdgesArray
       integer, dimension(:), pointer :: maxLevelEdgeTop
       integer, dimension(:,:), pointer :: cellsOnEdge, verticesOnEdge, edgeMask
 
@@ -144,11 +145,13 @@ contains
 
       if(.not.hmixLeithOn) return
 
+      call mpas_timer_start("vel leith")
+
       call mpas_pool_get_config(ocnConfigs, 'config_Leith_parameter', config_leith_parameter)
       call mpas_pool_get_config(ocnConfigs, 'config_Leith_dx', config_leith_dx)
       call mpas_pool_get_config(ocnConfigs, 'config_Leith_visc2_max', config_leith_visc2_max)
 
-      call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
+      call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
 
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
       call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
@@ -158,8 +161,10 @@ contains
       call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
       call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
 
+      nEdges = nEdgesArray( 1 )
+
       !$omp do schedule(runtime) private(cell1, cell2, vertex1, vertex2, invLength_dc, invLength_dv, k, u_diffusion, visc2)
-      do iEdge = 1, nEdgesSolve
+      do iEdge = 1, nEdges
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
          vertex1 = verticesOnEdge(1,iEdge)
@@ -191,6 +196,8 @@ contains
          end do
       end do
       !$omp end do
+
+      call mpas_timer_stop("vel leith")
 
    !--------------------------------------------------------------------
 

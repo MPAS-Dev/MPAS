@@ -133,10 +133,6 @@
 					possible_values="Any positive integer value greater than 0."
 					mode="forward;analysis;init"
 		/>
-		<nml_option name="config_restart_forcing_fields" type="logical" default_value=".true." units="unitless"
-					description="Controls whether forcing related fields are part of the restart stream or not."
-					possible_values=".true. or .false."
-		/>
 	</nml_record>
 	<nml_record name="decomposition" mode="forward;analysis;init">
 		<nml_option name="config_num_halos" type="integer" default_value="3" units="unitless"
@@ -204,19 +200,10 @@
 					possible_values="Any positive non-zero integer."
 		/>
 	</nml_record>
-	<nml_record name="init_ssh_and_ssp" mode="init">
-		<nml_option name="config_read_ssh_and_ssp_from_stream" type="logical" default_value=".false." units="unitless"
-					description="Logical flag that determines if the sea-surface height and pressure have been read from an input stream instead of being calculated.  This allows iterative balancing of the two fields using both init and forward mode."
-
-					possible_values=".true. or .false."
-		/>
-		<nml_option name="config_iterative_init_variable" type="character" default_value="ssp" units="unitless"
-					description="Which variable, ssh or ssp, is modified based on a previous forward run with the other held fixed during each init."
-					possible_values="'ssh' or 'ssp'"
-		/>
-		<nml_option name="config_modify_open_ocean_ssh" type="logical" default_value=".false." units="unitless"
-					description="Logical flag that determines if the SSH gets modified in the open ocean (where modifySSHMask == 1) to attempt to put the system in balance there.  By default, regions of open ocean are not balanced."
-					possible_values=".true. or .false."
+	<nml_record name="init_ssh_and_landIcePressure" mode="init">
+		<nml_option name="config_iterative_init_variable" type="character" default_value="landIcePressure" units="unitless"
+					description="Which variable, ssh or landIcePressure, is computed from the other.  If landIcePressure is to be computed, 'landIcePressure_from_top_density' indicates that the top density (rather than the mean density displaced by land ice) should be used to compute the landIcePressure."
+					possible_values="'ssh', 'landIcePressure_from_top_density' or 'landIcePressure'"
 		/>
 	</nml_record>
 
@@ -374,8 +361,8 @@
 					possible_values=".true. or .false."
 		/>
 		<nml_option name="config_use_Redi_surface_layer_tapering" type="logical" default_value=".false." units="NA"
-                                        description="If true, the Redi K33 vertical mixing is limited in and just below the ocean boundary layer."
-                                        possible_values=".true. or .false."
+					description="If true, the Redi K33 vertical mixing is limited in and just below the ocean boundary layer."
+					possible_values=".true. or .false."
 		/>
 		<nml_option name="config_Redi_surface_layer_tapering_extent" type="real" default_value="0.0" units="non-dimensional"
 					description="Vertical component of Redi mixing limited in top config_Redi_surface_layer_tapering_extent*boundaryLayerDepth"
@@ -649,6 +636,10 @@
 					description="The search for boundary layer depth is terminated when bulk Richardson number is greater than config_cvmix_kpp_stop_OBL_search*config_cvmix_kpp_criticalBulkRichardsonNumber"
 					possible_values="Any positive value"
 		/>
+		<nml_option name="config_cvmix_kpp_use_enhanced_diff" type="logical" default_value=".true." units="none"
+					description="Flag for use of enhanced diffusion at boundary layer base as in Large et al (1994)"
+					possible_values=".true. or .false."
+		/>
 	</nml_record>
 	<nml_record name="forcing" mode="init;forward">
 		<nml_option name="config_use_bulk_wind_stress" type="logical" default_value=".false." units="unitless"
@@ -694,7 +685,7 @@
 					description="Energy per kilogram released when sea water freezes. NOTE: test and make consistent with ACME."
 					possible_values="Any positive real number."
 		/>
-		<nml_option name="config_frazil_sea_ice_density" type="real" default_value="1000.0" units="kg m^{-3}"
+		<nml_option name="config_frazil_ice_density" type="real" default_value="1000.0" units="kg m^{-3}"
 					description="Assumed density of frazil. NOTE: test and make consistent with ACME."
 					possible_values="Any positive real number."
 		/>
@@ -710,11 +701,15 @@
 					description="maximum depth for the formation of frazil"
 					possible_values="Any positive real number."
 		/>
-		<nml_option name="config_frazil_ice_reference_salinity" type="real" default_value="4.0" units="PSU"
-					description="assumed salinity of frazil ice."
+		<nml_option name="config_frazil_sea_ice_reference_salinity" type="real" default_value="4.0" units="PSU"
+					description="assumed salinity of frazil ice in the open ocean."
 					possible_values="Any positive real number."
 		/>
-		<nml_option name="config_frazil_maximum_freezing_temperature" type="real" default_value="0.0" units="PSU"
+		<nml_option name="config_frazil_land_ice_reference_salinity" type="real" default_value="0.0" units="PSU"
+					description="assumed salinity of frazil ice under land ice."
+					possible_values="Any non-negative real number."
+		/>
+		<nml_option name="config_frazil_maximum_freezing_temperature" type="real" default_value="0.0" units="C"
 			description="Maximum freezing temperature for the creation of frazil"
 			possible_values="Any positive real number."
 		/>
@@ -726,7 +721,7 @@
 	<nml_record name="land_ice_fluxes" mode="init;forward">
 		<nml_option name="config_land_ice_flux_mode" type="character" default_value="off" units="unitless"
 					description="Selects the mode in which land-ice fluxes are computed."
-					possible_values="'off','standalone','coupled'"
+					possible_values="'off','pressure_only','standalone','coupled'"
 		/>
 		<nml_option name="config_land_ice_flux_formulation" type="character" default_value="Jenkins" units="unitless"
 					description="Name of land-ice flux formulation."
@@ -747,18 +742,6 @@
 		<nml_option name="config_land_ice_flux_boundaryLayerNeighborWeight" type="real" default_value="0.0" units="unitless"
 					description="The for horizontal neighbors used to horizontally smooth boundary layer T and S."
 					possible_values="Most likely a value between 0 (no smoothing) and 1 (neighbors get same weight as this cell)."
-		/>
-		<nml_option name="config_land_ice_flux_Tf0" type="real" default_value="9.39e-2" units="C"
-					description="The constant term in the linearization of the freezing temperature."
-					possible_values="Any real number"
-		/>
-		<nml_option name="config_land_ice_flux_dTf_dS" type="real" default_value="-5.73e-2" units="C PSU^{-1}"
-					description="The salinity coefficient in the linearization of the freezing temperature."
-					possible_values="Any real number"
-		/>
-		<nml_option name="config_land_ice_flux_dTf_dp" type="real" default_value="-7.53e-8" units="C Pa^{-1}"
-					description="The pressure coefficient in the linearization of the freezing temperature."
-					possible_values="Any real number"
 		/>
 		<nml_option name="config_land_ice_flux_cp_ice" type="real" default_value="2.009e3" units="J C^{-1} kg^{-1}"
 					description="The specific heat capacity for ice."
@@ -839,6 +822,26 @@
 					description="Character string to choose EOS formulation"
 					possible_values="Jackett McDougall EOS = 'jm' and Linear EOS = 'linear'"
 		/>
+		<nml_option name="config_freezing_temperature_coeff_0" type="real" default_value="-1.8" units="C"
+					description="The freezing temperature at zero pressure."
+					possible_values="Any real number"
+		/>
+		<nml_option name="config_freezing_temperature_coeff_S" type="real" default_value="0.0" units="C PSU^{-1}"
+					description="The coefficient for the term proportional to salinity in the freezing temperature."
+					possible_values="Any real number"
+		/>
+		<nml_option name="config_freezing_temperature_coeff_p" type="real" default_value="6.64670038e-08" units="C Pa^{-1}"
+					description="The coefficient for the term proportional to the (limited) pressure in the freezing temperature."
+					possible_values="Any real number"
+		/>
+		<nml_option name="config_freezing_temperature_coeff_pS" type="real" default_value="-4.44655526e-09" units="C PSU^{-1} Pa^{-1}"
+					description="The coefficient for the term proportional to salinity times pressure in the freezing temperature."
+					possible_values="Any real number"
+		/>
+		<nml_option name="config_freezing_temperature_reference_pressure" type="real" default_value="1e5" units="Pa"
+					description="The reference pressure above which the freezing temperature is equal to config_freezing_temperature_coeff_0."
+					possible_values="Any positive real number"
+		/>
 	</nml_record>
 	<nml_record name="eos_linear">
 		<nml_option name="config_eos_linear_alpha" type="real" default_value="0.2" units="kg m^{-3} C^{-1}"
@@ -879,9 +882,9 @@
 					description="number of iterations of stage 1 (baroclinic solve) on the last split-explicit iteration"
 					possible_values="any positive integer, but typically 1, 2, or 3"
 		/>
-		<nml_option name="config_n_btr_subcycles" type="integer" default_value="20" units="unitless"
-					description="number of barotropic subcycles in stage 2"
-					possible_values="any positive integer, typically between 10 and 100"
+		<nml_option name="config_btr_dt" type="character" default_value="0000_00:00:15" units="unitless"
+					description="Timestep to use for the barotropic mode in the split explicit time integrator"
+					possible_values="Any time stamp in 'YYYY-MM-DD_hh:mm:ss' format. Items can be removed from the left if they are unused."
 		/>
 		<nml_option name="config_n_btr_cor_iter" type="integer" default_value="2" units="unitless"
 					description="number of iterations of the velocity corrector step in stage 2"
@@ -1101,6 +1104,7 @@
 		<package name="thicknessFilter" description="This package includes variables required for frequency filtered thickness."/>
 		<package name="windStressBulkPKG" description="This package includes varibles required for bulk wind stress forcing."/>
 		<package name="thicknessBulkPKG" description="This package includes varibles required for bulk thickness forcing."/>
+		<package name="landIcePressurePKG" description="This package includes variables needed for runs with the sea surface depressed by land-ice pressure."/>
 		<package name="landIceFluxesPKG" description="This package includes varibles required for land ice thickness, momentum and tracer fluxes."/>
 		<package name="landIceCouplingPKG" description="This package includes varibles required for land ice coupling but not land ice fluxes in standalone mode."/>
 		<package name="frazilIce" description="This package includes variables required for frazil ice formation."/>
@@ -1109,7 +1113,6 @@
 		<package name="analysisMode" description="This package controls variables that are intended to be used within the analysis run mode of the ocean model."/>
 		<package name="initMode" description="This package controls variables that are intended to be used within the init run mode of the ocean model."/>
 		<package name="cullCells" description="This package controls variables that provide information on what cells should be culled."/>
-		<package name="restartForcingFields" destiption="This package controls whether forcing related fields are included in the restart stream or not."/>
 	</packages>
 
 	<streams>
@@ -1185,6 +1188,11 @@
 			<var name="edgeMask"/>
 			<var name="cullCell"/>
 			<var name="effectiveDensityInLandIce"/>
+			<var_struct name="ecosysAuxiliary"/>
+			<var name="landIceMask"/>
+			<var name="landIcePressure"/>
+			<var name="landIceFraction"/>
+			<var name="landIceDraft"/>
 		</stream>
 
 		<stream name="forcing_data_init"
@@ -1199,12 +1207,12 @@
 			<var name="seaSurfacePressure"/>
 			<var name="windStressZonal"/>
 			<var name="windStressMeridional"/>
+			<var_struct name="forcing"/>
 			<var_struct name="tracersSurfaceRestoringFields"/>
 			<var_struct name="tracersInteriorRestoringFields"/>
 			<var_struct name="tracersExponentialDecayFields"/>
 			<var_struct name="tracersIdealAgeFields"/>
 			<var_struct name="tracersTTDFields"/>
-			<var name="landIceFraction"/>
 			<var name="landIceSurfaceTemperature"/>
 			<var_array name="activeTracersPistonVelocity" packages="activeTracersSurfaceRestoringPKG"/>
 			<var_array name="activeTracersSurfaceRestoringValue" packages="activeTracersSurfaceRestoringPKG"/>
@@ -1287,12 +1295,16 @@
 			<var name="lowFreqDivergence"/>
 			<var name="effectiveDensityInLandIce"/>
 			<var_struct name="ecosysAuxiliary"/>
+			<var name="landIceMask"/>
+			<var name="landIcePressure"/>
+			<var name="landIceFraction"/>
+			<var name="landIceDraft"/>
 		</stream>
 		<stream name="KPP_testing"
 				type="output"
 				filename_template="output/KPP_test.$Y-$M-$D_$h.$m.$s.nc"
 				filename_interval="00-01-00_00:00:00"
-				reference_time="0000-01-01_00:00:00"
+				reference_time="0001-01-01_00:00:00"
 				clobber_mode="truncate"
 				output_interval="0000_01:00:00"
 				runtime_format="single_file" >
@@ -1327,7 +1339,7 @@
 				type="input;output"
 				filename_template="restarts/restart.$Y-$M-$D_$h.$m.$s.nc"
 				filename_interval="output_interval"
-				reference_time="0000-01-01_00:00:00"
+				reference_time="0001-01-01_00:00:00"
 				clobber_mode="truncate"
 				input_interval="initial_only"
 				output_interval="0005_00:00:00"
@@ -1345,7 +1357,11 @@
 			<var name="xtime"/>
 			<var name="simulationStartTime"/>
 			<var name="boundaryLayerDepth"/>
-			<var name="seaSurfacePressure" packages="restartForcingFields"/>
+			<var name="landIcePressure"/>
+			<var name="landIceDraft"/>
+			<var name="landIceFraction"/>
+			<var name="landIceMask"/>
+			<var name="seaSurfacePressure"/>
 			<var_array name="tracersSurfaceValue"/>
 			<var_array name="surfaceVelocity"/>
 			<var_array name="SSHGradient"/>
@@ -1353,6 +1369,10 @@
 			<var name="effectiveDensityInLandIce"/>
 			<var_struct name="ecosysAuxiliary"/>
 			<var name="accumulatedFrazilIceMass"/>
+			<var name="accumulatedFrazilIceSalinity"/>
+			<var name="accumulatedLandIceMass"/>
+			<var name="accumulatedLandIceHeat"/>
+			<var name="accumulatedLandIceFrazilMass"/>
 			<var name="frazilSurfacePressure"/>
 		</stream>
 
@@ -1360,7 +1380,7 @@
 				type="output"
 				filename_template="output/output.$Y-$M-$D_$h.$m.$s.nc"
 				filename_interval="01-00-00_00:00:00"
-				reference_time="0000-01-01_00:00:00"
+				reference_time="0001-01-01_00:00:00"
 				output_interval="0001_00:00:00"
 				clobber_mode="truncate"
 				runtime_format="single_file"
@@ -1432,7 +1452,7 @@
 			<var_struct name="tracersExponentialDecayFields"/>
 			<var_struct name="tracersIdealAgeFields"/>
 			<var_struct name="tracersTTDFields"/>
-			<var name="landIceFraction"/>
+			<var_struct name="forcing"/>
 			<var name="landIceSurfaceTemperature"/>
 			<var_array name="activeTracersPistonVelocity" packages="activeTracersSurfaceRestoringPKG"/>
 			<var_array name="activeTracersSurfaceRestoringValue" packages="activeTracersSurfaceRestoringPKG"/>
@@ -1452,7 +1472,7 @@
 				type="none"
 				filename_template="output/additional_output.$Y-$M-$D_$h.$m.$s.nc"
 				filename_interval="01-00-00_00:00:00"
-				reference_time="0000-01-01_00:00:00"
+				reference_time="0001-01-01_00:00:00"
 				output_interval="0001_00:00:00"
 				clobber_mode="truncate"
 				runtime_format="single_file"
@@ -1477,7 +1497,7 @@
 				type="none"
 				filename_template="output/real_world_variables.$Y-$M-$D_$h.$m.$s.nc"
 				filename_interval="01-00-00_00:00:00"
-				reference_time="0000-01-01_00:00:00"
+				reference_time="0001-01-01_00:00:00"
 				output_interval="0001_00:00:00"
 				clobber_mode="truncate"
 				runtime_format="single_file"
@@ -1503,7 +1523,7 @@
 				type="none"
 				filename_template="output/Cartesian_variables.$Y-$M-$D_$h.$m.$s.nc"
 				filename_interval="01-00-00_00:00:00"
-				reference_time="0000-01-01_00:00:00"
+				reference_time="0001-01-01_00:00:00"
 				output_interval="0001_00:00:00"
 				clobber_mode="truncate"
 				runtime_format="single_file"
@@ -1518,7 +1538,7 @@
 				type="none"
 				filename_template="output/forcing_variables.$Y-$M-$D_$h.$m.$s.nc"
 				filename_interval="01-00-00_00:00:00"
-				reference_time="0000-01-01_00:00:00"
+				reference_time="0001-01-01_00:00:00"
 				output_interval="0001_00:00:00"
 				clobber_mode="truncate"
 				runtime_format="single_file"
@@ -1556,6 +1576,7 @@
 			<var name="thermalExpansionCoeff"/>
 			<var name="salineContractionCoeff"/>
 			<var name="landIceFraction"/>
+			<var name="landIceMask"/>
 			<var_array name="landIceInterfaceTracers"/>
 			<var_array name="landIceBoundaryLayerTracers"/>
 			<var name="landIceFrictionVelocity"/>
@@ -1568,7 +1589,7 @@
 				type="none"
 				filename_template="output/Gent_McWilliams_spherical_variables.$Y-$M-$D_$h.$m.$s.nc"
 				filename_interval="01-00-00_00:00:00"
-				reference_time="0000-01-01_00:00:00"
+				reference_time="0001-01-01_00:00:00"
 				output_interval="0001_00:00:00"
 				clobber_mode="truncate"
 				runtime_format="single_file"
@@ -1591,7 +1612,7 @@
 				type="none"
 				filename_template="output/Gent_McWilliams_Cartesian_variables.$Y-$M-$D_$h.$m.$s.nc"
 				filename_interval="01-00-00_00:00:00"
-				reference_time="0000-01-01_00:00:00"
+				reference_time="0001-01-01_00:00:00"
 				output_interval="0001_00:00:00"
 				clobber_mode="truncate"
 				runtime_format="single_file"
@@ -1660,6 +1681,25 @@
 		<var name="accumulatedFrazilIceMass" type="real" dimensions="nCells Time" units="kg m^{-2}"
 			 description="Mass per unit area of frazil ice produced. Reset to zero at each coupling interval"
 			 packages="frazilIce"
+		/>
+
+		<var name="accumulatedFrazilIceSalinity" type="real" dimensions="nCells Time" units="kg m^{-2}"
+			 description="Salinity associated with accumulatedFrazilIceMass. Reset to zero at each coupling interval"
+			 packages="frazilIce"
+		/>
+
+		<!-- FIELDS FOR LAND ICE STORAGE -->
+		<var name="accumulatedLandIceMass" type="real" dimensions="nCells Time" units="kg m^{-2}"
+			description="Mass per unit area of land ice produced at land ice-ocean interface. Only computed in 'standalone' mode where land-ice fluxes are computed in MPAS-O."
+			packages="landIceFluxesPKG"
+		/>
+		<var name="accumulatedLandIceHeat" type="real" dimensions="nCells Time" units="J m^{-2}"
+			description="Heat per unit area stored in land ice produced at land ice-ocean interface. Only computed in 'standalone' mode where land-ice fluxes are computed in MPAS-O."
+			packages="landIceFluxesPKG"
+		/>
+		<var name="accumulatedLandIceFrazilMass" type="real" dimensions="nCells Time" units="kg m^{-2}"
+			description="Mass per unit area of frazil ice produced under land ice.  Only computed when not coupled to a dynamic land-ice model."
+			packages="frazilIce"
 		/>
 
 		<!-- FIELDS FOR SPLIT EXPLICIT TIME INTEGRATOR -->
@@ -2043,21 +2083,9 @@
 		<var name="pressure" type="real" dimensions="nVertLevels nCells Time" units="N m^{-2}"
 			 description="pressure used in the momentum equation"
 		/>
-		<var name="bottomPressure" type="real" dimensions="nCells Time" units="N m^{-2}"
-			 description="pressure at the sea floor"
-			 packages="initMode"
-		/>
-		<var name="deltaSSH" type="real" dimensions="nCells Time" units="m"
-			 description="change in sea-surface height over a forward run, used to compute a change in sea-surface pressure during iterative initialization."
-			 packages="initMode"
-		/>
-		<var name="refSSH" type="real" dimensions="nCells Time" units="m"
-			 description="reference sea-surface height computed in test cases that include ice-shelf cavities."
-			 packages="initMode"
-		/>
 		<var name="modifySSHMask" type="integer" dimensions="nCells Time" units="unitless"
-			 description="A mask indicating where the SSH can be modified from refSSH through iteriative init/forward runs.  The mask is 1 under (and perhaps near) ice shelves and 0 elsenwere."
-			 packages="initMode"
+			description="A mask indicating where the SSH can be modified from refSSH through iteriative init/forward runs.  The mask is 1 under (and perhaps near) ice shelves and 0 elsenwere."
+			packages="initMode"
 		/>
 		<var name="normalTransportVelocity" type="real" dimensions="nVertLevels nEdges Time" units="m s^{-1}"
 			 description="horizontal velocity used to transport mass and tracers"
@@ -2629,7 +2657,19 @@
 		<!-- Input fields from coupler or initial condition for forcing under land ice -->
 		<var name="landIceFraction" type="real" dimensions="nCells Time" units="unitless"
 			description="The fraction of each cell covered by land ice"
-			packages="landIceFluxesPKG"
+			packages="landIcePressurePKG"
+		/>
+		<var name="landIceMask" type="integer" dimensions="nCells Time" units="unitless"
+			description="Mask indicating where land-ice is present (1) or absent (0)"
+			packages="landIcePressurePKG"
+		/>
+		<var name="landIcePressure" type="real" dimensions="nCells Time" units="Pa"
+			description="Pressure defined at the sea surface due to land ice."
+			packages="landIcePressurePKG"
+		/>
+		<var name="landIceDraft" type="real" dimensions="nCells Time" units="m"
+			description="The elevation of the interface between land ice and the ocean."
+			packages="landIcePressurePKG"
 		/>
 		<!-- Input fields from initial condition for standalone land-ice fluxes -->
 		<var name="landIceSurfaceTemperature" type="real" dimensions="nCells Time" units="C"
@@ -3042,13 +3082,7 @@
 			type="real" dimensions="nCells" units="kg m^{-3}"
 			description="effective seawater density in land ice before horizontal averaging"
 		/>
-		<!-- FIELDS FOR INTERPOLATION DURING INITIALIZATION -->
-		<var name="interpTracer"
-			persistence="scratch"
-			type="real" dimensions="nVertLevels nCells" units="various"
-			description="temporary space for holding one tracer at a time as part of horizontal interpolation"
-		/>
-		<!-- FIELDS FOR SSP AND SSH INITIALIZATION -->
+		<!-- FIELDS FOR LAND-ICE PRESSURE AND SSH INITIALIZATION -->
 		<var name="scratchZMid"
 			persistence="scratch"
 			type="real" dimensions="nVertLevels nCells" units="m"

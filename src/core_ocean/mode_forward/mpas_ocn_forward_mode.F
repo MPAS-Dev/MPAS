@@ -170,11 +170,11 @@ module ocn_forward_mode
       call mpas_timer_stop('reset_io_alarms')
 
       ! Read the remaining input streams
-      call mpas_timer_start('io_read', .false.)
+      call mpas_timer_start('io_read')
       call mpas_stream_mgr_read(domain % streamManager, ierr=err_tmp)
       ierr = ior(ierr, err_tmp)
       call mpas_timer_stop('io_read')
-      call mpas_timer_start('reset_io_alarms', .false.)
+      call mpas_timer_start('reset_io_alarms')
       call mpas_stream_mgr_reset_alarms(domain % streamManager, direction=MPAS_STREAM_INPUT, ierr=err_tmp)
       ierr = ior(ierr, err_tmp)
       call mpas_timer_stop('reset_io_alarms')
@@ -257,11 +257,13 @@ module ocn_forward_mode
                                        'the MPAS-Ocean forward mode')
       endif
 
+      call ocn_init_metadata(domain)
+
       call ocn_init_routines_vert_coord(domain)
 
       call ocn_init_routines_compute_max_level(domain)
 
-      if (.not.config_do_restart) call ocn_time_integration_split_init(domain)
+      call ocn_time_integration_split_init(domain)
 
       write (stdoutUnit,'(a,a)') ' Vertical coordinate movement is: ',trim(config_vert_coord_movement)
 
@@ -454,12 +456,14 @@ module ocn_forward_mode
       character(len=StrKIND), pointer :: config_restart_timestamp_name, config_sw_absorption_type
 
       logical, pointer :: config_write_output_on_startup
+      logical, pointer :: config_use_ecosysTracers
 
       ierr = 0
 
       call mpas_pool_get_config(domain % configs, 'config_write_output_on_startup', config_write_output_on_startup)
       call mpas_pool_get_config(domain % configs, 'config_restart_timestamp_name', config_restart_timestamp_name)
       call mpas_pool_get_config(domain % configs, 'config_sw_absorption_type', config_sw_absorption_type)
+      call mpas_pool_get_config(domain % configs, 'config_use_ecosysTracers', config_use_ecosysTracers)
 
       ! Eventually, dt should be domain specific
       timeStep = mpas_get_clock_timestep(domain % clock, ierr=ierr)
@@ -482,6 +486,12 @@ module ocn_forward_mode
       call ocn_get_shortWaveData(domain % streamManager, domain, domain % clock, .true.)
       call mpas_timer_stop('io_shortwave')
 
+      ! read initial data required for ecosys forcing
+      if (config_use_ecosysTracers) then
+        call mpas_timer_start('io_ecosys',.false.)
+        call ocn_get_ecosysData(domain % streamManager, domain, domain % clock, .true.)
+        call mpas_timer_stop('io_ecosys')
+      endif
 
       ! During integration, time level 1 stores the model state at the beginning of the
       !   time step, and time level 2 stores the state advanced dt in time by timestep(...)
@@ -511,9 +521,9 @@ module ocn_forward_mode
            call mpas_pool_get_subpool(block_ptr % structs, 'diagnostics', diagnosticsPool)
            call mpas_pool_get_subpool(block_ptr % structs, 'scratch', scratchPool)
            call ocn_forcing_build_fraction_absorbed_array(meshPool, statePool, diagnosticsPool, forcingPool, ierr, 1)
-           call mpas_timer_start("land_ice_build_arrays", .false.)
+           call mpas_timer_start("land_ice_build_arrays")
            call ocn_surface_land_ice_fluxes_build_arrays(meshPool, diagnosticsPool, &
-                                                         forcingPool, scratchPool, err)
+                                                         forcingPool, scratchPool, statePool, dt, err)
            call mpas_timer_stop("land_ice_build_arrays")
 
            call ocn_frazil_forcing_build_arrays(domain, meshPool, forcingPool, diagnosticsPool, statePool, err)
@@ -521,7 +531,7 @@ module ocn_forward_mode
            block_ptr => block_ptr % next
          end do
 
-         call mpas_timer_start("time integration", .false.)
+         call mpas_timer_start("time integration")
 
          !$omp parallel default(firstprivate) shared(domain, dt, timeStamp)
 
@@ -564,6 +574,8 @@ module ocn_forward_mode
             end if
 
             if(trim(config_sw_absorption_type)=='ohlmann00') call ocn_shortwave_forcing_write_restart(domain)
+
+            if (config_use_ecosysTracers) call ocn_ecosys_forcing_write_restart(domain)
          end if
 
          call mpas_timer_start('reset_io_alarms')
@@ -581,6 +593,16 @@ module ocn_forward_mode
          call mpas_timer_start('io_shortwave',.false.)
          call ocn_get_shortWaveData(domain % streamManager, domain, domain % clock, .false.)
          call mpas_timer_stop('io_shortwave')
+
+         ! read next time level data required for ecosys forcing
+         if (config_use_ecosysTracers) then
+           call mpas_timer_start('io_ecosys',.false.)
+           call ocn_get_ecosysData(domain % streamManager, domain, domain % clock, .false.)
+           call mpas_timer_stop('io_ecosys')
+         endif
+
+         ! Validate that the state is OK to run with for the next timestep.
+         call ocn_validate_state(domain, timeLevel=1)
 
       end do
 

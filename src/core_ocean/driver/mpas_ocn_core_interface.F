@@ -112,12 +112,12 @@ module ocn_core_interface
       logical, pointer :: thicknessFilterActive
       logical, pointer :: splitTimeIntegratorActive
       logical, pointer :: windStressBulkPKGActive
+      logical, pointer :: landIcePressurePKGActive
       logical, pointer :: landIceFluxesPKGActive
       logical, pointer :: landIceCouplingPKGActive
       logical, pointer :: thicknessBulkPKGActive
       logical, pointer :: frazilIceActive
       logical, pointer :: inSituEOSActive
-      logical, pointer :: restartForcingFieldsActive
       logical, pointer :: variableShortwaveActive
 
       type (mpas_pool_iterator_type) :: pkgItr
@@ -138,8 +138,6 @@ module ocn_core_interface
       logical, pointer :: config_use_tracerGroup_exponential_decay
       logical, pointer :: config_use_tracerGroup_idealAge_forcing
       logical, pointer :: config_use_tracerGroup_ttd_forcing
-
-      logical, pointer :: config_restart_forcing_fields
 
       logical, pointer :: config_use_freq_filtered_thickness
       logical, pointer :: config_use_frazil_ice_formation
@@ -230,15 +228,21 @@ module ocn_core_interface
       end if
 
       !
+      ! test for land ice pressure, landIcePuressurePKG
       ! test for land ice fluxes, landIceFluxesPKG
       ! test for land ice coupling, landIceCouplingPKG
       !
+      call mpas_pool_get_package(packagePool, 'landIcePressurePKGActive', landIcePressurePKGActive)
       call mpas_pool_get_package(packagePool, 'landIceFluxesPKGActive', landIceFluxesPKGActive)
       call mpas_pool_get_package(packagePool, 'landIceCouplingPKGActive', landIceCouplingPKGActive)
       call mpas_pool_get_config(configPool, 'config_land_ice_flux_mode', config_land_ice_flux_mode)
-      if ( trim(config_land_ice_flux_mode) == 'standalone' ) then
+      if ( trim(config_land_ice_flux_mode) == 'pressure_only' ) then
+         landIcePressurePKGActive = .true.
+      else if ( trim(config_land_ice_flux_mode) == 'standalone' ) then
+         landIcePressurePKGActive = .true.
          landIceFluxesPKGActive = .true.
       else if ( trim(config_land_ice_flux_mode) == 'coupled' ) then
+         landIcePressurePKGActive = .true.
          landIceFluxesPKGActive = .true.
          landIceCouplingPKGActive = .true.
       end if
@@ -260,15 +264,6 @@ module ocn_core_interface
       call mpas_pool_get_config(configPool, 'config_pressure_gradient_type', config_pressure_gradient_type)
       if (config_pressure_gradient_type.eq.'Jacobian_from_TS') then
          inSituEOSActive = .true.
-      end if
-
-      !
-      ! test for restart of forcing fields
-      !
-      call mpas_pool_get_package(packagePool, 'restartForcingFieldsActive', restartForcingFieldsActive)
-      call mpas_pool_get_config(configPool, 'config_restart_forcing_fields', config_restart_forcing_fields)
-      if ( config_restart_forcing_fields ) then
-         restartForcingFieldsActive = .true.
       end if
 
       !

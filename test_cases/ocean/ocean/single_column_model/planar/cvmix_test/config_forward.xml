@@ -10,6 +10,7 @@
 	<namelist name="namelist.ocean" mode="forward">
 		<option name="config_ocean_run_mode">'forward'</option>
 		<option name="config_dt">'00:10:00'</option>
+		<option name="config_btr_dt">'00:00:30'</option>
 		<option name="config_run_duration">'0001_00:00:00'</option>
 		<option name="config_block_decomp_file_prefix">'graph.info.part.'</option>
 		<option name="config_time_integrator">'split_explicit'</option>
@@ -53,7 +54,7 @@
 			<attribute name="output_interval">0001_00:00:00</attribute>
 			<attribute name="filename_interval">01-00-00_00:00:00</attribute>
 			<attribute name="clobber_mode">truncate</attribute>
-			<attribute name="reference_time">0000-01-01_00:00:00</attribute>
+			<attribute name="reference_time">0001-01-01_00:00:00</attribute>
 			<add_contents>
 				<member name="tracers" type="var_struct"/>
 				<member name="mesh" type="stream"/>

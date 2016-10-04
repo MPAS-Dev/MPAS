@@ -2,6 +2,7 @@
 	<namelist>
 		<option name="config_ocean_run_mode">'forward'</option>
 		<option name="config_dt">'00:05:00'</option>
+		<option name="config_btr_dt">'00:00:15'</option>
 		<option name="config_run_duration">'0000_00:10:00'</option>
 		<option name="config_block_decomp_file_prefix">'graph.info.part.'</option>
 		<option name="config_time_integrator">'split_explicit'</option>
@@ -11,6 +12,12 @@
 		<option name="config_eos_type">'jm'</option>
 		<option name="config_pressure_gradient_type">'Jacobian_from_TS'</option>
 		<option name="config_land_ice_flux_mode">'standalone'</option>
+		<option name="config_check_ssh_consistency">.false.</option>
+		<option name="config_freezing_temperature_coeff_0">9.39e-2</option>
+		<option name="config_freezing_temperature_coeff_S">-5.73e-2</option>
+		<option name="config_freezing_temperature_coeff_p">-7.53e-8</option>
+		<option name="config_freezing_temperature_coeff_pS">0.0</option>
+		<option name="config_freezing_temperature_reference_pressure">0.0</option>
 	</namelist>
 
 	<streams>
@@ -20,19 +27,6 @@
 		<stream name="input">
 			<attribute name="filename_template">init.nc</attribute>
 		</stream>
-                <stream name="forcing_data">
-                        <attribute name="filename_template">forcing_data.nc</attribute>
-                        <attribute name="input_interval">initial_only</attribute>
-                        <attribute name="type">input</attribute>
-                        <attribute name="name">forcing_data</attribute>
-                        <add_contents>
-                                <member name="windStressZonal" type="var"/>
-                                <member name="windStressMeridional" type="var"/>
-                                <member name="landIceFraction" type="var"/>
-                                <member name="landIceSurfaceTemperature" type="var"/>
-                                <member name="seaSurfacePressure" type="var"/>
-                        </add_contents>
-                </stream>
 		<stream name="output">
 			<attribute name="type">output</attribute>
 			<attribute name="filename_template">output.nc</attribute>
@@ -46,7 +40,10 @@
 				<member name="layerThickness" type="var"/>
 				<member name="ssh" type="var"/>
 				<member name="seaSurfacePressure" type="var"/>
+				<member name="landIcePressure" type="var"/>
+				<member name="landIceDraft" type="var"/>
 				<member name="landIceFraction" type="var"/>
+				<member name="landIceMask" type="var"/>
 				<member name="landIceFreshwaterFlux" type="var"/>
 				<member name="landIceHeatFlux" type="var"/>
 				<member name="landIceFrictionVelocity" type="var"/>

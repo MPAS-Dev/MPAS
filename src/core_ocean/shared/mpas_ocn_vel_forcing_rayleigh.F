@@ -22,6 +22,7 @@ module ocn_vel_forcing_rayleigh
 
    use mpas_derived_types
    use mpas_pool_routines
+   use mpas_timer
    use ocn_constants
 
    implicit none
@@ -107,8 +108,8 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iEdge, k
-      integer, pointer :: nEdgesSolve
+      integer :: iEdge, k, nEdges
+      integer, dimension(:), pointer :: nEdgesArray
       integer, dimension(:), pointer :: maxLevelEdgeTop
 
       !-----------------------------------------------------------------
@@ -123,11 +124,15 @@ contains
 
       if ( .not. rayleighFrictionOn ) return
 
-      call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
+      call mpas_timer_start('vel rayleigh forcing')
+
+      call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
 
+      nEdges = nEdgesArray( 1 )
+
       !$omp do schedule(runtime) private(k)
-      do iEdge = 1, nEdgesSolve
+      do iEdge = 1, nEdges
         do k = 1, maxLevelEdgeTop(iEdge)
 
            tend(k,iEdge) = tend(k,iEdge) - rayleighDampingCoef * normalVelocity(k,iEdge)
@@ -135,6 +140,8 @@ contains
         enddo
       enddo
       !$omp end do
+
+      call mpas_timer_stop('vel rayleigh forcing')
 
    !--------------------------------------------------------------------
 
