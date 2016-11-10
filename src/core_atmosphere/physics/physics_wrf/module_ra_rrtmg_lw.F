@@ -4884,9 +4884,9 @@ contains
 
 ! ----- Output -----
       real(kind=rb), intent(out) :: fracs(:,:)        ! planck fractions
-                                                      !    Dimensions: (nlayers,ngptlw)
+                                                      !    Dimensions: (nlayers+1,ngptlw)
       real(kind=rb), intent(out) :: taug(:,:)         ! gaseous optical depth 
-                                                      !    Dimensions: (nlayers,ngptlw)
+                                                      !    Dimensions: (nlayers+1,ngptlw)
 
       hvrtau = '$Revision: 1.7 $'
 
@@ -11353,7 +11353,9 @@ use mcica_subcol_gen_lw, only: mcica_subcol_lw
     !
     save retab
     ! For buffer layer adjustment.  Steven Cavallo, Dec 2010.
+#if !defined(mpas)
     integer , save    :: nlayers    
+#endif
     real, PARAMETER :: deltap = 4.  ! Pressure interval for buffer layer in mb
     
 CONTAINS
@@ -11518,7 +11520,7 @@ CONTAINS
 !function of the grid-point. This is needed because the MPAS vertical coordi-
 !nate system is a height coordinate system, and model-tops vary between grid-
 !points:
- integer,dimension(ims:ime,jms:jme):: mpas_nlay
+ integer,dimension(its:ite,jts:jte):: mpas_nlay
  real,dimension(:),allocatable:: o3mmr,varint
  real,dimension(:,:),allocatable:: &
     plev,tlev,play,tlay,h2ovmr,o3vmr,co2vmr,o2vmr,ch4vmr,n2ovmr,cfc11vmr,  &
@@ -11540,6 +11542,8 @@ CONTAINS
 !local variables:
  real,dimension(1:noznlevels):: o3clim1d
 !end MPAS specific.
+
+ integer:: nlayers
 
 #else
 
@@ -11886,7 +11890,7 @@ CONTAINS
 !MPAS specific (Laura D. Fowler - 2013-04-11):
 !In contrast to WRF, MPAS columns have different model top presssures because MPAS uses a height
 !coordinate system. Therefore, we define nlayers for each individual column:
-          nlayers = kte + nint(pw1d(kte+1)/deltap)
+          nlayers = kte + max(nint(pw1d(kte+1)/deltap), 1)
           mpas_nlay(i,j) = nlayers-kte
 !         write(0,101) j,i,kme,kte,nlayers,mpas_nlay(i,j),pw1d(kte+1)
 !         101 format(6i9,1x,f9.4)
@@ -12000,7 +12004,8 @@ CONTAINS
        ! Calculate the column pressure buffer levels above the 
        ! model top       
        do L=kte+1,nlayers,1
-          plev(ncol,L+1) = plev(ncol,L) - deltap
+          plev(ncol,L+1) = max(plev(ncol,L) - deltap, 0.00)
+
           play(ncol,L) = 0.5*(plev(ncol,L) + plev(ncol,L+1))
        enddo          
 
@@ -12368,10 +12373,10 @@ CONTAINS
 
          if (present(lwupt)) then 
 ! Output up and down toa fluxes for total and clear sky
-            lwupt(i,j)     = uflx(1,kte+2)
-            lwuptc(i,j)    = uflxc(1,kte+2)
-            lwdnt(i,j)     = dflx(1,kte+2)
-            lwdntc(i,j)    = dflxc(1,kte+2)
+            lwupt(i,j)     = uflx(1,nlayers+1)
+            lwuptc(i,j)    = uflxc(1,nlayers+1)
+            lwdnt(i,j)     = dflx(1,nlayers+1)
+            lwdntc(i,j)    = dflxc(1,nlayers+1)
 ! Output up and down surface fluxes for total and clear sky
             lwupb(i,j)     = uflx(1,1)
             lwupbc(i,j)    = uflxc(1,1)
@@ -12382,12 +12387,12 @@ CONTAINS
 ! Output up and down layer fluxes for total and clear sky.
 ! Vertical ordering is from bottom to top in units of W m-2. 
          if ( present (lwupflx) ) then
-         do k=kts,kte+2
-            lwupflx(i,k,j)  = uflx(1,k)
-            lwupflxc(i,k,j) = uflxc(1,k)
-            lwdnflx(i,k,j)  = dflx(1,k)
-            lwdnflxc(i,k,j) = dflxc(1,k)
-         enddo
+            do k=kts,nlayers+1
+               lwupflx(i,k,j)  = uflx(1,k)
+               lwupflxc(i,k,j) = uflxc(1,k)
+               lwdnflx(i,k,j)  = dflx(1,k)
+               lwdnflxc(i,k,j) = dflxc(1,k)
+            enddo
          endif
 
 ! Output heating rate tendency; convert heating rate from K/d to K/s
