@@ -298,6 +298,10 @@ module init_atm_core_interface
 
       ierr = 0
 
+      if ( associated(decompList) ) then
+         nullify(decompList)
+      endif
+
       call mpas_decomp_create_decomp_list(decompList)
 
       decompFunc => mpas_uniform_decomp
