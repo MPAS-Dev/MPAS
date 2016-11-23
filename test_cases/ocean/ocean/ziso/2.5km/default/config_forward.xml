@@ -43,7 +43,7 @@
 		</step>
 		<step executable="python">
 			<argument flag="">make_particle_resets.py</argument>
-			<argument flag="">mesh.nc</argument>
+			<argument flag="-o">mesh.nc</argument>
 			<argument flag="">particles.nc</argument>
 			<argument flag="">graph.info.part.4</argument>
 			<argument flag="">11</argument>

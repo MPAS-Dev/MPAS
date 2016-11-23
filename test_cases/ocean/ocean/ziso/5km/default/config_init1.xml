@@ -57,14 +57,14 @@
 
 	<run_script name="run.py">
 		<step executable="./MpasMeshConverter.x">
-			<argument flag="">base_mesh.nc</argument>
-			<argument flag="">mesh.nc</argument>
+			<argument flag="-i">base_mesh.nc</argument>
+			<argument flag="-o">mesh.nc</argument>
 		</step>
 
 		<model_run procs="1" threads="1" namelist="namelist.ocean" streams="streams.ocean"/>
 
 		<step executable="./MpasCellCuller.x">
-			<argument flag="">ocean.nc</argument>
+			<argument flag="-i">ocean.nc</argument>
 		</step>
 	</run_script>
 </config>

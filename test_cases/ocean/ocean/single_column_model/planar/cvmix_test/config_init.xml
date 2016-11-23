@@ -106,8 +106,8 @@
 
 	<run_script name="run.py">
 		<step executable="./MpasMeshConverter.x">
-			<argument flag="">base_mesh.nc</argument>
-			<argument flag="">mesh.nc</argument>
+			<argument flag="-i">base_mesh.nc</argument>
+			<argument flag="-o">mesh.nc</argument>
 		</step>
 		
 		<step executable="mpirun">
