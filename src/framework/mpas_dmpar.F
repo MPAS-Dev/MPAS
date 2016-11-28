@@ -239,7 +239,7 @@ include 'mpif.h'
       else
          dminfo % initialized_mpi = .true.
 #ifdef MPAS_OPENMP
-         desiredThreadLevel = MPI_THREAD_MULTIPLE
+         desiredThreadLevel = MPI_THREAD_FUNNELED
          call MPI_Init_thread(desiredThreadLevel, threadLevel, mpi_ierr)
          if ( threadLevel /= desiredThreadLevel ) then
             write(stderrUnit, *) 'Warning: MPI implementation gave thread level of ', threadLevel, ' when ', desiredThreadLevel, ' was requested.'
