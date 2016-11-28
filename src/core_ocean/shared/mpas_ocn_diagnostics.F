@@ -151,6 +151,10 @@ contains
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficient
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientRunoff
 
+      real (kind=RKIND) :: areaTri1, layerThicknessVertexInv, tempRiVal, dcEdge_temp, dvEdge_temp, weightsOnEdge_temp
+      real (kind=RKIND), dimension(:), allocatable:: layerThicknessVertexVec
+      integer :: edgeSignOnCell_temp
+
       call mpas_timer_start('diagnostic solve')
 
       if (present(timeLevelIn)) then
@@ -258,16 +262,11 @@ contains
       nCells = nCellsArray( size(nCellsArray) )
       nVertices = nVerticesArray( size(nVerticesArray) )
 
-      ! initialize layerThicknessEdge to avoid divide by zero and NaN problems.
-      !$omp do schedule(runtime)
-      do iEdge = 1, nEdges
-         layerThicknessEdge(:, iEdge) = -1.0e34_RKIND
-      end do
-      !$omp end do
-      coef_3rd_order = config_coef_3rd_order
 
       !$omp do schedule(runtime) private(cell1, cell2, k)
       do iEdge = 1, nEdges
+         ! initialize layerThicknessEdge to avoid divide by zero and NaN problems.
+         layerThicknessEdge(:, iEdge) = -1.0e34_RKIND
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
          do k = 1, maxLevelEdgeTop(iEdge)
@@ -275,6 +274,8 @@ contains
          end do
       end do
       !$omp end do
+
+      coef_3rd_order = config_coef_3rd_order
 
       !
       ! set the velocity and height at dummy address
@@ -288,25 +289,7 @@ contains
       activeTracers(indexSalinity,:,nCells+1) = -1e34
       !$omp end single
 
-      !$omp do schedule(runtime)
-      do iCell = 1, nCells
-         divergence(:, iCell) = 0.0_RKIND
-         vertVelocityTop(:, iCell) = 0.0_RKIND
-         kineticEnergyCell(:, iCell) = 0.0_RKIND
-      end do
-      !$omp end do
-
-      !$omp do schedule(runtime)
-      do iEdge = 1, nEdges
-         tangentialVelocity(:, iEdge) = 0.0_RKIND
-      end do
-      !$omp end do
-
-      call mpas_threading_barrier()
-
       call ocn_relativeVorticity_circulation(relativeVorticity, circulation, meshPool, normalVelocity, err)
-
-      call mpas_threading_barrier()
 
       ! Need owned cells for relativeVorticityCell
       nCells = nCellsArray( 1 )
@@ -336,28 +319,36 @@ contains
 
       !$omp do schedule(runtime) private(invAreaCell1, iEdge, r_tmp, i, k)
       do iCell = 1, nCells
+         divergence(:, iCell) = 0.0_RKIND
+         kineticEnergyCell(:, iCell) = 0.0_RKIND
          div_hu(:) = 0.0_RKIND
          div_huTransport(:) = 0.0_RKIND
          div_huGMBolus(:) = 0.0_RKIND
          invAreaCell1 = 1.0_RKIND / areaCell(iCell)
          do i = 1, nEdgesOnCell(iCell)
             iEdge = edgesOnCell(i, iCell)
+            edgeSignOnCell_temp = edgeSignOnCell(i, iCell)
+            dcEdge_temp = dcEdge(iEdge)
+            dvEdge_temp = dvEdge(iEdge)
             do k = 1, maxLevelCell(iCell)
-               r_tmp = dvEdge(iEdge) * normalVelocity(k, iEdge) * invAreaCell1
+               r_tmp = dvEdge_temp * normalVelocity(k, iEdge) * invAreaCell1
 
-               divergence(k, iCell) = divergence(k, iCell) - edgeSignOnCell(i, iCell) * r_tmp
-               div_hu(k)    = div_hu(k) - layerThicknessEdge(k, iEdge) * edgeSignOnCell(i, iCell) * r_tmp
-               kineticEnergyCell(k, iCell) = kineticEnergyCell(k, iCell) + 0.25 * r_tmp * dcEdge(iEdge) * normalVelocity(k,iEdge)
-
+               divergence(k, iCell) = divergence(k, iCell) - edgeSignOnCell_temp * r_tmp
+               div_hu(k) = div_hu(k) - layerThicknessEdge(k, iEdge) * edgeSignOnCell_temp * r_tmp
+               kineticEnergyCell(k, iCell) = kineticEnergyCell(k, iCell) &
+                                              + 0.25 * r_tmp * dcEdge_temp * normalVelocity(k,iEdge)
                ! Compute vertical velocity from the horizontal total transport
-               div_huTransport(k) = div_huTransport(k) - layerThicknessEdge(k, iEdge) * edgeSignOnCell(i, iCell) &
-                                  * dvEdge(iEdge) * normalTransportVelocity(k, iEdge) * invAreaCell1
+               div_huTransport(k) = div_huTransport(k) &
+                                    - layerThicknessEdge(k, iEdge) * edgeSignOnCell_temp &
+                                    * dvEdge_temp * normalTransportVelocity(k, iEdge) * invAreaCell1
                ! Compute vertical velocity from the horizontal GM Bolus velocity
-               div_huGMBolus(k) = div_huGMBolus(k) - layerThicknessEdge(k, iEdge) * edgeSignOnCell(i, iCell) * dvEdge(iEdge) &
-                                * normalGMBolusVelocity(k, iEdge) * invAreaCell1
+               div_huGMBolus(k) = div_huGMBolus(k) &
+                                  - layerThicknessEdge(k, iEdge) * edgeSignOnCell_temp * dvEdge_temp &
+                                  * normalGMBolusVelocity(k, iEdge) * invAreaCell1
             end do
          end do
          ! Vertical velocity at bottom (maxLevelCell(iCell)+1) is zero, initialized above.
+         vertVelocityTop(maxLevelCell(iCell)+1, iCell) = 0.0_RKIND
          do k=maxLevelCell(iCell),1,-1
             vertVelocityTop(k,iCell) = vertVelocityTop(k+1,iCell) - div_hu(k)
             vertTransportVelocityTop(k,iCell) = vertTransportVelocityTop(k+1,iCell) - div_huTransport(k)
@@ -372,11 +363,14 @@ contains
 
       !$omp do schedule(runtime) private(eoe, i, k)
       do iEdge = 1, nEdges
+         tangentialVelocity(:, iEdge) = 0.0_RKIND
          ! Compute v (tangential) velocities
          do i = 1, nEdgesOnEdge(iEdge)
             eoe = edgesOnEdge(i,iEdge)
+            weightsOnEdge_temp = weightsOnEdge(i, iEdge)
             do k = 1, maxLevelEdgeTop(iEdge)
-               tangentialVelocity(k,iEdge) = tangentialVelocity(k,iEdge) + weightsOnEdge(i,iEdge) * normalVelocity(k, eoe)
+               tangentialVelocity(k,iEdge) = tangentialVelocity(k,iEdge) &
+                                              + weightsOnEdge_temp * normalVelocity(k, eoe)
             end do
          end do
       end do
@@ -456,22 +450,27 @@ contains
 
       nVertices = nVerticesArray( 3 )
 
-      !$omp do schedule(runtime) private(invAreaTri1, k, layerThicknessVertex, i)
-      do iVertex = 1, nVertices
-         invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
-         do k = 1, maxLevelVertexBot(iVertex)
-            layerThicknessVertex = 0.0_RKIND
-            do i = 1, vertexDegree
-               layerThicknessVertex = layerThicknessVertex + layerThickness(k,cellsOnVertex(i,iVertex)) &
-                                    * kiteAreasOnVertex(i,iVertex)
-            end do
-            layerThicknessVertex = layerThicknessVertex * invAreaTri1
+      allocate(layerThicknessVertexVec(nVertLevels))
 
-            normalizedRelativeVorticityVertex(k,iVertex) = relativeVorticity(k,iVertex) / layerThicknessVertex
-            normalizedPlanetaryVorticityVertex(k,iVertex) = fVertex(iVertex) / layerThicknessVertex
-         end do
+      !$omp do schedule(runtime)
+      do iVertex = 1, nVertices
+        areaTri1 = areaTriangle(iVertex)
+        do i = 1, vertexDegree
+          layerThicknessVertexVec(:) = 0.0_RKIND
+          do k = 1, maxLevelVertexBot(iVertex)
+            layerThicknessVertexVec(k) = layerThicknessVertexVec(k) + layerThickness(k,cellsOnVertex(i,iVertex)) &
+                                          * kiteAreasOnVertex(i,iVertex)
+          end do
+        end do
+        do k = 1, maxLevelVertexBot(iVertex)
+          layerThicknessVertexInv = areaTri1 / layerThicknessVertexVec(k)
+          normalizedRelativeVorticityVertex(k,iVertex) = relativeVorticity(k,iVertex) * layerThicknessVertexInv
+          normalizedPlanetaryVorticityVertex(k,iVertex) = fVertex(iVertex) * layerThicknessVertexInv
+        end do
       end do
       !$omp end do
+
+      deallocate(layerThicknessVertexVec)
 
       nEdges = nEdgesArray( 3 )
 
@@ -597,7 +596,6 @@ contains
                                             nCells, 0, 'relative', density, err, &
                                             timeLevelIn=timeLevel)
       endif
-      call mpas_threading_barrier()
 
       ! compute potentialDensity, the density displaced adiabatically to the mid-depth of top layer.
       call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, &
@@ -609,7 +607,6 @@ contains
       call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, &
                                          nCells, 1, 'relative', displacedDensity, &
                                          err, timeLevelIn=timeLevel)
-      call mpas_threading_barrier()
 
       !
       ! Pressure
@@ -709,9 +706,9 @@ contains
       !
       ! Gradient Richardson number
       !
-      RiTopOfCell = 100.0_RKIND
-      !$omp do schedule(runtime) private(invAreaCell1, k, shearSquared, i, iEdge, factor, delU2, shearMean)
+      !$omp do schedule(runtime)
       do iCell=1,nCells
+         RiTopOfCell(:,iCell) = 100.0_RKIND
          invAreaCell1 = 1.0_RKIND / areaCell(iCell)
          do k=2,maxLevelCell(iCell)
            shearSquared = 0.0_RKIND
@@ -721,9 +718,9 @@ contains
              delU2 = (normalVelocity(k-1,iEdge) - normalVelocity(k,iEdge))**2
              shearSquared = shearSquared + factor * delU2
            enddo
-           shearMean = sqrt(shearSquared)
-           shearMean = shearMean / (zMid(k-1,iCell) - zMid(k,iCell))
-           RiTopOfCell(k,iCell) = BruntVaisalaFreqTop(k,iCell) / (shearMean**2 + 1.0e-10_RKIND)
+           tempRiVal = (zMid(k-1,iCell) - zMid(k,iCell)) ** 2
+           RiTopOfCell(k,iCell) = BruntVaisalaFreqTop(k,iCell) * tempRiVal &
+                                  / (shearSquared + 1.0e-10_RKIND * tempRiVal)
           end do
           RiTopOfCell(1,iCell) = RiTopOfCell(2,iCell)
       end do
@@ -755,17 +752,11 @@ contains
 
         nCells = nCellsArray( 1 )
 
-        !$omp do schedule(runtime)
-        do iCell = 1, nCells
-           tracersSurfaceLayerValue(:, iCell) = 0.0_RKIND
-           indexSurfaceLayerDepth( iCell) = -9.e30
-        end do
-        !$omp end do
-
         !$omp do schedule(runtime) private(surfaceLayerDepth, sumSurfaceLayer, k, rSurfaceLayer)
         do iCell=1,nCells
           surfaceLayerDepth = config_cvmix_kpp_surface_layer_averaging
           sumSurfaceLayer=0.0_RKIND
+          indexSurfaceLayerDepth( iCell) = -9.e30
           do k=1,maxLevelCell(iCell)
            sumSurfaceLayer = sumSurfaceLayer + layerThickness(k,iCell)
            rSurfaceLayer = maxLevelCell(iCell)
@@ -776,14 +767,14 @@ contains
              exit
            endif
           end do
+          tracersSurfaceLayerValue(:, iCell) = 0.0_RKIND
           do k=1,int(rSurfaceLayer)
             tracersSurfaceLayerValue(:,iCell) = tracersSurfaceLayerValue(:,iCell) + activeTracers(:,k,iCell) &
                                               * layerThickness(k,iCell)
           enddo
           k=min( int(rSurfaceLayer)+1, maxLevelCell(iCell) )
-          tracersSurfaceLayerValue(:,iCell) = tracersSurfaceLayerValue(:,iCell) + fraction(rSurfaceLayer) &
-                                            * activeTracers(:,k,iCell) * layerThickness(k,iCell)
-          tracersSurfaceLayerValue(:,iCell) = tracersSurfaceLayerValue(:,iCell) / surfaceLayerDepth
+          tracersSurfaceLayerValue(:,iCell) = (tracersSurfaceLayerValue(:,iCell) + fraction(rSurfaceLayer) &
+                                            * activeTracers(:,k,iCell) * layerThickness(k,iCell)) / surfaceLayerDepth
         enddo
         !$omp end do
 
@@ -793,11 +784,6 @@ contains
         ! average normal velocity values over the ocean surface layer
         ! the ocean surface layer is generally assumed to be about 0.1 of the boundary layer depth
         !
-        !$omp do schedule(runtime)
-        do iEdge = 1, nEdges
-           normalVelocitySurfaceLayer(iEdge) = 0.0_RKIND
-        end do
-        !$omp end do
 
         !$omp do schedule(runtime) private(cell1, cell2, surfaceLayerDepth, sumSurfaceLayer, k, rSurfaceLayer)
         do iEdge=1,nEdges
@@ -815,15 +801,15 @@ contains
              exit
            endif
           end do
+          normalVelocitySurfaceLayer(iEdge) = 0.0_RKIND
           do k=1,int(rSurfaceLayer)
             normalVelocitySurfaceLayer(iEdge) = normalVelocitySurfaceLayer(iEdge) + normalVelocity(k,iEdge) &
                                               * layerThicknessEdge(k,iEdge)
           enddo
           k=int(rSurfaceLayer)+1
           if(k.le.maxLevelEdgeTop(iEdge)) then
-            normalVelocitySurfaceLayer(iEdge) = normalVelocitySurfaceLayer(iEdge) + fraction(rSurfaceLayer) &
-                                              * normalVelocity(k,iEdge) * layerThicknessEdge(k,iEdge)
-            normalVelocitySurfaceLayer(iEdge) = normalVelocitySurfaceLayer(iEdge) / surfaceLayerDepth
+            normalVelocitySurfaceLayer(iEdge) = (normalVelocitySurfaceLayer(iEdge) + fraction(rSurfaceLayer) &
+                                              * normalVelocity(k,iEdge) * layerThicknessEdge(k,iEdge)) / surfaceLayerDepth
           end if
         enddo
         !$omp end do
