@@ -272,6 +272,10 @@ module mpas_stream_manager
     !>  specified using the optional "recordInterval" argument; if this argument
     !>  is not supplied, the stream manager will assume that this interval is
     !>  equal to the shortest period of any periodic alarm attached to the stream.
+    !>  The optional arguments inputInterval and outputInterval specify the the
+    !>  interval at which files are read/written and are set to 'none' if not
+    !>  specified. This is necessary for immutable streams defined in the
+    !>  registry but not present in the stream list file of the core to run.
     !>  The optional argument 'realPrecision' specifies the precision of
     !>  real-valued fields in the files associated with the stream; this
     !>  argument may take on values MPAS_IO_SINGLE_PRECISION,
@@ -291,7 +295,8 @@ module mpas_stream_manager
     !
     !-----------------------------------------------------------------------
     subroutine MPAS_stream_mgr_create_stream(manager, streamID, direction, filename, &
-                                             filenameInterval, referenceTime, recordInterval, &
+                                             filenameInterval, inputInterval, outputInterval, &
+                                             referenceTime, recordInterval, &
                                              realPrecision, clobberMode, ioType, ierr) !{{{
 
         use mpas_io, only : MPAS_IO_PNETCDF
@@ -305,6 +310,8 @@ module mpas_stream_manager
         integer, intent(in) :: direction
         character (len=*), intent(in) :: filename
         character (len=*), intent(in), optional :: filenameInterval
+        character (len=*), intent(in), optional :: inputInterval
+        character (len=*), intent(in), optional :: outputInterval
         type (MPAS_Time_type), intent(in), optional :: referenceTime
         type (MPAS_TimeInterval_type), intent(in), optional :: recordInterval
         integer, intent(in), optional :: realPrecision
@@ -348,6 +355,20 @@ module mpas_stream_manager
                new_stream % filename_interval = filenameInterval
            else
                new_stream % filename_interval = 'none'
+           end if
+
+           ! Input interval is 'none' by deault, but is set through the set_property routine.
+           if (present(inputInterval)) then
+               new_stream % interval_in = inputInterval
+           else
+               new_stream % interval_in = 'none'
+           end if
+
+           ! Output interval is 'none' by deault, but is set through the set_property routine.
+           if (present(outputInterval)) then
+               new_stream % interval_out = outputInterval
+           else
+               new_stream % interval_out = 'none'
            end if
 
            new_stream % nRecords = 0
@@ -5366,6 +5387,7 @@ module mpas_stream_manager
     !-----------------------------------------------------------------------
     logical function MPAS_stream_mgr_get_next_stream(manager, streamID, directionProperty, activeProperty, & !{{{
                                                      immutableProperty, filenameTemplateProperty, &
+                                                     inputIntervalProperty, outputIntervalProperty, &
                                                      referenceTimeProperty, recordIntervalProperty, precisionProperty, &
                                                      filenameIntervalProperty, clobberProperty) result(validStream)
 
@@ -5377,6 +5399,8 @@ module mpas_stream_manager
         logical, intent(out), optional :: activeProperty                           !< Output: Logical describing if the stream is active or not
         logical, intent(out), optional :: immutableProperty                        !< Output: Logical describing if the stream is immutable or not
         character (len=StrKIND), intent(out), optional :: filenameTemplateProperty !< Output: String containing the filename template for the stream
+        character (len=StrKIND), intent(out), optional :: inputIntervalProperty    !< Output: String containing the input interval for the stream
+        character (len=StrKIND), intent(out), optional :: outputIntervalProperty   !< Output: String containing the output interval for the stream
         character (len=StrKIND), intent(out), optional :: referenceTimeProperty    !< Output: String containing the reference time for the stream
         character (len=StrKIND), intent(out), optional :: recordIntervalProperty   !< Output: String containing the record interval for the stream
         integer, intent(out), optional :: precisionProperty                        !< Output: Integer describing the precision of the stream
@@ -5427,6 +5451,14 @@ module mpas_stream_manager
 
         if ( present(filenameTemplateProperty) ) then
             filenameTemplateProperty = manager % currentStream % filename_template
+        end if
+
+        if ( present(inputIntervalProperty) ) then
+            inputIntervalProperty = manager % currentStream % interval_in
+        end if
+
+        if ( present(outputIntervalProperty) ) then
+            outputIntervalProperty = manager % currentStream % interval_out
         end if
 
         if ( present(referenceTimeProperty) ) then
