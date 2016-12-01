@@ -355,7 +355,7 @@
                 <package name="cu_tiedtke_in" description="parameterization of Tiedtke convection."/>
                 <package name="bl_ysu_in" description="parameterization of YSU Planetary Boundary Layer."/>
                 <package name="bl_mynn_in" description="parameterization of MYNN Planetary Boundary Layer."/>
-
+                <package name="sfc_update" description="Surface Update"/>
                 <package name="iau" description="Incremental Analysis Update"/>
         </packages>
 
@@ -1029,16 +1029,18 @@
 			<var name="hv_oml"/>
 		</stream>
 
-		<stream name="surface" 
-                        type="input" 
-                        filename_template="x1.40962.sfc_update.nc" 
-                        input_interval="none"
-                        filename_interval="none"
-                        runtime_format="separate_file">
+        <stream name="surface" 
+                type="input" 
+                filename_template="x1.40962.sfc_update.nc" 
+                input_interval="none"
+                filename_interval="none"
+                packages="sfc_update"
+                immutable="true">
 
-			<var name="sst"/>
-			<var name="xice"/>
-		</stream>
+                <var name="xtime"/>
+                <var name="sst"/>
+                <var name="xice"/>
+        </stream>
 
 	        <stream name="iau" 
                         type="input" 
