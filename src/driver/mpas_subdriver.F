@@ -49,7 +49,10 @@ module mpas_subdriver
       use mpas_c_interfacing, only : mpas_f_to_c_string, mpas_c_to_f_string
       use mpas_timekeeping, only : mpas_get_clock_time, mpas_get_time
       use mpas_bootstrapping, only : mpas_bootstrap_framework_phase1, mpas_bootstrap_framework_phase2
- 
+#ifdef CORE_ATMOSPHERE
+      use atm_core, only: atm_sanity_check_sfc_update
+#endif
+
       implicit none
 
       integer :: iArg, nArgs
@@ -298,7 +301,12 @@ module mpas_subdriver
       if (c_ierr /= 0) then
          call mpas_dmpar_abort(domain_ptr % dminfo)
       end if
+#ifdef CORE_ATMOSPHERE
+      write(0,*) " ** Performing sanity check of surface update stream properties for atmosphere core"
+      call atm_sanity_check_sfc_update(domain_ptr)
+#endif
 
+      ! 
       !
       ! Finalize the setup of blocks and fields
       !
