@@ -450,6 +450,79 @@ module atm_core
    end subroutine atm_mpas_init_block
    
    
+   !-----------------------------------------------------------------------
+   !  routine atm_sanity_check_sfc_update
+   !
+   !> \brief Checks for consistency of sfc update namelist/stream list settings
+   !> \author Dom Heinzeller
+   !> \date   01 December 2016
+   !> \details
+   !>  This routine checks for consistency between the surface update settings
+   !>  in the namelist (config_sst_update) and the stream list settings. If 
+   !>  config_sst_update is true, the surface update stream 'surface' must be
+   !>  present in streams.atmosphere. As an immutable stream, the 'surface'
+   !>  stream is automatically added to the list of streams, even if it is not
+   !>  included in streams.atmosphere; however, its input/output intervals are
+   !>  set to 'none'. Thus, if config_sst_update is true and input_interval is
+   !>  'none' the code will abort.
+   !>  Similarily, if config_sst_update is false, the 'surface' stream is set
+   !>  to inactive to avoid reading the stream. This is necessary because
+   !>  reading the stream without performing the necessary adjustments triggered
+   !>  by config_sst_update can cause the model to crash/segfault.
+   !
+   !-----------------------------------------------------------------------
+   subroutine atm_sanity_check_sfc_update(domain)
+
+      use mpas_derived_types, only : MPAS_STREAM_MGR_NOERR,  &
+                                     MPAS_STREAM_PROPERTY_ACTIVE
+      use mpas_stream_manager, only : MPAS_stream_mgr_get_property, &
+                                      MPAS_stream_mgr_set_property, &
+                                      MPAS_stream_mgr_begin_iteration, &
+                                      MPAS_stream_mgr_get_next_stream
+      use mpas_pool_routines, only : mpas_pool_get_config
+
+      implicit none
+
+      type (domain_type), intent(inout) :: domain
+
+      logical, pointer :: config_sst_update
+      character (len=StrKIND) :: stream_id
+      character (len=StrKIND) :: input_interval
+      logical :: is_active
+      logical :: found_stream
+      integer :: ierr
+
+      call mpas_pool_get_config(domain%blocklist%configs, 'config_sst_update', config_sst_update)
+      found_stream =.false.
+      
+      call MPAS_stream_mgr_begin_iteration(domain % streamManager)
+      do while (MPAS_stream_mgr_get_next_stream(domain % streamManager, streamID=stream_id, inputIntervalProperty=input_interval))
+         call MPAS_stream_mgr_get_property(domain % streamManager, stream_id, MPAS_STREAM_PROPERTY_ACTIVE, is_active, ierr=ierr)
+         if (stream_id == 'surface' .and. (.not. config_sst_update)) then
+            call MPAS_stream_mgr_get_property(domain % streamManager, stream_id, MPAS_STREAM_PROPERTY_ACTIVE, is_active, ierr=ierr)
+            if (.not. ierr == MPAS_STREAM_MGR_NOERR) then
+               call mpas_dmpar_global_abort("ERROR while checking if surface update stream 'surface' is active")
+            end if
+            if (is_active) then
+               write(0,*) " ** Setting surface update stream 'surface' to inactive since sst updates are disabled"
+               call MPAS_stream_mgr_set_property(domain % streamManager, stream_id, MPAS_STREAM_PROPERTY_ACTIVE, .false., ierr=ierr)
+               if (.not. ierr == MPAS_STREAM_MGR_NOERR) then
+                  call mpas_dmpar_global_abort("ERROR while deactivating surface update stream 'surface'")
+               end if
+            end if
+            found_stream = .true.
+         else if (stream_id == 'surface' .and. trim(input_interval) /= 'none') then
+            found_stream = .true.
+         end if
+      end do
+      
+      if ((.not. found_stream) .and. config_sst_update) then
+         call mpas_dmpar_global_abort("ERROR: sst updates requested, but surface update stream 'surface' not found")
+      end if
+
+   end subroutine atm_sanity_check_sfc_update
+   
+   
    function atm_core_run(domain) result(ierr)
    
       use mpas_timekeeping
