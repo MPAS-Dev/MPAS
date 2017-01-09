@@ -259,12 +259,8 @@ include 'mpif.h'
       dminfo % nprocs = mpi_size
       dminfo % my_proc_id = mpi_rank
 
-      if ( dminfo % initialized_mpi ) then
-         write(stderrUnit,'(a,i5,a,i5,a)') 'task ', mpi_rank, ' of ', mpi_size, &
-           ' is running'
-
-         call open_streams(dminfo % my_proc_id)
-      end if
+      write(stderrUnit,'(a,i5,a,i5,a)') 'task ', mpi_rank, ' of ', mpi_size, ' is running'
+      call open_streams(dminfo % my_proc_id)
 
       dminfo % info = MPI_INFO_NULL
 #else
