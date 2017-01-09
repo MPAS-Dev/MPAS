@@ -13,12 +13,10 @@
  use mpas_dmpar
 
  use mpas_atmphys_constants, only: R_d,R_v,degrad
- use mpas_atmphys_vars, only: pbl_scheme,convection_scheme
 
  implicit none
  private
  public:: physics_addtend, physics_get_tend
-
 
 !Interface between the physics parameterizations and the non-hydrostatic dynamical core.
 !Laura D. Fowler (send comments to laura@ucar.edu).
@@ -530,7 +528,7 @@
        enddo
        enddo
 
-       pbl_select: select case (trim(pbl_scheme))
+       pbl_select: select case (config_pbl_scheme)
 
           case("bl_mynn")
 
@@ -557,7 +555,7 @@
        enddo
        enddo
 
-        convection_select: select case(convection_scheme)
+        convection_select: select case(config_convection_scheme)
 
            case('cu_grell_freitas')
 
@@ -714,7 +712,7 @@
        enddo
        enddo
 
-       pbl_select: select case (trim(pbl_scheme))
+       pbl_select: select case (config_pbl_scheme)
 
           case("bl_mynn")
 
@@ -741,7 +739,7 @@
        enddo
        enddo
 
-        convection_select: select case(convection_scheme)
+        convection_select: select case(config_convection_scheme)
 
            case('cu_kain_fritsch')
               do i = 1, nCellsSolve
