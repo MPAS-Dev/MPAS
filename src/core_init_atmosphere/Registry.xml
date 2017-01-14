@@ -172,6 +172,11 @@
                      description="Whether to use the vertical layer profile that was developed for use in real-time TC experiments"
                      possible_values="true or false"/>
 
+                <nml_option name="config_extrap_airtemp"        type="integer"       default_value="1"
+                     units="-"
+                     description="Extrapolation of air temperature above/below first-guess levels. 0 = constant, 1 = linear, 2 = laps-rate"
+                     possible_values="0, 1, 2"/>
+
         </nml_record>
 
         <nml_record name="preproc_stages" in_defaults="true">
