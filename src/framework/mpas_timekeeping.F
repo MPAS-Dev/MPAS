@@ -410,7 +410,7 @@ module mpas_timekeeping
    end subroutine mpas_advance_clock
 
 
-   subroutine mpas_set_clock_time(clock, clock_time, whichTime, ierr)
+   subroutine mpas_set_clock_time(clock, clock_time, whichTime, ierr, calibrateAlarms)
 
       implicit none
 
@@ -418,14 +418,20 @@ module mpas_timekeeping
       type (MPAS_Time_type), intent(in) :: clock_time
       integer, intent(in) :: whichTime
       integer, intent(out), optional :: ierr
+      logical, intent(in), optional :: calibrateAlarms
       integer :: threadNum
+
+      logical :: calibrateAlarmsUse
+
+      calibrateAlarmsUse = .true.
+      if (present(calibrateAlarms)) calibrateAlarmsUse = calibrateAlarms
 
       threadNum = mpas_threading_get_thread_num()
 
       if ( threadNum == 0 ) then
          if (whichTime == MPAS_NOW) then
             call ESMF_ClockSet(clock % c, CurrTime=clock_time%t, rc=ierr)
-            call mpas_calibrate_alarms(clock, ierr);
+            if (calibrateAlarmsUse) call mpas_calibrate_alarms(clock, ierr);
          else if (whichTime == MPAS_START_TIME) then
             call ESMF_ClockSet(clock % c, StartTime=clock_time%t, rc=ierr)
          else if (whichTime == MPAS_STOP_TIME) then
