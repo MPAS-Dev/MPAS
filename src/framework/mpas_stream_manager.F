@@ -3054,6 +3054,7 @@ module mpas_stream_manager
            else
                if ( stream % filename_interval /= 'none' ) then
                    call mpas_set_timeInterval(filename_interval, timeString=stream % filename_interval)
+    
                    call mpas_build_stream_filename(stream % referenceTime, writeTime, filename_interval, stream % filename_template, blockID, temp_filename, ierr=local_ierr)
                else if (final_input_only .or. final_output_only) then
                    now_time = mpas_get_clock_time(manager % streamClock, MPAS_NOW, ierr=local_ierr)
@@ -4341,8 +4342,8 @@ module mpas_stream_manager
         end if
 
     end function stream_active_pkg_check !}}}
-    
-    
+
+
     !-----------------------------------------------------------------------
     !  routine parse_package_list
     !

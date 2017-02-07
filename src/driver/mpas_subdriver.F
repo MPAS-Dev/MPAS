@@ -306,7 +306,6 @@ module mpas_subdriver
       call atm_sanity_check_sfc_update(domain_ptr)
 #endif
 
-      ! 
       !
       ! Finalize the setup of blocks and fields
       !

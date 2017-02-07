@@ -1143,6 +1143,7 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "final_only") == NULL && strstr(interval_in, "none") == NULL ){
 					filename_interval = interval_in2;
 				}
+
 			/* Check for an output stream. */
 			} else if ( strstr(direction, "output") != NULL ) {
 				if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "final_only") == NULL && strstr(interval_out, "none") == NULL ){
@@ -1428,6 +1429,7 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 				/* If input interval is an interval (i.e. not initial_only/final_only or none) set filename_interval to the interval. */
 				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "final_only") == NULL && strstr(interval_in, "none") == NULL ){
 					filename_interval = interval_in2;
+
 				/* If output interval is an interval (i.e. not initial_only/final_only or none) set filename_interval to the interval. */
 				} else if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "final_only") == NULL && strstr(interval_out, "none") == NULL ){
 					filename_interval = interval_out2;
@@ -1437,6 +1439,7 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "final_only") == NULL && strstr(interval_in, "none") == NULL ){
 					filename_interval = interval_in2;
 				}
+
 			/* Check for an output stream. */
 			} else if ( strstr(direction, "output") != NULL ) {
 				if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "final_only") == NULL && strstr(interval_out, "none") == NULL ){
