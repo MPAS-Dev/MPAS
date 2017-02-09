@@ -152,6 +152,10 @@ contains
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficient
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientRunoff
 
+      real (kind=RKIND) :: areaTri1, layerThicknessVertexInv, tempRiVal, dcEdge_temp, dvEdge_temp, weightsOnEdge_temp
+      real (kind=RKIND), dimension(:), allocatable:: layerThicknessVertexVec
+      integer :: edgeSignOnCell_temp
+
       call mpas_timer_start('diagnostic solve')
 
       if (present(timeLevelIn)) then
@@ -457,22 +461,27 @@ contains
 
       nVertices = nVerticesArray( 3 )
 
-      !$omp do schedule(runtime) private(invAreaTri1, k, layerThicknessVertex, i)
-      do iVertex = 1, nVertices
-         invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
-         do k = 1, maxLevelVertexBot(iVertex)
-            layerThicknessVertex = 0.0_RKIND
-            do i = 1, vertexDegree
-               layerThicknessVertex = layerThicknessVertex + layerThickness(k,cellsOnVertex(i,iVertex)) &
-                                    * kiteAreasOnVertex(i,iVertex)
-            end do
-            layerThicknessVertex = layerThicknessVertex * invAreaTri1
+      allocate(layerThicknessVertexVec(nVertLevels))
 
-            normalizedRelativeVorticityVertex(k,iVertex) = relativeVorticity(k,iVertex) / layerThicknessVertex
-            normalizedPlanetaryVorticityVertex(k,iVertex) = fVertex(iVertex) / layerThicknessVertex
-         end do
+      !$omp do schedule(runtime)
+      do iVertex = 1, nVertices
+        areaTri1 = areaTriangle(iVertex)
+        layerThicknessVertexVec(:) = 0.0_RKIND
+        do i = 1, vertexDegree
+          do k = 1, maxLevelVertexBot(iVertex)
+            layerThicknessVertexVec(k) = layerThicknessVertexVec(k) + layerThickness(k,cellsOnVertex(i,iVertex)) &
+                                          * kiteAreasOnVertex(i,iVertex)
+          end do
+        end do
+        do k = 1, maxLevelVertexBot(iVertex)
+          layerThicknessVertexInv = areaTri1 / layerThicknessVertexVec(k)
+          normalizedRelativeVorticityVertex(k,iVertex) = relativeVorticity(k,iVertex) * layerThicknessVertexInv
+          normalizedPlanetaryVorticityVertex(k,iVertex) = fVertex(iVertex) * layerThicknessVertexInv
+        end do
       end do
       !$omp end do
+
+      deallocate(layerThicknessVertexVec)
 
       nEdges = nEdgesArray( 3 )
 
@@ -598,7 +607,6 @@ contains
                                             nCells, 0, 'relative', density, err, &
                                             timeLevelIn=timeLevel)
       endif
-      call mpas_threading_barrier()
 
       ! compute potentialDensity, the density displaced adiabatically to the mid-depth of top layer.
       call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, &
@@ -610,7 +618,6 @@ contains
       call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, &
                                          nCells, 1, 'relative', displacedDensity, &
                                          err, timeLevelIn=timeLevel)
-      call mpas_threading_barrier()
 
       !
       ! Pressure
@@ -723,9 +730,9 @@ contains
              delU2 = (normalVelocity(k-1,iEdge) - normalVelocity(k,iEdge))**2
              shearSquared = shearSquared + factor * delU2
            enddo
-           shearMean = sqrt(shearSquared)
-           shearMean = shearMean / (zMid(k-1,iCell) - zMid(k,iCell))
-           RiTopOfCell(k,iCell) = BruntVaisalaFreqTop(k,iCell) / (shearMean**2 + 1.0e-10_RKIND)
+           tempRiVal = (zMid(k-1,iCell) - zMid(k,iCell)) ** 2
+           RiTopOfCell(k,iCell) = BruntVaisalaFreqTop(k,iCell) * tempRiVal &
+                                  / (shearSquared + 1.0e-10_RKIND * tempRiVal)
           end do
           RiTopOfCell(1,iCell) = RiTopOfCell(2,iCell)
       end do
