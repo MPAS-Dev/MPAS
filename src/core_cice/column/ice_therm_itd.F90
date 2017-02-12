@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_therm_itd.F90 1136 2016-07-29 21:10:31Z eclare $
+!  SVN:$Id: ice_therm_itd.F90 1151 2016-09-08 16:44:12Z eclare $
 !=======================================================================
 !
 ! Thermo calculations after call to coupler, related to ITD:
@@ -123,6 +123,7 @@
       logical (kind=log_kind), intent(out) :: &
          l_stop    ! if true, abort on return
 
+     ! character (char_len), intent(out) :: stop_label
       character (len=*), intent(out) :: stop_label
 
       ! local variables
@@ -1071,6 +1072,7 @@
       logical (kind=log_kind), intent(out) :: &
          l_stop    ! if true, abort on return
 
+     ! character (char_len), intent(out) :: stop_label
       character (len=*), intent(out) :: stop_label
 
       ! BGC

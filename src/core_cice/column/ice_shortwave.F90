@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_shortwave.F90 1136 2016-07-29 21:10:31Z eclare $
+!  SVN:$Id: ice_shortwave.F90 1151 2016-09-08 16:44:12Z eclare $
 !=======================================================================
 !
 ! The albedo and absorbed/transmitted flux parameterizations for

@@ -2783,7 +2783,8 @@ contains
          oceanAmmoniumConc, &
          oceanDMSConc, &
          oceanDMSPConc, &
-         oceanHumicsConc
+         oceanHumicsConc, &  
+         openWaterArea  
 
     real(kind=RKIND), dimension(:,:), pointer :: &
          iceAreaCategoryInitial, &
@@ -2967,6 +2968,7 @@ contains
        call MPAS_pool_get_array(icestate, "iceVolumeCategoryInitial", iceVolumeCategoryInitial)
        call MPAS_pool_get_array(icestate, "snowVolumeCategoryInitial", snowVolumeCategoryInitial)
        call MPAS_pool_get_array(icestate, "iceThicknessCategoryInitial", iceThicknessCategoryInitial)
+       call MPAS_pool_get_array(icestate, "openWaterArea", openWaterArea)  
 
        call MPAS_pool_get_array(shortwave, "penetratingShortwaveFlux", penetratingShortwaveFlux)
        call MPAS_pool_get_array(shortwave, "shortwaveLayerPenetration", shortwaveLayerPenetration)
@@ -3116,6 +3118,7 @@ contains
                iceAreaCategory(1,:,iCell), &
                iceVolumeCategory(1,:,iCell), &
                snowVolumeCategory(1,:,iCell), &
+               openWaterArea(iCell), &
                ciceTracerObject % tracerArrayCategory(:,:), &
                snowVolumeCategoryInitial(:,iCell), &
                config_use_skeletal_biochemistry, &

@@ -547,6 +547,7 @@
             dhs_melts  = -melts
             dhs_snoice = snoice*rhoi/rhos
          else ! ice disappeared during time step
+	    ar = c1
             hs = vsnon/aice_old
             dhs_melts  = -melts
             dhs_snoice = snoice*rhoi/rhos
@@ -562,17 +563,19 @@
          do k=1,nbtrcr
             flux_bio(k) = flux_bio(k) +  &
                          (trcrn(bio_index(k)+ nblyr+1)*dzssl+ &
-                          trcrn(bio_index(k)+ nblyr+2)*dzint)*aice_old/dt
+                          trcrn(bio_index(k)+ nblyr+2)*dzint)/dt  
             trcrn(bio_index(k) + nblyr+1) = c0
             trcrn(bio_index(k) + nblyr+2) = c0
+            zbgc_atm(k) = zbgc_atm(k) &
+                                + flux_bio_atm(k)*dt 
          enddo
 
-      elseif (aicen .gt. puny) then
+      else 
          
          do k=1,nbtrcr
             flux_bio_o(k) = flux_bio(k)
-            aerosno (k,1) = trcrn(bio_index(k)+ nblyr+1) * dzssl * aicen   
-            aerosno (k,2) = trcrn(bio_index(k)+ nblyr+2) * dzint * aicen  
+            aerosno (k,1) = trcrn(bio_index(k)+ nblyr+1) * dzssl
+            aerosno (k,2) = trcrn(bio_index(k)+ nblyr+2) * dzint
             aerosno0(k,:) = aerosno(k,:)
             aerotot0(k)   = aerosno(k,2) + aerosno(k,1) 
          enddo
@@ -657,12 +660,12 @@
                                   ! should use same hs_min value as in radiation
             do k=1,nbtrcr
                aerosno(k,1) = aerosno(k,1) &
-                                + flux_bio_atm(k)*dt*aicen
+                                + flux_bio_atm(k)*dt
             enddo
          else  
             do k=1,nbtrcr
                zbgc_atm(k) = zbgc_atm(k) &
-                                + flux_bio_atm(k)*dt*aicen
+                                + flux_bio_atm(k)*dt
             enddo
          endif
 
@@ -716,7 +719,7 @@
             aerotot(k) = aerosno(k,2) + aerosno(k,1) &
                        + zbgc_snow(k) + zbgc_atm(k) 
             aero_cons(k) = aerotot(k)-aerotot0(k) &
-                          - (    flux_bio_atm(k)*aicen &
+                          - (    flux_bio_atm(k) & 
                           - (flux_bio(k)-flux_bio_o(k))) * dt
             if (aero_cons(k)  > puny .or. zbgc_snow(k) + zbgc_atm(k) < c0) then             
                write(nu_diag,*) 'Conservation failure: aerosols in snow'            
@@ -739,13 +742,12 @@
     !-------------------------------------------------------------------
          if (vsnon > puny) then
          do k = 1,nbtrcr
-             trcrn(bio_index(k)+nblyr+1)=aerosno(k,1)/dzssl_new * ar 
-             trcrn(bio_index(k)+nblyr+2)=aerosno(k,2)/dzint_new * ar
-             zbgc_snow(k) = zbgc_snow(k) * ar
+             trcrn(bio_index(k)+nblyr+1)=aerosno(k,1)/dzssl_new 
+             trcrn(bio_index(k)+nblyr+2)=aerosno(k,2)/dzint_new
          enddo
          else
          do k = 1,nbtrcr
-            zbgc_snow(k) = (zbgc_snow(k) + aerosno(k,1) + aerosno(k,2)) * ar
+            zbgc_snow(k) = (zbgc_snow(k) + aerosno(k,1) + aerosno(k,2))
             trcrn(bio_index(k)+nblyr+1)= c0
             trcrn(bio_index(k)+nblyr+2)= c0
          enddo
