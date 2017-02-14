@@ -10,8 +10,8 @@
 !  ocn_surface_area_weighted_averages
 !
 !> \brief MPAS ocean analysis member: areal-{min,max,avg} of 2D fields
-!> \author Todd Ringler
-!> \date   April 24, 2015
+!> \author Todd Ringler, Anne Berres
+!> \date   Mar 2, 2017
 !> \details
 !>  MPAS ocean analysis member: surface-area-weighted averages
 !
@@ -88,6 +88,13 @@ contains
       !-----------------------------------------------------------------
 
       type (domain_type), intent(inout) :: domain
+      type (mpas_pool_type), pointer :: surfaceAreaWeightedAveragesAMPool
+      type (mpas_pool_type), pointer :: meshPool
+      ! pointers to data in mesh pool
+      integer, pointer :: nCells, nCellsSolve, nSfcAreaWeightedAvgFields, nOceanRegions
+      real (kind=RKIND), dimension(:), pointer :: lonCell, latCell
+      logical, pointer :: predefRegions
+      real (kind=RKIND), dimension(:,:), pointer :: surfaceMask
 
       !-----------------------------------------------------------------
       !
@@ -102,8 +109,89 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
+      logical, pointer :: predefReg
 
       err = 0
+
+      ! get pointers to analysis member arrays
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'surfaceAreaWeightedAveragesAM', surfaceAreaWeightedAveragesAMPool)
+
+      ! region config for SAWA
+      call mpas_pool_get_config(domain % configs, 'config_AM_surfaceAreaWeightedAverages_compute_predef_regions', &
+                                   predefReg)
+
+      call mpas_pool_get_array(surfaceAreaWeightedAveragesAMPool, 'surfaceMask', surfaceMask)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nCells', nCells)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nCellsSolve', nCellsSolve)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nOceanRegions', nOceanRegions)
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
+
+      call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
+      call mpas_pool_get_array(meshPool, 'latCell', latCell)
+
+      ! compute mask
+      if(predefReg == .true.) then
+         call compute_mask(nCells, nCellsSolve, nOceanRegions, lonCell, latCell, surfaceMask)
+      endif
+
+
+   contains
+
+   subroutine compute_mask(nCells, nCellsSolve, nOceanRegions, lonCell, latCell, surfaceMask)!{{{
+   ! this subroutines produces a 0/1 mask that is multiplied with workArray to
+   ! allow for min/max/avg to represent specific regions of the ocean domain
+   !
+   ! NOTE: computes_mask is temporary. workMask should be intent(in) to this entire module !
+   !
+   integer, intent(in) :: nCells, nCellsSolve
+   real(kind=RKIND), dimension(:), intent(in) :: lonCell, latCell
+   real(kind=RKIND), dimension(:,:), intent(out) :: surfaceMask
+   integer, pointer :: nOceanRegions
+   integer :: iCell
+   real(kind=RKIND) :: dtr
+
+   dtr = 4.0_RKIND*atan(1.0_RKIND) / 180.0_RKIND
+   surfaceMask(:,:) = 0.0_RKIND
+   do iCell=1,nCellsSolve
+      surfaceMask(:,iCell) = 1.0_RKIND
+   enddo
+
+   ! Arctic
+   do iCell=1,nCellsSolve
+      if(latCell(iCell).lt. 60.0_RKIND*dtr) surfaceMask(1,iCell) = 0.0_RKIND
+   enddo
+   ! Equatorial
+   do iCell=1,nCellsSolve
+      if(latCell(iCell).gt. 15.0_RKIND*dtr) surfaceMask(2,iCell) = 0.0_RKIND
+      if(latCell(iCell).lt.-15.0_RKIND*dtr) surfaceMask(2,iCell) = 0.0_RKIND
+   enddo
+   ! Southern Ocean
+   do iCell=1,nCellsSolve
+      if(latCell(iCell).gt.-50.0_RKIND*dtr) surfaceMask(3,iCell) = 0.0_RKIND
+   enddo
+   ! Nino 3
+   do iCell=1,nCellsSolve
+      if(latCell(iCell).gt.  5.0_RKIND*dtr) surfaceMask(4,iCell) = 0.0_RKIND
+      if(latCell(iCell).lt. -5.0_RKIND*dtr) surfaceMask(4,iCell) = 0.0_RKIND
+      if(lonCell(iCell).lt.210.0_RKIND*dtr) surfaceMask(4,iCell) = 0.0_RKIND
+      if(lonCell(iCell).gt.270.0_RKIND*dtr) surfaceMask(4,iCell) = 0.0_RKIND
+   enddo
+   ! Nino 4
+   do iCell=1,nCellsSolve
+      if(latCell(iCell).gt.  5.0_RKIND*dtr) surfaceMask(5,iCell) = 0.0_RKIND
+      if(latCell(iCell).lt. -5.0_RKIND*dtr) surfaceMask(5,iCell) = 0.0_RKIND
+      if(lonCell(iCell).lt.160.0_RKIND*dtr) surfaceMask(5,iCell) = 0.0_RKIND
+      if(lonCell(iCell).gt.210.0_RKIND*dtr) surfaceMask(5,iCell) = 0.0_RKIND
+   enddo
+      ! Nino 3.4
+   do iCell=1,nCellsSolve
+      if(latCell(iCell).gt.  5.0_RKIND*dtr) surfaceMask(6,iCell) = 0.0_RKIND
+      if(latCell(iCell).lt. -5.0_RKIND*dtr) surfaceMask(6,iCell) = 0.0_RKIND
+      if(lonCell(iCell).lt.190.0_RKIND*dtr) surfaceMask(6,iCell) = 0.0_RKIND
+      if(lonCell(iCell).gt.240.0_RKIND*dtr) surfaceMask(6,iCell) = 0.0_RKIND
+   enddo
+
+   end subroutine compute_mask!}}}
 
    end subroutine ocn_init_surface_area_weighted_averages!}}}
 
@@ -112,8 +200,8 @@ contains
 !  routine ocn_compute_surface_area_weighted_averages
 !
 !> \brief   Compute MPAS-Ocean analysis member
-!> \author  Todd Ringler
-!> \date    April 24, 2015
+!> \author  Todd Ringler, Anne Berres
+!> \date    Mar 2, 2017
 !> \details
 !>  This routine conducts all computation required for this
 !>  MPAS-Ocean analysis member.
@@ -162,10 +250,17 @@ contains
       type (mpas_pool_type), pointer :: diagnosticsPool
       type (mpas_pool_type), pointer :: forcingPool
       type (mpas_pool_type), pointer :: tracersSurfaceFluxPool
+      type (mpas_pool_type), pointer :: regionPool
 
+      !! Hard-wired Region variables
       real (kind=RKIND), dimension(:,:), pointer :: minValueWithinOceanRegion
       real (kind=RKIND), dimension(:,:), pointer :: maxValueWithinOceanRegion
       real (kind=RKIND), dimension(:,:), pointer :: avgValueWithinOceanRegion
+
+      !! Region File variables
+      real (kind=RKIND), dimension(:,:), pointer :: minValueWithinOceanRF
+      real (kind=RKIND), dimension(:,:), pointer :: maxValueWithinOceanRF
+      real (kind=RKIND), dimension(:,:), pointer :: avgValueWithinOceanRF
 
       ! pointers to data in pools to be analyzed
       ! bulkForcing Pkg
@@ -202,12 +297,18 @@ contains
       integer, pointer :: nCells, nCellsSolve, nSfcAreaWeightedAvgFields, nOceanRegions
       integer, pointer :: indexTemperature, indexSalinity
       real (kind=RKIND), dimension(:), pointer ::  areaCell, lonCell, latCell
+      logical, pointer :: predefRegions
+
+      ! pointers to data in AM pool
+      real (kind=RKIND), dimension(:,:), pointer :: surfaceMask
 
       ! scratch space
-      type(field2DReal), pointer :: workArrayField
-      real (kind=RKIND), dimension(:,:), pointer :: workArray
-      type(field1DReal), pointer :: workMaskField, workMinField, workMaxField, workSumField
-      real (kind=RKIND), dimension(:), pointer :: workMask, workMin, workMax, workSum
+      type(field2DReal), pointer :: workArrayField, workArrayFieldRF
+      real (kind=RKIND), dimension(:,:), pointer :: workArray, workArrayRF
+      type(field2DReal), pointer :: workMinField, workMaxField, workSumField
+      type(field2DReal), pointer :: workMinFieldRF, workMaxFieldRF, workSumFieldRF
+      real (kind=RKIND), dimension(:,:), pointer :: workMin, workMax, workSum
+      real (kind=RKIND), dimension(:,:), pointer :: workMinRF, workMaxRF, workSumRF
 
       ! local variables
       integer :: iDataField, nDefinedDataFields
@@ -220,8 +321,20 @@ contains
       ! buffers data for message passaging
       integer :: kBuffer, kBufferLength
       real (kind=RKIND), dimension(:), allocatable :: workBufferSum, workBufferSumReduced
+      real (kind=RKIND), dimension(:), allocatable :: workBufferSumRF, workBufferSumReducedRF
       real (kind=RKIND), dimension(:), allocatable :: workBufferMin, workBufferMinReduced
+      real (kind=RKIND), dimension(:), allocatable :: workBufferMinRF, workBufferMinReducedRF
       real (kind=RKIND), dimension(:), allocatable :: workBufferMax, workBufferMaxReduced
+      real (kind=RKIND), dimension(:), allocatable :: workBufferMaxRF, workBufferMaxReducedRF
+
+      !!! region file variables
+      integer, pointer :: regionsInAddGroup
+      integer :: regionGroupOffset, regionGroupNumber, i, j
+      character (len=STRKIND), dimension(:), pointer :: regionNames, regionGroupNames
+      integer, dimension(:,:), pointer :: regionCellMasks, regionsInGroup
+      integer, dimension(:), pointer ::  nRegionsInGroup
+      integer, pointer :: nRegions, nRegionGroups, maxRegionsInGroup
+      character (len=STRKIND), pointer :: additionalRegion
 
       ! assume no error
       err = 0
@@ -233,316 +346,548 @@ contains
       ! set highest level pointer
       dminfo = domain % dminfo
 
-      ! find the number of regions
-      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nOceanRegions', nOceanRegions)
+      ! get pointers to analysis member arrays
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'surfaceAreaWeightedAveragesAM', surfaceAreaWeightedAveragesAMPool)
+
+      ! region config for SAWA
+      call mpas_pool_get_config(domain % configs, 'config_AM_surfaceAreaWeightedAverages_compute_predef_regions', &
+                                   predefRegions)
+      call mpas_pool_get_config(domain % configs, 'config_AM_surfaceAreaWeightedAverages_region_group', &
+                                   additionalRegion)
+
 
       ! find the number of data fields
       call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nSfcAreaWeightedAvgFields', nSfcAreaWeightedAvgFields)
 
-      ! allocate buffer for message passing
-      kBuffer=0
-      kBufferLength=nOceanRegions*nSfcAreaWeightedAvgFields
-      allocate(workBufferSum(kBufferLength))
-      allocate(workBufferMin(kBufferLength))
-      allocate(workBufferMax(kBufferLength))
-      allocate(workBufferSumReduced(kBufferLength))
-      allocate(workBufferMinReduced(kBufferLength))
-      allocate(workBufferMaxReduced(kBufferLength))
-      workBufferSum=0.0_RKIND
-      workBufferMin=0.0_RKIND
-      workBufferMax=0.0_RKIND
-      workBufferSumReduced=0.0_RKIND
-      workBufferMinReduced=0.0_RKIND
-      workBufferMaxReduced=0.0_RKIND
 
-      ! loop over all ocean regions
-      do iRegion=1,nOceanRegions
+      if (predefRegions == .true.) then
+         !!! hard-wired regions
+         ! find the number of regions
+         call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nOceanRegions', nOceanRegions)
+         call mpas_pool_get_array(surfaceAreaWeightedAveragesAMPool, 'surfaceMask', surfaceMask)
+         ! allocate buffer for message passing
+         kBuffer=0
+         kBufferLength=nOceanRegions*nSfcAreaWeightedAvgFields
+         allocate(workBufferSum(kBufferLength))
+         allocate(workBufferMin(kBufferLength))
+         allocate(workBufferMax(kBufferLength))
+         allocate(workBufferSumReduced(kBufferLength))
+         allocate(workBufferMinReduced(kBufferLength))
+         allocate(workBufferMaxReduced(kBufferLength))
+         workBufferSum=0.0_RKIND
+         workBufferMin=0.0_RKIND
+         workBufferMax=0.0_RKIND
+         workBufferSumReduced=0.0_RKIND
+         workBufferMinReduced=0.0_RKIND
+         workBufferMaxReduced=0.0_RKIND
 
-      ! get pointers to analysis member arrays
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'surfaceAreaWeightedAveragesAM', surfaceAreaWeightedAveragesAMPool)
-      call mpas_pool_get_array(surfaceAreaWeightedAveragesAMPool, 'minValueWithinOceanRegion', minValueWithinOceanRegion)
-      call mpas_pool_get_array(surfaceAreaWeightedAveragesAMPool, 'maxValueWithinOceanRegion', maxValueWithinOceanRegion)
-      call mpas_pool_get_array(surfaceAreaWeightedAveragesAMPool, 'avgValueWithinOceanRegion', avgValueWithinOceanRegion)
+         ! get pointers to analysis member arrays
+         call mpas_pool_get_subpool(domain % blocklist % structs, 'surfaceAreaWeightedAveragesAM', &
+               surfaceAreaWeightedAveragesAMPool)
+         call mpas_pool_get_array(surfaceAreaWeightedAveragesAMPool, 'minValueWithinOceanRegion', minValueWithinOceanRegion)
+         call mpas_pool_get_array(surfaceAreaWeightedAveragesAMPool, 'maxValueWithinOceanRegion', maxValueWithinOceanRegion)
+         call mpas_pool_get_array(surfaceAreaWeightedAveragesAMPool, 'avgValueWithinOceanRegion', avgValueWithinOceanRegion)
 
-      ! get pointers to scratch variables
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'surfaceAreaWeightedAveragesAMScratch', scratchPool)
-      call mpas_pool_get_field(scratchPool, 'workArray', workArrayField)
-      call mpas_pool_get_field(scratchPool, 'workMask', workMaskField)
-      call mpas_pool_get_field(scratchPool, 'workMin', workMinField)
-      call mpas_pool_get_field(scratchPool, 'workMax', workMaxField)
-      call mpas_pool_get_field(scratchPool, 'workSum', workSumField)
-      call mpas_allocate_scratch_field(workArrayField, .true.)
-      call mpas_allocate_scratch_field(workMaskField, .true.)
-      call mpas_allocate_scratch_field(workMinField, .true.)
-      call mpas_allocate_scratch_field(workMaxField, .true.)
-      call mpas_allocate_scratch_field(workSumField, .true.)
-      workArray => workArrayField % array
-      workMask => workMaskField % array
-      workMin => workMinField % array
-      workMax => workMaxField % array
-      workSum => workSumField % array
+         ! get pointers to scratch variables
+         call mpas_pool_get_subpool(domain % blocklist % structs, 'surfaceAreaWeightedAveragesAMScratch', scratchPool)
+         call mpas_pool_get_field(scratchPool, 'workArray', workArrayField)
+         call mpas_pool_get_field(scratchPool, 'workMin', workMinField)
+         call mpas_pool_get_field(scratchPool, 'workMax', workMaxField)
+         call mpas_pool_get_field(scratchPool, 'workSum', workSumField)
+         call mpas_allocate_scratch_field(workArrayField, .true.)
+         call mpas_allocate_scratch_field(workMinField, .true.)
+         call mpas_allocate_scratch_field(workMaxField, .true.)
+         call mpas_allocate_scratch_field(workSumField, .true.)
+         workArray => workArrayField % array
+         workMin => workMinField % array
+         workMax => workMaxField % array
+         workSum => workSumField % array
 
-      ! loop over blocks
-      ! NOTE: code is not valid for multiple blocks !
-      block => domain % blocklist
-      do while (associated(block))
-         ! get pointers to pools
-         call mpas_pool_get_subpool(block % structs, 'state', statePool)
-         call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
-         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
-         call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
-         call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux', tracersSurfaceFluxPool)
+         ! loop over blocks
+         ! NOTE: code is not valid for multiple blocks !
+         block => domain % blocklist
+         do while (associated(block))
+            ! get pointers to pools
+            call mpas_pool_get_subpool(block % structs, 'state', statePool)
+            call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+            call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+            call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
+            call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
+            call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux', tracersSurfaceFluxPool)
 
-         ! get pointers to mesh
-         call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
-         call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells)
-         call mpas_pool_get_dimension(block % dimensions, 'nSfcAreaWeightedAvgFields', nSfcAreaWeightedAvgFields)
-         call mpas_pool_get_dimension(block % dimensions, 'nOceanRegions', nOceanRegions)
-         call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
-         call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexSalinity)
-         call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
-         call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
-         call mpas_pool_get_array(meshPool, 'latCell', latCell)
+            ! get pointers to mesh
+            call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
+            call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells)
+            call mpas_pool_get_dimension(block % dimensions, 'nSfcAreaWeightedAvgFields', nSfcAreaWeightedAvgFields)
+            call mpas_pool_get_dimension(block % dimensions, 'nOceanRegions', nOceanRegions)
+            call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
+            call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexSalinity)
+            call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
+            call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
+            call mpas_pool_get_array(meshPool, 'latCell', latCell)
 
-         ! test to make sure the arrays are big enough
-         nDefinedDataFields = size(avgValueWithinOceanRegion,dim=1)
-         if (nDefinedDataFields > nSfcAreaWeightedAvgFields) then
-             write (stderrUnit,*) 'Abort: nDefinedDataFields > nSfcAreaWeightedAvgFields'
-             write (stderrUnit,*) '     :  increase size of ocn_surface_area_weighted_averages scratch space'
-             call mpas_dmpar_global_abort('MPAS-ocean: Abort: nDefinedDataFields > nSfcAreaWeightedAvgFields')
-         endif
+            ! test to make sure the arrays are big enough
+            nDefinedDataFields = size(avgValueWithinOceanRegion,dim=1)
+            if (nDefinedDataFields > nSfcAreaWeightedAvgFields) then
+                write (stderrUnit,*) 'Abort: nDefinedDataFields > nSfcAreaWeightedAvgFields'
+                write (stderrUnit,*) '     :  increase size of ocn_surface_area_weighted_averages scratch space'
+                call mpas_dmpar_global_abort('MPAS-ocean: Abort: nDefinedDataFields > nSfcAreaWeightedAvgFields')
+            endif
 
-         ! get pointers to data that will be analyzed
-         ! listed in the order in which the fields appear in {avg,min,max}SurfaceStatistics
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'latentHeatFlux', latentHeatFlux)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'sensibleHeatFlux', sensibleHeatFlux)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'longWaveHeatFluxUp', longWaveHeatFluxUp)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'longWaveHeatFluxDown', longWaveHeatFluxDown)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'seaIceHeatFlux', seaIceHeatFlux)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'shortWaveHeatFlux', shortWaveHeatFlux)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'evaporationFlux', evaporationFlux)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'seaIceFreshWaterFlux', seaIceFreshWaterFlux)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'iceRunoffFlux', iceRunoffFlux)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'rainFlux', rainFlux)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'snowFlux', snowFlux)
-         if (frazilIcePkgActive)   call mpas_pool_get_array(forcingPool, 'seaIceEnergy', seaIceEnergy)
-         call mpas_pool_get_array(forcingPool, 'surfaceThicknessFlux', surfaceThicknessFlux)
-         call mpas_pool_get_array(tracersSurfaceFluxPool, 'activeTracersSurfaceFlux', activeTracersSurfaceFlux)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'seaIceSalinityFlux', seaIceSalinityFlux)
-         call mpas_pool_get_array(forcingPool, 'surfaceStressMagnitude', surfaceStressMagnitude)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'windStressZonal', windStressZonal)
-         if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'windStressMeridional', windStressMeridional)
-         call mpas_pool_get_array(forcingPool, 'atmosphericPressure', atmosphericPressure)
-         call mpas_pool_get_array(statePool, 'ssh', ssh, 1)
-         call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, 1)
-         call mpas_pool_get_array(diagnosticsPool, 'boundaryLayerDepth',boundaryLayerDepth)
+            ! get pointers to data that will be analyzed
+            ! listed in the order in which the fields appear in {avg,min,max}SurfaceStatistics
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'latentHeatFlux', latentHeatFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'sensibleHeatFlux', sensibleHeatFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'longWaveHeatFluxUp', longWaveHeatFluxUp)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'longWaveHeatFluxDown', &
+                  longWaveHeatFluxDown)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'seaIceHeatFlux', seaIceHeatFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'shortWaveHeatFlux', shortWaveHeatFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'evaporationFlux', evaporationFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'seaIceFreshWaterFlux', &
+                  seaIceFreshWaterFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'iceRunoffFlux', iceRunoffFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'rainFlux', rainFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'snowFlux', snowFlux)
+            if (frazilIcePkgActive)   call mpas_pool_get_array(forcingPool, 'seaIceEnergy', seaIceEnergy)
+            call mpas_pool_get_array(forcingPool, 'surfaceThicknessFlux', surfaceThicknessFlux)
+            call mpas_pool_get_array(tracersSurfaceFluxPool, 'activeTracersSurfaceFlux', activeTracersSurfaceFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'seaIceSalinityFlux', seaIceSalinityFlux)
+            call mpas_pool_get_array(forcingPool, 'surfaceStressMagnitude', surfaceStressMagnitude)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'windStressZonal', windStressZonal)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'windStressMeridional', &
+                  windStressMeridional)
+            call mpas_pool_get_array(forcingPool, 'atmosphericPressure', atmosphericPressure)
+            call mpas_pool_get_array(statePool, 'ssh', ssh, 1)
+            call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, 1)
+            call mpas_pool_get_array(diagnosticsPool, 'boundaryLayerDepth', boundaryLayerDepth)
 
-         ! compute mask
-         call compute_mask(nCells, nCellsSolve, iRegion, lonCell, latCell, workMask)
+            ! initialize buffers
+            workBufferSum(:) = 0.0_RKIND
+            workBufferMin(:) = +1.0e20_RKIND
+            workBufferMax(:) = -1.0e20_RKIND
 
-         ! copy data into work array
-         workArray( :,:) = 0.0_RKIND
-         workArray( 1,:) = workMask(:)
-         workArray( 2,:) = areaCell(:)
-         if (activeTracersBulkRestoringPKG) workArray( 3,:) = latentHeatFlux(:)
-         if (activeTracersBulkRestoringPKG) workArray( 4,:) = sensibleHeatFlux(:)
-         if (activeTracersBulkRestoringPKG) workArray( 5,:) = longWaveHeatFluxUp(:)
-         if (activeTracersBulkRestoringPKG) workArray( 6,:) = longWaveHeatFluxDown(:)
-         if (activeTracersBulkRestoringPKG) workArray( 7,:) = seaIceHeatFlux(:)
-         if (activeTracersBulkRestoringPKG) workArray( 8,:) = shortWaveHeatFlux(:)
-         if (activeTracersBulkRestoringPKG) workArray( 9,:) = evaporationFlux(:)
-         if (activeTracersBulkRestoringPKG) workArray(10,:) = seaIceFreshWaterFlux(:)
-         if (activeTracersBulkRestoringPKG) workArray(11,:) = riverRunoffFlux(:)
-         if (activeTracersBulkRestoringPKG) workArray(12,:) = iceRunoffFlux(:)
-         if (activeTracersBulkRestoringPKG) workArray(13,:) = rainFlux(:)
-         if (activeTracersBulkRestoringPKG) workArray(14,:) = snowFlux(:)
-         if (frazilIcePkgActive) workArray(15,:) = seaIceEnergy(:)
-         workArray(16,:) = surfaceThicknessFlux(:)
-         workArray(17,:) = activeTracersSurfaceFlux(indexTemperature,:)
-         workArray(18,:) = activeTracersSurfaceFlux(indexSalinity,:)
-         if (activeTracersBulkRestoringPKG) workArray(19,:) = seaIceSalinityFlux(:)
-         workArray(20,:) = surfaceStressMagnitude(:)
-         if (activeTracersBulkRestoringPKG) workArray(21,:) = windStressZonal(:)
-         if (activeTracersBulkRestoringPKG) workArray(22,:) = windStressMeridional(:)
-         workArray(23,:) = atmosphericPressure(:)
-         workArray(24,:) = ssh(:)
-         workArray(25,:) = activeTracers(indexTemperature,1,:)
-         workArray(26,:) = activeTracers(indexSalinity,1,:)
-         workArray(27,:) = boundaryLayerDepth(:)
+            ! copy data into work array
+            workArray( :,:) = 0.0_RKIND
+            ! workArray( 1,:) used to contain workMask, which is now written out as variable surfaceMask
+            ! kept blank to keep old analysis scripts working
+            workArray( 2,:) = areaCell(:)
+            if (activeTracersBulkRestoringPKG) workArray( 3,:) = latentHeatFlux(:)
+            if (activeTracersBulkRestoringPKG) workArray( 4,:) = sensibleHeatFlux(:)
+            if (activeTracersBulkRestoringPKG) workArray( 5,:) = longWaveHeatFluxUp(:)
+            if (activeTracersBulkRestoringPKG) workArray( 6,:) = longWaveHeatFluxDown(:)
+            if (activeTracersBulkRestoringPKG) workArray( 7,:) = seaIceHeatFlux(:)
+            if (activeTracersBulkRestoringPKG) workArray( 8,:) = shortWaveHeatFlux(:)
+            if (activeTracersBulkRestoringPKG) workArray( 9,:) = evaporationFlux(:)
+            if (activeTracersBulkRestoringPKG) workArray(10,:) = seaIceFreshWaterFlux(:)
+            if (activeTracersBulkRestoringPKG) workArray(11,:) = riverRunoffFlux(:)
+            if (activeTracersBulkRestoringPKG) workArray(12,:) = iceRunoffFlux(:)
+            if (activeTracersBulkRestoringPKG) workArray(13,:) = rainFlux(:)
+            if (activeTracersBulkRestoringPKG) workArray(14,:) = snowFlux(:)
+            if (frazilIcePkgActive) workArray(15,:) = seaIceEnergy(:)
+            workArray(16,:) = surfaceThicknessFlux(:)
+            workArray(17,:) = activeTracersSurfaceFlux(indexTemperature,:)
+            workArray(18,:) = activeTracersSurfaceFlux(indexSalinity,:)
+            if (activeTracersBulkRestoringPKG) workArray(19,:) = seaIceSalinityFlux(:)
+            workArray(20,:) = surfaceStressMagnitude(:)
+            if (activeTracersBulkRestoringPKG) workArray(21,:) = windStressZonal(:)
+            if (activeTracersBulkRestoringPKG) workArray(22,:) = windStressMeridional(:)
+            workArray(23,:) = atmosphericPressure(:)
+            workArray(24,:) = ssh(:)
+            workArray(25,:) = activeTracers(indexTemperature,1,:)
+            workArray(26,:) = activeTracers(indexSalinity,1,:)
+            workArray(27,:) = boundaryLayerDepth(:)
 
-         ! build net heat, salinity and fresh water budget
-         ! net heat into ocean = latentHeatFlux + sensibleHeatFlux + longWaveHeatFluxUp + longWaveHeatFluxDown
-         !                     + shortWaveHeatFlux + seaIceHeatFlux + (?seaIceEnergy?)
-         ! net salinity into ocean = seaIceSalinityFlux
-         ! net freshwater into ocean = evaporationFlux + seaIceFreshWaterFlux + riverRunoffFlux + iceRunoffFlux
-         !                           + rainFlux + snowFlux + (?seaIceEnergy?)
-         if (activeTracersBulkRestoringPKG) then
-            workArray(28,:) =   latentHeatFlux(:) &
-                              + sensibleHeatFlux(:) &
-                              + longWaveHeatFluxUp(:) &
-                              + longWaveHeatFluxDown(:) &
-                              + shortWaveHeatFlux(:)  &
-                              + seaIceHeatFlux(:)
-                     !        + seaIceEnergy
-            workArray(29,:) =   seaIceSalinityFlux(:)
-            workArray(30,:) =   evaporationFlux(:) &
-                              + seaIceFreshWaterFlux(:) &
-                              + riverRunoffFlux(:) &
-                              + iceRunoffFlux(:) &
-                              + rainFlux(:) &
-                              + snowFlux(:)
-                     !        + seaIceEnergy(:)
-         end if
+            ! build net heat, salinity and fresh water budget
+            ! net heat into ocean = latentHeatFlux + sensibleHeatFlux + longWaveHeatFluxUp + longWaveHeatFluxDown
+            !                     + shortWaveHeatFlux + seaIceHeatFlux + (?seaIceEnergy?)
+            ! net salinity into ocean = seaIceSalinityFlux
+            ! net freshwater into ocean = evaporationFlux + seaIceFreshWaterFlux + riverRunoffFlux + iceRunoffFlux
+            !                           + rainFlux + snowFlux + (?seaIceEnergy?)
+            if (activeTracersBulkRestoringPKG) then
+               workArray(28,:) =   latentHeatFlux(:) &
+                                 + sensibleHeatFlux(:) &
+                                 + longWaveHeatFluxUp(:) &
+                                 + longWaveHeatFluxDown(:) &
+                                 + shortWaveHeatFlux(:)  &
+                                 + seaIceHeatFlux(:)
+                        !        + seaIceEnergy
+               workArray(29,:) =   seaIceSalinityFlux(:)
+               workArray(30,:) =   evaporationFlux(:) &
+                                 + seaIceFreshWaterFlux(:) &
+                                 + riverRunoffFlux(:) &
+                                 + iceRunoffFlux(:) &
+                                 + rainFlux(:) &
+                                 + snowFlux(:)
+                        !        + seaIceEnergy(:)
+            end if
 
-         call compute_statistics(nDefinedDataFields, nCellsSolve, workArray, workMask, workMin, workMax, workSum)
+            call compute_statistics(nDefinedDataFields, nCellsSolve, workArray, surfaceMask, workMin, workMax, workSum, &
+                  nOceanRegions)
 
-         ! store data in buffer in order to allow only three dmpar calls
-         do iDataField=1,nDefinedDataFields
-            kBuffer = kBuffer+1
-            workBufferSum(kBuffer) = workSum(iDataField)
-            workBufferMin(kBuffer) = workMin(iDataField)
-            workBufferMax(kBuffer) = workMax(iDataField)
+            ! store data in buffer in order to allow only three dmpar calls
+            ! loop over all ocean regions
+            do iRegion=1,nOceanRegions
+               do iDataField=1,nDefinedDataFields
+                  kBuffer = kBuffer+1
+                  workBufferSum(kBuffer) = workBufferSum(iDataField) + workSum(iDataField, iRegion)
+                  workBufferMin(kBuffer) = min(workBufferMin(iDataField), workMin(iDataField, iRegion))
+                  workBufferMax(kBuffer) = max(workBufferMax(iDataField), workMax(iDataField, iRegion))
+               enddo !iDataField
+            enddo !iRegion
+
+            block => block % next
+         enddo !block
+      endif
+
+      if (additionalRegion /= '') then
+         !!! region file
+         ! if a region file is given and a region is selected, set up region file version
+         ! region file dimensions
+         call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nRegions', nRegions)
+         call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nRegionGroups', nRegionGroups)
+         call mpas_pool_get_dimension(domain % blocklist % dimensions, 'maxRegionsInGroup', maxRegionsInGroup)
+
+         ! get region file dimensions
+         call mpas_pool_get_subpool(domain % blocklist % structs, 'regions', regionPool)
+         call mpas_pool_get_array(regionPool, 'regionsInGroup', regionsInGroup)
+         call mpas_pool_get_array(regionPool, 'nRegionsInGroup', nRegionsInGroup)
+         call mpas_pool_get_array(regionPool, 'regionNames', regionNames)
+         call mpas_pool_get_array(regionPool, 'regionGroupNames', regionGroupNames)
+         call mpas_pool_get_array(regionPool, 'regionCellMasks', regionCellMasks)
+
+         regionGroupOffset = 1
+         regionGroupNumber = 0
+
+         ! region preliminaries
+         ! figure out the region group number that matches the configured additional region's name
+         do i=1,nRegionGroups
+            if (regionGroupNames(i) .eq. additionalRegion) then
+               regionGroupNumber = i
+               ! determine offset to compensate for several region groups in the
+               ! regions file
+               do j=1,i-1
+                 regionGroupOffset = regionGroupOffset + nRegionsInGroup(j)
+               enddo !j
+            endif
+         enddo !i
+
+         regionsInAddGroup => nRegionsInGroup(regionGroupNumber)
+
+         ! allocate buffer for message passing
+         kBuffer=0
+         kBufferLength=regionsInAddGroup*nSfcAreaWeightedAvgFields
+         allocate(workBufferSumRF(kBufferLength))
+         allocate(workBufferMinRF(kBufferLength))
+         allocate(workBufferMaxRF(kBufferLength))
+         allocate(workBufferSumReducedRF(kBufferLength))
+         allocate(workBufferMinReducedRF(kBufferLength))
+         allocate(workBufferMaxReducedRF(kBufferLength))
+         workBufferSumRF=0.0_RKIND
+         workBufferMinRF=0.0_RKIND
+         workBufferMaxRF=0.0_RKIND
+         workBufferSumReducedRF=0.0_RKIND
+         workBufferMinReducedRF=0.0_RKIND
+         workBufferMaxReducedRF=0.0_RKIND
+
+         ! get pointers to analysis member arrays
+         call mpas_pool_get_subpool(domain % blocklist % structs, 'surfaceAreaWeightedAveragesAM', &
+               surfaceAreaWeightedAveragesAMPool)
+         call mpas_pool_get_array(surfaceAreaWeightedAveragesAMPool, 'minValueWithinOceanRF', minValueWithinOceanRF)
+         call mpas_pool_get_array(surfaceAreaWeightedAveragesAMPool, 'maxValueWithinOceanRF', maxValueWithinOceanRF)
+         call mpas_pool_get_array(surfaceAreaWeightedAveragesAMPool, 'avgValueWithinOceanRF', avgValueWithinOceanRF)
+
+         ! get pointers to scratch variables
+         call mpas_pool_get_subpool(domain % blocklist % structs, 'surfaceAreaWeightedAveragesAMScratch', scratchPool)
+         call mpas_pool_get_field(scratchPool, 'workArrayRF', workArrayFieldRF)
+         call mpas_pool_get_field(scratchPool, 'workMinRF', workMinFieldRF)
+         call mpas_pool_get_field(scratchPool, 'workMaxRF', workMaxFieldRF)
+         call mpas_pool_get_field(scratchPool, 'workSumRF', workSumFieldRF)
+         call mpas_allocate_scratch_field(workArrayFieldRF, .true.)
+         call mpas_allocate_scratch_field(workMinFieldRF, .true.)
+         call mpas_allocate_scratch_field(workMaxFieldRF, .true.)
+         call mpas_allocate_scratch_field(workSumFieldRF, .true.)
+         workArrayRF => workArrayFieldRF % array
+         workMinRF => workMinFieldRF % array
+         workMaxRF => workMaxFieldRF % array
+         workSumRF => workSumFieldRF % array
+        ! loop over blocks
+        ! NOTE: code is not valid for multiple blocks !
+         block => domain % blocklist
+         do while (associated(block))
+            ! get pointers to pools
+            call mpas_pool_get_subpool(block % structs, 'state', statePool)
+            call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+            call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+            call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
+            call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
+            call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux', tracersSurfaceFluxPool)
+
+            ! get pointers to mesh
+            call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
+            call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells)
+            call mpas_pool_get_dimension(block % dimensions, 'nSfcAreaWeightedAvgFields', nSfcAreaWeightedAvgFields)
+            call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
+            call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexSalinity)
+            call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
+            call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
+            call mpas_pool_get_array(meshPool, 'latCell', latCell)
+
+            ! test to make sure the arrays are big enough
+            nDefinedDataFields = size(avgValueWithinOceanRF,dim=1)
+            if (nDefinedDataFields > nSfcAreaWeightedAvgFields) then
+                write (stderrUnit,*) 'Abort: nDefinedDataFields > nSfcAreaWeightedAvgFields'
+                write (stderrUnit,*) '     :  increase size of ocn_surface_area_weighted_averages scratch space'
+                write (stderrUnit,*) nSfcAreaWeightedAvgFields, nDefinedDataFields, nOceanRegions, maxRegionsInGroup
+                call mpas_dmpar_global_abort('MPAS-ocean: Abort: nDefinedDataFields > nSfcAreaWeightedAvgFields')
+            endif
+
+            ! get pointers to data that will be analyzed
+            ! listed in the order in which the fields appear in {avg,min,max}SurfaceStatistics
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'latentHeatFlux', latentHeatFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'sensibleHeatFlux', sensibleHeatFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'longWaveHeatFluxUp', longWaveHeatFluxUp)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'longWaveHeatFluxDown', &
+                  longWaveHeatFluxDown)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'seaIceHeatFlux', seaIceHeatFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'shortWaveHeatFlux', shortWaveHeatFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'evaporationFlux', evaporationFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'seaIceFreshWaterFlux', &
+                  seaIceFreshWaterFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'iceRunoffFlux', iceRunoffFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'rainFlux', rainFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'snowFlux', snowFlux)
+            if (frazilIcePkgActive)   call mpas_pool_get_array(forcingPool, 'seaIceEnergy', seaIceEnergy)
+            call mpas_pool_get_array(forcingPool, 'surfaceThicknessFlux', surfaceThicknessFlux)
+            call mpas_pool_get_array(tracersSurfaceFluxPool, 'activeTracersSurfaceFlux', activeTracersSurfaceFlux)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'seaIceSalinityFlux', seaIceSalinityFlux)
+            call mpas_pool_get_array(forcingPool, 'surfaceStressMagnitude', surfaceStressMagnitude)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'windStressZonal', windStressZonal)
+            if (activeTracersBulkRestoringPKG) call mpas_pool_get_array(forcingPool, 'windStressMeridional', &
+                  windStressMeridional)
+            call mpas_pool_get_array(forcingPool, 'atmosphericPressure', atmosphericPressure)
+            call mpas_pool_get_array(statePool, 'ssh', ssh, 1)
+            call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, 1)
+            call mpas_pool_get_array(diagnosticsPool, 'boundaryLayerDepth',boundaryLayerDepth)
+
+            ! initialize buffers
+            workBufferSumRF(:) = 0.0_RKIND
+            workBufferMinRF(:) = +1.0e20_RKIND
+            workBufferMaxRF(:) = -1.0e20_RKIND
+
+            ! copy data into work array
+            workArrayRF( :,:) = 0.0_RKIND
+            workArrayRF( 1,:) = 0.0_RKIND ! originally used to contain a mask; using regionCellMasks here
+            workArrayRF( 2,:) = areaCell(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF( 3,:) = latentHeatFlux(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF( 4,:) = sensibleHeatFlux(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF( 5,:) = longWaveHeatFluxUp(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF( 6,:) = longWaveHeatFluxDown(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF( 7,:) = seaIceHeatFlux(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF( 8,:) = shortWaveHeatFlux(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF( 9,:) = evaporationFlux(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF(10,:) = seaIceFreshWaterFlux(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF(11,:) = riverRunoffFlux(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF(12,:) = iceRunoffFlux(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF(13,:) = rainFlux(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF(14,:) = snowFlux(:)
+            if (frazilIcePkgActive) workArrayRF(15,:) = seaIceEnergy(:)
+            workArrayRF(16,:) = surfaceThicknessFlux(:)
+            workArrayRF(17,:) = activeTracersSurfaceFlux(indexTemperature,:)
+            workArrayRF(18,:) = activeTracersSurfaceFlux(indexSalinity,:)
+            if (activeTracersBulkRestoringPKG) workArrayRF(19,:) = seaIceSalinityFlux(:)
+            workArrayRF(20,:) = surfaceStressMagnitude(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF(21,:) = windStressZonal(:)
+            if (activeTracersBulkRestoringPKG) workArrayRF(22,:) = windStressMeridional(:)
+            workArrayRF(23,:) = atmosphericPressure(:)
+            workArrayRF(24,:) = ssh(:)
+            workArrayRF(25,:) = activeTracers(indexTemperature,1,:)
+            workArrayRF(26,:) = activeTracers(indexSalinity,1,:)
+            workArrayRF(27,:) = boundaryLayerDepth(:)
+
+            ! build net heat, salinity and fresh water budget
+            ! net heat into ocean = latentHeatFlux + sensibleHeatFlux + longWaveHeatFluxUp + longWaveHeatFluxDown
+            !                     + shortWaveHeatFlux + seaIceHeatFlux + (?seaIceEnergy?)
+            ! net salinity into ocean = seaIceSalinityFlux
+            ! net freshwater into ocean = evaporationFlux + seaIceFreshWaterFlux + riverRunoffFlux + iceRunoffFlux
+            !                           + rainFlux + snowFlux + (?seaIceEnergy?)
+            if (activeTracersBulkRestoringPKG) then
+               workArrayRF(28,:) = latentHeatFlux(:) &
+                                 + sensibleHeatFlux(:) &
+                                 + longWaveHeatFluxUp(:) &
+                                 + longWaveHeatFluxDown(:) &
+                                 + shortWaveHeatFlux(:)  &
+                                 + seaIceHeatFlux(:)
+                        !        + seaIceEnergy
+               workArrayRF(29,:) = seaIceSalinityFlux(:)
+               workArrayRF(30,:) = evaporationFlux(:) &
+                                 + seaIceFreshWaterFlux(:) &
+                                 + riverRunoffFlux(:) &
+                                 + iceRunoffFlux(:) &
+                                 + rainFlux(:) &
+                                 + snowFlux(:)
+                        !        + seaIceEnergy(:)
+            end if
+
+            call compute_statisticsRF(nDefinedDataFields, nCellsSolve, workArrayRF, regionCellMasks, &
+                     workMinRF, workMaxRF, workSumRF, regionsInAddGroup)
+
+            ! loop over all ocean regions
+            do iRegion=1,regionsInAddGroup
+               do iDataField=1,nDefinedDataFields
+                  kBuffer = kBuffer+1
+                  workBufferSumRF(kBuffer) = workBufferSumRF(iDataField) + workSumRF(iDataField, iRegion)
+                  workBufferMinRF(kBuffer) = min(workBufferMinRF(iDataField), workMinRF(iDataField, iRegion))
+                  workBufferMaxRF(kBuffer) = max(workBufferMaxRF(iDataField), workMaxRF(iDataField, iRegion))
+               enddo !iDataField
+
+            enddo !iRegion
+
+            block => block % next
+         enddo !block
+      endif
+
+
+      if (predefRegions == .true.) then
+         !!! hard-wired region averaging
+         ! communication
+         call mpas_dmpar_sum_real_array(dminfo, kBufferLength, workBufferSum, workBufferSumReduced)
+         call mpas_dmpar_min_real_array(dminfo, kBufferLength, workBufferMin, workBufferMinReduced)
+         call mpas_dmpar_max_real_array(dminfo, kBufferLength, workBufferMax, workBufferMaxReduced)
+
+         ! unpack the buffer into intent(out) of this analysis member
+         kBuffer=0
+         do iRegion=1,nOceanRegions
+           do iDataField=1,nDefinedDataFields
+              kBuffer = kBuffer+1
+              avgValueWithinOceanRegion(iDataField,iRegion)=workBufferSumReduced(kBuffer)
+              minValueWithinOceanRegion(iDataField,iRegion)=workBufferMinReduced(kBuffer)
+              maxValueWithinOceanRegion(iDataField,iRegion)=workBufferMaxReduced(kBuffer)
+           enddo
          enddo
 
-         block => block % next
-      end do
-
-      end do ! iRegion
-
-      ! communication
-      call mpas_dmpar_sum_real_array(dminfo, kBufferLength, workBufferSum, workBufferSumReduced )
-      call mpas_dmpar_min_real_array(dminfo, kBufferLength, workBufferMin, workBufferMinReduced )
-      call mpas_dmpar_max_real_array(dminfo, kBufferLength, workBufferMax, workBufferMaxReduced )
-
-      ! unpack the buffer into intent(out) of this analysis member
-      kBuffer=0
-      do iRegion=1,nOceanRegions
-        do iDataField=1,nDefinedDataFields
-           kBuffer = kBuffer+1
-           avgValueWithinOceanRegion(iDataField,iRegion)=workBufferSumReduced(kBuffer)
-           minValueWithinOceanRegion(iDataField,iRegion)=workBufferMinReduced(kBuffer)
-           maxValueWithinOceanRegion(iDataField,iRegion)=workBufferMaxReduced(kBuffer)
-        enddo
-      enddo
-
-      ! normalize averages
-      do iRegion=1,nOceanRegions
-         ! normalize all field by total area
-         do iDataField=3,nDefinedDataFields
-            avgValueWithinOceanRegion(iDataField,iRegion) = avgValueWithinOceanRegion(iDataField,iRegion) &
-                                                          / max(avgValueWithinOceanRegion(2,iRegion),1.0e-8_RKIND)
+         ! normalize averages
+         do iRegion=1,nOceanRegions
+            ! normalize all field by total area
+            do iDataField=3,nDefinedDataFields
+               avgValueWithinOceanRegion(iDataField,iRegion) = avgValueWithinOceanRegion(iDataField,iRegion) &
+                                                             / max(avgValueWithinOceanRegion(2,iRegion),1.0e-8_RKIND)
+            enddo
+            ! normalize total area by number of cells in region
+            avgValueWithinOceanRegion(2,iRegion) = avgValueWithinOceanRegion(2,iRegion) &
+                                                 / max(avgValueWithinOceanRegion(1,iRegion),1.0e-8_RKIND)
          enddo
-         ! normalize total area by number of cells in region
-         avgValueWithinOceanRegion(2,iRegion) = avgValueWithinOceanRegion(2,iRegion) &
-                                              / max(avgValueWithinOceanRegion(1,iRegion),1.0e-8_RKIND)
-      enddo
+      endif
+
+
+      if (additionalRegion /= '') then
+         !!! region file averaging
+         ! communication
+         call mpas_dmpar_sum_real_array(dminfo, kBufferLength, workBufferSumRF, workBufferSumReducedRF)
+         call mpas_dmpar_min_real_array(dminfo, kBufferLength, workBufferMinRF, workBufferMinReducedRF)
+         call mpas_dmpar_max_real_array(dminfo, kBufferLength, workBufferMaxRF, workBufferMaxReducedRF)
+
+         ! unpack the buffer into intent(out) of this analysis member
+         kBuffer=0
+         do iRegion=1,regionsInAddGroup
+           do iDataField=1,nDefinedDataFields
+              kBuffer = kBuffer+1
+              avgValueWithinOceanRF(iDataField,iRegion) = workBufferSumReducedRF(kBuffer)
+              minValueWithinOceanRF(iDataField,iRegion) = workBufferMinReducedRF(kBuffer)
+              maxValueWithinOceanRF(iDataField,iRegion) = workBufferMaxReducedRF(kBuffer)
+           enddo
+         enddo
+
+         ! normalize averages
+         do iRegion=1,regionsInAddGroup
+            ! normalize all field by total area
+            do iDataField=3,nDefinedDataFields
+               avgValueWithinOceanRF(iDataField,iRegion) = avgValueWithinOceanRF(iDataField,iRegion) &
+                                                             / max(avgValueWithinOceanRF(2,iRegion),1.0e-8_RKIND)
+            enddo
+            ! normalize total area by number of cells in region
+            avgValueWithinOceanRF(2,iRegion) = avgValueWithinOceanRF(2,iRegion) &
+                                                 / max(avgValueWithinOceanRF(1,iRegion),1.0e-8_RKIND)
+         enddo   ! communication
+      endif
 
       ! deallocate scratch fields
       call mpas_deallocate_scratch_field(workArrayField, .true.)
-      call mpas_deallocate_scratch_field(workMaskField, .true.)
       call mpas_deallocate_scratch_field(workMinField, .true.)
       call mpas_deallocate_scratch_field(workMaxField, .true.)
       call mpas_deallocate_scratch_field(workSumField, .true.)
+      call mpas_deallocate_scratch_field(workArrayFieldRF, .true.)
+      call mpas_deallocate_scratch_field(workMinFieldRF, .true.)
+      call mpas_deallocate_scratch_field(workMaxFieldRF, .true.)
+      call mpas_deallocate_scratch_field(workSumFieldRF, .true.)
 
       ! deallocate buffers
       deallocate(workBufferSumReduced)
       deallocate(workBufferMinReduced)
       deallocate(workBufferMaxReduced)
+      deallocate(workBufferSumReducedRF)
+      deallocate(workBufferMinReducedRF)
+      deallocate(workBufferMaxReducedRF)
+
 
    contains
 
-   subroutine compute_mask(nCells, nCellsSolve, iRegion, lonCell, latCell, workMask)!{{{
-   ! this subroutines produces a 0/1 mask that is multiplied with workArray to
-   ! allow for min/max/avg to represent specific regions of the ocean domain
-   !
-   ! NOTE: computes_mask is temporary. workMask should be intent(in) to this entire module !
-   !
-   integer, intent(in) :: nCells, nCellsSolve, iRegion
-   real(kind=RKIND), dimension(:), intent(in) :: lonCell, latCell
-   real(kind=RKIND), dimension(:), intent(out) :: workMask
-   integer :: iCell
-   real(kind=RKIND) :: dtr
-
-   dtr = 4.0_RKIND*atan(1.0_RKIND) / 180.0_RKIND
-   workMask(:) = 0.0_RKIND
-   do iCell=1,nCellsSolve
-      workMask(iCell) = 1.0_RKIND
-   enddo
-
-   if (iRegion.eq.1) then
-      ! Arctic
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).lt. 60.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   elseif (iRegion.eq.2) then
-      ! Equatorial
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).gt. 15.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(latCell(iCell).lt.-15.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   elseif (iRegion.eq.3) then
-      ! Southern Ocean
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).gt.-50.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   elseif (iRegion.eq.4) then
-      ! Nino 3
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).lt.210.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).gt.270.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   elseif (iRegion.eq.5) then
-      ! Nino 4
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).lt.160.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).gt.210.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   elseif (iRegion.eq.6) then
-      ! Nino 3.4
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).lt.190.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).gt.240.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   else
-      ! global (do nothing!)
-   endif
-
-   end subroutine compute_mask!}}}
-
-
-   subroutine compute_statistics(nDefinedDataFields, nCellsSolve, workArray, workMask, workMin, workMax, workSum)!{{{
+   subroutine compute_statistics(nDefinedDataFields, nCellsSolve, workArray, surfaceMask, workMin, workMax, workSum, nRegions)
    ! this subroutines does the actual summing, min, max, masking ect
    ! this hides the messy code from the high-level subroutine
 
    integer, intent(in) :: nDefinedDataFields, nCellsSolve
    real(kind=RKIND), dimension(:,:), intent(in) :: workArray
-   real(kind=RKIND), dimension(:), intent(in) :: workMask
-   real(kind=RKIND), dimension(:), intent(out) :: workMin, workMax, workSum
+   real(kind=RKIND), dimension(:,:), intent(in) :: surfaceMask
+   real(kind=RKIND), dimension(:,:), intent(out) :: workMin, workMax, workSum
    integer :: iCell, iData
+   integer, pointer, intent(in) :: nRegions
+   real(kind=RKIND) :: cellMask
 
    workSum = 0.0_RKIND
    do iCell=1,nCellsSolve
-    workSum(1) = workSum(1) + workMask(iCell)
-    workSum(2) = workSum(2) + workArray(2,iCell)*workMask(iCell)
-    do iData=3,nDefinedDataFields
-      workSum(iData) = workSum(iData) + workArray(2,iCell)*workArray(iData,iCell)*workMask(iCell)
-    enddo
+      do iRegion=1,nRegions
+         cellMask = surfaceMask(iRegion,iCell)
+         ! don't need workSum(2,iRegion) because mask is written out as variable surfaceMask
+         workSum(2,iRegion) = workSum(2,iRegion) + workArray(2,iCell)*cellMask
+         do iData=3,nDefinedDataFields
+            workSum(iData,iRegion) = workSum(iData,iRegion) + workArray(2,iCell)*workArray(iData,iCell)*cellMask
+            workMin(iData,iRegion) = minval(workArray(iData,1:nCellsSolve),surfaceMask(iRegion,1:nCellsSolve)>0.5_RKIND)
+            workMax(iData,iRegion) = maxval(workArray(iData,1:nCellsSolve),surfaceMask(iRegion,1:nCellsSolve)>0.5_RKIND)
+         enddo
+      enddo
    enddo
+   end subroutine compute_statistics
 
-   do iData=1,nDefinedDataFields
-      workMin(iData) = minval(workArray(iData,1:nCellsSolve),workMask(1:nCellsSolve)>0.5_RKIND)
-      workMax(iData) = maxval(workArray(iData,1:nCellsSolve),workMask(1:nCellsSolve)>0.5_RKIND)
+
+   subroutine compute_statisticsRF(nDefinedDataFields, nCellsSolve, workArray, surfaceMask, workMin, workMax, workSum, nRegions)
+   ! this subroutines does the actual summing, min, max, masking ect
+   ! this hides the messy code from the high-level subroutine
+
+   integer, intent(in) :: nDefinedDataFields, nCellsSolve
+   real(kind=RKIND), dimension(:,:), intent(in) :: workArray
+   integer, dimension(:,:), intent(in) :: surfaceMask
+   real(kind=RKIND), dimension(:,:), intent(out) :: workMin, workMax, workSum
+   integer :: iCell, iData
+   integer, pointer, intent(in) :: nRegions
+   real(kind=RKIND) :: cellMask
+
+   workSum = 0.0_RKIND
+   do iCell=1,nCellsSolve
+      do iRegion=1,nRegions
+         cellMask = surfaceMask(iRegion,iCell)
+         ! don't need workSum(2,iRegion) because mask is written out as variable surfaceMask
+         workSum(2,iRegion) = workSum(2,iRegion) + workArray(2,iCell)*cellMask
+         do iData=3,nDefinedDataFields
+            workSum(iData,iRegion) = workSum(iData,iRegion) + workArray(2,iCell)*workArray(iData,iCell)*cellMask
+            workMin(iData,iRegion) = minval(workArray(iData,1:nCellsSolve),surfaceMask(iRegion,1:nCellsSolve)>0.5_RKIND)
+            workMax(iData,iRegion) = maxval(workArray(iData,1:nCellsSolve),surfaceMask(iRegion,1:nCellsSolve)>0.5_RKIND)
+         enddo
+      enddo
    enddo
-
-   end subroutine compute_statistics!}}}
+   end subroutine compute_statisticsRF
 
    end subroutine ocn_compute_surface_area_weighted_averages!}}}
 
