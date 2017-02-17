@@ -48,7 +48,7 @@
 !   Laura D. Fowler (laura@ucar.edu) / 2016-03-30.
 ! * added the option bl_mynn for the calculation of the tendency for the cloud ice number concentration.
 !   Laura D. Fowler (laura@ucar.edu) / 2016-04-11.
-! * in subroutine physics_get_tend_work, added the option cu_ntiedtke in the calculation of rucuten_Edge.
+! * in subroutine physics_gettend_work, added the option cu_ntiedtke in the calculation of rucuten_Edge.
 !   Laura D. Fowler (laura@ucar.edu) / 2016-10-28.
 
 
@@ -213,7 +213,7 @@
 
 
 !=================================================================================================================
- subroutine physics_get_tend( block, mesh, state, diag, tend, tend_physics, configs, rk_step, dynamics_substep, &
+ subroutine physics_gettend( block, mesh, state, diag, tend, tend_physics, configs, rk_step, dynamics_substep, &
                               tend_ru_physics, tend_rtheta_physics, tend_rho_physics )
 !=================================================================================================================
    
@@ -342,7 +342,7 @@
  !
  ! In case some variables are not allocated due to their associated packages,
  ! we need to make their pointers associated here to avoid triggering run-time
- ! checks when calling physics_get_tend_work
+ ! checks when calling physics_gettend_work
  !
  if (.not. associated(rucuten)) allocate(rucuten(0,0))
  if (.not. associated(rvcuten)) allocate(rvcuten(0,0))
@@ -361,7 +361,7 @@
  if (.not. associated(rqccuten)) allocate(rqccuten(0,0))
  if (.not. associated(rqicuten)) allocate(rqicuten(0,0))
 
- call physics_get_tend_work(block, mesh, nCells, nEdges, nCellsSolve, nEdgesSolve, &
+ call physics_gettend_work(block, mesh, nCells, nEdges, nCellsSolve, nEdgesSolve, &
                            rk_step, dynamics_substep, &
                            config_pbl_scheme, config_convection_scheme, config_radt_lw_scheme, config_radt_sw_scheme, &
                            index_qv, index_qc, index_qr, index_qi, index_qs, index_ni, &
@@ -379,7 +379,7 @@
 
  !
  ! Clean up any pointers that were allocated with zero size before the call to
- ! physics_get_tend_work
+ ! physics_gettend_work
  !
  if (size(rucuten) == 0) deallocate(rucuten)
  if (size(rvcuten) == 0) deallocate(rvcuten)
@@ -420,7 +420,7 @@
  201 format(2i6,10(1x,e15.8))
  202 format(3i6,10(1x,e15.8))
 
- end subroutine physics_get_tend
+ end subroutine physics_gettend
 
  !==================================================================================================
  subroutine physics_addtend_work(block, mesh, nCells, nEdges, nCellsSolve, nEdgesSolve, &
@@ -625,7 +625,7 @@
  end subroutine physics_addtend_work
 
  !==================================================================================================
- subroutine physics_get_tend_work(block, mesh, nCells, nEdges, nCellsSolve, nEdgesSolve, &
+ subroutine physics_gettend_work(block, mesh, nCells, nEdges, nCellsSolve, nEdgesSolve, &
                                  rk_step, dynamics_substep, &
                                  config_pbl_scheme, config_convection_scheme, config_radt_lw_scheme, config_radt_sw_scheme, &
                                  index_qv, index_qc, index_qr, index_qi, index_qs, index_ni, &
@@ -794,7 +794,7 @@
     enddo
     enddo
 
- end subroutine physics_get_tend_work
+ end subroutine physics_gettend_work
 
 !=================================================================================================================
  subroutine tend_toEdges(block,mesh,Ux_tend,Uy_tend,U_tend)
