@@ -25,7 +25,7 @@
 /*
  *  Interface routines for building streams at run-time; defined in mpas_stream_manager.F
  */
-void stream_mgr_create_stream_c(void *, const char *, int *, const char *, const char *, const char *, const char *, int *, int *, int *, int *, int *);
+void stream_mgr_create_stream_c(void *, const char *, int *, const char *, const char *, const char *, const char *, const char *, const char *, int *, int *, int *, int *, int *);
 void mpas_stream_mgr_add_field_c(void *, const char *, const char *, const char *, int *);
 void mpas_stream_mgr_add_immutable_stream_fields_c(void *, const char *, const char *, const char *, int *);
 void mpas_stream_mgr_add_pool_c(void *, const char *, const char *, const char *, int *);
@@ -412,6 +412,16 @@ int attribute_check(ezxml_t stream)
 		}
 		if ( strstr(s_filename_intv, "output_interval") != NULL && strstr(s_output, "initial_only") != NULL) {
 			snprintf(msgbuf, MSGSIZE, "stream \"%s\" cannot have a value of \"output_interval\" for the \"filename_interval\" attribute, when \"output_interval\" is set to \"initial_only\".", s_name);
+			fmt_err(msgbuf);
+			return 1;
+		}
+		if ( strstr(s_filename_intv, "input_interval") != NULL && strstr(s_input, "final_only") != NULL) {
+			snprintf(msgbuf, MSGSIZE, "stream \"%s\" cannot have a value of \"input_interval\" for the \"filename_interval\" attribute, when \"input_interval\" is set to \"final_only\".", s_name);
+			fmt_err(msgbuf);
+			return 1;
+		}
+		if ( strstr(s_filename_intv, "output_interval") != NULL && strstr(s_output, "final_only") != NULL) {
+			snprintf(msgbuf, MSGSIZE, "stream \"%s\" cannot have a value of \"output_interval\" for the \"filename_interval\" attribute, when \"output_interval\" is set to \"final_only\".", s_name);
 			fmt_err(msgbuf);
 			return 1;
 		}
@@ -1036,6 +1046,8 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 	char fieldname[256];
 	char packages_local[256];
 	char interval_type[32];
+	char interval_in_local[256];
+	char interval_out_local[256];
 	FILE *fd;
 	char msgbuf[MSGSIZE];
 	int itype;
@@ -1119,23 +1131,22 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 			/* Check for an input;output stream. Handle first as this is the most complicated case. */
 			if ( strstr(direction, "input") != NULL && strstr(direction, "output") != NULL ) {
 
-				/* If input interval is an interval (i.e. not initial_only or none) set filename_interval to the interval. */
-				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "none") == NULL ){
+				/* If input interval is an interval (i.e. not initial_only/final_only or none) set filename_interval to the interval. */
+				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "final_only") == NULL && strstr(interval_in, "none") == NULL ){
 					filename_interval = interval_in2;
-
-				/* If output interval is an interval (i.e. not initial_only or none) set filename_interval to the interval. */
-				} else if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "none") == NULL ){
+				/* If output interval is an interval (i.e. not initial_only/final_only or none) set filename_interval to the interval. */
+				} else if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "final_only") == NULL && strstr(interval_out, "none") == NULL ){
 					filename_interval = interval_out2;
 				}
 			/* Check for an input stream. */
 			} else if ( strstr(direction, "input") != NULL ) {
-				if ( strstr(interval_in2, "initial_only") == NULL && strstr(interval_in2, "none") == NULL ){
+				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "final_only") == NULL && strstr(interval_in, "none") == NULL ){
 					filename_interval = interval_in2;
 				}
 
 			/* Check for an output stream. */
 			} else if ( strstr(direction, "output") != NULL ) {
-				if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "none") == NULL ){
+				if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "final_only") == NULL && strstr(interval_out, "none") == NULL ){
 					filename_interval = interval_out2;
 				}
 			}
@@ -1148,13 +1159,13 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 			 * to force it's value to be none as well.
 			 */
 			if ( strstr(filename_interval, "input_interval") != NULL ) {
-				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "none") == NULL ) {
+				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "final_only") == NULL && strstr(interval_in, "none") == NULL ) {
 					filename_interval = interval_in2;
 				} else {
 					filename_interval = NULL;
 				}
 			} else if ( strstr(filename_interval, "output_interval") != NULL ) {
-				if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "none") == NULL ) {
+				if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "final_only") == NULL && strstr(interval_out, "none") == NULL ) {
 					filename_interval = interval_out2;
 				} else {
 					filename_interval = NULL;
@@ -1245,6 +1256,19 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 			fprintf(stderr, "        %-20s%s\n", "direction:", "none");
 		}
 
+		if (interval_in != NULL && (itype == 1 || itype == 3)) {
+			snprintf(interval_in_local, 256, "%s", interval_in);
+		}
+		else {
+			snprintf(interval_in_local, 256, "none");
+		}
+		if (interval_out != NULL && (itype == 2 || itype == 3)) {
+			snprintf(interval_out_local, 256, "%s", interval_out);
+		}
+		else {
+			snprintf(interval_out_local, 256, "none");
+		}
+
 		if (reference_time != NULL) {
 			snprintf(ref_time_local, 256, "%s", reference_time);
 		}
@@ -1287,8 +1311,9 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 			}
 		}
 
-		stream_mgr_create_stream_c(manager, streamID, &itype, filename_template, filename_interval_string, ref_time_local, rec_intv_local,
-					&immutable, &iprec, &iclobber, &i_iotype, &err);
+		stream_mgr_create_stream_c(manager, streamID, &itype, filename_template, filename_interval_string, 
+									interval_in_local, interval_out_local, ref_time_local, rec_intv_local,
+									&immutable, &iprec, &iclobber, &i_iotype, &err);
 		if (err != 0) {
 			*status = 1;
 			return;
@@ -1401,23 +1426,23 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 			/* Check for an input;output stream. Handle first as this is the most complicated case. */
 			if ( strstr(direction, "input") != NULL && strstr(direction, "output") != NULL ) {
 
-				/* If input interval is an interval (i.e. not initial_only or none) set filename_interval to the interval. */
-				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "none") == NULL ){
+				/* If input interval is an interval (i.e. not initial_only/final_only or none) set filename_interval to the interval. */
+				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "final_only") == NULL && strstr(interval_in, "none") == NULL ){
 					filename_interval = interval_in2;
 
-				/* If output interval is an interval (i.e. not initial_only or none) set filename_interval to the interval. */
-				} else if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "none") == NULL ){
+				/* If output interval is an interval (i.e. not initial_only/final_only or none) set filename_interval to the interval. */
+				} else if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "final_only") == NULL && strstr(interval_out, "none") == NULL ){
 					filename_interval = interval_out2;
 				}
 			/* Check for an input stream. */
 			} else if ( strstr(direction, "input") != NULL ) {
-				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "none") == NULL ){
+				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "final_only") == NULL && strstr(interval_in, "none") == NULL ){
 					filename_interval = interval_in2;
 				}
 
 			/* Check for an output stream. */
 			} else if ( strstr(direction, "output") != NULL ) {
-				if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "none") == NULL ){
+				if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "final_only") == NULL && strstr(interval_out, "none") == NULL ){
 					filename_interval = interval_out2;
 				}
 			}
@@ -1430,13 +1455,13 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 			 * to force it's value to be none as well.
 			 */
 			if ( strstr(filename_interval, "input_interval") != NULL ) {
-				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "none") == NULL ) {
+				if ( strstr(interval_in, "initial_only") == NULL && strstr(interval_in, "final_only") == NULL && strstr(interval_in, "none") == NULL ) {
 					filename_interval = interval_in2;
 				} else {
 					filename_interval = NULL;
 				}
 			} else if ( strstr(filename_interval, "output_interval") != NULL ) {
-				if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "none") == NULL ) {
+				if ( strstr(interval_out, "initial_only") == NULL && strstr(interval_out, "final_only") == NULL && strstr(interval_out, "none") == NULL ) {
 					filename_interval = interval_out2;
 				} else {
 					filename_interval = NULL;
@@ -1527,6 +1552,19 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 			fprintf(stderr, "        %-20s%s\n", "direction:", "none");
 		}
 
+		if (interval_in != NULL && (itype == 1 || itype == 3)) {
+			snprintf(interval_in_local, 256, "%s", interval_in);
+		}
+		else {
+			snprintf(interval_in_local, 256, "none");
+		}
+		if (interval_out != NULL && (itype == 2 || itype == 3)) {
+			snprintf(interval_out_local, 256, "%s", interval_out);
+		}
+		else {
+			snprintf(interval_out_local, 256, "none");
+		}
+
 		if (reference_time != NULL) {
 			snprintf(ref_time_local, 256, "%s", reference_time);
 		}
@@ -1569,8 +1607,9 @@ void xml_stream_parser(char *fname, void *manager, int *mpi_comm, int *status)
 			}
 		}
 
-		stream_mgr_create_stream_c(manager, streamID, &itype, filename_template, filename_interval_string, ref_time_local, rec_intv_local,
-					&immutable, &iprec, &iclobber, &i_iotype, &err);
+		stream_mgr_create_stream_c(manager, streamID, &itype, filename_template, filename_interval_string, 
+									interval_in_local, interval_out_local, ref_time_local, rec_intv_local,
+									&immutable, &iprec, &iclobber, &i_iotype, &err);
 		if (err != 0) {
 			*status = 1;
 			return;

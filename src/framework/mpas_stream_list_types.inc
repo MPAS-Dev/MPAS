@@ -40,5 +40,8 @@
         type (MPAS_stream_list_type), pointer :: xref => null()
         type (MPAS_stream_list_type), pointer :: next => null()
 
+        character(len=StrKIND) :: interval_in
+        character(len=StrKIND) :: interval_out
+
     end type MPAS_stream_list_type
 

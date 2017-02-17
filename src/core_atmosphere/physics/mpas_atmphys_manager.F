@@ -237,8 +237,10 @@
     !sea-ice coverage:
     if(mpas_is_alarm_ringing(clock,sfcbdyAlarmID,ierr=ierr)) then
        call mpas_reset_clock_alarm(clock,sfcbdyAlarmID,ierr=ierr)
-       if(config_sst_update) &
+       if (config_sst_update) then
+          write(0,*) '--- time to update surface information from surface update file.'
           call physics_update_sst(domain%dminfo,config_frac_seaice,mesh,sfc_input,diag_physics)
+       end if
     endif   
 
     !apply a diurnal cycle to the sea-surface temperature:
