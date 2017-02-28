@@ -207,7 +207,6 @@ module atm_time_integration
 
       logical, parameter :: debug = .false.
 
-
       !
       ! Retrieve configuration options
       !
@@ -662,14 +661,14 @@ module atm_time_integration
             !CR: SMALLER STENCIL?: call mpas_dmpar_exch_halo_field(block % diag % rw_p, (/ 1 /))
             call mpas_pool_get_field(diag, 'rw_p', rw_p_field)
             call mpas_dmpar_exch_halo_field(rw_p_field)
-
+   
             !CR: SMALLER STENCIL?: call mpas_dmpar_exch_halo_field(block % diag % ru_p, (/ 2 /))
             call mpas_pool_get_field(diag, 'ru_p', ru_p_field)
             call mpas_dmpar_exch_halo_field(ru_p_field)
-
+   
             call mpas_pool_get_field(diag, 'rho_pp', rho_pp_field)
             call mpas_dmpar_exch_halo_field(rho_pp_field)
-
+   
             ! the second layer of halo cells must be exchanged before calling atm_recover_large_step_variables
             call mpas_pool_get_field(diag, 'rtheta_pp', rtheta_pp_field)
             call mpas_dmpar_exch_halo_field(rtheta_pp_field, (/ 2 /))
@@ -785,7 +784,6 @@ module atm_time_integration
 !$OMP master
          if (dynamics_substep < dynamics_split) then
             call mpas_pool_get_field(state, 'theta_m', theta_m_field, 2)
-
             call mpas_dmpar_exch_halo_field(theta_m_field)
             call mpas_dmpar_exch_halo_field(pressure_p_field)
             call mpas_dmpar_exch_halo_field(rtheta_p_field)
@@ -915,7 +913,6 @@ module atm_time_integration
       ! call to parameterizations of cloud microphysics. calculation of the tendency of water vapor to horizontal and
       ! vertical advection needed for the Tiedtke parameterization of convection.
       !
-
 #ifdef DO_PHYSICS
 !$OMP master
       if(config_convection_scheme == 'cu_grell_freitas'          .or. &

@@ -263,7 +263,7 @@
  real(kind=RKIND),dimension(:,:),pointer:: rthcuten,rqvcuten,rqccuten, &
                                            rqrcuten,rqicuten,rqscuten, &
                                            rucuten,rvcuten
- real(kind=RKIND),dimension(:,:),pointer:: rthratenlw,rthratensw                                    
+ real(kind=RKIND),dimension(:,:),pointer:: rthratenlw,rthratensw
  real(kind=RKIND),dimension(:,:),pointer:: rthdynten
  
  real(kind=RKIND),dimension(:,:),pointer:: tend_rtheta_adv
@@ -274,8 +274,6 @@
 
  real(kind=RKIND):: tem
  real(kind=RKIND),dimension(:,:),pointer:: rublten_Edge,rucuten_Edge
-
-
 
 !=================================================================================================================
  call mpas_pool_get_dimension(mesh, 'nCells', nCells)
@@ -758,7 +756,7 @@
              enddo
              enddo
    
-          case default         
+          case default
 
         end select pbl_select
     endif
