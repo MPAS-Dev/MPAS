@@ -732,12 +732,14 @@
        end if
 
        do i = edgeSolveStart, edgeSolveEnd
+!DIR$ IVDEP
        do k  = 1, nVertLevels
           tend_u(k,i)=tend_u(k,i)+rublten_Edge(k,i)*mass_edge(k,i)
        enddo
        enddo
 
        do i = cellSolveStart, cellSolveEnd
+!DIR$ IVDEP
        do k = 1, nVertLevels
           tend_th(k,i) = tend_th(k,i) + rthblten(k,i)*mass(k,i)
           tend_scalars(index_qv,k,i) = tend_scalars(index_qv,k,i) + rqvblten(k,i)*mass(k,i)
@@ -751,6 +753,7 @@
           case("bl_mynn")
 
              do i = cellSolveStart, cellSolveEnd
+!DIR$ IVDEP
              do k = 1, nVertLevels
                 tend_scalars(index_ni,k,i) = tend_scalars(index_ni,k,i) + rniblten(k,i)*mass(k,i)
              enddo
@@ -765,6 +768,7 @@
     if (config_convection_scheme .ne. 'off') then
 
        do i = cellSolveStart, cellSolveEnd
+!DIR$ IVDEP
        do k = 1, nVertLevels
           tend_th(k,i) = tend_th(k,i) + rthcuten(k,i)*mass(k,i)
           tend_scalars(index_qv,k,i) = tend_scalars(index_qv,k,i) + rqvcuten(k,i)*mass(k,i)
@@ -777,6 +781,7 @@
 
            case('cu_kain_fritsch')
               do i = cellSolveStart, cellSolveEnd
+!DIR$ IVDEP
               do k = 1, nVertLevels
                  tend_scalars(index_qr,k,i) = tend_scalars(index_qr,k,i) + rqrcuten(k,i)*mass(k,i)
                  tend_scalars(index_qs,k,i) = tend_scalars(index_qs,k,i) + rqscuten(k,i)*mass(k,i)
@@ -793,6 +798,7 @@
                                                               + rucuten_Edge(1:nVertLevels,edgeStart:edgeEnd)
               end if
               do i = edgeSolveStart, edgeSolveEnd
+!DIR$ IVDEP
               do k  = 1, nVertLevels
                  tend_u(k,i)=tend_u(k,i)+rucuten_Edge(k,i)*mass_edge(k,i)
               enddo
@@ -805,6 +811,7 @@
     !add coupled tendencies due to longwave radiation:
     if (config_radt_lw_scheme .ne. 'off') then
        do i = cellSolveStart, cellSolveEnd
+!DIR$ IVDEP
        do k = 1, nVertLevels
           tend_th(k,i) = tend_th(k,i) + rthratenlw(k,i)*mass(k,i)
        enddo
@@ -814,6 +821,7 @@
     !add coupled tendencies due to shortwave radiation:
     if (config_radt_sw_scheme .ne. 'off') then
        do i = cellSolveStart, cellSolveEnd
+!DIR$ IVDEP
        do k = 1, nVertLevels
           tend_th(k,i) = tend_th(k,i) + rthratensw(k,i)*mass(k,i)
        enddo
@@ -823,6 +831,7 @@
     !if non-hydrostatic core, convert the tendency for the potential temperature to a
     !tendency for the modified potential temperature:
     do i = cellSolveStart, cellSolveEnd
+!DIR$ IVDEP
     do k = 1, nVertLevels
        coeff = (1. + R_v_over_R_d * scalars(index_qv,k,i))
        tend_th(k,i) = coeff * tend_th(k,i) + R_v_over_R_d * theta_m(k,i) * tend_scalars(index_qv,k,i) / coeff
