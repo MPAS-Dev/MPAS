@@ -27,6 +27,8 @@
 ! subroutines in mpas_atmphys_todynamics:
 ! ---------------------------------------
 ! physics_addtend: add and mass-weigh tendencies before being added to dynamics tendencies.
+! DH* check documentation, this has been copied from the old physics_addtend documentation *DH
+! physics_get_tend: add and mass-weigh tendencies before being added to dynamics tendencies.
 ! tend_toEdges   : interpolate wind-tendencies from centers to edges of grid-cells.
 !
 ! add-ons and modifications to sourcecode:
@@ -380,14 +382,14 @@
                            index_qv, index_qc, index_qr, index_qi, index_qs, index_ni, &
                            east, north, cellsOnEdge, edgeNormalVectors, &
                            rublten, rvblten, mass_edge, rublten_Edge, &
-                           tend_ru_physics, &  ! change for addtend for u
+                           tend_ru_physics, &  ! change for get_tend for u
                            rucuten, rvcuten, rucuten_Edge, &
                            tend_th, tend_scalars, mass, rthblten, rqvblten, rqcblten, rqiblten, rniblten, &
                            rthcuten, rqvcuten, rqccuten, rqrcuten, rqicuten, rqscuten, &
                            rthratenlw, rthratensw, rthdynten, &
                            tend_u_phys, tend_rtheta_adv, tend_diabatic, &
                            theta_m, scalars, &
-                           tend_rtheta_physics, &  ! change for addtend for theta_m
+                           tend_rtheta_physics, &  ! change for get_tend for theta_m
                            tend_theta_euler, &
                            cellStart, cellEnd, edgeStart, edgeEnd, &
                            cellSolveStart, cellSolveEnd, edgeSolveStart, edgeSolveEnd &

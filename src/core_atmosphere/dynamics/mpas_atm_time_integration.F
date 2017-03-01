@@ -461,7 +461,7 @@ module atm_time_integration
       call mpas_timer_stop('atm_compute_moist_coefficients')
 
 #ifdef DO_PHYSICS
-      call mpas_timer_start('physics_addtend')
+      call mpas_timer_start('physics_get_tend')
       rk_step = 1
       dynamics_substep = 1
 !$OMP do schedule(static,1) private(thread)
@@ -489,7 +489,7 @@ module atm_time_integration
            edgeSolveThreadEnd(thread) )
       end do
 !$OMP end do
-      call mpas_timer_stop('physics_addtend')
+      call mpas_timer_stop('physics_get_tend')
 #endif
 
       !
