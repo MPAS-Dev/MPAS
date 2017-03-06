@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_zbgc_shared.F90 1142 2016-08-27 16:07:51Z njeffery $
+!  SVN:$Id: ice_zbgc_shared.F90 1166 2017-02-12 22:56:19Z njeffery $
 !=======================================================================
 !
 ! Biogeochemistry variables
@@ -171,7 +171,7 @@
                             hice,     hinS,     &
                             ice_grid, bio_grid, &
                             S_min,    l_stop,   &
-                            stop_label, nu_diag)
+                            stop_label)
 
       integer (kind=int_kind), intent(in) :: &
          ntrcr         , & ! number of tracers in use
@@ -200,9 +200,6 @@
       logical (kind=log_kind), intent(inout) :: &
          l_stop            ! if true, print diagnostics and abort on return
         
-      integer (kind=int_kind), intent(in), optional :: &
-         nu_diag
-
       character (char_len), intent(inout) :: stop_label
 
       ! local variables
@@ -376,8 +373,7 @@
                                     top_conc,     igrid,    &
                                     flux_bio,               &
                                     l_stop,       stop_label, &
-                                    melt_b,       con_gel, &
-                                    nudiag)
+                                    melt_b,       con_gel)
       
       use ice_constants_colpkg, only: c0, c1, p5, puny
 
@@ -409,12 +405,9 @@
          melt_b,         &  ! bottom melt (m)
          con_gel            ! bottom growth (m)
 
-      integer (kind=int_kind), intent(in), optional :: &
-         nudiag         ! file unit number (diagnostic only)
-
       !  local variables
 
-      integer (kind=int_kind) :: k, n, nt, nu_diag, nr
+      integer (kind=int_kind) :: k, n, nt, nr
 
       real (kind=dbl_kind), dimension (ntrcr+2) :: &
          trtmp0,   &    ! temporary, remapped tracers
@@ -448,14 +441,12 @@
       sum_f = c0
       meltb = c0
       congel = c0
-      nu_diag = 0
       dflux = c0
 
       !---------------------
       ! compute initial sum
       !----------------------
      
-     ! if (present(nudiag))  write(nudiag,*)'1+nblyr = sum_i:',sum_i
       do k = 1, nblyr+1
          sum_i = sum_i + C_stationary(k)*zspace(k)
         
@@ -505,8 +496,7 @@
                              hice,              hbio,    & 
                              igrid(1:nblyr+1),           &
                              igrid(1:nblyr+1), top_conc, &
-                             l_stop,           stop_label, &
-                             nudiag)
+                             l_stop,           stop_label)
           if (l_stop) return
     
           trtmp0(:) = c0

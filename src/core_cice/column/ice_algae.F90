@@ -1,4 +1,4 @@
-!  SVN:$Id: ice_algae.F90 1143 2016-08-29 22:56:50Z njeffery $
+!  SVN:$Id: ice_algae.F90 1166 2017-02-12 22:56:19Z njeffery $
 !=======================================================================
 !
 ! Compute sea ice biogeochemistry (vertical or skeletal layer)
@@ -1184,7 +1184,7 @@
                                  nblyr,                  top_conc,    &
                                  i_grid,                 flux_bio(mm),&
                                  l_stop,                 stop_label,  &
-                                 meltb,                  congel, nu_diag)
+                                 meltb,                  congel)
 
             elseif (tr_bgc_N .and. mm .eq. nlt_bgc_N(1)) then  
                if (meltb > algal_vel*dt) then             

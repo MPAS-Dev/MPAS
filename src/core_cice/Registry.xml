@@ -51,8 +51,8 @@
 		<dim name="nDOCLayers"         definition="nBioLayersP3*nDOC"/>
 		<dim name="nDICLayers"         definition="nBioLayersP3*nDIC"/>
 		<dim name="nDONLayers"	       definition="nBioLayersP3*nDON"/>
-		<dim name="nParticulateIronLayers" definition="nBioLayersP3*nParticulateIron"/>
-		<dim name="nDissolvedIronLayers"   definition="nBioLayersP3*nDissolvedIron"/>
+		<dim name="nParticulateIronLayers"     definition="nBioLayersP3*nParticulateIron"/>
+		<dim name="nDissolvedIronLayers"       definition="nBioLayersP3*nDissolvedIron"/>
 		<dim name="nzAerosolsLayers"   definition="nBioLayersP3*nzAerosols"/>
 		<dim name="nzAerosolsSnowLayers"  definition="2*nzAerosols"/>
 		<dim name="nzAerosolsIceLayers"   definition="nBioLayersP1*nzAerosols"/>
@@ -225,7 +225,7 @@
 		<nml_option name="config_ratio_Fe_to_DOC_lipids"                 type="real"          default_value="0.033"/>
 		<nml_option name="config_respiration_fraction_of_growth"         type="real"          default_value="0.05"/>
 		<nml_option name="config_rapid_mobile_to_stationary_time"        type="real"          default_value="5200.0"/>
-		<nml_option name="config_long_mobile_to_stationary_time"         type="real"          default_value="57667.0"/>
+		<nml_option name="config_long_mobile_to_stationary_time"         type="real"          default_value="173000.0"/>
 		<nml_option name="config_algal_maximum_velocity"                 type="real"          default_value="0.0000005"/>
 		<nml_option name="config_ratio_Fe_to_dust"                       type="real"          default_value="0.035"/>
 		<nml_option name="config_solubility_of_Fe_in_dust"               type="real"          default_value="0.005"/>
@@ -298,14 +298,14 @@
 		<nml_option name="config_mobility_type_nitrate"                  type="real"          default_value="-1.0"/>
 		<nml_option name="config_mobility_type_ammonium"                 type="real"          default_value="1.0"/>
 		<nml_option name="config_mobility_type_silicate"                 type="real"          default_value="-1.0"/>
-		<nml_option name="config_mobility_type_DMSPp"                    type="real"          default_value="1.0"/>
-		<nml_option name="config_mobility_type_DMSPd"                    type="real"          default_value="1.0"/>
+		<nml_option name="config_mobility_type_DMSPp"                    type="real"          default_value="0.5"/>
+		<nml_option name="config_mobility_type_DMSPd"                    type="real"          default_value="0.5"/>
 		<nml_option name="config_mobility_type_humics"                   type="real"          default_value="1.0"/>
-		<nml_option name="config_mobility_type_saccharids"               type="real"          default_value="1.0"/>
-		<nml_option name="config_mobility_type_lipids"                   type="real"          default_value="1.0"/>
-		<nml_option name="config_mobility_type_proteins"                 type="real"          default_value="1.0"/>
-		<nml_option name="config_mobility_type_dissolved_iron"           type="real"          default_value="1.0"/>
-		<nml_option name="config_mobility_type_particulate_iron"         type="real"          default_value="1.0"/>
+		<nml_option name="config_mobility_type_saccharids"               type="real"          default_value="0.5"/>
+		<nml_option name="config_mobility_type_lipids"                   type="real"          default_value="0.5"/>
+		<nml_option name="config_mobility_type_proteins"                 type="real"          default_value="0.5"/>
+		<nml_option name="config_mobility_type_dissolved_iron"           type="real"          default_value="0.5"/>
+		<nml_option name="config_mobility_type_particulate_iron"         type="real"          default_value="0.5"/>
 		<nml_option name="config_mobility_type_black_carbon1"            type="real"          default_value="1.0"/>
 		<nml_option name="config_mobility_type_black_carbon2"            type="real"          default_value="1.0"/>
 		<nml_option name="config_mobility_type_dust1"                    type="real"          default_value="1.0"/>
@@ -796,8 +796,8 @@
 		<var name="verticalParticulateIronConc"	      type="real"     dimensions="nParticulateIronLayers nCategories nCells Time" name_in_code="verticalParticulateIronConc"   packages="pkgTracerVerticalIron"/>
 		<var name="verticalDissolvedIronConc"	      type="real"     dimensions="nDissolvedIronLayers nCategories nCells Time"   name_in_code="verticalDissolvedIronConc"     packages="pkgTracerVerticalIron"/>
 		<var name="verticalAerosolsConc"	      type="real"     dimensions="nzAerosolsLayers nCategories nCells Time"       name_in_code="verticalAerosolsConc"          packages="pkgTracerZAerosols"/>
-		<var name="verticalAerosolsSnow"	      type="real"     dimensions="nzAerosolsSnowLayers nCategories nCells Time"       name_in_code="verticalAerosolsSnow"          packages="pkgTracerZAerosols"/>
-		<var name="verticalAerosolsIce"	              type="real"     dimensions="nzAerosolsIceLayers nCategories nCells Time"       name_in_code="verticalAerosolsIce"          packages="pkgTracerZAerosols"/>
+		<var name="verticalAerosolsSnow"		type="real"	dimensions="nzAerosolsSnowLayers nCategories nCells Time"	name_in_code="verticalAerosolsSnow"		packages="pkgTracerZAerosols"/>
+		<var name="verticalAerosolsIce"		type="real"	dimensions="nzAerosolsIceLayers nCategories nCells Time"	name_in_code="verticalAerosolsIce"		packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinity"		      type="real"     dimensions="nBioLayers nCategories nCells Time"             name_in_code="verticalSalinity"              packages="pkgTracerZSalinity"/>
 	</var_struct>
 	<var_struct name="tracers_aggregate" time_levs="1">
@@ -909,20 +909,20 @@
 		<var name="skeletalHumicsConcMask"	      type="integer"  dimensions="ONE nCategories nCells"   name_in_code="skeletalHumicsConcMask"        packages="pkgTracerSkeletalHumics"/>
 		<var name="skeletalParticulateIronConcMask"   type="integer"  dimensions="nParticulateIron nCategories nCells" name_in_code="skeletalParticulateIronConcMask"  packages="pkgTracerSkeletalIron"/>
 		<var name="skeletalDissolvedIronConcMask"     type="integer"  dimensions="nDissolvedIron nCategories nCells"   name_in_code="skeletalDissolvedIronConcMask"    packages="pkgTracerSkeletalIron"/>
-		<var name="verticalAlgaeConcMask"	      type="integer"  dimensions="nAlgaeLayers nCategories nCells"   name_in_code="verticalAlgaeConcMask"    packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalDOCConcMask"		      type="integer"  dimensions="nDOCLayers nCategories nCells"     name_in_code="verticalDOCConcMask"      packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcMask"		      type="integer"  dimensions="nDICLayers nCategories nCells"     name_in_code="verticalDICConcMask"      packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDONConcMask"		      type="integer"  dimensions="nDONLayers nCategories nCells"     name_in_code="verticalDONConcMask"      packages="pkgTracerVerticalDON"/>
-		<var name="verticalNitrateConcMask"	      type="integer"  dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNitrateConcMask"  packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalSilicateConcMask"	      type="integer"  dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalSilicateConcMask" packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalAmmoniumConcMask"	      type="integer"  dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalAmmoniumConcMask" packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalDMSConcMask"		      type="integer"  dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSConcMask"      packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcMask"	      type="integer"  dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPpConcMask"    packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcMask"	      type="integer"  dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPdConcMask"    packages="pkgTracerVerticalDMS"/>
-		<var name="verticalNonreactiveConcMask"	      type="integer"  dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNonreactiveConcMask"  packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalHumicsConcMask"	      type="integer"  dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalHumicsConcMask"       packages="pkgTracerVerticalHumics"/>
-		<var name="verticalParticulateIronConcMask"   type="integer"  dimensions="nParticulateIronLayers nCategories nCells" name_in_code="verticalParticulateIronConcMask" packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcMask"     type="integer"  dimensions="nDissolvedIronLayers nCategories nCells"   name_in_code="verticalDissolvedIronConcMask"   packages="pkgTracerVerticalIron"/>
+		<var name="verticalAlgaeConcMask"		type="integer"	dimensions="nAlgaeLayers nCategories nCells"		name_in_code="verticalAlgaeConcMask"		packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalDOCConcMask"		type="integer"	dimensions="nDOCLayers nCategories nCells"		name_in_code="verticalDOCConcMask"		packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcMask"		type="integer"	dimensions="nDICLayers nCategories nCells"		name_in_code="verticalDICConcMask"		packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDONConcMask"		type="integer"	dimensions="nDONLayers nCategories nCells"		name_in_code="verticalDONConcMask"		packages="pkgTracerVerticalDON"/>
+		<var name="verticalNitrateConcMask"		type="integer"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNitrateConcMask"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalSilicateConcMask"		type="integer"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalSilicateConcMask"	packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalAmmoniumConcMask"		type="integer"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalAmmoniumConcMask"	packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalDMSConcMask"		type="integer"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSConcMask"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcMask"		type="integer"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPpConcMask"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcMask"		type="integer"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPdConcMask"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalNonreactiveConcMask"	type="integer"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNonreactiveConcMask"	packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalHumicsConcMask"		type="integer"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalHumicsConcMask"		packages="pkgTracerVerticalHumics"/>
+		<var name="verticalParticulateIronConcMask"	type="integer"	dimensions="nParticulateIronLayers nCategories nCells"	name_in_code="verticalParticulateIronConcMask"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcMask"	type="integer"	dimensions="nDissolvedIronLayers nCategories nCells"	name_in_code="verticalDissolvedIronConcMask"	packages="pkgTracerVerticalIron"/>
 		<var name="verticalAerosolsSnowMask"	      type="integer"  dimensions="nzAerosolsSnowLayers nCategories nCells"       name_in_code="verticalAerosolsSnowMask"        packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsIceMask"	      type="integer"  dimensions="nzAerosolsIceLayers nCategories nCells"       name_in_code="verticalAerosolsIceMask"        packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinityMask"	      type="integer"  dimensions="nBioLayers nCategories nCells"             name_in_code="verticalSalinityMask"            packages="pkgTracerZSalinity"/>
@@ -963,20 +963,20 @@
 		<var name="skeletalHumicsConcEdgeFlux"		      type="real"     dimensions="ONE nCategories nEdges"   name_in_code="skeletalHumicsConcEdgeFlux"       packages="pkgTracerSkeletalHumics"/>
 		<var name="skeletalParticulateIronConcEdgeFlux"	      type="real"     dimensions="nParticulateIron nCategories nEdges" name_in_code="skeletalParticulateIronConcEdgeFlux"  packages="pkgTracerSkeletalIron"/>
 		<var name="skeletalDissolvedIronConcEdgeFlux" 	      type="real"     dimensions="nDissolvedIron nCategories nEdges"   name_in_code="skeletalDissolvedIronConcEdgeFlux"    packages="pkgTracerSkeletalIron"/>
-		<var name="verticalAlgaeConcEdgeFlux"		      type="real"     dimensions="nAlgaeLayers nCategories nEdges"   name_in_code="verticalAlgaeConcEdgeFlux"     packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalDOCConcEdgeFlux"		      type="real"     dimensions="nDOCLayers nCategories nEdges"     name_in_code="verticalDOCConcEdgeFlux"       packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcEdgeFlux"		      type="real"     dimensions="nDICLayers nCategories nEdges"     name_in_code="verticalDICConcEdgeFlux"       packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDONConcEdgeFlux"		      type="real"     dimensions="nDONLayers nCategories nEdges"     name_in_code="verticalDONConcEdgeFlux"       packages="pkgTracerVerticalDON"/>
-		<var name="verticalNitrateConcEdgeFlux"		      type="real"     dimensions="nBioLayersP3 nCategories nEdges"   name_in_code="verticalNitrateConcEdgeFlux"   packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalSilicateConcEdgeFlux"	      type="real"     dimensions="nBioLayersP3 nCategories nEdges"   name_in_code="verticalSilicateConcEdgeFlux"  packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalAmmoniumConcEdgeFlux"	      type="real"     dimensions="nBioLayersP3 nCategories nEdges"   name_in_code="verticalAmmoniumConcEdgeFlux"  packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalDMSConcEdgeFlux"		      type="real"     dimensions="nBioLayersP3 nCategories nEdges"   name_in_code="verticalDMSConcEdgeFlux"       packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcEdgeFlux"		      type="real"     dimensions="nBioLayersP3 nCategories nEdges"   name_in_code="verticalDMSPpConcEdgeFlux"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcEdgeFlux"		      type="real"     dimensions="nBioLayersP3 nCategories nEdges"   name_in_code="verticalDMSPdConcEdgeFlux"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalNonreactiveConcEdgeFlux"	      type="real"     dimensions="nBioLayersP3 nCategories nEdges"   name_in_code="verticalNonreactiveConcEdgeFlux"  packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalHumicsConcEdgeFlux"		      type="real"     dimensions="nBioLayersP3 nCategories nEdges"   name_in_code="verticalHumicsConcEdgeFlux"       packages="pkgTracerVerticalHumics"/>
-		<var name="verticalParticulateIronConcEdgeFlux"	      type="real"     dimensions="nParticulateIronLayers nCategories nEdges" name_in_code="verticalParticulateIronConcEdgeFlux"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcEdgeFlux"	      type="real"     dimensions="nDissolvedIronLayers nCategories nEdges"   name_in_code="verticalDissolvedIronConcEdgeFlux"    packages="pkgTracerVerticalIron"/>
+		<var name="verticalAlgaeConcEdgeFlux"			type="real"	dimensions="nAlgaeLayers nCategories nEdges"		name_in_code="verticalAlgaeConcEdgeFlux"		packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalDOCConcEdgeFlux"			type="real"	dimensions="nDOCLayers nCategories nEdges"		name_in_code="verticalDOCConcEdgeFlux"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcEdgeFlux"			type="real"	dimensions="nDICLayers nCategories nEdges"		name_in_code="verticalDICConcEdgeFlux"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDONConcEdgeFlux"			type="real"	dimensions="nDONLayers nCategories nEdges"		name_in_code="verticalDONConcEdgeFlux"			packages="pkgTracerVerticalDON"/>
+		<var name="verticalNitrateConcEdgeFlux"		type="real"	dimensions="nBioLayersP3 nCategories nEdges"		name_in_code="verticalNitrateConcEdgeFlux"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalSilicateConcEdgeFlux"		type="real"	dimensions="nBioLayersP3 nCategories nEdges"		name_in_code="verticalSilicateConcEdgeFlux"		packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalAmmoniumConcEdgeFlux"		type="real"	dimensions="nBioLayersP3 nCategories nEdges"		name_in_code="verticalAmmoniumConcEdgeFlux"		packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalDMSConcEdgeFlux"			type="real"	dimensions="nBioLayersP3 nCategories nEdges"		name_in_code="verticalDMSConcEdgeFlux"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcEdgeFlux"			type="real"	dimensions="nBioLayersP3 nCategories nEdges"		name_in_code="verticalDMSPpConcEdgeFlux"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcEdgeFlux"			type="real"	dimensions="nBioLayersP3 nCategories nEdges"		name_in_code="verticalDMSPdConcEdgeFlux"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalNonreactiveConcEdgeFlux"		type="real"	dimensions="nBioLayersP3 nCategories nEdges"		name_in_code="verticalNonreactiveConcEdgeFlux"		packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalHumicsConcEdgeFlux"			type="real"	dimensions="nBioLayersP3 nCategories nEdges"		name_in_code="verticalHumicsConcEdgeFlux"		packages="pkgTracerVerticalHumics"/>
+		<var name="verticalParticulateIronConcEdgeFlux"	type="real"	dimensions="nParticulateIronLayers nCategories nEdges"	name_in_code="verticalParticulateIronConcEdgeFlux"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcEdgeFlux"		type="real"	dimensions="nDissolvedIronLayers nCategories nEdges"	name_in_code="verticalDissolvedIronConcEdgeFlux"	packages="pkgTracerVerticalIron"/>
 		<var name="verticalAerosolsSnowEdgeFlux"	      type="real"     dimensions="nzAerosolsSnowLayers nCategories nEdges"       name_in_code="verticalAerosolsSnowEdgeFlux"         packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsIceEdgeFlux"	              type="real"     dimensions="nzAerosolsIceLayers nCategories nEdges"       name_in_code="verticalAerosolsIceEdgeFlux"         packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinityEdgeFlux"		      type="real"     dimensions="nBioLayers nCategories nEdges"             name_in_code="verticalSalinityEdgeFlux"             packages="pkgTracerZSalinity"/>
@@ -1017,20 +1017,20 @@
 		<var name="skeletalHumicsConcProduct"	      type="real"     dimensions="ONE nCategories nCells"     name_in_code="skeletalHumicsConcProduct"               packages="pkgTracerSkeletalHumics"/>
 		<var name="skeletalParticulateIronConcProduct"        type="real"     dimensions="nParticulateIron nCategories nCells"   name_in_code="skeletalParticulateIronConcProduct"  packages="pkgTracerSkeletalIron"/>
 		<var name="skeletalDissolvedIronConcProduct" 	      type="real"     dimensions="nDissolvedIron nCategories nCells"     name_in_code="skeletalDissolvedIronConcProduct"    packages="pkgTracerSkeletalIron"/>
-		<var name="verticalAlgaeConcProduct"		      type="real"     dimensions="nAlgaeLayers nCategories nCells"   name_in_code="verticalAlgaeConcProduct"     packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalDOCConcProduct"		      type="real"     dimensions="nDOCLayers nCategories nCells"     name_in_code="verticalDOCConcProduct"       packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcProduct"		      type="real"     dimensions="nDICLayers nCategories nCells"     name_in_code="verticalDICConcProduct"       packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDONConcProduct"		      type="real"     dimensions="nDONLayers nCategories nCells"     name_in_code="verticalDONConcProduct"       packages="pkgTracerVerticalDON"/>
-		<var name="verticalNitrateConcProduct"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNitrateConcProduct"   packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalSilicateConcProduct"	              type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalSilicateConcProduct"  packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalAmmoniumConcProduct"	              type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalAmmoniumConcProduct"  packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalDMSConcProduct"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSConcProduct"       packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcProduct"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPpConcProduct"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcProduct"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPdConcProduct"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalNonreactiveConcProduct"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNonreactiveConcProduct"  packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalHumicsConcProduct"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalHumicsConcProduct"       packages="pkgTracerVerticalHumics"/>
-		<var name="verticalParticulateIronConcProduct"	      type="real"     dimensions="nParticulateIronLayers nCategories nCells"   name_in_code="verticalParticulateIronConcProduct"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcProduct"	      type="real"     dimensions="nDissolvedIronLayers nCategories nCells"     name_in_code="verticalDissolvedIronConcProduct"    packages="pkgTracerVerticalIron"/>
+		<var name="verticalAlgaeConcProduct"		type="real"	dimensions="nAlgaeLayers nCategories nCells"		name_in_code="verticalAlgaeConcProduct"		packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalDOCConcProduct"		type="real"	dimensions="nDOCLayers nCategories nCells"		name_in_code="verticalDOCConcProduct"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcProduct"		type="real"	dimensions="nDICLayers nCategories nCells"		name_in_code="verticalDICConcProduct"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDONConcProduct"		type="real"	dimensions="nDONLayers nCategories nCells"		name_in_code="verticalDONConcProduct"			packages="pkgTracerVerticalDON"/>
+		<var name="verticalNitrateConcProduct"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNitrateConcProduct"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalSilicateConcProduct"	type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalSilicateConcProduct"		packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalAmmoniumConcProduct"	type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalAmmoniumConcProduct"		packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalDMSConcProduct"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSConcProduct"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcProduct"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPpConcProduct"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcProduct"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPdConcProduct"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalNonreactiveConcProduct"	type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNonreactiveConcProduct"		packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalHumicsConcProduct"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalHumicsConcProduct"		packages="pkgTracerVerticalHumics"/>
+		<var name="verticalParticulateIronConcProduct"	type="real"	dimensions="nParticulateIronLayers nCategories nCells"	name_in_code="verticalParticulateIronConcProduct"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcProduct"	type="real"	dimensions="nDissolvedIronLayers nCategories nCells"	name_in_code="verticalDissolvedIronConcProduct"	packages="pkgTracerVerticalIron"/>
 		<var name="verticalAerosolsSnowProduct"	              type="real"     dimensions="nzAerosolsSnowLayers nCategories nCells"         name_in_code="verticalAerosolsSnowProduct"         packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsIceProduct"	              type="real"     dimensions="nzAerosolsIceLayers nCategories nCells"         name_in_code="verticalAerosolsIceProduct"         packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinityProduct"		      type="real"     dimensions="nBioLayers nCategories nCells"               name_in_code="verticalSalinityProduct"             packages="pkgTracerZSalinity"/>
@@ -1070,20 +1070,20 @@
 		<var name="skeletalHumicsConcTriangle"		      type="real"     dimensions="ONE nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="skeletalHumicsConcTriangle"         packages="pkgTracerSkeletalHumics"/>
 		<var name="skeletalParticulateIronConcTriangle"	      type="real"     dimensions="nParticulateIron nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="skeletalParticulateIronConcTriangle"  packages="pkgTracerSkeletalIron"/>
 		<var name="skeletalDissolvedIronConcTriangle" 	      type="real"     dimensions="nDissolvedIron nCategories nQuadPoints nTriPerEdgeRemap nEdges"     name_in_code="skeletalDissolvedIronConcTriangle"    packages="pkgTracerSkeletalIron"/>
-		<var name="verticalAlgaeConcTriangle"		      type="real"     dimensions="nAlgaeLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="verticalAlgaeConcTriangle"    packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalDOCConcTriangle"		      type="real"     dimensions="nDOCLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"     name_in_code="verticalDOCConcTriangle"      packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcTriangle"		      type="real"     dimensions="nDICLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"     name_in_code="verticalDICConcTriangle"      packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDONConcTriangle"		      type="real"     dimensions="nDONLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"     name_in_code="verticalDONConcTriangle"      packages="pkgTracerVerticalDON"/>
-		<var name="verticalNitrateConcTriangle"		      type="real"     dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="verticalNitrateConcTriangle"  packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalSilicateConcTriangle"	      type="real"     dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="verticalSilicateConcTriangle" packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalAmmoniumConcTriangle"	      type="real"     dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="verticalAmmoniumConcTriangle" packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalDMSConcTriangle"		      type="real"     dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="verticalDMSConcTriangle"      packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcTriangle"		      type="real"     dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="verticalDMSPpConcTriangle"    packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcTriangle"		      type="real"     dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="verticalDMSPdConcTriangle"    packages="pkgTracerVerticalDMS"/>
-		<var name="verticalNonreactiveConcTriangle"	      type="real"     dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="verticalNonreactiveConcTriangle"  packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalHumicsConcTriangle"		      type="real"     dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="verticalHumicsConcTriangle"       packages="pkgTracerVerticalHumics"/>
-		<var name="verticalParticulateIronConcTriangle"	      type="real"     dimensions="nParticulateIronLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges" name_in_code="verticalParticulateIronConcTriangle"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcTriangle"	      type="real"     dimensions="nDissolvedIronLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"   name_in_code="verticalDissolvedIronConcTriangle"    packages="pkgTracerVerticalIron"/>
+		<var name="verticalAlgaeConcTriangle"			type="real"	dimensions="nAlgaeLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalAlgaeConcTriangle"		packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalDOCConcTriangle"			type="real"	dimensions="nDOCLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalDOCConcTriangle"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcTriangle"			type="real"	dimensions="nDICLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalDICConcTriangle"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDONConcTriangle"			type="real"	dimensions="nDONLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalDONConcTriangle"			packages="pkgTracerVerticalDON"/>
+		<var name="verticalNitrateConcTriangle"		type="real"	dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalNitrateConcTriangle"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalSilicateConcTriangle"		type="real"	dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalSilicateConcTriangle"		packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalAmmoniumConcTriangle"		type="real"	dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalAmmoniumConcTriangle"		packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalDMSConcTriangle"			type="real"	dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalDMSConcTriangle"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcTriangle"			type="real"	dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalDMSPpConcTriangle"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcTriangle"			type="real"	dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalDMSPdConcTriangle"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalNonreactiveConcTriangle"		type="real"	dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalNonreactiveConcTriangle"		packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalHumicsConcTriangle"			type="real"	dimensions="nBioLayersP3 nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalHumicsConcTriangle"		packages="pkgTracerVerticalHumics"/>
+		<var name="verticalParticulateIronConcTriangle"	type="real"	dimensions="nParticulateIronLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"	name_in_code="verticalParticulateIronConcTriangle"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcTriangle"		type="real"	dimensions="nDissolvedIronLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"	name_in_code="verticalDissolvedIronConcTriangle"	packages="pkgTracerVerticalIron"/>
 		<var name="verticalAerosolsSnowTriangle"	      type="real"     dimensions="nzAerosolsSnowLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"       name_in_code="verticalAerosolsSnowTriangle"         packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsIceTriangle"	              type="real"     dimensions="nzAerosolsIceLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"       name_in_code="verticalAerosolsIceTriangle"         packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinityTriangle"                  type="real"     dimensions="nBioLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalSalinityTriangle"		packages="pkgTracerZSalinity"/>
@@ -1157,34 +1157,34 @@
 		<var name="skeletalParticulateIronConcBarycentery"    type="real"     dimensions="nParticulateIron nCategories nCells"   name_in_code="skeletalParticulateIronConcBarycentery"  packages="pkgTracerSkeletalIron"/>
 		<var name="skeletalDissolvedIronConcBarycenterx"      type="real"     dimensions="nDissolvedIron nCategories nCells"   name_in_code="skeletalDissolvedIronConcBarycenterx"  packages="pkgTracerSkeletalIron"/>
 		<var name="skeletalDissolvedIronConcBarycentery"      type="real"     dimensions="nDissolvedIron nCategories nCells"   name_in_code="skeletalDissolvedIronConcBarycentery"  packages="pkgTracerSkeletalIron"/>
-		<var name="verticalAlgaeConcBarycenterx"	      type="real"     dimensions="nAlgaeLayers nCategories nCells"   name_in_code="verticalAlgaeConcBarycenterx"  packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalAlgaeConcBarycentery"	      type="real"     dimensions="nAlgaeLayers nCategories nCells"   name_in_code="verticalAlgaeConcBarycentery"  packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalDOCConcBarycenterx"		      type="real"     dimensions="nDOCLayers nCategories nCells"   name_in_code="verticalDOCConcBarycenterx"  packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDOCConcBarycentery"		      type="real"     dimensions="nDOCLayers nCategories nCells"   name_in_code="verticalDOCConcBarycentery"  packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcBarycenterx"		      type="real"     dimensions="nDICLayers nCategories nCells"   name_in_code="verticalDICConcBarycenterx"  packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcBarycentery"		      type="real"     dimensions="nDICLayers nCategories nCells"   name_in_code="verticalDICConcBarycentery"  packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDONConcBarycenterx"		      type="real"     dimensions="nDONLayers nCategories nCells"   name_in_code="verticalDONConcBarycenterx"  packages="pkgTracerVerticalDON"/>
-		<var name="verticalDONConcBarycentery"		      type="real"     dimensions="nDONLayers nCategories nCells"   name_in_code="verticalDONConcBarycentery"  packages="pkgTracerVerticalDON"/>
-		<var name="verticalNitrateConcBarycenterx"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNitrateConcBarycenterx"  packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalNitrateConcBarycentery"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNitrateConcBarycentery"  packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalSilicateConcBarycenterx"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalSilicateConcBarycenterx"  packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalSilicateConcBarycentery"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalSilicateConcBarycentery"  packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalAmmoniumConcBarycenterx"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalAmmoniumConcBarycenterx"  packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalAmmoniumConcBarycentery"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalAmmoniumConcBarycentery"  packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalDMSConcBarycenterx"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSConcBarycenterx"  packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSConcBarycentery"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSConcBarycentery"  packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcBarycenterx"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPpConcBarycenterx"  packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcBarycentery"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPpConcBarycentery"  packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcBarycenterx"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPdConcBarycenterx"  packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcBarycentery"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPdConcBarycentery"  packages="pkgTracerVerticalDMS"/>
-		<var name="verticalNonreactiveConcBarycenterx"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNonreactiveConcBarycenterx"  packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalNonreactiveConcBarycentery"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNonreactiveConcBarycentery"  packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalHumicsConcBarycenterx"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalHumicsConcBarycenterx"  packages="pkgTracerVerticalHumics"/>
-		<var name="verticalHumicsConcBarycentery"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalHumicsConcBarycentery"  packages="pkgTracerVerticalHumics"/>
-		<var name="verticalParticulateIronConcBarycenterx"    type="real"     dimensions="nParticulateIronLayers nCategories nCells"   name_in_code="verticalParticulateIronConcBarycenterx"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalParticulateIronConcBarycentery"    type="real"     dimensions="nParticulateIronLayers nCategories nCells"   name_in_code="verticalParticulateIronConcBarycentery"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcBarycenterx"      type="real"     dimensions="nDissolvedIronLayers nCategories nCells"   name_in_code="verticalDissolvedIronConcBarycenterx"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcBarycentery"      type="real"     dimensions="nDissolvedIronLayers nCategories nCells"   name_in_code="verticalDissolvedIronConcBarycentery"  packages="pkgTracerVerticalIron"/>
+		<var name="verticalAlgaeConcBarycenterx"		type="real"	dimensions="nAlgaeLayers nCategories nCells"		name_in_code="verticalAlgaeConcBarycenterx"		packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalAlgaeConcBarycentery"		type="real"	dimensions="nAlgaeLayers nCategories nCells"		name_in_code="verticalAlgaeConcBarycentery"		packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalDOCConcBarycenterx"			type="real"	dimensions="nDOCLayers nCategories nCells"		name_in_code="verticalDOCConcBarycenterx"		packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDOCConcBarycentery"			type="real"	dimensions="nDOCLayers nCategories nCells"		name_in_code="verticalDOCConcBarycentery"		packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcBarycenterx"			type="real"	dimensions="nDICLayers nCategories nCells"		name_in_code="verticalDICConcBarycenterx"		packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcBarycentery"			type="real"	dimensions="nDICLayers nCategories nCells"		name_in_code="verticalDICConcBarycentery"		packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDONConcBarycenterx"			type="real"	dimensions="nDONLayers nCategories nCells"		name_in_code="verticalDONConcBarycenterx"		packages="pkgTracerVerticalDON"/>
+		<var name="verticalDONConcBarycentery"			type="real"	dimensions="nDONLayers nCategories nCells"		name_in_code="verticalDONConcBarycentery"		packages="pkgTracerVerticalDON"/>
+		<var name="verticalNitrateConcBarycenterx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNitrateConcBarycenterx"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalNitrateConcBarycentery"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNitrateConcBarycentery"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalSilicateConcBarycenterx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalSilicateConcBarycenterx"		packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalSilicateConcBarycentery"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalSilicateConcBarycentery"		packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalAmmoniumConcBarycenterx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalAmmoniumConcBarycenterx"		packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalAmmoniumConcBarycentery"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalAmmoniumConcBarycentery"		packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalDMSConcBarycenterx"			type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSConcBarycenterx"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSConcBarycentery"			type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSConcBarycentery"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcBarycenterx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPpConcBarycenterx"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcBarycentery"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPpConcBarycentery"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcBarycenterx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPdConcBarycenterx"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcBarycentery"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPdConcBarycentery"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalNonreactiveConcBarycenterx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNonreactiveConcBarycenterx"	packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalNonreactiveConcBarycentery"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNonreactiveConcBarycentery"	packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalHumicsConcBarycenterx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalHumicsConcBarycenterx"		packages="pkgTracerVerticalHumics"/>
+		<var name="verticalHumicsConcBarycentery"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalHumicsConcBarycentery"		packages="pkgTracerVerticalHumics"/>
+		<var name="verticalParticulateIronConcBarycenterx"	type="real"	dimensions="nParticulateIronLayers nCategories nCells"	name_in_code="verticalParticulateIronConcBarycenterx"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalParticulateIronConcBarycentery"	type="real"	dimensions="nParticulateIronLayers nCategories nCells"	name_in_code="verticalParticulateIronConcBarycentery"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcBarycenterx"	type="real"	dimensions="nDissolvedIronLayers nCategories nCells"	name_in_code="verticalDissolvedIronConcBarycenterx"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcBarycentery"	type="real"	dimensions="nDissolvedIronLayers nCategories nCells"	name_in_code="verticalDissolvedIronConcBarycentery"	packages="pkgTracerVerticalIron"/>
 		<var name="verticalAerosolsSnowBarycenterx"	      type="real"     dimensions="nzAerosolsSnowLayers nCategories nCells"   name_in_code="verticalAerosolsSnowBarycenterx"  packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsSnowBarycentery"	      type="real"     dimensions="nzAerosolsSnowLayers nCategories nCells"   name_in_code="verticalAerosolsSnowBarycentery"  packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsIceBarycenterx"	      type="real"     dimensions="nzAerosolsIceLayers nCategories nCells"   name_in_code="verticalAerosolsIceBarycenterx"  packages="pkgTracerZAerosols"/>
@@ -1295,48 +1295,48 @@
 		<var name="skeletalDissolvedIronConcCenter" 	      type="real"     dimensions="nDissolvedIron nCategories nCells"   name_in_code="skeletalDissolvedIronConcCenter"     packages="pkgTracerSkeletalIron"/>
 		<var name="skeletalDissolvedIronConcGradx" 	      type="real"     dimensions="nDissolvedIron nCategories nCells"   name_in_code="skeletalDissolvedIronConcGradx"      packages="pkgTracerSkeletalIron"/>
 		<var name="skeletalDissolvedIronConcGrady" 	      type="real"     dimensions="nDissolvedIron nCategories nCells"   name_in_code="skeletalDissolvedIronConcGrady"      packages="pkgTracerSkeletalIron"/>
-		<var name="verticalAlgaeConcCenter"		      type="real"     dimensions="nAlgaeLayers nCategories nCells"   name_in_code="verticalAlgaeConcCenter" packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalAlgaeConcGradx"		      type="real"     dimensions="nAlgaeLayers nCategories nCells"   name_in_code="verticalAlgaeConcGradx"  packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalAlgaeConcGrady"		      type="real"     dimensions="nAlgaeLayers nCategories nCells"   name_in_code="verticalAlgaeConcGrady"  packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalDOCConcCenter"		      type="real"     dimensions="nDOCLayers nCategories nCells"   name_in_code="verticalDOCConcCenter"     packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDOCConcGradx"		      type="real"     dimensions="nDOCLayers nCategories nCells"   name_in_code="verticalDOCConcGradx"      packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDOCConcGrady"		      type="real"     dimensions="nDOCLayers nCategories nCells"   name_in_code="verticalDOCConcGrady"      packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcCenter"		      type="real"     dimensions="nDICLayers nCategories nCells"   name_in_code="verticalDICConcCenter"     packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcGradx"		      type="real"     dimensions="nDICLayers nCategories nCells"   name_in_code="verticalDICConcGradx"      packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcGrady"		      type="real"     dimensions="nDICLayers nCategories nCells"   name_in_code="verticalDICConcGrady"      packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDONConcCenter"		      type="real"     dimensions="nDONLayers nCategories nCells"   name_in_code="verticalDONConcCenter"     packages="pkgTracerVerticalDON"/>
-		<var name="verticalDONConcGradx"		      type="real"     dimensions="nDONLayers nCategories nCells"   name_in_code="verticalDONConcGradx"      packages="pkgTracerVerticalDON"/>
-		<var name="verticalDONConcGrady"		      type="real"     dimensions="nDONLayers nCategories nCells"   name_in_code="verticalDONConcGrady"      packages="pkgTracerVerticalDON"/>
-		<var name="verticalNitrateConcCenter"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNitrateConcCenter"  packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalNitrateConcGradx"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNitrateConcGradx"   packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalNitrateConcGrady"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNitrateConcGrady"   packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalSilicateConcCenter"	              type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalSilicateConcCenter" packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalSilicateConcGradx"	              type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalSilicateConcGradx"  packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalSilicateConcGrady"	              type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalSilicateConcGrady"  packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalAmmoniumConcCenter"	              type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalAmmoniumConcCenter" packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalAmmoniumConcGradx"	              type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalAmmoniumConcGradx"  packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalAmmoniumConcGrady"	              type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalAmmoniumConcGrady"  packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalDMSConcCenter"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSConcCenter"      packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSConcGradx"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSConcGradx"       packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSConcGrady"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSConcGrady"       packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcCenter"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPpConcCenter"    packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcGradx"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPpConcGradx"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcGrady"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPpConcGrady"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcCenter"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPdConcCenter"    packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcGradx"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPdConcGradx"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcGrady"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPdConcGrady"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalNonreactiveConcCenter"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNonreactiveConcCenter" packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalNonreactiveConcGradx"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNonreactiveConcGradx"  packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalNonreactiveConcGrady"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNonreactiveConcGrady"  packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalHumicsConcCenter"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalHumicsConcCenter"      packages="pkgTracerVerticalHumics"/>
-		<var name="verticalHumicsConcGradx"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalHumicsConcGradx"       packages="pkgTracerVerticalHumics"/>
-		<var name="verticalHumicsConcGrady"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalHumicsConcGrady"       packages="pkgTracerVerticalHumics"/>
-		<var name="verticalParticulateIronConcCenter"	      type="real"     dimensions="nParticulateIronLayers nCategories nCells"   name_in_code="verticalParticulateIronConcCenter" packages="pkgTracerVerticalIron"/>
-		<var name="verticalParticulateIronConcGradx"	      type="real"     dimensions="nParticulateIronLayers nCategories nCells"   name_in_code="verticalParticulateIronConcGradx"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalParticulateIronConcGrady"	      type="real"     dimensions="nParticulateIronLayers nCategories nCells"   name_in_code="verticalParticulateIronConcGrady"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcCenter"	      type="real"     dimensions="nDissolvedIronLayers nCategories nCells"   name_in_code="verticalDissolvedIronConcCenter"     packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcGradx"	      type="real"     dimensions="nDissolvedIronLayers nCategories nCells"   name_in_code="verticalDissolvedIronConcGradx"      packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcGrady"	      type="real"     dimensions="nDissolvedIronLayers nCategories nCells"   name_in_code="verticalDissolvedIronConcGrady"      packages="pkgTracerVerticalIron"/>
+		<var name="verticalAlgaeConcCenter"		type="real"	dimensions="nAlgaeLayers nCategories nCells"		name_in_code="verticalAlgaeConcCenter"			packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalAlgaeConcGradx"		type="real"	dimensions="nAlgaeLayers nCategories nCells"		name_in_code="verticalAlgaeConcGradx"			packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalAlgaeConcGrady"		type="real"	dimensions="nAlgaeLayers nCategories nCells"		name_in_code="verticalAlgaeConcGrady"			packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalDOCConcCenter"		type="real"	dimensions="nDOCLayers nCategories nCells"		name_in_code="verticalDOCConcCenter"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDOCConcGradx"		type="real"	dimensions="nDOCLayers nCategories nCells"		name_in_code="verticalDOCConcGradx"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDOCConcGrady"		type="real"	dimensions="nDOCLayers nCategories nCells"		name_in_code="verticalDOCConcGrady"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcCenter"		type="real"	dimensions="nDICLayers nCategories nCells"		name_in_code="verticalDICConcCenter"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcGradx"		type="real"	dimensions="nDICLayers nCategories nCells"		name_in_code="verticalDICConcGradx"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcGrady"		type="real"	dimensions="nDICLayers nCategories nCells"		name_in_code="verticalDICConcGrady"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDONConcCenter"		type="real"	dimensions="nDONLayers nCategories nCells"		name_in_code="verticalDONConcCenter"			packages="pkgTracerVerticalDON"/>
+		<var name="verticalDONConcGradx"		type="real"	dimensions="nDONLayers nCategories nCells"		name_in_code="verticalDONConcGradx"			packages="pkgTracerVerticalDON"/>
+		<var name="verticalDONConcGrady"		type="real"	dimensions="nDONLayers nCategories nCells"		name_in_code="verticalDONConcGrady"			packages="pkgTracerVerticalDON"/>
+		<var name="verticalNitrateConcCenter"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNitrateConcCenter"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalNitrateConcGradx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNitrateConcGradx"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalNitrateConcGrady"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNitrateConcGrady"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalSilicateConcCenter"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalSilicateConcCenter"		packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalSilicateConcGradx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalSilicateConcGradx"		packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalSilicateConcGrady"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalSilicateConcGrady"		packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalAmmoniumConcCenter"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalAmmoniumConcCenter"		packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalAmmoniumConcGradx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalAmmoniumConcGradx"		packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalAmmoniumConcGrady"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalAmmoniumConcGrady"		packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalDMSConcCenter"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSConcCenter"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSConcGradx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSConcGradx"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSConcGrady"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSConcGrady"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcCenter"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPpConcCenter"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcGradx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPpConcGradx"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcGrady"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPpConcGrady"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcCenter"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPdConcCenter"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcGradx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPdConcGradx"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcGrady"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPdConcGrady"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalNonreactiveConcCenter"	type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNonreactiveConcCenter"		packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalNonreactiveConcGradx"	type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNonreactiveConcGradx"		packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalNonreactiveConcGrady"	type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNonreactiveConcGrady"		packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalHumicsConcCenter"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalHumicsConcCenter"		packages="pkgTracerVerticalHumics"/>
+		<var name="verticalHumicsConcGradx"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalHumicsConcGradx"			packages="pkgTracerVerticalHumics"/>
+		<var name="verticalHumicsConcGrady"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalHumicsConcGrady"			packages="pkgTracerVerticalHumics"/>
+		<var name="verticalParticulateIronConcCenter"	type="real"	dimensions="nParticulateIronLayers nCategories nCells"	name_in_code="verticalParticulateIronConcCenter"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalParticulateIronConcGradx"	type="real"	dimensions="nParticulateIronLayers nCategories nCells"	name_in_code="verticalParticulateIronConcGradx"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalParticulateIronConcGrady"	type="real"	dimensions="nParticulateIronLayers nCategories nCells"	name_in_code="verticalParticulateIronConcGrady"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcCenter"	type="real"	dimensions="nDissolvedIronLayers nCategories nCells"	name_in_code="verticalDissolvedIronConcCenter"		packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcGradx"	type="real"	dimensions="nDissolvedIronLayers nCategories nCells"	name_in_code="verticalDissolvedIronConcGradx"		packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcGrady"	type="real"	dimensions="nDissolvedIronLayers nCategories nCells"	name_in_code="verticalDissolvedIronConcGrady"		packages="pkgTracerVerticalIron"/>
 		<var name="verticalAerosolsSnowCenter"	              type="real"     dimensions="nzAerosolsSnowLayers nCategories nCells"   name_in_code="verticalAerosolsSnowCenter" packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsSnowGradx"	              type="real"     dimensions="nzAerosolsSnowLayers nCategories nCells"   name_in_code="verticalAerosolsSnowGradx"  packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsSnowGrady"	              type="real"     dimensions="nzAerosolsSnowLayers nCategories nCells"   name_in_code="verticalAerosolsSnowGrady"  packages="pkgTracerZAerosols"/>
@@ -1382,20 +1382,20 @@
 		<var name="skeletalHumicsConcCons"	      type="real"     dimensions="ONE nCategories"          name_in_code="skeletalHumicsConcCons"  packages="pkgTracerSkeletalHumics"/>
 		<var name="skeletalParticulateIronConcCons"   type="real"     dimensions="nParticulateIron nCategories" name_in_code="skeletalParticulateIronConcCons"  packages="pkgTracerSkeletalIron"/>
 		<var name="skeletalDissolvedIronConcCons"     type="real"     dimensions="nDissolvedIron nCategories"   name_in_code="skeletalDissolvedIronConcCons"    packages="pkgTracerSkeletalIron"/>
-		<var name="verticalAlgaeConcCons"	      type="real"     dimensions="nAlgaeLayers nCategories"     name_in_code="verticalAlgaeConcCons"            packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalDOCConcCons"		      type="real"     dimensions="nDOCLayers nCategories"   name_in_code="verticalDOCConcCons"  packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcCons"		      type="real"     dimensions="nDICLayers nCategories"   name_in_code="verticalDICConcCons"  packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDONConcCons"		      type="real"     dimensions="nDONLayers nCategories"   name_in_code="verticalDONConcCons"  packages="pkgTracerVerticalDON"/>
-		<var name="verticalNitrateConcCons"	      type="real"     dimensions="nBioLayersP3 nCategories"   name_in_code="verticalNitrateConcCons"     packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalSilicateConcCons"	      type="real"     dimensions="nBioLayersP3 nCategories"   name_in_code="verticalSilicateConcCons"    packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalAmmoniumConcCons"	      type="real"     dimensions="nBioLayersP3 nCategories"   name_in_code="verticalAmmoniumConcCons"    packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalDMSConcCons"		      type="real"     dimensions="nBioLayersP3 nCategories"   name_in_code="verticalDMSConcCons"         packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcCons"	      type="real"     dimensions="nBioLayersP3 nCategories"   name_in_code="verticalDMSPpConcCons"       packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcCons"	      type="real"     dimensions="nBioLayersP3 nCategories"   name_in_code="verticalDMSPdConcCons"       packages="pkgTracerVerticalDMS"/>
-		<var name="verticalNonreactiveConcCons"	      type="real"     dimensions="nBioLayersP3 nCategories"   name_in_code="verticalNonreactiveConcCons" packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalHumicsConcCons"	      type="real"     dimensions="nBioLayersP3 nCategories"   name_in_code="verticalHumicsConcCons"      packages="pkgTracerVerticalHumics"/>
-		<var name="verticalParticulateIronConcCons"   type="real"     dimensions="nParticulateIronLayers nCategories" name_in_code="verticalParticulateIronConcCons"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcCons"     type="real"     dimensions="nDissolvedIronLayers nCategories"   name_in_code="verticalDissolvedIronConcCons"    packages="pkgTracerVerticalIron"/>
+		<var name="verticalAlgaeConcCons"		type="real"	dimensions="nAlgaeLayers nCategories"			name_in_code="verticalAlgaeConcCons"		packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalDOCConcCons"		type="real"	dimensions="nDOCLayers nCategories"			name_in_code="verticalDOCConcCons"		packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcCons"		type="real"	dimensions="nDICLayers nCategories"			name_in_code="verticalDICConcCons"		packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDONConcCons"		type="real"	dimensions="nDONLayers nCategories"			name_in_code="verticalDONConcCons"		packages="pkgTracerVerticalDON"/>
+		<var name="verticalNitrateConcCons"		type="real"	dimensions="nBioLayersP3 nCategories"			name_in_code="verticalNitrateConcCons"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalSilicateConcCons"		type="real"	dimensions="nBioLayersP3 nCategories"			name_in_code="verticalSilicateConcCons"	packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalAmmoniumConcCons"		type="real"	dimensions="nBioLayersP3 nCategories"			name_in_code="verticalAmmoniumConcCons"	packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalDMSConcCons"		type="real"	dimensions="nBioLayersP3 nCategories"			name_in_code="verticalDMSConcCons"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcCons"		type="real"	dimensions="nBioLayersP3 nCategories"			name_in_code="verticalDMSPpConcCons"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcCons"		type="real"	dimensions="nBioLayersP3 nCategories"			name_in_code="verticalDMSPdConcCons"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalNonreactiveConcCons"	type="real"	dimensions="nBioLayersP3 nCategories"			name_in_code="verticalNonreactiveConcCons"	packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalHumicsConcCons"		type="real"	dimensions="nBioLayersP3 nCategories"			name_in_code="verticalHumicsConcCons"		packages="pkgTracerVerticalHumics"/>
+		<var name="verticalParticulateIronConcCons"	type="real"	dimensions="nParticulateIronLayers nCategories"	name_in_code="verticalParticulateIronConcCons"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcCons"	type="real"	dimensions="nDissolvedIronLayers nCategories"		name_in_code="verticalDissolvedIronConcCons"	packages="pkgTracerVerticalIron"/>
 		<var name="verticalAerosolsSnowCons"	      type="real"     dimensions="nzAerosolsSnowLayers nCategories"       name_in_code="verticalAerosolsSnowCons"         packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsIceCons"	      type="real"     dimensions="nzAerosolsIceLayers nCategories"       name_in_code="verticalAerosolsIceCons"         packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinityCons"	      type="real"     dimensions="nBioLayers nCategories"             name_in_code="verticalSalinityCons"             packages="pkgTracerZSalinity"/>
@@ -1469,34 +1469,34 @@
 		<var name="skeletalParticulateIronConcLocalMax"	      type="real"     dimensions="nParticulateIron nCategories nCells"   name_in_code="skeletalParticulateIronConcLocalMax"  packages="pkgTracerSkeletalIron"/>
 		<var name="skeletalDissolvedIronConcLocalMin" 	      type="real"     dimensions="nDissolvedIron nCategories nCells"   name_in_code="skeletalDissolvedIronConcLocalMin"  packages="pkgTracerSkeletalIron"/>
 		<var name="skeletalDissolvedIronConcLocalMax" 	      type="real"     dimensions="nDissolvedIron nCategories nCells"   name_in_code="skeletalDissolvedIronConcLocalMax"  packages="pkgTracerSkeletalIron"/>
-		<var name="verticalAlgaeConcLocalMin"		      type="real"     dimensions="nAlgaeLayers nCategories nCells"   name_in_code="verticalAlgaeConcLocalMin"  packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalAlgaeConcLocalMax"		      type="real"     dimensions="nAlgaeLayers nCategories nCells"   name_in_code="verticalAlgaeConcLocalMax"  packages="pkgTracerVerticalAlgae"/>
-		<var name="verticalDOCConcLocalMin"		      type="real"     dimensions="nDOCLayers nCategories nCells"   name_in_code="verticalDOCConcLocalMin"  packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDOCConcLocalMax"		      type="real"     dimensions="nDOCLayers nCategories nCells"   name_in_code="verticalDOCConcLocalMax"  packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcLocalMin"		      type="real"     dimensions="nDICLayers nCategories nCells"   name_in_code="verticalDICConcLocalMin"  packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDICConcLocalMax"		      type="real"     dimensions="nDICLayers nCategories nCells"   name_in_code="verticalDICConcLocalMax"  packages="pkgTracerVerticalCarbon"/>
-		<var name="verticalDONConcLocalMin"		      type="real"     dimensions="nDONLayers nCategories nCells"   name_in_code="verticalDONConcLocalMin"  packages="pkgTracerVerticalDON"/>
-		<var name="verticalDONConcLocalMax"		      type="real"     dimensions="nDONLayers nCategories nCells"   name_in_code="verticalDONConcLocalMax"  packages="pkgTracerVerticalDON"/>
-		<var name="verticalNitrateConcLocalMin"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNitrateConcLocalMin"   packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalNitrateConcLocalMax"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNitrateConcLocalMax"   packages="pkgTracerVerticalNitrate"/>
-		<var name="verticalSilicateConcLocalMin"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalSilicateConcLocalMin"  packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalSilicateConcLocalMax"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalSilicateConcLocalMax"  packages="pkgTracerVerticalSilicate"/>
-		<var name="verticalAmmoniumConcLocalMin"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalAmmoniumConcLocalMin"  packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalAmmoniumConcLocalMax"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalAmmoniumConcLocalMax"  packages="pkgTracerVerticalAmmonium"/>
-		<var name="verticalDMSConcLocalMin"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSConcLocalMin"       packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSConcLocalMax"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSConcLocalMax"       packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcLocalMin"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPpConcLocalMin"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPpConcLocalMax"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPpConcLocalMax"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcLocalMin"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPdConcLocalMin"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalDMSPdConcLocalMax"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalDMSPdConcLocalMax"     packages="pkgTracerVerticalDMS"/>
-		<var name="verticalNonreactiveConcLocalMin"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNonreactiveConcLocalMin"  packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalNonreactiveConcLocalMax"	      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalNonreactiveConcLocalMax"  packages="pkgTracerVerticalNonreactive"/>
-		<var name="verticalHumicsConcLocalMin"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalHumicsConcLocalMin"    packages="pkgTracerVerticalHumics"/>
-		<var name="verticalHumicsConcLocalMax"		      type="real"     dimensions="nBioLayersP3 nCategories nCells"   name_in_code="verticalHumicsConcLocalMax"    packages="pkgTracerVerticalHumics"/>
-		<var name="verticalParticulateIronConcLocalMin"	      type="real"     dimensions="nParticulateIronLayers nCategories nCells"   name_in_code="verticalParticulateIronConcLocalMin"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalParticulateIronConcLocalMax"	      type="real"     dimensions="nParticulateIronLayers nCategories nCells"   name_in_code="verticalParticulateIronConcLocalMax"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcLocalMin"	      type="real"     dimensions="nDissolvedIronLayers nCategories nCells"   name_in_code="verticalDissolvedIronConcLocalMin"  packages="pkgTracerVerticalIron"/>
-		<var name="verticalDissolvedIronConcLocalMax"	      type="real"     dimensions="nDissolvedIronLayers nCategories nCells"   name_in_code="verticalDissolvedIronConcLocalMax"  packages="pkgTracerVerticalIron"/>
+		<var name="verticalAlgaeConcLocalMin"			type="real"	dimensions="nAlgaeLayers nCategories nCells"		name_in_code="verticalAlgaeConcLocalMin"		packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalAlgaeConcLocalMax"			type="real"	dimensions="nAlgaeLayers nCategories nCells"		name_in_code="verticalAlgaeConcLocalMax"		packages="pkgTracerVerticalAlgae"/>
+		<var name="verticalDOCConcLocalMin"			type="real"	dimensions="nDOCLayers nCategories nCells"		name_in_code="verticalDOCConcLocalMin"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDOCConcLocalMax"			type="real"	dimensions="nDOCLayers nCategories nCells"		name_in_code="verticalDOCConcLocalMax"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcLocalMin"			type="real"	dimensions="nDICLayers nCategories nCells"		name_in_code="verticalDICConcLocalMin"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDICConcLocalMax"			type="real"	dimensions="nDICLayers nCategories nCells"		name_in_code="verticalDICConcLocalMax"			packages="pkgTracerVerticalCarbon"/>
+		<var name="verticalDONConcLocalMin"			type="real"	dimensions="nDONLayers nCategories nCells"		name_in_code="verticalDONConcLocalMin"			packages="pkgTracerVerticalDON"/>
+		<var name="verticalDONConcLocalMax"			type="real"	dimensions="nDONLayers nCategories nCells"		name_in_code="verticalDONConcLocalMax"			packages="pkgTracerVerticalDON"/>
+		<var name="verticalNitrateConcLocalMin"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNitrateConcLocalMin"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalNitrateConcLocalMax"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNitrateConcLocalMax"		packages="pkgTracerVerticalNitrate"/>
+		<var name="verticalSilicateConcLocalMin"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalSilicateConcLocalMin"		packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalSilicateConcLocalMax"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalSilicateConcLocalMax"		packages="pkgTracerVerticalSilicate"/>
+		<var name="verticalAmmoniumConcLocalMin"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalAmmoniumConcLocalMin"		packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalAmmoniumConcLocalMax"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalAmmoniumConcLocalMax"		packages="pkgTracerVerticalAmmonium"/>
+		<var name="verticalDMSConcLocalMin"			type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSConcLocalMin"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSConcLocalMax"			type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSConcLocalMax"			packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcLocalMin"			type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPpConcLocalMin"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPpConcLocalMax"			type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPpConcLocalMax"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcLocalMin"			type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPdConcLocalMin"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalDMSPdConcLocalMax"			type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalDMSPdConcLocalMax"		packages="pkgTracerVerticalDMS"/>
+		<var name="verticalNonreactiveConcLocalMin"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNonreactiveConcLocalMin"		packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalNonreactiveConcLocalMax"		type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalNonreactiveConcLocalMax"		packages="pkgTracerVerticalNonreactive"/>
+		<var name="verticalHumicsConcLocalMin"			type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalHumicsConcLocalMin"		packages="pkgTracerVerticalHumics"/>
+		<var name="verticalHumicsConcLocalMax"			type="real"	dimensions="nBioLayersP3 nCategories nCells"		name_in_code="verticalHumicsConcLocalMax"		packages="pkgTracerVerticalHumics"/>
+		<var name="verticalParticulateIronConcLocalMin"	type="real"	dimensions="nParticulateIronLayers nCategories nCells"	name_in_code="verticalParticulateIronConcLocalMin"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalParticulateIronConcLocalMax"	type="real"	dimensions="nParticulateIronLayers nCategories nCells"	name_in_code="verticalParticulateIronConcLocalMax"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcLocalMin"		type="real"	dimensions="nDissolvedIronLayers nCategories nCells"	name_in_code="verticalDissolvedIronConcLocalMin"	packages="pkgTracerVerticalIron"/>
+		<var name="verticalDissolvedIronConcLocalMax"		type="real"	dimensions="nDissolvedIronLayers nCategories nCells"	name_in_code="verticalDissolvedIronConcLocalMax"	packages="pkgTracerVerticalIron"/>
 		<var name="verticalAerosolsSnowLocalMin"	      type="real"     dimensions="nzAerosolsSnowLayers nCategories nCells"   name_in_code="verticalAerosolsSnowLocalMin"  packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsSnowLocalMax"	      type="real"     dimensions="nzAerosolsSnowLayers nCategories nCells"   name_in_code="verticalAerosolsSnowLocalMax"  packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsIceLocalMin"	      type="real"     dimensions="nzAerosolsIceLayers nCategories nCells"   name_in_code="verticalAerosolsIceLocalMin"  packages="pkgTracerZAerosols"/>
