@@ -450,6 +450,13 @@ ifneq "$(NETCDF)" ""
 	LIBS += $(NCLIB)
 endif
 
+ifneq "$(MOAB)" ""
+	CPPINCLUDES +=  -DUSE_MOAB -I$(MOAB)/include
+	FCINCLUDES += -DUSE_MOAB -I$(MOAB)/include
+	include $(MOAB)/lib/moab.make
+	LIBS +=  ${MOAB_LIBS_LINK} -lstdc++
+endif
+
 RM = rm -f
 CPP = cpp -P -traditional
 RANLIB = ranlib
@@ -538,6 +545,12 @@ ifeq "$(USE_PIO2)" "true"
 else # USE_PIO2 IF
 	PIO_MESSAGE="Using the PIO 1.x library."
 endif # USE_PIO2 IF
+
+ifneq "$(MOAB)" ""
+	MOAB_MESSAGE="Using MOAB library"
+else # 
+	MOAB_MESSAGE="Not using MOAB library"
+endif 
 
 ifdef TIMER_LIB
 ifeq "$(TIMER_LIB)" "tau"
@@ -729,6 +742,7 @@ endif
 	@echo $(GEN_F90_MESSAGE)
 	@echo $(TIMER_MESSAGE)
 	@echo $(PIO_MESSAGE)
+	@echo $(MOAB_MESSAGE)
 	@echo "*******************************************************************************"
 clean:
 	cd src; $(MAKE) clean RM="$(RM)" CORE="$(CORE)"
