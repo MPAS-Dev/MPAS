@@ -17,6 +17,11 @@ module mpas_bootstrapping
    use mpas_timekeeping
    use mpas_io_streams
    use mpas_log
+   use mpas_io_units
+   use mpas_abort, only : mpas_dmpar_global_abort
+#ifdef USE_MOAB
+   use mpas_moabmesh
+#endif
 
 
    integer :: readCellStart, readCellEnd, nReadCells
@@ -89,6 +94,7 @@ module mpas_bootstrapping
       integer :: nCells, nEdges, maxEdges, nVertices, vertexDegree
 
       integer :: ierr
+      integer :: i1, j1, nv1
       type (MPAS_IO_Handle_type) :: inputHandle
 
       character (len=StrKIND) :: c_on_a_sphere, c_is_periodic, c_parent_id, c_file_id, c_mesh_spec
@@ -269,7 +275,13 @@ module mpas_bootstrapping
       call mpas_block_creator_build_edge_halos(nHalos, indexToCellID_Block, nEdgesOnCell_Block, nCellsSolveField, &
                                                verticesOnCell_Block, indexToVertexID_Block, cellsOnVertex_Block, &
                                                nVerticesSolveField)
-
+#ifdef USE_MOAB
+      call create_mpas_moabmesh(domain, nEdgesOnCell_Block, verticesOnCell_Block, xVertexField, yVertexField, zVertexField)
+#endif
+      ! now need to deallocate xVertexField, etc; it is not ours
+!      mpas_deallocate_field(xVertexField)
+!      mpas_deallocate_field(yVertexField)
+!      mpas_deallocate_field(zVertexField)
       !
       ! Before we can allocate blocks, we need the attributes on_a_sphere and sphere_radius so
       !    they can be propagated as configs to subpools
@@ -774,6 +786,7 @@ module mpas_bootstrapping
      integer, intent(in) :: nHalos
 
      integer :: i, ierr
+     integer :: nVertices
      integer, dimension(:), pointer :: readIndices
 
      ! Global vertex indices
@@ -792,6 +805,37 @@ module mpas_bootstrapping
      call mpas_dmpar_init_multihalo_exchange_list(indexToVertexID % recvList, nHalos+1)
      call mpas_dmpar_init_multihalo_exchange_list(indexToVertexID % copyList, nHalos+1)
      nullify(indexToVertexID % next)
+
+!    added for local
+     call mpas_io_inq_dim(inputHandle, 'nVertices', nVertices, ierr)
+! this is not read in parallel
+     ! Global xVertex
+     allocate(xVertex)
+     allocate(xVertex % array(nVertices))
+     call MPAS_io_inq_var(inputHandle, 'xVertex', ierr=ierr)
+     call mpas_io_get_var(inputHandle, 'xVertex', xVertex % array, ierr)
+     xVertex % dimSizes(1) = nVertices
+     xVertex % block => readingBlock
+     nullify(xVertex % next)
+
+     ! Global yVertex
+     allocate(yVertex)
+     allocate(yVertex % array(nVertices))
+     call MPAS_io_inq_var(inputHandle, 'yVertex', ierr=ierr)
+     call mpas_io_get_var(inputHandle, 'yVertex', yVertex % array, ierr)
+     yVertex % dimSizes(1) = nVertices
+     yVertex % block => readingBlock
+     nullify(yVertex % next)
+
+     ! Global zVertex
+     allocate(zVertex)
+     allocate(zVertex % array(nVertices))
+     call MPAS_io_inq_var(inputHandle, 'zVertex', ierr=ierr)
+     call mpas_io_get_var(inputHandle, 'zVertex', zVertex % array, ierr)
+     zVertex % dimSizes(1) = nVertices
+     zVertex % block => readingBlock
+     nullify(zVertex % next)
+
 
 
      ! Global indices of cells adjacent to each vertex
