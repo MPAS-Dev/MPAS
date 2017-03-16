@@ -390,7 +390,7 @@ contains
       !-----------------------------------------------------------------
 
       integer :: iCell, nCells
-      integer, pointer :: index_temperature_flux, index_salinity_flux
+      integer, pointer :: index_temperature_flux, index_salinity_flux, nCellsSolve
       integer, dimension(:), pointer :: nCellsArray
 
       type(mpas_pool_type),pointer :: tracersSurfaceFluxPool
@@ -401,6 +401,7 @@ contains
       real (kind=RKIND), dimension(:), pointer :: shortWaveHeatFlux, penetrativeTemperatureFlux
       real (kind=RKIND), dimension(:), pointer :: snowFlux, rainFlux
       real (kind=RKIND) :: requiredSalt, allowedSalt, fluxTerm
+      real (kind=RKIND) :: surfaceHeatFluxSumRainEvap, surfaceHeatFluxSumRunoff, surfaceHeatFluxSumSeaIce
 
       err = 0
 
@@ -408,6 +409,7 @@ contains
 
       call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux',tracersSurfaceFluxPool)
 
+      call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
       call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_temperatureSurfaceFlux', index_temperature_flux)
       call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_salinitySurfaceFlux', index_salinity_flux)
 
@@ -459,6 +461,10 @@ contains
       !$omp end do
       ! assume that snow comes in at 0 C
 
+      surfaceHeatFluxSumRainEvap = 0.0_RKIND
+      surfaceHeatFluxSumRunoff = 0.0_RKIND
+      surfaceHeatFluxSumSeaIce = 0.0_RKIND
+
       ! Surface fluxes of water have an associated heat content, but the coupled system does not account for this
       ! Assume surface fluxes of water have a temperature dependent on the incoming mass flux.
       ! Assume surface fluxes of water have zero salinity. So the RHS forcing is zero for salinity.
@@ -466,7 +472,32 @@ contains
       ! indices on tracerGroup are (iTracer, iLevel, iCell)
       if (bulkThicknessFluxOn) then
          !$omp do schedule(runtime)
-         do iCell = 1, nCells
+         do iCell = 1, nCellsSolve
+
+           ! Accumulate fluxes that use the surface temperature
+           fluxTerm = (rainFlux(iCell) + evaporationFlux(iCell)) * tracerGroup(index_temperature_flux,1,iCell) / rho_sw
+           tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) + fluxTerm
+
+           ! Runoff can only have a minimum temperature of 0.0C, since it is fresh water.
+           fluxTerm = riverRunoffFlux(iCell) * max(tracerGroup(index_temperature_flux,1,iCell), 0.0_RKIND) / rho_sw
+           tracersSurfaceFluxRunoff(index_temperature_flux,iCell) = fluxTerm
+
+           ! Accumulate fluxes that use the freezing point
+           fluxTerm = seaIceFreshWaterFlux(iCell) * ocn_freezing_temperature( tracerGroup(index_salinity_flux, 1, iCell) , &
+                                                                         pressure=0.0_RKIND, &
+                                                                         inLandIceCavity=.false.) / rho_sw
+           tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) + fluxTerm
+
+           ! Fields with zero temperature are not accumulated. These include:
+           !    snowFlux
+           !    iceRunoffFlux
+
+         end do
+
+         ! This loop is split because the correction sums are only collected
+         ! for active cells, not halo cells.
+         ! mrp: I need to know whether to add !$omp do schedule(runtime) here.
+         do iCell = nCellsSolve+1,nCells
 
            ! Accumulate fluxes that use the surface temperature
            fluxTerm = (rainFlux(iCell) + evaporationFlux(iCell)) * tracerGroup(index_temperature_flux,1,iCell) / rho_sw
