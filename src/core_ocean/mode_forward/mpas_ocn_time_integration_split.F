@@ -1439,6 +1439,26 @@ module ocn_time_integration_split
 
          call mpas_threading_barrier()
 
+! mrp added to correct tracers
+         ! mrp warning: this mpi sum is within a block loop.  Will not work with
+         ! threading, needs to be moved to outside the block loop for
+         ! production.
+         sums(1) = surfaceHeatFluxSums
+         call mpas_dmpar_sum_real_array(dminfo,3,surfaceHeatFluxSums,surfaceHeatFluxSumsAll)
+
+! mrp added to correct tracers
+         call mpas_timer_start('se tracer tend', .false.)
+         block => domain % blocklist
+         do while (associated(block))
+            call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
+            call mpas_pool_get_subpool(tendPool, 'tracersTend', tracersTendPool)
+            call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
+            call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+            call ocn_correct_surface_heat_flux_tend(tracersTendPool, forcingPool, meshPool)
+
+            block => block % next
+         end do
+         call mpas_timer_stop('se tracer tend')
          ! update halo for tracer tendencies
          call mpas_timer_start("se halo tracers")
          call mpas_pool_get_subpool(domain % blocklist % structs, 'tend', tendPool)

@@ -389,6 +389,8 @@ contains
       !
       !-----------------------------------------------------------------
 
+      logical, pointer :: config_correct_surfaceHeatFlux_RainEvap, config_correct_surfaceHeatFlux_Runoff, config_correct_surfaceHeatFlux_SeaIce
+
       integer :: iCell, nCells
       integer, pointer :: index_temperature_flux, index_salinity_flux, nCellsSolve
       integer, dimension(:), pointer :: nCellsArray
@@ -404,6 +406,10 @@ contains
       real (kind=RKIND) :: surfaceHeatFluxSumRainEvap, surfaceHeatFluxSumRunoff, surfaceHeatFluxSumSeaIce
 
       err = 0
+
+      call mpas_pool_get_config(ocnConfigs,'config_correct_surfaceHeatFlux_RainEvap',config_correct_surfaceHeatFlux_RainEvap)
+      call mpas_pool_get_config(ocnConfigs,'config_correct_surfaceHeatFlux_Runoff',config_correct_surfaceHeatFlux_Runoff)
+      call mpas_pool_get_config(ocnConfigs,'config_correct_surfaceHeatFlux_SeaIce',config_correct_surfaceHeatFlux_SeaIce)
 
       call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
 
@@ -523,6 +529,28 @@ contains
 
          end do
          !$omp end do
+
+         ! mrp warning: this mpi sum is within a block loop.  Will not work with
+         ! threading, needs to be moved to outside the block loop for
+         ! production.
+         call mpas_dmpar_sum_real_array(dminfo, nSums, surfaceHeatFluxSumRainEvap, reductions)
+         surfaceHeatFluxSumRainEvap = reductions/areaCellGlobal 
+         call mpas_dmpar_sum_real_array(dminfo, nSums, surfaceHeatFluxSumRunoff, reductions)
+         surfaceHeatFluxSumRunoff = reductions/areaCellGlobal 
+         call mpas_dmpar_sum_real_array(dminfo, nSums, surfaceHeatFluxSumSeaIce, reductions)
+         surfaceHeatFluxSumSeaIce = reductions/areaCellGlobal 
+
+         if (config_correct_surfaceHeatFlux_RainEvap) then
+            tracersSurfaceFlux(index_temperature_flux, :) = tracersSurfaceFlux(index_temperature_flux, :) - surfaceHeatFluxSumRainEvap
+         endif
+         if (config_correct_surfaceHeatFlux_Runoff) then
+            tracersSurfaceFlux(index_temperature_flux, :) = tracersSurfaceFlux(index_temperature_flux, :) - surfaceHeatFluxSumRunoff
+         endif
+         if (config_correct_surfaceHeatFlux_SeaIce) then
+            tracersSurfaceFlux(index_temperature_flux, :) = tracersSurfaceFlux(index_temperature_flux, :) - surfaceHeatFluxSumSeaIce
+         endif
+
+
       endif ! bulkThicknessFluxOn
 
       ! convert short wave heat flux to a temperature flux
