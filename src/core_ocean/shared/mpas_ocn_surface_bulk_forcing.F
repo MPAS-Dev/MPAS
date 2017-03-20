@@ -401,9 +401,8 @@ contains
                                                   seaIceHeatFlux, evaporationFlux, riverRunoffFlux
       real (kind=RKIND), dimension(:), pointer :: seaIceFreshWaterFlux, seaIceSalinityFlux, iceRunoffFlux
       real (kind=RKIND), dimension(:), pointer :: shortWaveHeatFlux, penetrativeTemperatureFlux
-      real (kind=RKIND), dimension(:), pointer :: snowFlux, rainFlux, areaCell
+      real (kind=RKIND), dimension(:), pointer :: snowFlux, rainFlux, areaCell, surfaceHeatFluxSums
       real (kind=RKIND) :: requiredSalt, allowedSalt, fluxTerm
-      real (kind=RKIND) :: surfaceHeatFluxSumRainEvap, surfaceHeatFluxSumRunoff, surfaceHeatFluxSumSeaIce
 
       err = 0
 
@@ -435,8 +434,10 @@ contains
       call mpas_pool_get_array(forcingPool, 'iceRunoffFlux', iceRunoffFlux)
       call mpas_pool_get_array(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
       call mpas_pool_get_array(forcingPool, 'penetrativeTemperatureFlux', penetrativeTemperatureFlux)
+      call mpas_pool_get_array(forcingPool, 'surfaceHeatFluxSums', surfaceHeatFluxSums)
 
       nCells = nCellsArray( 2 )
+      surfaceHeatFluxSums = 0.0_RKIND
 
       ! Build surface fluxes at cell centers
       !$omp do schedule(runtime) private(allowedSalt, requiredSalt)
@@ -468,35 +469,32 @@ contains
       !$omp end do
       ! assume that snow comes in at 0 C
 
-      surfaceHeatFluxSumRainEvap = 0.0_RKIND
-      surfaceHeatFluxSumRunoff = 0.0_RKIND
-      surfaceHeatFluxSumSeaIce = 0.0_RKIND
-
       ! Surface fluxes of water have an associated heat content, but the coupled system does not account for this
       ! Assume surface fluxes of water have a temperature dependent on the incoming mass flux.
       ! Assume surface fluxes of water have zero salinity. So the RHS forcing is zero for salinity.
       ! Only include this heat forcing when bulk thickness is turned on
       ! indices on tracerGroup are (iTracer, iLevel, iCell)
       if (bulkThicknessFluxOn) then
+print *, 'surfaceHeatFluxSums 0: ',surfaceHeatFluxSums
          !$omp do schedule(runtime)
          do iCell = 1, nCellsSolve
 
            ! Accumulate fluxes that use the surface temperature
            fluxTerm = (rainFlux(iCell) + evaporationFlux(iCell)) * tracerGroup(index_temperature_flux,1,iCell) / rho_sw
            tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) + fluxTerm
-           surfaceHeatFluxSumRainEvap = surfaceHeatFluxSumRainEvap + fluxTerm * areaCell(iCell)
+           surfaceHeatFluxSums(1)= surfaceHeatFluxSums(1) + fluxTerm * areaCell(iCell)
 
            ! Runoff can only have a minimum temperature of 0.0C, since it is fresh water.
            fluxTerm = riverRunoffFlux(iCell) * max(tracerGroup(index_temperature_flux,1,iCell), 0.0_RKIND) / rho_sw
            tracersSurfaceFluxRunoff(index_temperature_flux,iCell) = fluxTerm
-           surfaceHeatFluxSumRunoff = surfaceHeatFluxSumRunoff + fluxTerm * areaCell(iCell)
+           surfaceHeatFluxSums(2) = surfaceHeatFluxSums(2) + fluxTerm * areaCell(iCell)
 
            ! Accumulate fluxes that use the freezing point
            fluxTerm = seaIceFreshWaterFlux(iCell) * ocn_freezing_temperature( tracerGroup(index_salinity_flux, 1, iCell) , &
                                                                          pressure=0.0_RKIND, &
                                                                          inLandIceCavity=.false.) / rho_sw
            tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) + fluxTerm
-           surfaceHeatFluxSumSeaIce = surfaceHeatFluxSumSeaIce + fluxTerm * areaCell(iCell)
+           surfaceHeatFluxSums(3) = surfaceHeatFluxSums(3) + fluxTerm * areaCell(iCell)
 
            ! Fields with zero temperature are not accumulated. These include:
            !    snowFlux
@@ -504,6 +502,7 @@ contains
 
          end do
 
+print *, 'surfaceHeatFluxSums 1: ',surfaceHeatFluxSums
          ! This loop is split because the correction sums are only collected
          ! for active cells, not halo cells.
          ! mrp: I need to know whether to add !$omp do schedule(runtime) here.
@@ -529,27 +528,6 @@ contains
 
          end do
          !$omp end do
-
-         ! mrp warning: this mpi sum is within a block loop.  Will not work with
-         ! threading, needs to be moved to outside the block loop for
-         ! production.
-         call mpas_dmpar_sum_real_array(dminfo, nSums, surfaceHeatFluxSumRainEvap, reductions)
-         surfaceHeatFluxSumRainEvap = reductions/areaCellGlobal 
-         call mpas_dmpar_sum_real_array(dminfo, nSums, surfaceHeatFluxSumRunoff, reductions)
-         surfaceHeatFluxSumRunoff = reductions/areaCellGlobal 
-         call mpas_dmpar_sum_real_array(dminfo, nSums, surfaceHeatFluxSumSeaIce, reductions)
-         surfaceHeatFluxSumSeaIce = reductions/areaCellGlobal 
-
-         if (config_correct_surfaceHeatFlux_RainEvap) then
-            tracersSurfaceFlux(index_temperature_flux, :) = tracersSurfaceFlux(index_temperature_flux, :) - surfaceHeatFluxSumRainEvap
-         endif
-         if (config_correct_surfaceHeatFlux_Runoff) then
-            tracersSurfaceFlux(index_temperature_flux, :) = tracersSurfaceFlux(index_temperature_flux, :) - surfaceHeatFluxSumRunoff
-         endif
-         if (config_correct_surfaceHeatFlux_SeaIce) then
-            tracersSurfaceFlux(index_temperature_flux, :) = tracersSurfaceFlux(index_temperature_flux, :) - surfaceHeatFluxSumSeaIce
-         endif
-
 
       endif ! bulkThicknessFluxOn
 

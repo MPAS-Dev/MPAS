@@ -113,6 +113,7 @@ module ocn_time_integration_split
       type (block_type), pointer :: block
       real (kind=RKIND) :: normalThicknessFluxSum, thicknessSum, flux, sshEdge, hEdge1, &
                  CoriolisTerm, normalVelocityCorrection, temp, temp_h, coef, barotropicThicknessFlux_coeff, sshCell1, sshCell2
+      real (kind=RKIND), dimension(3) :: tempArray3
       integer :: useVelocityCorrection, err
       real (kind=RKIND), dimension(:,:), pointer :: &
                  vertViscTopOfEdge, vertDiffTopOfCell
@@ -171,7 +172,7 @@ module ocn_time_integration_split
       real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroupCur, tracersGroupNew
 
       ! Tend Array Pointers
-      real (kind=RKIND), dimension(:), pointer :: sshTend
+      real (kind=RKIND), dimension(:), pointer :: sshTend, surfaceHeatFluxSums
       real (kind=RKIND), dimension(:,:), pointer :: highFreqThicknessTend
       real (kind=RKIND), dimension(:,:), pointer :: lowFreqDivergenceTend
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocityTend, layerThicknessTend
@@ -1443,18 +1444,18 @@ module ocn_time_integration_split
          ! mrp warning: this mpi sum is within a block loop.  Will not work with
          ! threading, needs to be moved to outside the block loop for
          ! production.
-         sums(1) = surfaceHeatFluxSums
-         call mpas_dmpar_sum_real_array(dminfo,3,surfaceHeatFluxSums,surfaceHeatFluxSumsAll)
-
+         call mpas_pool_get_subpool(domain % blocklist % structs, 'forcing', forcingPool)
+         call mpas_pool_get_array(forcingPool, 'surfaceHeatFluxSums', surfaceHeatFluxSums)
+         call mpas_dmpar_sum_real_array(dminfo,3,surfaceHeatFluxSums,tempArray3)
+         surfaceHeatFluxSums = tempArray3
 ! mrp added to correct tracers
          call mpas_timer_start('se tracer tend', .false.)
          block => domain % blocklist
          do while (associated(block))
             call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
-            call mpas_pool_get_subpool(tendPool, 'tracersTend', tracersTendPool)
             call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
             call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-            call ocn_correct_surface_heat_flux_tend(tracersTendPool, forcingPool, meshPool)
+            call ocn_tend_surface_correction(tendPool, statePool, forcingPool, meshPool)
 
             block => block % next
          end do

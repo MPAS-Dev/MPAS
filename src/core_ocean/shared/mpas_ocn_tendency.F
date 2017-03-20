@@ -78,6 +78,7 @@ module ocn_tendency
              ocn_tend_vel, &
              ocn_tend_tracer, &
              ocn_tend_freq_filtered_thickness, &
+             ocn_tend_surface_correction, &
              ocn_tendency_init
 
    !--------------------------------------------------------------------
@@ -805,6 +806,157 @@ contains
       call mpas_timer_stop("ocn_tend_tracer")
 
    end subroutine ocn_tend_tracer!}}}
+
+!***********************************************************************
+!
+!  routine ocn_tend_surface_correction
+!
+!> \brief   Computes tracer tendency
+!> \author  Mark Petersen
+!> \date    March 2017
+!> \details
+!>  This routine corrects the tracer tendancy for heat conservation
+!
+!-----------------------------------------------------------------------
+   subroutine ocn_tend_surface_correction(tendPool, statePool, forcingPool, meshPool) !{{{
+      implicit none
+
+      !
+      ! intent in/out
+      !
+      type (mpas_pool_type), intent(in)    :: statePool       !< Input: State information
+      type (mpas_pool_type), intent(inout) :: tendPool        !< Input/Output: Tendency structure
+      type (mpas_pool_type), intent(inout) :: forcingPool     !< Input: Forcing information
+      type (mpas_pool_type), intent(inout)    :: meshPool     !< Input: Mesh information
+
+      !
+      ! additional pools
+      !
+      type (mpas_pool_type), pointer :: tracersPool, tracersTendPool            ! tracers and their tendency
+      type (mpas_pool_type), pointer :: tracersSurfaceFluxPool                  ! surface fluxes
+      type (mpas_pool_type), pointer :: tracersSurfaceRestoringFieldsPool       ! surface restoring
+      type (mpas_pool_type), pointer :: tracersInteriorRestoringFieldsPool      ! interior restoring
+      type (mpas_pool_type), pointer :: tracersExponentialDecayFieldsPool       ! exponential decay
+      type (mpas_pool_type), pointer :: tracersIdealAgeFieldsPool               ! ideal age
+      type (mpas_pool_type), pointer :: tracersTTDFieldsPool                    ! transit time distribution
+
+      ! scalar pointers
+      integer :: nTracerGroup
+      integer, pointer :: nVertLevels, nEdges, nCells, nCellsSolve, indexTemperature, indexSalinity
+      logical, pointer :: config_disable_tr_all_tend, config_use_cvmix_kpp
+      logical, pointer :: config_use_tracerGroup, config_use_tracerGroup_surface_bulk_forcing, &
+                          config_use_tracerGroup_surface_restoring, config_use_tracerGroup_interior_restoring, &
+                          config_use_tracerGroup_exponential_decay, config_use_tracerGroup_idealAge_forcing, &
+                          config_use_tracerGroup_ttd_forcing, config_use_surface_salinity_monthly_restoring
+
+      ! iterator for tracer categories
+      type (mpas_pool_iterator_type) :: groupItr
+      character (len=StrKIND) :: modifiedGroupName
+      character (len=StrKIND) :: modifiedConfigName
+      !
+      ! one dimensional pointers
+      !
+      real (kind=RKIND), dimension(:), pointer :: penetrativeTemperatureFlux, penetrativeTemperatureFluxOBL
+      real (kind=RKIND), dimension(:), pointer :: tracerGroupExponentialDecayRate
+      integer, dimension(:), pointer :: maxLevelCell
+      real (kind=RKIND), dimension(:), pointer :: surfaceHeatFluxSums
+
+      !
+      ! two dimensional pointers
+      !
+      real (kind=RKIND), dimension(:,:), pointer :: tracerGroupPistonVelocity, tracerGroupSurfaceRestoringValue, &
+                                                    tracerGroupIdealAgeMask, tracerGroupTTDMask
+
+      real (kind=RKIND), dimension(:,:), pointer :: &
+        normalTransportVelocity, layerThickness,vertAleTransportTop, layerThicknessEdge, vertDiffTopOfCell, &
+        tend_layerThickness, normalThicknessFlux, tracerGroupSurfaceFlux, fractionAbsorbed, zMid, relativeSlopeTopOfEdge, &
+        relativeSlopeTapering, relativeSlopeTaperingCell, fractionAbsorbedRunoff, tracerGroupSurfaceFluxRunoff, &
+        tracerGroupSurfaceFluxRemoved, nonLocalSurfaceTracerFlux
+
+      !
+      ! three dimensional pointers
+      !
+      real (kind=RKIND), dimension(:,:,:), pointer :: &
+        tracerGroup, tracerGroupTend, vertNonLocalFlux
+
+      real (kind=RKIND), dimension(:,:,:), pointer :: &
+        activeTracers, &  !  need T, S for ecosys
+        ecosysTracers     !  need ecosys for DMS and MacroMolecules
+
+      real (kind=RKIND), dimension(:,:,:), pointer :: tracerGroupInteriorRestoringRate, tracerGroupInteriorRestoringValue
+
+      !
+      ! Field pointers
+      !
+      type (field2DReal), pointer :: normalThicknessFluxField
+
+      !
+      ! local integers/reals/logicals
+      !
+      integer :: err, iCell, iEdge, k, timeLevel, nTracersEcosys
+
+      !
+      ! get tracers pools
+      !
+      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+      call mpas_pool_get_subpool(tendPool, 'tracersTend', tracersTendPool)
+      call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux', tracersSurfaceFluxPool)
+
+      !
+      ! get dimensions
+      !
+      call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
+
+      !
+      ! get configure options
+      !
+      !call mpas_pool_get_config(ocnConfigs, 'config_disable_tr_all_tend', config_disable_tr_all_tend)
+
+      !
+      ! get arrays
+      !
+      call mpas_pool_get_array(forcingPool, 'surfaceHeatFluxSums', surfaceHeatFluxSums)
+
+      if(config_disable_tr_all_tend) return
+
+      call mpas_timer_start("ocn_tend_surface_correction")
+
+      call mpas_threading_barrier()
+
+      !
+      ! begin iterate over tracer categories
+      !
+      call mpas_pool_begin_iteration(tracersPool)
+      do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
+         if ( groupItr % memberType == MPAS_POOL_FIELD ) then
+
+            ! only active tracers
+            if (trim(groupItr % memberName) == 'activeTracers') then
+
+               ! Get Tendency array
+               modifiedGroupName = trim(groupItr % memberName) // "Tend"
+               call mpas_pool_get_array(tracersTendPool, trim(modifiedGroupName), tracerGroupTend)
+
+               modifiedGroupName = trim(groupItr % memberName) // "SurfaceFluxRunoff"
+               call mpas_pool_get_array(tracersSurfaceFluxPool, trim(modifiedGroupName), tracerGroupSurfaceFluxRunoff)
+
+               !
+               ! convert the surface tracer flux into a tracer tendency by distributing the flux across some number
+               ! of surface layers
+               !
+               call ocn_correct_surface_heat_flux_tend(meshPool, fractionAbsorbed, fractionAbsorbedRunoff, layerThickness, &
+                                                 tracerGroupSurfaceFlux, tracerGroupSurfaceFluxRunoff,  &
+                                                 indexTemperature, surfaceHeatFluxSums, tracerGroupTend, err)
+
+            end if
+         end if
+      end do
+
+      call mpas_threading_barrier()
+
+      call mpas_timer_stop("ocn_tend_surface_correction")
+
+   end subroutine ocn_tend_surface_correction!}}}
 
 !***********************************************************************
 !

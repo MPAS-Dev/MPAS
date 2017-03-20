@@ -214,7 +214,7 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_correct_surface_heat_flux_tend(meshPool, fractionAbsorbed, fractionAbsorbedRunoff, layerThickness,  &
-      surfaceTracerFlux, surfaceTracerFluxRunoff, tend, err)!{{{
+      surfaceTracerFlux, surfaceTracerFluxRunoff, indexTemperature, surfaceHeatFluxSums, tend, err)!{{{
       !-----------------------------------------------------------------
       !
       ! input variables
@@ -223,6 +223,9 @@ contains
 
       type (mpas_pool_type), intent(in) :: &
          meshPool          !< Input: mesh information
+
+      type (mpas_pool_type), pointer :: tracersPool, tracersTendPool
+! tracers and their tendency
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
         layerThickness !< Input: Layer thickness
@@ -238,6 +241,10 @@ contains
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
         fractionAbsorbedRunoff !< Input: Coefficients for the application of surface fluxes due to river runoff
+
+      integer, intent(in) :: indexTemperature
+
+      real (kind=RKIND), dimension(:), intent(in) :: surfaceHeatFluxSums
 
       !-----------------------------------------------------------------
       !
@@ -266,22 +273,42 @@ contains
       integer, pointer :: nVertLevels
       integer, dimension(:), pointer :: nCellsArray
       integer, dimension(:), pointer :: maxLevelCell
+      real (kind=RKIND), pointer :: areaCellTotal
 
-      real (kind=RKIND) :: remainingFlux
+      real (kind=RKIND) :: remainingFlux, surfaceHeatFluxCorrection
 
       err = 0
 
       if (.not. surfaceTracerFluxOn) return
 
-      call mpas_timer_start("surface_tracer_flux")
+      call mpas_timer_start("correct_surface_heat_flux_tend")
 
       call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+      call mpas_pool_get_array(meshPool,'areaCellTotal',areaCellTotal)
       nTracers = size(tend, dim=1)
 
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
 
       nCells = nCellsArray( 1 )
+
+      iTracer = indexTemperature !mrp do this!!!
+
+      surfaceHeatFluxCorrection = 0.0_RKIND
+
+      if (correct_surfaceHeatFlux_RainEvap) then
+         surfaceHeatFluxCorrection = surfaceHeatFluxCorrection + surfaceHeatFluxSums(1)/areaCellTotal
+      endif
+      if (correct_surfaceHeatFlux_Runoff) then
+         surfaceHeatFluxCorrection = surfaceHeatFluxCorrection + surfaceHeatFluxSums(2)/areaCellTotal
+      endif
+      if (correct_surfaceHeatFlux_SeaIce) then
+         surfaceHeatFluxCorrection = surfaceHeatFluxCorrection + surfaceHeatFluxSums(3)/areaCellTotal
+      endif
+
+print *, 'surfaceHeatFluxSums 2: ',surfaceHeatFluxSums
+print *, 'areaCellTotal 2: ', areaCellTotal
+print *, 'surfaceHeatFluxCorrection 2:',surfaceHeatFluxCorrection
 
       !$omp do schedule(runtime) private(remainingFlux, k, iTracer)
       do iCell = 1, nCells
@@ -289,51 +316,17 @@ contains
         do k = 1, maxLevelCell(iCell)
           remainingFlux = remainingFlux - fractionAbsorbed(k, iCell)
 
-          do iTracer = 1, nTracers
-            tend(iTracer, k, iCell) = tend(iTracer, k, iCell) + surfaceTracerFlux(iTracer, iCell) * fractionAbsorbed(k, iCell)
-          end do
+            tend(iTracer, k, iCell) = tend(iTracer, k, iCell) - surfaceHeatFluxCorrection * fractionAbsorbed(k, iCell)
         end do
 
         if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
-          do iTracer = 1, nTracers
             tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) &
-                                                      + surfaceTracerFlux(iTracer, iCell) * remainingFlux
-          end do
+                                                      - surfaceHeatFluxCorrection * remainingFlux
         end if
       end do
       !$omp end do
 
-      call mpas_timer_stop("surface_tracer_flux")
-
-      ! now do runoff component
-
-      if (associated(surfaceTracerFluxRunoff)) then
-        call mpas_timer_start("surface_tracer_runoff_flux")
-
-        !$omp do schedule(runtime) private(remainingFlux, k, iTracer)
-        do iCell = 1, nCells
-          remainingFlux = 1.0_RKIND
-          do k = 1, maxLevelCell(iCell)
-            remainingFlux = remainingFlux - fractionAbsorbedRunoff(k, iCell)
-
-            do iTracer = 1, nTracers
-              tend(iTracer, k, iCell) = tend(iTracer, k, iCell) +  &
-                 surfaceTracerFluxRunoff(iTracer, iCell) * fractionAbsorbedRunoff(k, iCell)
-            end do
-          end do
-
-          if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
-            do iTracer = 1, nTracers
-              tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) &
-                                                        + surfaceTracerFluxRunoff(iTracer, iCell) * remainingFlux
-            end do
-          end if
-        end do
-        !$omp end do
-
-        call mpas_timer_stop("surface_tracer_runoff_flux")
-      end if
-
+      call mpas_timer_stop("correct_surface_heat_flux_tend")
 
    !--------------------------------------------------------------------
 
