@@ -482,7 +482,8 @@ print *, 'surfaceHeatFluxSums 0: ',surfaceHeatFluxSums
            ! Accumulate fluxes that use the surface temperature
            fluxTerm = (rainFlux(iCell) + evaporationFlux(iCell)) * tracerGroup(index_temperature_flux,1,iCell) / rho_sw
            tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) + fluxTerm
-           surfaceHeatFluxSums(1)= surfaceHeatFluxSums(1) + fluxTerm * areaCell(iCell)
+           surfaceHeatFluxSums(1) = surfaceHeatFluxSums(1) + fluxTerm * areaCell(iCell)
+print *,'loop:',iCell, fluxTerm, surfaceHeatFluxSums(1)
 
            ! Runoff can only have a minimum temperature of 0.0C, since it is fresh water.
            fluxTerm = riverRunoffFlux(iCell) * max(tracerGroup(index_temperature_flux,1,iCell), 0.0_RKIND) / rho_sw

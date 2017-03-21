@@ -213,8 +213,8 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_correct_surface_heat_flux_tend(meshPool, fractionAbsorbed, fractionAbsorbedRunoff, layerThickness,  &
-      surfaceTracerFlux, surfaceTracerFluxRunoff, indexTemperature, surfaceHeatFluxSums, tend, err)!{{{
+   subroutine ocn_correct_surface_heat_flux_tend(meshPool, fractionAbsorbed, layerThickness,  &
+      surfaceTracerFlux, indexTemperature, surfaceHeatFluxSums, tend, err)!{{{
       !-----------------------------------------------------------------
       !
       ! input variables
@@ -235,12 +235,6 @@ contains
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
         fractionAbsorbed !< Input: Coefficients for the application of surface fluxes
-
-      real (kind=RKIND), dimension(:,:), intent(in), pointer :: &
-        surfaceTracerFluxRunoff !< Input: surface tracer fluxes from river runoff
-
-      real (kind=RKIND), dimension(:,:), intent(in) :: &
-        fractionAbsorbedRunoff !< Input: Coefficients for the application of surface fluxes due to river runoff
 
       integer, intent(in) :: indexTemperature
 
@@ -278,7 +272,7 @@ contains
       real (kind=RKIND) :: remainingFlux, surfaceHeatFluxCorrection
 
       err = 0
-
+print *, 'surfaceTracerFluxOn 5:',surfaceTracerFluxOn
       if (.not. surfaceTracerFluxOn) return
 
       call mpas_timer_start("correct_surface_heat_flux_tend")
@@ -286,16 +280,18 @@ contains
       call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       call mpas_pool_get_array(meshPool,'areaCellTotal',areaCellTotal)
+      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
       nTracers = size(tend, dim=1)
 
-      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-
+print *, 'areaCellTotal 5:',areaCellTotal
+print *, 'surfaceHeatFluxSums 5:',surfaceHeatFluxSums
       nCells = nCellsArray( 1 )
-
-      iTracer = indexTemperature !mrp do this!!!
-
+Print *, 'nCells 5:',nCells
+      iTracer = indexTemperature 
+print *, 'iTracer',iTracer
       surfaceHeatFluxCorrection = 0.0_RKIND
-
+print *, 'surfaceHeatFluxCorrection',surfaceHeatFluxCorrection
+print *, '666:correct_surfaceHeatFlux_RainEvap',correct_surfaceHeatFlux_RainEvap
       if (correct_surfaceHeatFlux_RainEvap) then
          surfaceHeatFluxCorrection = surfaceHeatFluxCorrection + surfaceHeatFluxSums(1)/areaCellTotal
       endif
@@ -306,24 +302,30 @@ contains
          surfaceHeatFluxCorrection = surfaceHeatFluxCorrection + surfaceHeatFluxSums(3)/areaCellTotal
       endif
 
-print *, 'surfaceHeatFluxSums 2: ',surfaceHeatFluxSums
-print *, 'areaCellTotal 2: ', areaCellTotal
-print *, 'surfaceHeatFluxCorrection 2:',surfaceHeatFluxCorrection
+print *, 'surfaceHeatFluxSums 6: ',surfaceHeatFluxSums
+print *, 'areaCellTotal 6: ', areaCellTotal
+print *, 'surfaceHeatFluxCorrection 5:',surfaceHeatFluxCorrection
 
       !$omp do schedule(runtime) private(remainingFlux, k, iTracer)
+print *, 'tend 7:',tend(iTracer, 1, 1:10)
       do iCell = 1, nCells
-        remainingFlux = 1.0_RKIND
-        do k = 1, maxLevelCell(iCell)
-          remainingFlux = remainingFlux - fractionAbsorbed(k, iCell)
 
-            tend(iTracer, k, iCell) = tend(iTracer, k, iCell) - surfaceHeatFluxCorrection * fractionAbsorbed(k, iCell)
-        end do
+         tend(iTracer, 1, iCell) = tend(iTracer, 1, iCell) - surfaceHeatFluxCorrection
 
-        if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
-            tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) &
-                                                      - surfaceHeatFluxCorrection * remainingFlux
-        end if
+
+!        remainingFlux = 1.0_RKIND
+!        do k = 1, maxLevelCell(iCell)
+!          remainingFlux = remainingFlux - fractionAbsorbed(k, iCell)
+!
+!            tend(iTracer, k, iCell) = tend(iTracer, k, iCell) - surfaceHeatFluxCorrection * fractionAbsorbed(k, iCell)
+!        end do
+!
+!        if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
+!            tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) &
+!                                                      - surfaceHeatFluxCorrection * remainingFlux
+!        end if
       end do
+print *, 'tend 8:',tend(iTracer, 1, 1:10)
       !$omp end do
 
       call mpas_timer_stop("correct_surface_heat_flux_tend")
@@ -363,10 +365,9 @@ print *, 'surfaceHeatFluxCorrection 2:',surfaceHeatFluxCorrection
       call mpas_pool_get_config(ocnConfigs,'config_correct_surfaceHeatFlux_SeaIce',config_correct_surfaceHeatFlux_SeaIce)
 
       surfaceTracerFluxOn = .true.
-      correct_surfaceHeatFlux_RainEvap = .true.
-      correct_surfaceHeatFlux_Runoff = .true.
-      correct_surfaceHeatFlux_SeaIce = .true.
-
+      correct_surfaceHeatFlux_RainEvap = config_correct_surfaceHeatFlux_RainEvap
+      correct_surfaceHeatFlux_Runoff = config_correct_surfaceHeatFlux_Runoff
+      correct_surfaceHeatFlux_SeaIce = config_correct_surfaceHeatFlux_SeaIce
 
       if (config_disable_tr_sflux) then
          surfaceTracerFluxOn = .false.

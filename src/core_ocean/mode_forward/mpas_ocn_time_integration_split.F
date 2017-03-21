@@ -1446,8 +1446,10 @@ module ocn_time_integration_split
          ! production.
          call mpas_pool_get_subpool(domain % blocklist % structs, 'forcing', forcingPool)
          call mpas_pool_get_array(forcingPool, 'surfaceHeatFluxSums', surfaceHeatFluxSums)
+print *, 'surfaceHeatFluxSums 3: ',surfaceHeatFluxSums
          call mpas_dmpar_sum_real_array(dminfo,3,surfaceHeatFluxSums,tempArray3)
          surfaceHeatFluxSums = tempArray3
+print *, 'surfaceHeatFluxSums 4: ',surfaceHeatFluxSums
 ! mrp added to correct tracers
          call mpas_timer_start('se tracer tend', .false.)
          block => domain % blocklist
@@ -1455,11 +1457,14 @@ module ocn_time_integration_split
             call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
             call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
             call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+print *, 'call ocn_tend_surface_correction'
             call ocn_tend_surface_correction(tendPool, statePool, forcingPool, meshPool)
 
             block => block % next
          end do
          call mpas_timer_stop('se tracer tend')
+! mrp added to correct tracers end
+
          ! update halo for tracer tendencies
          call mpas_timer_start("se halo tracers")
          call mpas_pool_get_subpool(domain % blocklist % structs, 'tend', tendPool)

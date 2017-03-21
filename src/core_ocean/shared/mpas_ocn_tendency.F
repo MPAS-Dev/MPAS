@@ -870,7 +870,7 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: &
         normalTransportVelocity, layerThickness,vertAleTransportTop, layerThicknessEdge, vertDiffTopOfCell, &
         tend_layerThickness, normalThicknessFlux, tracerGroupSurfaceFlux, fractionAbsorbed, zMid, relativeSlopeTopOfEdge, &
-        relativeSlopeTapering, relativeSlopeTaperingCell, fractionAbsorbedRunoff, tracerGroupSurfaceFluxRunoff, &
+        relativeSlopeTapering, relativeSlopeTaperingCell, tracerGroupSurfaceFluxRunoff, &
         tracerGroupSurfaceFluxRemoved, nonLocalSurfaceTracerFlux
 
       !
@@ -910,19 +910,21 @@ contains
       !
       ! get configure options
       !
-      !call mpas_pool_get_config(ocnConfigs, 'config_disable_tr_all_tend', config_disable_tr_all_tend)
+      call mpas_pool_get_config(ocnConfigs, 'config_disable_tr_all_tend', config_disable_tr_all_tend)
 
       !
       ! get arrays
       !
       call mpas_pool_get_array(forcingPool, 'surfaceHeatFluxSums', surfaceHeatFluxSums)
+      call mpas_pool_get_array(forcingPool, 'fractionAbsorbed', fractionAbsorbed)
 
+print *,'config_disable_tr_all_tend',config_disable_tr_all_tend
       if(config_disable_tr_all_tend) return
 
       call mpas_timer_start("ocn_tend_surface_correction")
 
       call mpas_threading_barrier()
-
+print *,'before tracer loop '
       !
       ! begin iterate over tracer categories
       !
@@ -930,9 +932,11 @@ contains
       do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
          if ( groupItr % memberType == MPAS_POOL_FIELD ) then
 
+print *,'in tracer loop '
             ! only active tracers
             if (trim(groupItr % memberName) == 'activeTracers') then
 
+print *,'in active tracer loop '
                ! Get Tendency array
                modifiedGroupName = trim(groupItr % memberName) // "Tend"
                call mpas_pool_get_array(tracersTendPool, trim(modifiedGroupName), tracerGroupTend)
@@ -944,9 +948,9 @@ contains
                ! convert the surface tracer flux into a tracer tendency by distributing the flux across some number
                ! of surface layers
                !
-               call ocn_correct_surface_heat_flux_tend(meshPool, fractionAbsorbed, fractionAbsorbedRunoff, layerThickness, &
-                                                 tracerGroupSurfaceFlux, tracerGroupSurfaceFluxRunoff,  &
-                                                 indexTemperature, surfaceHeatFluxSums, tracerGroupTend, err)
+               call ocn_correct_surface_heat_flux_tend(meshPool, fractionAbsorbed, layerThickness, &
+                    tracerGroupSurfaceFlux,  &
+                    indexTemperature, surfaceHeatFluxSums, tracerGroupTend, err)
 
             end if
          end if
