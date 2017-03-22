@@ -272,7 +272,6 @@ contains
       real (kind=RKIND) :: remainingFlux, surfaceHeatFluxCorrection
 
       err = 0
-print *, 'surfaceTracerFluxOn 5:',surfaceTracerFluxOn
       if (.not. surfaceTracerFluxOn) return
 
       call mpas_timer_start("correct_surface_heat_flux_tend")
@@ -283,15 +282,9 @@ print *, 'surfaceTracerFluxOn 5:',surfaceTracerFluxOn
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
       nTracers = size(tend, dim=1)
 
-print *, 'areaCellTotal 5:',areaCellTotal
-print *, 'surfaceHeatFluxSums 5:',surfaceHeatFluxSums
       nCells = nCellsArray( 1 )
-Print *, 'nCells 5:',nCells
       iTracer = indexTemperature 
-print *, 'iTracer',iTracer
       surfaceHeatFluxCorrection = 0.0_RKIND
-print *, 'surfaceHeatFluxCorrection',surfaceHeatFluxCorrection
-print *, '666:correct_surfaceHeatFlux_RainEvap',correct_surfaceHeatFlux_RainEvap
       if (correct_surfaceHeatFlux_RainEvap) then
          surfaceHeatFluxCorrection = surfaceHeatFluxCorrection + surfaceHeatFluxSums(1)/areaCellTotal
       endif
@@ -302,14 +295,12 @@ print *, '666:correct_surfaceHeatFlux_RainEvap',correct_surfaceHeatFlux_RainEvap
          surfaceHeatFluxCorrection = surfaceHeatFluxCorrection + surfaceHeatFluxSums(3)/areaCellTotal
       endif
 
-print *, 'surfaceHeatFluxSums 6: ',surfaceHeatFluxSums
-print *, 'areaCellTotal 6: ', areaCellTotal
-print *, 'surfaceHeatFluxCorrection 5:',surfaceHeatFluxCorrection
-
       !$omp do schedule(runtime) private(remainingFlux, k, iTracer)
-print *, 'tend 7:',tend(iTracer, 1, 1:10)
       do iCell = 1, nCells
 
+! mrp Right now I am applying correction to the top layer only.  Need to think
+! about if the commented lines below are better.  It distributes the heat on the
+! top many layers, but is more computation (all the way down to maxLevelCell)
          tend(iTracer, 1, iCell) = tend(iTracer, 1, iCell) - surfaceHeatFluxCorrection
 
 
@@ -325,7 +316,6 @@ print *, 'tend 7:',tend(iTracer, 1, 1:10)
 !                                                      - surfaceHeatFluxCorrection * remainingFlux
 !        end if
       end do
-print *, 'tend 8:',tend(iTracer, 1, 1:10)
       !$omp end do
 
       call mpas_timer_stop("correct_surface_heat_flux_tend")

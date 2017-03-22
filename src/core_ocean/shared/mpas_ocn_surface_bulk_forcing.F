@@ -475,7 +475,6 @@ contains
       ! Only include this heat forcing when bulk thickness is turned on
       ! indices on tracerGroup are (iTracer, iLevel, iCell)
       if (bulkThicknessFluxOn) then
-print *, 'surfaceHeatFluxSums 0: ',surfaceHeatFluxSums
          !$omp do schedule(runtime)
          do iCell = 1, nCellsSolve
 
@@ -483,7 +482,6 @@ print *, 'surfaceHeatFluxSums 0: ',surfaceHeatFluxSums
            fluxTerm = (rainFlux(iCell) + evaporationFlux(iCell)) * tracerGroup(index_temperature_flux,1,iCell) / rho_sw
            tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) + fluxTerm
            surfaceHeatFluxSums(1) = surfaceHeatFluxSums(1) + fluxTerm * areaCell(iCell)
-print *,'loop:',iCell, fluxTerm, surfaceHeatFluxSums(1)
 
            ! Runoff can only have a minimum temperature of 0.0C, since it is fresh water.
            fluxTerm = riverRunoffFlux(iCell) * max(tracerGroup(index_temperature_flux,1,iCell), 0.0_RKIND) / rho_sw
@@ -503,10 +501,9 @@ print *,'loop:',iCell, fluxTerm, surfaceHeatFluxSums(1)
 
          end do
 
-print *, 'surfaceHeatFluxSums 1: ',surfaceHeatFluxSums
          ! This loop is split because the correction sums are only collected
          ! for active cells, not halo cells.
-         ! mrp: I need to know whether to add !$omp do schedule(runtime) here.
+! mrp: I need to know whether to add !$omp do schedule(runtime) here.
          do iCell = nCellsSolve+1,nCells
 
            ! Accumulate fluxes that use the surface temperature

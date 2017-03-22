@@ -918,13 +918,11 @@ contains
       call mpas_pool_get_array(forcingPool, 'surfaceHeatFluxSums', surfaceHeatFluxSums)
       call mpas_pool_get_array(forcingPool, 'fractionAbsorbed', fractionAbsorbed)
 
-print *,'config_disable_tr_all_tend',config_disable_tr_all_tend
       if(config_disable_tr_all_tend) return
 
       call mpas_timer_start("ocn_tend_surface_correction")
 
       call mpas_threading_barrier()
-print *,'before tracer loop '
       !
       ! begin iterate over tracer categories
       !
@@ -932,11 +930,9 @@ print *,'before tracer loop '
       do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
          if ( groupItr % memberType == MPAS_POOL_FIELD ) then
 
-print *,'in tracer loop '
             ! only active tracers
             if (trim(groupItr % memberName) == 'activeTracers') then
 
-print *,'in active tracer loop '
                ! Get Tendency array
                modifiedGroupName = trim(groupItr % memberName) // "Tend"
                call mpas_pool_get_array(tracersTendPool, trim(modifiedGroupName), tracerGroupTend)

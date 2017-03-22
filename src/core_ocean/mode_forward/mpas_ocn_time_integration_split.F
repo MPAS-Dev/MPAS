@@ -1440,30 +1440,24 @@ module ocn_time_integration_split
 
          call mpas_threading_barrier()
 
-! mrp added to correct tracers
-         ! mrp warning: this mpi sum is within a block loop.  Will not work with
-         ! threading, needs to be moved to outside the block loop for
-         ! production.
+         ! Sum tracer surface heat flux due to exchange of volume with other
+         ! components
+! mrp: need to add if here, on any of the three config flags for this fix, so
+! this is not always done.
          call mpas_pool_get_subpool(domain % blocklist % structs, 'forcing', forcingPool)
          call mpas_pool_get_array(forcingPool, 'surfaceHeatFluxSums', surfaceHeatFluxSums)
-print *, 'surfaceHeatFluxSums 3: ',surfaceHeatFluxSums
          call mpas_dmpar_sum_real_array(dminfo,3,surfaceHeatFluxSums,tempArray3)
          surfaceHeatFluxSums = tempArray3
-print *, 'surfaceHeatFluxSums 4: ',surfaceHeatFluxSums
-! mrp added to correct tracers
-         call mpas_timer_start('se tracer tend', .false.)
+         call mpas_timer_start('se sum surface heat fluxes', .false.)
          block => domain % blocklist
          do while (associated(block))
             call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
             call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
             call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-print *, 'call ocn_tend_surface_correction'
             call ocn_tend_surface_correction(tendPool, statePool, forcingPool, meshPool)
-
             block => block % next
          end do
-         call mpas_timer_stop('se tracer tend')
-! mrp added to correct tracers end
+         call mpas_timer_stop('se sum surface heat fluxes')
 
          ! update halo for tracer tendencies
          call mpas_timer_start("se halo tracers")
