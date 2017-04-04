@@ -596,11 +596,11 @@ logical function check_real_time(all_fields, field_name)
   check = info % fieldType == MPAS_POOL_REAL
 
   if(.not. check) then
-    write(stdErrUnit,*) trim(CURRENT_CORE_NAME) // &
+    call mpas_log_write( trim(CURRENT_CORE_NAME) // &
       ' WARNING: field "' // trim(field_name) // '" listed in the ' // &
       'output stream, for time series stats analysis member ' // &
       'stream, is not real. Time series stats will not be applied to ' // &
-      'this field.'
+      'this field.')
   else
     if(info % nDims == 0) then
       call mpas_pool_get_field(all_fields, field_name, r0, 1)
@@ -623,11 +623,11 @@ logical function check_real_time(all_fields, field_name)
     end if
 
     if (.not. check) then
-      write(stdErrUnit,*) trim(CURRENT_CORE_NAME) // &
+      call mpas_log_write( trim(CURRENT_CORE_NAME) // &
         ' WARNING: field "' // trim(field_name) // '" listed in the ' // &
         'output stream, for time series stats analysis member ' // &
         'stream, does not have a time dimension. Time series stats will ' // &
-        'not be applied to this field.'
+        'not be applied to this field.')
     end if
   end if
 
@@ -1090,12 +1090,12 @@ subroutine modify_stream(domain, instance, series, valid_input, err)!{{{
   end do
 
   if (.not. emptyRestartStream) then
-    write(stderrUnit, *) trim(CURRENT_CORE_NAME) // ' ERROR: stream named ''' &
+    call mpas_log_write( trim(CURRENT_CORE_NAME) // ' ERROR: stream named ''' &
       // trim(restart_stream_name) // ''' is not empty, but is used in ' // &
       'an restart instance of the time series stats analysis member. ' // &
       'This restart stream will be built based on the contents of the ''' // &
       trim(output_stream_name) // ''' stream. Please ensure it is empty ' // &
-      'in the streams input file.'
+      'in the streams input file.')
     call mpas_dmpar_global_abort( &
       trim(CURRENT_CORE_NAME) // &
       'ERROR: misconfigured restart stream for time series stats ' // &
@@ -1397,10 +1397,10 @@ subroutine get_alarms(domain, instance, series, alarms, err)
        alarms(b) % reset_interval, n, rem)
 
     if (n > 1 .or. (n == 1 .and. rem /= zero)) then
-      write(stderrUnit,*) trim(CURRENT_CORE_NAME) // &
+      call mpas_log_write( trim(CURRENT_CORE_NAME) // &
         'WARNING: repeat_interval > ' // &
         'reset_interval in time series stats analysis member ' // &
-        'configuration. Truncating repeat_interval.'
+        'configuration. Truncating repeat_interval.')
       alarms(b) % repeat_interval = alarms(b) % reset_interval
     end if
 
@@ -1409,10 +1409,10 @@ subroutine get_alarms(domain, instance, series, alarms, err)
        alarms(b) % repeat_interval, n, rem)
 
     if (n > 1 .or. (n == 1 .and. rem /= zero)) then
-      write(stderrUnit,*) trim(CURRENT_CORE_NAME) // &
+      call mpas_log_write( trim(CURRENT_CORE_NAME) // &
         'WARNING: duration_interval > ' // &
         'repeat_interval in time series stats analysis member ' // &
-        'configuration. Truncating duration_interval.'
+        'configuration. Truncating duration_interval.')
       alarms(b) % repeat_interval = alarms(b) % reset_interval
     end if
   end do

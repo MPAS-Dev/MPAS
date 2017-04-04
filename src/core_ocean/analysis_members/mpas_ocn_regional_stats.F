@@ -787,21 +787,21 @@ logical function check_real_element_dim(all_fields, field_name, elem_name)
   call mpas_pool_get_field_info(all_fields, field_name, info)
 
   if (info % fieldType /= MPAS_POOL_REAL) then
-    write(stdErrUnit,*) &
+    call mpas_log_write( &
       trim(CURRENT_CORE_NAME) // ' WARNING: field "' // &
       trim(field_name) // '" listed in the ' // &
       'output stream, for regional stats analysis member, ' // &
       'is not real. Regional stats will not be applied to ' // &
-      'this field.'
+      'this field.')
 
     check_real_element_dim = .false.
   else if (info % nDims < 1) then
-    write(stdErrUnit,*) &
+    call mpas_log_write( &
       trim(CURRENT_CORE_NAME) // ' WARNING: field "' // &
       trim(field_name) // '" listed in the ' // &
       'output stream, for regional stats analysis member, ' // &
       'is 0D. Regional stats will not be applied to ' // &
-      'this field.'
+      'this field.')
 
     check_real_element_dim = .false.
   else
@@ -823,12 +823,12 @@ logical function check_real_element_dim(all_fields, field_name, elem_name)
     end if
 
     if (.not. has_elem) then
-      write(stdErrUnit,*) &
+      call mpas_log_write( &
         trim(CURRENT_CORE_NAME) // ' WARNING: field "' // &
         trim(field_name) // '" listed in the output stream, ' // &
         'for regional stats analysis member, does not have ' // &
         trim(elem_name) // ' as its last dimension. Regional stats ' // &
-        'will not be applied to this field.'
+        'will not be applied to this field.')
     end if
 
     check_real_element_dim = has_elem

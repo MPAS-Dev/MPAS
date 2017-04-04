@@ -282,6 +282,7 @@ module ocn_forward_mode
       end if
 
       if (config_filter_btr_mode.and. &
+          config_vert_coord_movement.ne.'fixed')then
          call mpas_log_write('ERROR: filter_btr_mode has only been tested with config_vert_coord_movement=fixed.')
       endif
 

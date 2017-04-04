@@ -336,7 +336,7 @@ contains
       if(config_vert_levels <= 0 .and. config_lock_exchange_vert_levels > 0) then
          config_vert_levels = config_lock_exchange_vert_levels
       else if(config_vert_levels <= 0) then
-         write(stderrUnit,*) 'ERROR: Validation failed for lock exchange test case. Not given a usable value for vertical levels.'
+         call mpas_log_write( 'ERROR: Validation failed for lock exchange test case. Not given a usable value for vertical levels.')
          iErr = 1
       end if
 

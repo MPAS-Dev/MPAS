@@ -359,22 +359,22 @@ module ocn_core_interface
 
 
 
-      write(stderrUnit, *) ''
-      write(stderrUnit, *) '  **** Summary of ocean packages ****'
+      call mpas_log_write( '')
+      call mpas_log_write( '  **** Summary of ocean packages ****')
       call mpas_pool_begin_iteration(packagePool)
       do while ( mpas_pool_get_next_member(packagePool, pkgItr) )
 
          if ( pkgItr % memberType == MPAS_POOL_PACKAGE ) then
             call mpas_pool_get_package(packagePool, pkgItr % memberName, packageActive)
             if ( packageActive ) then
-               write(stderrUnit, *) '      ' // trim(pkgItr % memberName) // ' = ON'
+               call mpas_log_write( '      ' // trim(pkgItr % memberName) // ' = ON')
             else
-               write(stderrUnit, *) '      ' // trim(pkgItr % memberName) // ' = OFF'
+               call mpas_log_write( '      ' // trim(pkgItr % memberName) // ' = OFF')
             end if
          end if
       end do
-      write(stderrUnit, *) '  ***********************************'
-      write(stderrUnit, *) ''
+      call mpas_log_write( '  ***********************************')
+      call mpas_log_write( '')
 
    end function ocn_setup_packages!}}}
 
