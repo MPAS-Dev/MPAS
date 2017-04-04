@@ -2508,7 +2508,9 @@ contains
       call mpas_release_unit(debugUnit)
 
       if ( fatalErrorDetected ) then
-         call mpas_dmpar_global_abort('ERROR: MPAS-O: State validation failed. See block stats files for more information.')
+         call mpas_log_write( &
+            'ERROR: State validation failed. See block stats files for more information.', &
+            MPAS_LOG_CRIT)
       end if
 
    end subroutine ocn_validate_state!}}}

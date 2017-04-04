@@ -912,10 +912,14 @@ contains
       !
       if (config_use_cvmix_kpp) then
         if(config_cvmix_kpp_matching.eq."MatchBoth") then
-           write(stderrUnit,*) "WARNING: use of option MatchBoth is discouraged, use SimpleShapes instead"
+           call mpas_log_write( &
+              "WARNING: use of option MatchBoth is discouraged, use SimpleShapes instead", &
+               MPAS_LOG_WARN)
         elseif(.not. config_cvmix_kpp_matching.eq."SimpleShapes") then
-           write(stderrUnit,*) "ERROR: unknown value for config_cvmix_kpp_matching., supported values are:"
-           write(stderrUnit,*) "         SimpleShapes or MatchBoth"
+           call mpas_log_write( &
+              "ERROR: unknown value for config_cvmix_kpp_matching., supported values are:" // &
+              "         SimpleShapes or MatchBoth", &
+              MPAS_LOG_CRIT)
            err = 1
            return
         endif

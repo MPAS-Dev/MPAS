@@ -272,8 +272,10 @@ contains
           displacement_type_local = 'relative'
           k_displaced_local = 0
         else
-          call mpas_dmpar_global_abort('MPAS-ocean: ERROR: tracersSurfaceLayerValue must be present when displacement_type is ' &
-                                    // '''surfaceDisplaced'' in JM EOS')
+           call mpas_log_write( &
+             'MPAS-ocean: ERROR: tracersSurfaceLayerValue must be present when displacement_type is ' &
+                                    // '''surfaceDisplaced'' in JM EOS', &
+               MPAS_LOG_CRIT)
         endif
       else
         displacement_type_local = trim(displacement_type)
@@ -316,8 +318,9 @@ contains
                tracerSalt(k) = tracersSurfaceLayerValue(indexS,iCell)
              enddo
            else
-             write (stderrUnit,*) 'Abort: tracersSurfaceLayerValue must be present'
-             call mpas_dmpar_global_abort('MPAS-ocean: ERROR: tracersSurfaceLayerValue must be present in JM EOS call')
+             call mpas_log_write( &
+               ' MPAS-ocean: ERROR: tracersSurfaceLayerValue must be present in JM EOS call',  &
+               MPAS_LOG_CRIT)
            endif
          else
            do k = 1, nVertLevels
