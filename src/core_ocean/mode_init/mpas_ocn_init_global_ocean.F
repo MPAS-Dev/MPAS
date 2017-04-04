@@ -173,7 +173,7 @@ contains
       call mpas_pool_get_array(tracersPool, 'DMSTracers', DMSTracers, 1)
       call mpas_pool_get_array(tracersPool, 'MacroMoleculesTracers', MacroMoleculesTracers, 1)
 
-      if ( .not. on_a_sphere ) call mpas_dmpar_global_abort('MPAS-ocean: ERROR: The global ocean configuration can ' &
+      if ( .not. on_a_sphere ) call mpas_log_write('MPAS-ocean: ERROR: The global ocean configuration can ' &
                                                          // 'only be applied to a spherical mesh. Exiting...')
 
       call mpas_pool_get_config(domain % configs, 'config_global_ocean_cull_inland_seas', &

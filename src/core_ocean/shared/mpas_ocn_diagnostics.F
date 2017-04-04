@@ -27,6 +27,7 @@ module ocn_diagnostics
    use mpas_threading
    use mpas_vector_reconstruction
    use mpas_stream_manager
+   use mpas_io_units
 
    use ocn_constants
    use ocn_gm

@@ -308,7 +308,7 @@ contains
                  restingThickness(:, iCell) = layerThickness(:, iCell)
               end if
            else
-              call mpas_dmpar_global_abort('MPAS-ocean: Error: wrong choice of config_internal_waves_layer_type')
+              call mpas_log_write('MPAS-ocean: Error: wrong choice of config_internal_waves_layer_type')
            endif
 
            ! Set salinity

@@ -154,7 +154,7 @@ contains
       call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
 
-      if ( on_a_sphere ) call mpas_dmpar_global_abort('ERROR: ISOMIP+ can only be applied to a planar mesh.  Exiting...')
+      if ( on_a_sphere ) call mpas_log_write('ERROR: ISOMIP+ can only be applied to a planar mesh.  Exiting...')
 
       call mpas_pool_get_config(domain % configs, 'config_isomip_plus_vertical_level_distribution', &
          config_isomip_plus_vertical_level_distribution)

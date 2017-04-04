@@ -90,7 +90,7 @@ contains
          call ocn_generate_100layerACMEv1_vertical_grid(interfaceLocations)
       else if ( trim(gridType) == '1dCVTgenerator' ) then
          if (.not. present(configPool)) then
-            call mpas_dmpar_global_abort("MPAS-ocean: ERROR: requesting a 1d CVT vertical grid generation " &
+            call mpas_log_write("MPAS-ocean: ERROR: requesting a 1d CVT vertical grid generation " &
                                       // "without passing the corresponding parameters. Exiting...")
          else
             call ocn_generate_1dCVT_vertical_grid(configPool, interfaceLocations)
@@ -156,7 +156,7 @@ contains
       nInterfaces = size(interfaceLocations, dim=1)
 
       if ( nInterfaces /= 61 ) then
-         call mpas_dmpar_global_abort("MPAS-ocean: ERROR: Vertical grid must have 60 layers to "// &
+         call mpas_log_write("MPAS-ocean: ERROR: Vertical grid must have 60 layers to "// &
                                       "apply 60 Layer PHC grid. Exiting...")
       end if
 
@@ -250,7 +250,7 @@ contains
       nInterfaces = size(interfaceLocations, dim=1)
 
       if ( nInterfaces /= 43 ) then
-         call mpas_dmpar_global_abort("MPAS-ocean: ERROR: Vertical grid must have 42 layers "// &
+         call mpas_log_write("MPAS-ocean: ERROR: Vertical grid must have 42 layers "// &
                                       "to apply 42 Layer WOCE grid. Exiting...")
       end if
 
@@ -327,7 +327,7 @@ contains
       nInterfaces = size(interfaceLocations, dim=1)
 
       if ( nInterfaces /= 101 ) then
-         call mpas_dmpar_global_abort("MPAS-ocean: ERROR: Vertical grid must have 100 layers to "// &
+         call mpas_log_write("MPAS-ocean: ERROR: Vertical grid must have 100 layers to "// &
                                       "apply 100 Layer PHC grid. Exiting...")
       end if
 

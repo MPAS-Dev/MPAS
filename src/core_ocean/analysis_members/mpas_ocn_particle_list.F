@@ -3148,7 +3148,7 @@ end subroutine allocate_list_particlelists !}}}
      end do
 
 #ifdef MPAS_DEBUG
-     if(find_index == -1) call mpas_log_write('Error: Index number ' COMMA num COMMA ' not found in array!')
+     if(find_index == -1) LIGHT_WARNING_WRITE('Error: Index number ' COMMA num COMMA ' not found in array!')
 #endif
 
    end function find_index !}}}

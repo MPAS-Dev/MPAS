@@ -344,7 +344,7 @@ module ocn_forward_mode
       ierr = ior(ierr, err_tmp)
 
       if(ierr.eq.1) then
-          call mpas_dmpar_global_abort('MPAS-ocean: ERROR: An error was encountered while initializing ' &
+          call mpas_log_write('MPAS-ocean: ERROR: An error was encountered while initializing ' &
                                     // 'the analysis members in the MPAS-Ocean forward mode')
       endif
 
@@ -529,7 +529,7 @@ module ocn_forward_mode
          call mpas_log_write('Doing timestep ' // trim(timeStamp))
 
 #ifdef MPAS_DEBUG
-         write(stderrUnit,*) '   Computing surface flux arrays'
+         call mpas_log_write( '   Computing surface flux arrays')
 #endif
          block_ptr => domain % blocklist
          do while(associated(block_ptr))
@@ -554,7 +554,7 @@ module ocn_forward_mode
          !$omp parallel default(firstprivate) shared(domain, dt, timeStamp)
 
 #ifdef MPAS_DEBUG
-         write(stderrUnit,*) '   Computing forward time step'
+         call mpas_log_write( '   Computing forward time step')
 #endif
          call ocn_timestep(domain, dt, timeStamp)
 
@@ -564,20 +564,20 @@ module ocn_forward_mode
 
          ! Move time level 2 fields back into time level 1 for next time step
 #ifdef MPAS_DEBUG
-         write(stderrUnit,*) '   Shifting time levels'
+         call mpas_log_write( '   Shifting time levels')
 #endif
          call mpas_pool_get_subpool(domain % blocklist % structs, 'state', statePool)
          call mpas_pool_shift_time_levels(statePool)
 
 #ifdef MPAS_DEBUG
-         write(stderrUnit,*) '   Handling analysis members'
+         call mpas_log_write( '   Handling analysis members')
 #endif
          call ocn_analysis_compute(domain, err)
          call ocn_analysis_restart(domain, err)
          call ocn_analysis_write(domain, err)
 
 #ifdef MPAS_DEBUG
-         write(stderrUnit,*) '   Performing I/O'
+         call mpas_log_write( '   Performing I/O')
 #endif
          call mpas_timer_start('io_write')
          call mpas_stream_mgr_write(domain % streamManager, streamID='output', ierr=ierr)
@@ -593,7 +593,7 @@ module ocn_forward_mode
          if ( mpas_stream_mgr_ringing_alarms(domain % streamManager, streamID='restart', direction=MPAS_STREAM_OUTPUT, &
                                              ierr=ierr) ) then
 #ifdef MPAS_DEBUG
-            write(stderrUnit,*) '   Writing restart timestamp file'
+            call mpas_log_write( '   Writing restart timestamp file')
 #endif
             if ( domain % dminfo % my_proc_id == 0 ) then
                open(22, file=config_restart_timestamp_name, form='formatted', status='replace')
