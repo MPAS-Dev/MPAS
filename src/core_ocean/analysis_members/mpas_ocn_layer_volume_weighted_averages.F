@@ -111,7 +111,6 @@ contains
       call mpas_pool_get_subpool(domain % blocklist % structs, 'layerVolumeWeightedAverageAM', layerVolumeWeightedAverageAMPool)
  
       call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'layerVolumeMask', layerVolumeMask)
-      print *, '88234'
       call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nOceanRegionsTmp', nOceanRegionsTmp)
       call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nLayerVolWeightedAvgFields', nLayerVolWeightedAvgFields)
       call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nVertLevels', nVertLevels)
@@ -147,26 +146,21 @@ contains
 
    dtr = 4.0_RKIND*atan(1.0_RKIND) / 180.0_RKIND
    workMask(:,:,:) = 0.0_RKIND
-       write(stderrUnit,*), 'blah1123213123123'
    do iCell=1,nCellsSolve
      do iLevel=1,nVertLevels
         if(iLevel.le.maxLevelCell(iCell)) workMask(iCell,:,iLevel) = 1.0_RKIND
      enddo
    enddo
 
-   write(stderrUnit,*), 'blah1'
-
    ! Arctic
    do iCell=1,nCellsSolve
       if(latCell(iCell).lt. 60.0_RKIND*dtr) workMask(iCell,1,:) = 0.0_RKIND
    enddo
-    write(stderrUnit,*), 'blah2'
    ! Equatorial
    do iCell=1,nCellsSolve
       if(latCell(iCell).gt. 15.0_RKIND*dtr) workMask(iCell,2,:) = 0.0_RKIND
       if(latCell(iCell).lt.-15.0_RKIND*dtr) workMask(iCell,2,:) = 0.0_RKIND
    enddo
-       write(stderrUnit,*), 'blah3'
    ! Southern Ocean
    do iCell=1,nCellsSolve
       if(latCell(iCell).gt.-50.0_RKIND*dtr) workMask(iCell,3,:) = 0.0_RKIND
@@ -179,7 +173,6 @@ contains
       if(lonCell(iCell).gt.270.0_RKIND*dtr) workMask(iCell,4,:) = 0.0_RKIND
    enddo
    ! Nino 4
-       write(stderrUnit,*), 'blah4'
    do iCell=1,nCellsSolve
       if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(iCell,5,:) = 0.0_RKIND
       if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(iCell,5,:) = 0.0_RKIND
@@ -187,7 +180,6 @@ contains
       if(lonCell(iCell).gt.210.0_RKIND*dtr) workMask(iCell,5,:) = 0.0_RKIND
    enddo
    ! Nino 3.4
-       write(stderrUnit,*), 'blah5'
    do iCell=1,nCellsSolve
       if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(iCell,6,:) = 0.0_RKIND
       if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(iCell,6,:) = 0.0_RKIND
@@ -409,12 +401,8 @@ contains
          ! loop over the vertical
          do iLevel=1,nVertLevels
 
-            ! compute mask
-!            call compute_mask(iLevel, maxLevelCell, nCells, nCellsSolve, iRegion, lonCell, latCell, workMask)
-
             ! copy data into work array
             workArray( :,:) = 0.0_RKIND
-!            workArray( 1,:) = workMask(:)
             workArray( 2,:) = areaCell(:)
             workArray( 3,:) = layerThickness(iLevel,:)
             workArray( 4,:) = density(iLevel,:)
@@ -529,66 +517,6 @@ contains
       deallocate(workBufferMaxReduced)
 
    contains
-
-   subroutine compute_mask(nVertLevels, maxLevelCell, nCells, nCellsSolve, nOceanRegionsTmp, &
-                           lonCell, latCell, workMask)
-   ! this subroutines produces a 0/1 mask that is multiplied with workArray to
-   ! allow for min/max/avg to represent specific regions of the ocean domain
-   !
-   ! NOTE: computes_mask is temporary. workMask should be intent(in) to this entire module !
-   !
-   integer, intent(in) :: nVertLevels, nCells, nCellsSolve, nOceanRegionsTmp
-   integer, intent(in), dimension(:) :: maxLevelCell
-   real(kind=RKIND), dimension(:), intent(in) :: lonCell, latCell
-   real(kind=RKIND), dimension(:,:,:), intent(out) :: workMask
-   integer :: iCell, iLevel, iRegion
-   real(kind=RKIND) :: dtr
-
-   dtr = 4.0_RKIND*atan(1.0_RKIND) / 180.0_RKIND
-   workMask(:,:,:) = 0.0_RKIND
-   do iCell=1,nCellsSolve
-     do iLevel=1,nVertLevels
-        if(iLevel.le.maxLevelCell(iCell)) workMask(iCell,:,iLevel) = 1.0_RKIND
-     enddo
-   enddo
-
-   ! Arctic
-   do iCell=1,nCellsSolve
-      if(latCell(iCell).lt. 60.0_RKIND*dtr) workMask(iCell,1,:) = 0.0_RKIND
-   enddo
-   ! Equatorial
-   do iCell=1,nCellsSolve
-      if(latCell(iCell).gt. 15.0_RKIND*dtr) workMask(iCell,2,:) = 0.0_RKIND
-      if(latCell(iCell).lt.-15.0_RKIND*dtr) workMask(iCell,2,:) = 0.0_RKIND
-   enddo
-   ! Southern Ocean
-   do iCell=1,nCellsSolve
-      if(latCell(iCell).gt.-50.0_RKIND*dtr) workMask(iCell,3,:) = 0.0_RKIND
-   enddo
-   ! Nino 3
-   do iCell=1,nCellsSolve
-      if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(iCell,4,:) = 0.0_RKIND
-      if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(iCell,4,:) = 0.0_RKIND
-      if(lonCell(iCell).lt.210.0_RKIND*dtr) workMask(iCell,4,:) = 0.0_RKIND
-      if(lonCell(iCell).gt.270.0_RKIND*dtr) workMask(iCell,4,:) = 0.0_RKIND
-   enddo
-   ! Nino 4
-   do iCell=1,nCellsSolve
-      if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(iCell,5,:) = 0.0_RKIND
-      if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(iCell,5,:) = 0.0_RKIND
-      if(lonCell(iCell).lt.160.0_RKIND*dtr) workMask(iCell,5,:) = 0.0_RKIND
-      if(lonCell(iCell).gt.210.0_RKIND*dtr) workMask(iCell,5,:) = 0.0_RKIND
-   enddo
-   ! Nino 3.4
-   do iCell=1,nCellsSolve
-      if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(iCell,6,:) = 0.0_RKIND
-      if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(iCell,6,:) = 0.0_RKIND
-      if(lonCell(iCell).lt.190.0_RKIND*dtr) workMask(iCell,6,:) = 0.0_RKIND
-      if(lonCell(iCell).gt.240.0_RKIND*dtr) workMask(iCell,6,:) = 0.0_RKIND
-   enddo
-
-   end subroutine compute_mask
-
 
    subroutine compute_statistics(nDefinedDataFields, nOceanRegionsTmp, nCellsSolve, workArray, workMask, workMin, workMax, workSum)
    ! this subroutines does the actual summing, min, max, masking ect
