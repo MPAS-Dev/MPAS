@@ -32,10 +32,10 @@
 		<package name="layerVolumeWeightedAverageAMPKG" description="This package includes variables required for the areal-averaging of 3D variables that are defined."/>
 	</packages>
   <var_struct name="layerVolumeWeightedAverageAM" time_levs="1" packages="layerVolumeWeightedAverageAMPKG">
-    <var name="layerVolumeMask" type="real" dimensions="nCells nOceanRegionsTmp nVertLevels Time"
+    <var name="layerVolumeMask" type="real" dimensions="nOceanRegionsTmp nCells nVertLevels Time"
       description="mask for layer volume averaging" 
     />
-		<var_array name="minValueWithinOceanLayerRegion" type="real" dimensions="nVertLevels nOceanRegionsTmp Time">
+		<var_array name="minValueWithinOceanLayerRegion" type="real" dimensions="nOceanRegionsTmp nVertLevels Time">
 			<var name="minLayerMaskValue" array_group="layerMins" units="none"
 				 description="Minimum value of mask within region layer (should always be 1 for valid layers)"
 			/>
@@ -129,7 +129,7 @@
 				 description="Minimum relative enstrophy within region volume"
 			/>
 		</var_array>
-		<var_array name="maxValueWithinOceanLayerRegion" type="real" dimensions="nVertLevels nOceanRegionsTmp Time">
+		<var_array name="maxValueWithinOceanLayerRegion" type="real" dimensions="nOceanRegionsTmp nVertLevels Time">
 			<var name="maxLayerMaskValue" array_group="layerMaxs" units="none"
 				 description="Maximum value of mask within region layer (should always be 1 for valid layers)"
 			/>
@@ -223,7 +223,7 @@
 				 description="Maximum relative enstrophy within region volume"
 			/>
 		</var_array>
-		<var_array name="avgValueWithinOceanLayerRegion" type="real" dimensions="nVertLevels nOceanRegionsTmp Time">
+		<var_array name="avgValueWithinOceanLayerRegion" type="real" dimensions="nOceanRegionsTmp nVertLevels Time">
 			<var name="sumLayerMaskValue" array_group="layerAvgs" units="none"
 				 description="Sum value of mask within region volume (should always be greater than 0 for valid layer)"
 			/>
@@ -319,13 +319,6 @@
 		</var_array>
 	</var_struct>
 	<var_struct name="layerVolumeWeightedAverageAMScratch" time_levs="1">
-		<var name="workMaskLayerVolume"
-			 persistence="scratch"
-			 type="real"
-			 dimensions="nCells Time"
-			 units="none"
-			 description="temporary array of 0 or 1 to mask data via multiplication"
-		/>
 		<var name="workArrayLayerVolume"
 			 persistence="scratch"
 			 type="real"
@@ -336,21 +329,21 @@
 		<var name="workMinLayerVolume"
 			 persistence="scratch"
 			 type="real"
-			 dimensions="nOceanRegionsTmp nLayerVolWeightedAvgFields Time"
+			 dimensions="nLayerVolWeightedAvgFields nOceanRegionsTmp Time"
 			 units="various"
 			 description="temporary array to hold minimum values"
 		/>
 		<var name="workMaxLayerVolume"
 			 persistence="scratch"
 			 type="real"
-			 dimensions="nOceanRegionsTmp nLayerVolWeightedAvgFields Time"
+			 dimensions="nLayerVolWeightedAvgFields nOceanRegionsTmp Time"
 			 units="various"
 			 description="temporary array to hold maximum values"
 		/>
 		<var name="workSumLayerVolume"
 			 persistence="scratch"
 			 type="real"
-			 dimensions="nOceanRegionsTmp nLayerVolWeightedAvgFields Time"
+			 dimensions="nLayerVolWeightedAvgFields nOceanRegionsTmp Time"
 			 units="various"
 			 description="temporary array to hold sum of values"
 		/>
