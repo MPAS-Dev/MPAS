@@ -437,7 +437,6 @@ contains
 
          ! deallocate scratch fields
          call mpas_deallocate_scratch_field(workArrayField, .true.)
-!         call mpas_deallocate_scratch_field(workMaskField, .true.)
          call mpas_deallocate_scratch_field(workMinField, .true.)
          call mpas_deallocate_scratch_field(workMaxField, .true.)
          call mpas_deallocate_scratch_field(workSumField, .true.)
@@ -452,8 +451,8 @@ contains
 
       ! unpack the buffer into intent(out) of this analysis member
       kBuffer=0
+      do iLevel=1,nVertLevels
       do iRegion=1,nOceanRegionsTmp
-        do iLevel=1,nVertLevels
            do iDataField=1,nDefinedDataFields
               kBuffer = kBuffer+1
               avgValueWithinOceanLayerRegion(iDataField,iLevel,iRegion)=workBufferSumReduced(kBuffer)
