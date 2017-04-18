@@ -152,7 +152,8 @@ module soundings
             soundingPath = trim(config_sounding_output_path)
         end if
         if (dminfo % my_proc_id == IO_NODE) then
-            call system('mkdir -p '//trim(soundingPath), status=ierr)
+            ierr = -1
+            call execute_command_line('mkdir -p '//trim(soundingPath), exitstat=ierr)
         end if
         call mpas_dmpar_bcast_int(dminfo, ierr)
         if (ierr /= 0) then
