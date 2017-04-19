@@ -2598,6 +2598,7 @@ module init_atm_cases
       logical, pointer :: config_smooth_surfaces
       integer, pointer :: config_theta_adv_order
       real (kind=RKIND), pointer :: config_coef_3rd_order
+      integer, pointer :: config_extrap_airtemp
 
       real (kind=RKIND), dimension(:), pointer :: latCell, lonCell
       real (kind=RKIND), dimension(:), pointer :: latEdge, lonEdge
@@ -2670,6 +2671,12 @@ module init_atm_cases
       call mpas_pool_get_config(configs, 'config_smooth_surfaces', config_smooth_surfaces)
       call mpas_pool_get_config(configs, 'config_theta_adv_order', config_theta_adv_order)
       call mpas_pool_get_config(configs, 'config_coef_3rd_order', config_coef_3rd_order)
+      call mpas_pool_get_config(configs, 'config_extrap_airtemp', config_extrap_airtemp)
+      if (.not.(config_extrap_airtemp.eq.0 .or. config_extrap_airtemp.eq.1 .or. config_extrap_airtemp.eq.2)) then
+          call mpas_dmpar_global_abort('********************************************************************************', deferredAbort=.true.)
+          call mpas_dmpar_global_abort('* Invalid value for namelist variable config_extrap_airtemp (0, 1, or 2)       *', deferredAbort=.true.)
+          call mpas_dmpar_global_abort('********************************************************************************')
+      end if
 
       parinfo => block % parinfo
       dminfo => block % domain % dminfo
@@ -4044,7 +4051,7 @@ write(0,*) 'Interpolating SKINTEMP'
 
             !
             ! In addition to interpolating wind fields to cell edges, we should
-            ! also intperolate to cell centers at the surface in order to
+            ! also interpolate to cell centers at the surface in order to
             ! produce U10 and V10 fields
             !
             is_sfc_field = .false.
@@ -4460,7 +4467,12 @@ write(0,*) 'PROCESSING OMLD'
          do k = 1, nVertLevels
             target_z = 0.5 * (zgrid(k,iCell) + zgrid(k+1,iCell))
             t(k,iCell) = vertical_interp(target_z, nfglevels_actual-1, &
-                                  sorted_arr(:,1:nfglevels_actual-1), order=1, extrap=1)
+                                         sorted_arr(:,1:nfglevels_actual-1), order=1, &
+                                         extrap=config_extrap_airtemp, ierr=istatus)
+            if (istatus /= 0) then
+               write(0,*) "ERROR in interpolation of t(k,iCell) for k=", k, ", iCell=", iCell
+               call mpas_dmpar_abort(dminfo)
+            end if
          end do
 
 
@@ -4872,7 +4884,7 @@ write(0,*) 'PROCESSING OMLD'
    end function nearest_edge
 
 
-   real (kind=RKIND) function vertical_interp(target_z, nz, zf, order, extrap, surface_val, sealev_val)
+   real (kind=RKIND) function vertical_interp(target_z, nz, zf, order, extrap, surface_val, sealev_val, ierr)
 
       implicit none
 
@@ -4883,7 +4895,8 @@ write(0,*) 'PROCESSING OMLD'
       integer, intent(in), optional :: extrap
       real (kind=RKIND), intent(in), optional :: surface_val
       real (kind=RKIND), intent(in), optional :: sealev_val
-
+      integer, intent(out), optional :: ierr
+      
       integer :: k, lm, lp
       real (kind=RKIND) :: wm, wp
       real (kind=RKIND) :: slope
@@ -4891,7 +4904,8 @@ write(0,*) 'PROCESSING OMLD'
       integer :: interp_order, extrap_type
       real (kind=RKIND) :: surface, sealevel
 
-
+      if (present(ierr)) ierr = 0
+      
       if (present(order)) then
          interp_order = order
       else
@@ -4936,6 +4950,10 @@ write(0,*) 'PROCESSING OMLD'
          else if (extrap_type == 1) then
             slope = (zf(2,nz) - zf(2,nz-1)) / (zf(1,nz) - zf(1,nz-1))
             vertical_interp = zf(2,nz) + slope * (target_z - zf(1,nz))
+         else if (extrap_type == 2) then
+             write(0,*) "ERROR: extrap_type == 2 not implemented for target_z >= zf(1,nz)"
+             if (present(ierr)) ierr = 1
+             return
          end if
          return
       end if
