@@ -12,7 +12,7 @@
   if (type_checking) then
     ! check size of stack
     if (stack_pointer < 2) then
-      call mpas_dmpar_global_abort(trim(MPAS_CORE_NAME) // ' ERROR: ' // &
+      call mpas_log_write(trim(MPAS_CORE_NAME) // ' ERROR: ' // &
         'expression #' // trim(expression_names(exp_number)) // &
         ' tried to ' // trim(op_name) // ' when there ' // &
         'were less than two operands on the stack, in the RPN calculator AM')
@@ -51,7 +51,7 @@
       else
         if (type_checking) then
           if (stack(stack_pointer - 1) % d1 % isDecomposed) then
-            call mpas_dmpar_global_abort(trim(MPAS_CORE_NAME) // ' ERROR: ' // &
+            call mpas_log_write(trim(MPAS_CORE_NAME) // ' ERROR: ' // &
             trim(op_name) // ' in expression #' // &
             trim(expression_names(exp_number)) // ' tried to operate ' // &
             'on two 1d arrays, with different dimensions, where the first ' // &
@@ -73,7 +73,7 @@
         if (type_checking) then
           if (trim(stack(stack_pointer - 1) % d1 % dimNames(1)) /= &
             trim(stack(stack_pointer) % d2 % dimNames(2))) then
-            call mpas_dmpar_global_abort(trim(MPAS_CORE_NAME) // ' ERROR: ' // &
+            call mpas_log_write(trim(MPAS_CORE_NAME) // ' ERROR: ' // &
             trim(op_name) // ' in expression #' // &
             trim(expression_names(exp_number)) // ' tried to operate ' // &
             'with a 1d array on a 2d array when none of the dimensions ' // &
@@ -100,7 +100,7 @@
         if (type_checking) then
           if (trim(stack(stack_pointer - 1) % d2 % dimNames(2)) /= &
             trim(stack(stack_pointer) % d1 % dimNames(1))) then
-            call mpas_dmpar_global_abort(trim(MPAS_CORE_NAME) // ' ERROR: ' // &
+            call mpas_log_write(trim(MPAS_CORE_NAME) // ' ERROR: ' // &
             trim(op_name) // ' in expression #' // &
             trim(expression_names(exp_number)) // ' tried to operate ' // &
             'with a 1d array on a 2d array when none of the dimensions ' // &
@@ -117,7 +117,7 @@
              trim(stack(stack_pointer) % d2 % dimNames(1))) .or. &
             (trim(stack(stack_pointer - 1) % d2 % dimNames(2)) /= &
              trim(stack(stack_pointer) % d2 % dimNames(2)))) then
-           call mpas_dmpar_global_abort(trim(MPAS_CORE_NAME) // ' ERROR: ' // &
+           call mpas_log_write(trim(MPAS_CORE_NAME) // ' ERROR: ' // &
              trim(op_name) // ' in expression #' // &
              trim(expression_names(exp_number)) // ' tried to operate ' // &
              'on two 2d arrays when their dimension names do not match')
