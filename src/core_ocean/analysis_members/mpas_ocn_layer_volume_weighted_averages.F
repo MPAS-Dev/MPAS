@@ -88,6 +88,13 @@ contains
       !-----------------------------------------------------------------
 
       type (domain_type), intent(inout) :: domain
+      type (mpas_pool_type), pointer :: layerVolumeWeightedAverageAMPool 
+      type (mpas_pool_type), pointer :: meshPool
+      real (kind=RKIND), dimension(:,:,:), pointer :: layerVolumeMask
+      integer, pointer :: nOceanRegionsTmp, nCellsSolve, nCells, nVertLevels
+      integer, pointer :: nLayerVolWeightedAvgFields 
+      real (kind=RKIND), dimension(:), pointer ::  lonCell, latCell
+      integer, dimension(:), pointer :: maxLevelCell
 
       !-----------------------------------------------------------------
       !
@@ -102,8 +109,87 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'layerVolumeWeightedAverageAM', layerVolumeWeightedAverageAMPool)
+ 
+      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'layerVolumeMask', layerVolumeMask)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nOceanRegionsTmp', nOceanRegionsTmp)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nLayerVolWeightedAvgFields', nLayerVolWeightedAvgFields)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nVertLevels', nVertLevels)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nCellsSolve', nCellsSolve)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nCells', nCells)
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
+
+      call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
+      call mpas_pool_get_array(meshPool, 'latCell', latCell)
+      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
 
       err = 0
+
+      ! compute mask
+      call compute_mask(nVertLevels, maxLevelCell, nCells, nCellsSolve, nOceanRegionsTmp,   &
+                        lonCell, latCell, layerVolumeMask)
+
+   contains
+
+   subroutine compute_mask(nVertLevels, maxLevelCell, nCells, nCellsSolve, nOceanRegionsTmp, &
+                           lonCell, latCell, workMask)
+   ! this subroutines produces a 0/1 mask that is multiplied with workArray to
+   ! allow for min/max/avg to represent specific regions of the ocean domain
+   !
+   ! NOTE: computes_mask is temporary. workMask should be intent(in) to this entire module !
+   !
+   integer, intent(in) :: nVertLevels, nCells, nCellsSolve, nOceanRegionsTmp
+   integer, intent(in), dimension(:) :: maxLevelCell
+   real(kind=RKIND), dimension(:), intent(in) :: lonCell, latCell
+   real(kind=RKIND), dimension(:,:,:), intent(out) :: workMask
+   integer :: iCell, iLevel, iRegion
+   real(kind=RKIND) :: dtr
+
+   dtr = 4.0_RKIND*atan(1.0_RKIND) / 180.0_RKIND
+   workMask(:,:,:) = 0.0_RKIND
+   do iLevel=1,nVertLevels
+     do iCell=1,nCellsSolve
+       if(iLevel.le.maxLevelCell(iCell)) workMask(:,iCell,iLevel) = 1.0_RKIND
+     enddo
+   enddo
+
+   ! Arctic
+   do iCell=1,nCellsSolve
+     if(latCell(iCell).lt. 60.0_RKIND*dtr) workMask(1,iCell,:) = 0.0_RKIND
+   enddo
+   ! Equatorial
+   do iCell=1,nCellsSolve
+     if(latCell(iCell).gt. 15.0_RKIND*dtr) workMask(2,iCell,:) = 0.0_RKIND
+     if(latCell(iCell).lt.-15.0_RKIND*dtr) workMask(2,iCell,:) = 0.0_RKIND
+   enddo
+   ! Southern Ocean
+   do iCell=1,nCellsSolve
+     if(latCell(iCell).gt.-50.0_RKIND*dtr) workMask(3,iCell,:) = 0.0_RKIND
+   enddo
+   ! Nino 3
+   do iCell=1,nCellsSolve
+     if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(4,iCell,:) = 0.0_RKIND
+     if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(4,iCell,:) = 0.0_RKIND
+     if(lonCell(iCell).lt.210.0_RKIND*dtr) workMask(4,iCell,:) = 0.0_RKIND
+     if(lonCell(iCell).gt.270.0_RKIND*dtr) workMask(4,iCell,:) = 0.0_RKIND
+   enddo
+   ! Nino 4
+   do iCell=1,nCellsSolve
+     if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(5,iCell,:) = 0.0_RKIND
+     if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(5,iCell,:) = 0.0_RKIND
+     if(lonCell(iCell).lt.160.0_RKIND*dtr) workMask(5,iCell,:) = 0.0_RKIND
+     if(lonCell(iCell).gt.210.0_RKIND*dtr) workMask(5,iCell,:) = 0.0_RKIND
+   enddo
+   ! Nino 3.4
+   do iCell=1,nCellsSolve
+     if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(6,iCell,:) = 0.0_RKIND
+     if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(6,iCell,:) = 0.0_RKIND
+     if(lonCell(iCell).lt.190.0_RKIND*dtr) workMask(6,iCell,:) = 0.0_RKIND
+     if(lonCell(iCell).gt.240.0_RKIND*dtr) workMask(6,iCell,:) = 0.0_RKIND
+   enddo
+
+   end subroutine compute_mask
+
 
    end subroutine ocn_init_layer_volume_weighted_averages!}}}
 
@@ -189,10 +275,9 @@ contains
       real (kind=RKIND), dimension(:), pointer ::  areaCell, lonCell, latCell
 
       ! scratch space
-      type(field2DReal), pointer :: workArrayField
-      real (kind=RKIND), dimension(:,:), pointer :: workArray
-      type(field1DReal), pointer :: workMaskField, workMinField, workMaxField, workSumField
-      real (kind=RKIND), dimension(:), pointer :: workMask, workMin, workMax, workSum
+      type(field2DReal), pointer :: workArrayField, workMinField, workMaxField, workSumField
+      real (kind=RKIND), dimension(:,:), pointer :: workArray, workMin, workMax, workSum
+      real (kind=RKIND), dimension(:,:,:), pointer :: layerVolumeMask
 
       ! local variables
       integer :: iDataField, nDefinedDataFields
@@ -242,6 +327,7 @@ contains
                                maxValueWithinOceanVolumeRegion)
       call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'avgValueWithinOceanVolumeRegion', &
                                avgValueWithinOceanVolumeRegion)
+      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'layerVolumeMask', layerVolumeMask)
 
       ! loop over blocks
       ! NOTE: code is not valid for multiple blocks !
@@ -251,17 +337,14 @@ contains
          ! get pointers to scratch variables
          call mpas_pool_get_subpool(block % structs, 'layerVolumeWeightedAverageAMScratch', scratchPool)
          call mpas_pool_get_field(scratchPool, 'workArrayLayerVolume', workArrayField)
-         call mpas_pool_get_field(scratchPool, 'workMaskLayerVolume', workMaskField)
          call mpas_pool_get_field(scratchPool, 'workMinLayerVolume', workMinField)
          call mpas_pool_get_field(scratchPool, 'workMaxLayerVolume', workMaxField)
          call mpas_pool_get_field(scratchPool, 'workSumLayerVolume', workSumField)
          call mpas_allocate_scratch_field(workArrayField, .true.)
-         call mpas_allocate_scratch_field(workMaskField, .true.)
          call mpas_allocate_scratch_field(workMinField, .true.)
          call mpas_allocate_scratch_field(workMaxField, .true.)
          call mpas_allocate_scratch_field(workSumField, .true.)
          workArray => workArrayField % array
-         workMask => workMaskField % array
          workMin => workMinField % array
          workMax => workMaxField % array
          workSum => workSumField % array
@@ -312,18 +395,11 @@ contains
          workBufferMin(:) = +1.0e20_RKIND
          workBufferMax(:) = -1.0e20_RKIND
 
-         ! loop over all ocean regions
-         do iRegion=1,nOceanRegionsTmp
-
          ! loop over the vertical
          do iLevel=1,nVertLevels
 
-            ! compute mask
-            call compute_mask(iLevel, maxLevelCell, nCells, nCellsSolve, iRegion, lonCell, latCell, workMask)
-
             ! copy data into work array
             workArray( :,:) = 0.0_RKIND
-            workArray( 1,:) = workMask(:)
             workArray( 2,:) = areaCell(:)
             workArray( 3,:) = layerThickness(iLevel,:)
             workArray( 4,:) = density(iLevel,:)
@@ -339,24 +415,25 @@ contains
             workArray(14,:) = divergence(iLevel,:)
             workArray(15,:) = relativeVorticityCell(iLevel,:)*relativeVorticityCell(iLevel,:)
 
-            call compute_statistics(nDefinedDataFields, nCellsSolve, workArray, workMask, workMin, workMax, workSum)
+            call compute_statistics(nDefinedDataFields, nOceanRegionsTmp, nCellsSolve, workArray, &
+                                    layerVolumeMask(:,:,iLevel), workMin, workMax, workSum)
 
             ! store data in buffer in order to allow only three dmpar calls
-            do iDataField=1,nDefinedDataFields
-              kBuffer = kBuffer+1
-              workBufferSum(kBuffer) = workBufferSum(kBuffer) + workSum(iDataField)
-              workBufferMin(kBuffer) = min(workBufferMin(kBuffer), workMin(iDataField))
-              workBufferMax(kBuffer) = max(workBufferMax(kBuffer), workMax(iDataField))
+            do iRegion=1,nOceanRegionsTmp
+              do iDataField=1,nDefinedDataFields
+                kBuffer = kBuffer+1
+                workBufferSum(kBuffer) = workBufferSum(kBuffer) + workSum(iDataField,iRegion)
+                workBufferMin(kBuffer) = min(workBufferMin(kBuffer), workMin(iDataField,iRegion))
+                workBufferMax(kBuffer) = max(workBufferMax(kBuffer), workMax(iDataField,iRegion))
+              enddo
             enddo
 
          enddo ! iLevel
 
-         end do ! iRegion
          kBuffer = 0
 
          ! deallocate scratch fields
          call mpas_deallocate_scratch_field(workArrayField, .true.)
-         call mpas_deallocate_scratch_field(workMaskField, .true.)
          call mpas_deallocate_scratch_field(workMinField, .true.)
          call mpas_deallocate_scratch_field(workMaxField, .true.)
          call mpas_deallocate_scratch_field(workSumField, .true.)
@@ -371,14 +448,14 @@ contains
 
       ! unpack the buffer into intent(out) of this analysis member
       kBuffer=0
+      do iLevel=1,nVertLevels
       do iRegion=1,nOceanRegionsTmp
-        do iLevel=1,nVertLevels
-           do iDataField=1,nDefinedDataFields
-              kBuffer = kBuffer+1
-              avgValueWithinOceanLayerRegion(iDataField,iLevel,iRegion)=workBufferSumReduced(kBuffer)
-              minValueWithinOceanLayerRegion(iDataField,iLevel,iRegion)=workBufferMinReduced(kBuffer)
-              maxValueWithinOceanLayerRegion(iDataField,iLevel,iRegion)=workBufferMaxReduced(kBuffer)
-           enddo
+        do iDataField=1,nDefinedDataFields        
+            kBuffer = kBuffer+1
+            avgValueWithinOceanLayerRegion(iDataField,iRegion,iLevel)=workBufferSumReduced(kBuffer)
+            minValueWithinOceanLayerRegion(iDataField,iRegion,iLevel)=workBufferMinReduced(kBuffer)
+            maxValueWithinOceanLayerRegion(iDataField,iRegion,iLevel)=workBufferMaxReduced(kBuffer)
+          enddo
         enddo
       enddo
 
@@ -389,8 +466,8 @@ contains
       do iRegion=1,nOceanRegionsTmp
         do iDataField=1,nDefinedDataFields
           do iLevel=1,nVertLevels
-             avgValueWithinOceanVolumeRegion(iDataField, iRegion) = avgValueWithinOceanVolumeRegion(iDataField, iRegion) &
-                                                                  + avgValueWithinOceanLayerRegion(iDataField,iLevel,iRegion)
+             avgValueWithinOceanVolumeRegion(iDataField, iRegion) = avgValueWithinOceanVolumeRegion(iDataField,iRegion) &
+                                                                  + avgValueWithinOceanLayerRegion(iDataField,iRegion,iLevel)
           enddo
         enddo
         do iDataField=4,nDefinedDataFields
@@ -408,25 +485,25 @@ contains
       ! find min/max with region volume
       do iRegion=1,nOceanRegionsTmp
         do iDataField=1,nDefinedDataFields
-           minValueWithinOceanVolumeRegion(iDataField, iRegion) = minval(minValueWithinOceanLayerRegion(iDataField,:,iRegion))
-           maxValueWithinOceanVolumeRegion(iDataField, iRegion) = maxval(minValueWithinOceanLayerRegion(iDataField,:,iRegion))
+           minValueWithinOceanVolumeRegion(iDataField, iRegion) = minval(minValueWithinOceanLayerRegion(iDataField,iRegion,:))
+           maxValueWithinOceanVolumeRegion(iDataField, iRegion) = maxval(minValueWithinOceanLayerRegion(iDataField,iRegion,:))
         enddo
       enddo
 
       ! normalize averages layer-by-layer
-      do iRegion=1,nOceanRegionsTmp
       do iLevel=1,nVertLevels
-         ! normalize all field by total volume in each layer
-         do iDataField=4,nDefinedDataFields
-            avgValueWithinOceanLayerRegion(iDataField,iLevel,iRegion) = avgValueWithinOceanLayerRegion(iDataField,iLevel,iRegion) &
-                                                               / max(avgValueWithinOceanLayerRegion(3,iLevel,iRegion),1.0e-8_RKIND)
-         enddo
-         ! normalize total layer volume by layer area
-         avgValueWithinOceanLayerRegion(3,iLevel,iRegion) = avgValueWithinOceanLayerRegion(3,iLevel,iRegion) &
-                                                          / max(avgValueWithinOceanLayerRegion(2,iLevel,iRegion),1.0e-8_RKIND)
-         ! normalize total layer area by number of cells in region
-         avgValueWithinOceanLayerRegion(2,iLevel,iRegion) = avgValueWithinOceanLayerRegion(2,iLevel,iRegion) &
-                                                          / max(avgValueWithinOceanLayerRegion(1,iLevel,iRegion),1.0e-8_RKIND)
+        do iRegion=1,nOceanRegionsTmp
+          ! normalize all field by total volume in each layer
+          do iDataField=4,nDefinedDataFields
+            avgValueWithinOceanLayerRegion(iDataField,iRegion,iLevel) = avgValueWithinOceanLayerRegion(iDataField,iRegion,iLevel) &
+                                                               / max(avgValueWithinOceanLayerRegion(3,iRegion,iLevel),1.0e-8_RKIND)
+          enddo
+          ! normalize total layer volume by layer area
+          avgValueWithinOceanLayerRegion(3,iRegion,iLevel) = avgValueWithinOceanLayerRegion(3,iRegion,iLevel) &
+                                                          / max(avgValueWithinOceanLayerRegion(2,iRegion,iLevel),1.0e-8_RKIND)
+          ! normalize total layer area by number of cells in region
+          avgValueWithinOceanLayerRegion(2,iRegion,iLevel) = avgValueWithinOceanLayerRegion(2,iRegion,iLevel) &
+                                                          / max(avgValueWithinOceanLayerRegion(1,iRegion,iLevel),1.0e-8_RKIND)
       enddo
       enddo
 
@@ -437,99 +514,32 @@ contains
 
    contains
 
-   subroutine compute_mask(iLevel, maxLevelCell, nCells, nCellsSolve, iRegion, lonCell, latCell, workMask)
-   ! this subroutines produces a 0/1 mask that is multiplied with workArray to
-   ! allow for min/max/avg to represent specific regions of the ocean domain
-   !
-   ! NOTE: computes_mask is temporary. workMask should be intent(in) to this entire module !
-   !
-   integer, intent(in) :: iLevel, nCells, nCellsSolve, iRegion
-   integer, intent(in), dimension(:) :: maxLevelCell
-   real(kind=RKIND), dimension(:), intent(in) :: lonCell, latCell
-   real(kind=RKIND), dimension(:), intent(out) :: workMask
-   integer :: iCell
-   real(kind=RKIND) :: dtr
-
-   dtr = 4.0_RKIND*atan(1.0_RKIND) / 180.0_RKIND
-   workMask(:) = 0.0_RKIND
-   do iCell=1,nCellsSolve
-      if(iLevel.le.maxLevelCell(iCell)) workMask(iCell) = 1.0_RKIND
-   enddo
-
-   if (iRegion.eq.1) then
-      ! Arctic
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).lt. 60.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   elseif (iRegion.eq.2) then
-      ! Equatorial
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).gt. 15.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(latCell(iCell).lt.-15.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   elseif (iRegion.eq.3) then
-      ! Southern Ocean
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).gt.-50.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   elseif (iRegion.eq.4) then
-      ! Nino 3
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).lt.210.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).gt.270.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   elseif (iRegion.eq.5) then
-      ! Nino 4
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).lt.160.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).gt.210.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   elseif (iRegion.eq.6) then
-      ! Nino 3.4
-      do iCell=1,nCellsSolve
-        if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).lt.190.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-        if(lonCell(iCell).gt.240.0_RKIND*dtr) workMask(iCell) = 0.0_RKIND
-      enddo
-   else
-      ! global (do nothing!)
-   endif
-
-   end subroutine compute_mask
-
-
-   subroutine compute_statistics(nDefinedDataFields, nCellsSolve, workArray, workMask, workMin, workMax, workSum)
+   subroutine compute_statistics(nDefinedDataFields, nOceanRegionsTmp, nCellsSolve, workArray, workMask, workMin, workMax, workSum)
    ! this subroutines does the actual summing, min, max, masking ect
    ! this hides the messy code from the high-level subroutine
 
-   integer, intent(in) :: nDefinedDataFields, nCellsSolve
-   real(kind=RKIND), dimension(:,:), intent(in) :: workArray
-   real(kind=RKIND), dimension(:), intent(in)   :: workMask
-   real(kind=RKIND), dimension(:), intent(out)  :: workMin, workMax, workSum
-   integer :: iCell, iDataField
+   integer, intent(in) :: nDefinedDataFields, nCellsSolve, nOceanRegionsTmp
+   real(kind=RKIND), dimension(:,:), intent(in) :: workArray, workMask
+   real(kind=RKIND), dimension(:,:), intent(out)  :: workMin, workMax, workSum
+
+   integer :: iCell, iDataField,iRegion
    real(kind=RKIND) :: cellMask, cellArea, cellVolume
 
    workSum = 0.0_RKIND
    do iCell=1,nCellsSolve
-    cellMask   = workMask(iCell)                                           ! mask
-    cellArea   = cellMask * workArray(2,iCell)                             ! area
-    cellVolume = cellArea * workArray(3,iCell)                             ! volume
-    workSum(1) = workSum(1) + cellMask                                     ! 0/1 mask sum
-    workSum(2) = workSum(2) + cellArea                                     ! area sum
-    workSum(3) = workSum(3) + cellVolume                                   ! volume sum
-    do iDataField=4,nDefinedDataFields
-      workSum(iDataField) = workSum(iDataField) + cellVolume*workArray(iDataField,iCell)  ! volume-weighted sum
-    enddo
-   enddo
-
-   do iDataField=1,nDefinedDataFields
-      workMin(iDataField) = minval(workArray(iDataField,1:nCellsSolve),workMask(1:nCellsSolve)>0.5_RKIND)
-      workMax(iDataField) = maxval(workArray(iDataField,1:nCellsSolve),workMask(1:nCellsSolve)>0.5_RKIND)
+      do iRegion=1,nOceanRegionsTmp
+         cellMask   = workMask(iRegion,iCell)                                           ! mask
+         cellArea   = cellMask * workArray(2,iCell)                             ! area
+         cellVolume = cellArea * workArray(3,iCell)                             ! volume
+         workSum(1,iRegion) = workSum(1,iRegion) + cellMask                                     ! 0/1 mask sum
+         workSum(2,iRegion) = workSum(2,iRegion) + cellArea                                     ! area sum
+         workSum(3,iRegion) = workSum(3,iRegion) + cellVolume                                   ! volume sum
+         do iDataField=4,nDefinedDataFields
+            workSum(iDataField,iRegion) = workSum(iDataField,iRegion) + cellVolume*workArray(iDataField,iCell)  ! volume-weighted sum
+            workMin(iDataField,iRegion) = min(workSum(iDataField,iRegion), workMin(iDataField,iRegion))
+            workMax(iDataField,iRegion) = max(workSum(iDataField,iRegion), workMax(iDataField,iRegion))
+         enddo
+      enddo
    enddo
 
    end subroutine compute_statistics
