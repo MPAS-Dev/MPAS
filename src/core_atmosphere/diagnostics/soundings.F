@@ -69,7 +69,10 @@ module soundings
         character(len=StrKIND), pointer :: soundingInterval
 
         integer :: i, ierr
+        integer :: cmdstat
+        character(len=StrKIND) :: cmdmsg
         integer :: sndUnit
+        character (len=StrKIND+10) :: tempcmd
         real (kind=RKIND) :: station_lat, station_lon
         character (len=StrKIND) :: tempstr
         character (len=StrKIND) :: station_name
@@ -153,12 +156,17 @@ module soundings
         end if
         if (dminfo % my_proc_id == IO_NODE) then
             ierr = -1
-            call execute_command_line('mkdir -p '//trim(soundingPath), exitstat=ierr)
+            tempcmd = 'mkdir -p '//trim(soundingPath)
+            call execute_command_line(tempcmd, exitstat=ierr, cmdstat=cmdstat, cmdmsg=cmdmsg)
         end if
         call mpas_dmpar_bcast_int(dminfo, ierr)
-        if (ierr /= 0) then
+        call mpas_dmpar_bcast_int(dminfo, cmdstat)
+        if (ierr /= 0 .or. cmdstat /= 0) then
             call mpas_log_write('******************************************************************************')
             call mpas_log_write('* Error: Could not make directory '//trim(soundingPath)//' for sounding files')
+            if (dminfo % my_proc_id == IO_NODE) then
+                call mpas_log_write(trim(cmdmsg))
+            end if
             call mpas_log_write('******************************************************************************')
             nSoundings = 0
             return
