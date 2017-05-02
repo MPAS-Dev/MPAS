@@ -55,6 +55,12 @@ module ocn_layer_volume_weighted_averages
    !
    !--------------------------------------------------------------------
 
+   ! create a multi-block region mask temporarily
+   ! this should replaced later by a MPAS ocean-wide region definition
+
+   real (kind=RKIND), dimension(:,:,:), allocatable :: &
+      regionMask
+
 !***********************************************************************
 
 contains
@@ -87,13 +93,6 @@ contains
       !-----------------------------------------------------------------
 
       type (domain_type), intent(inout) :: domain
-      type (mpas_pool_type), pointer :: layerVolumeWeightedAverageAMPool 
-      type (mpas_pool_type), pointer :: meshPool
-      real (kind=RKIND), dimension(:,:,:), pointer :: layerVolumeMask
-      integer, pointer :: nOceanRegionsTmp, nCellsSolve, nCells, nVertLevels
-      integer, pointer :: nLayerVolWeightedAvgFields 
-      real (kind=RKIND), dimension(:), pointer ::  lonCell, latCell
-      integer, dimension(:), pointer :: maxLevelCell
 
       !-----------------------------------------------------------------
       !
@@ -108,87 +107,72 @@ contains
       ! local variables
       !
       !-----------------------------------------------------------------
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'layerVolumeWeightedAverageAM', layerVolumeWeightedAverageAMPool)
- 
-      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'layerVolumeMask', layerVolumeMask)
-      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nOceanRegionsTmp', nOceanRegionsTmp)
-      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nLayerVolWeightedAvgFields', nLayerVolWeightedAvgFields)
-      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nVertLevels', nVertLevels)
-      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nCellsSolve', nCellsSolve)
-      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nCells', nCells)
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
 
-      call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
-      call mpas_pool_get_array(meshPool, 'latCell', latCell)
-      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+      type (dm_info) :: dminfo
+      type (block_type), pointer :: block
+      type (mpas_pool_type), pointer :: meshPool
+
+      integer, pointer :: &
+         nCells,          &! number of cells in a given block
+         nCellsSolve,     &! number of cells owned by a given block
+         nRegions          ! number of ocean regions defined
+
+      real (kind=RKIND), dimension(:), pointer ::  &
+         lonCell, latCell  ! latitude, longitude of each cell
+
+      integer ::          &
+         iBlock,          &! block counter
+         numBlocks,       &! track number of blocks and
+         maxCells          ! largest cell count to size array
+
+      !-----------------------------------------------------------------
 
       err = 0
 
-      ! compute mask
-      call compute_mask(nVertLevels, maxLevelCell, nCells, nCellsSolve, nOceanRegionsTmp,   &
-                        lonCell, latCell, layerVolumeMask)
+      ! set highest level pointer
+      dminfo = domain % dminfo
 
-   contains
+      ! retrieve number of regions
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, &
+                                   'nOceanRegionsTmp', nRegions)
 
-   subroutine compute_mask(nVertLevels, maxLevelCell, nCells, nCellsSolve, nOceanRegionsTmp, &
-                           lonCell, latCell, workMask)
-   ! this subroutines produces a 0/1 mask that is multiplied with workArray to
-   ! allow for min/max/avg to represent specific regions of the ocean domain
-   !
-   ! NOTE: computes_mask is temporary. workMask should be intent(in) to this entire module !
-   !
-   integer, intent(in) :: nVertLevels, nCells, nCellsSolve, nOceanRegionsTmp
-   integer, intent(in), dimension(:) :: maxLevelCell
-   real(kind=RKIND), dimension(:), intent(in) :: lonCell, latCell
-   real(kind=RKIND), dimension(:,:,:), intent(out) :: workMask
-   integer :: iCell, iLevel, iRegion
-   real(kind=RKIND) :: dtr
+      ! count up the number of blocks and the max size of each domain
+      numBlocks = 0
+      maxCells  = 0
+      block => domain % blocklist
+      do while (associated(block))
 
-   dtr = 4.0_RKIND*atan(1.0_RKIND) / 180.0_RKIND
-   workMask(:,:,:) = 0.0_RKIND
-   do iLevel=1,nVertLevels
-     do iCell=1,nCellsSolve
-       if(iLevel.le.maxLevelCell(iCell)) workMask(:,iCell,iLevel) = 1.0_RKIND
-     enddo
-   enddo
+         numBlocks = numBlocks + 1
+         call mpas_pool_get_dimension(block % dimensions, 'nCells', &
+                                                           nCells)
+         maxCells = max(maxCells, nCells)
 
-   ! Arctic
-   do iCell=1,nCellsSolve
-     if(latCell(iCell).lt. 60.0_RKIND*dtr) workMask(1,iCell,:) = 0.0_RKIND
-   enddo
-   ! Equatorial
-   do iCell=1,nCellsSolve
-     if(latCell(iCell).gt. 15.0_RKIND*dtr) workMask(2,iCell,:) = 0.0_RKIND
-     if(latCell(iCell).lt.-15.0_RKIND*dtr) workMask(2,iCell,:) = 0.0_RKIND
-   enddo
-   ! Southern Ocean
-   do iCell=1,nCellsSolve
-     if(latCell(iCell).gt.-50.0_RKIND*dtr) workMask(3,iCell,:) = 0.0_RKIND
-   enddo
-   ! Nino 3
-   do iCell=1,nCellsSolve
-     if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(4,iCell,:) = 0.0_RKIND
-     if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(4,iCell,:) = 0.0_RKIND
-     if(lonCell(iCell).lt.210.0_RKIND*dtr) workMask(4,iCell,:) = 0.0_RKIND
-     if(lonCell(iCell).gt.270.0_RKIND*dtr) workMask(4,iCell,:) = 0.0_RKIND
-   enddo
-   ! Nino 4
-   do iCell=1,nCellsSolve
-     if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(5,iCell,:) = 0.0_RKIND
-     if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(5,iCell,:) = 0.0_RKIND
-     if(lonCell(iCell).lt.160.0_RKIND*dtr) workMask(5,iCell,:) = 0.0_RKIND
-     if(lonCell(iCell).gt.210.0_RKIND*dtr) workMask(5,iCell,:) = 0.0_RKIND
-   enddo
-   ! Nino 3.4
-   do iCell=1,nCellsSolve
-     if(latCell(iCell).gt.  5.0_RKIND*dtr) workMask(6,iCell,:) = 0.0_RKIND
-     if(latCell(iCell).lt. -5.0_RKIND*dtr) workMask(6,iCell,:) = 0.0_RKIND
-     if(lonCell(iCell).lt.190.0_RKIND*dtr) workMask(6,iCell,:) = 0.0_RKIND
-     if(lonCell(iCell).gt.240.0_RKIND*dtr) workMask(6,iCell,:) = 0.0_RKIND
-   enddo
+         block => block % next
+      end do
 
-   end subroutine compute_mask
+      ! allocate the region mask array
+      allocate(regionMask(maxCells,nRegions,numBlocks))
 
+      ! compute the region mask for each block
+      iBlock = 0
+      block => domain % blocklist
+      do while (associated(block))
+
+         iBlock = iBlock + 1
+
+         call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', &
+                                                           nCellsSolve)
+         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+         call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
+         call mpas_pool_get_array(meshPool, 'latCell', latCell)
+
+         call ocn_LayerVolWgtAvgRegionMask(iBlock, nCellsSolve, &
+                                           lonCell, latCell)
+
+         block => block % next
+      end do
+
+      !-----------------------------------------------------------------
 
    end subroutine ocn_init_layer_volume_weighted_averages!}}}
 
@@ -238,6 +222,7 @@ contains
       !-----------------------------------------------------------------
 
       type (dm_info) :: dminfo
+
       type (block_type), pointer :: block
       type (mpas_pool_type), pointer :: layerVolumeWeightedAverageAMPool
       type (mpas_pool_type), pointer :: statePool
@@ -247,12 +232,11 @@ contains
       type (mpas_pool_type), pointer :: forcingPool
       type (mpas_pool_type), pointer :: tracersPool
 
-      real (kind=RKIND), dimension(:,:,:), pointer :: minValueWithinOceanLayerRegion
-      real (kind=RKIND), dimension(:,:,:), pointer :: maxValueWithinOceanLayerRegion
-      real (kind=RKIND), dimension(:,:,:), pointer :: avgValueWithinOceanLayerRegion
-      real (kind=RKIND), dimension(:,:),   pointer :: minValueWithinOceanVolumeRegion
-      real (kind=RKIND), dimension(:,:),   pointer :: maxValueWithinOceanVolumeRegion
-      real (kind=RKIND), dimension(:,:),   pointer :: avgValueWithinOceanVolumeRegion
+      ! pointers to result arrays
+      real (kind=RKIND), dimension(:,:,:), pointer ::    &
+                         avgLayer, minLayer, maxLayer
+      real (kind=RKIND), dimension(:,:),   pointer ::     &
+                         avgField, minField, maxField
 
       ! pointers to data in pools to be analyzed
       real (kind=RKIND), dimension(:,:),   pointer :: layerThickness
@@ -268,25 +252,29 @@ contains
       real (kind=RKIND), dimension(:,:),   pointer :: divergence
 
       ! pointers to data in mesh pool
-      integer, pointer :: nVertLevels, nCells, nCellsSolve, nLayerVolWeightedAvgFields, nOceanRegionsTmp
+      integer, pointer :: nVertLevels, nCells, nCellsSolve, &
+                          nFields, nRegions
       integer, pointer :: index_temperature, index_salinity
       integer, dimension(:), pointer :: maxLevelCell
-      real (kind=RKIND), dimension(:), pointer ::  areaCell, lonCell, latCell
-
-      ! scratch space
-      type(field2DReal), pointer :: workArrayField, workMinField, workMaxField, workSumField
-      real (kind=RKIND), dimension(:,:), pointer :: workArray, workMin, workMax, workSum
-      real (kind=RKIND), dimension(:,:,:), pointer :: layerVolumeMask
+      real (kind=RKIND), dimension(:), pointer ::  areaCell
 
       ! local variables
-      integer :: iDataField, nDefinedDataFields
-      integer :: iCell, iLevel, iRegion, iTracer, err_tmp
+      integer :: iCell, iLevel, iRegion, iTracer, iField, iBlock
+
+      real (kind=RKIND) :: maskTmp, normFactor ! for normalizing averages
+
+      real (kind=RKIND), dimension(:,:), allocatable :: &
+         vertMask,                     &!mask for active vertical levels
+         fieldTmp                       !field array in local order
 
       ! buffers data for message passaging
-      integer :: kBuffer, kBufferLength
-      real (kind=RKIND), dimension(:), allocatable :: workBufferSum, workBufferSumReduced
-      real (kind=RKIND), dimension(:), allocatable :: workBufferMin, workBufferMinReduced
-      real (kind=RKIND), dimension(:), allocatable :: workBufferMax, workBufferMaxReduced
+      integer :: bufferAddr, bufferLength
+      real (kind=RKIND), dimension(:), allocatable ::  &
+                 msgBuffer, msgBufferReduced
+
+      ! end of preamble
+      !-----------------------------------------------------------------
+      ! begin code
 
       ! assume no error
       err = 0
@@ -294,255 +282,357 @@ contains
       ! set highest level pointer
       dminfo = domain % dminfo
 
-      ! find the number of regions, number of data fields and number of vertical levels
-      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nOceanRegionsTmp', nOceanRegionsTmp)
-      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nLayerVolWeightedAvgFields', nLayerVolWeightedAvgFields)
-      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nVertLevels', nVertLevels)
+      ! find the number of regions, fields and vertical levels
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, &
+                                   'nOceanRegionsTmp', nRegions)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, &
+                                   'nLayerVolWeightedAvgFields', nFields)
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, &
+                                   'nVertLevels', nVertLevels)
 
-      ! allocate buffer for message passing
-      kBuffer=0
-      kBufferLength=nOceanRegionsTmp*nLayerVolWeightedAvgFields*nVertLevels
-      allocate(workBufferSum(kBufferLength))
-      allocate(workBufferMin(kBufferLength))
-      allocate(workBufferMax(kBufferLength))
-      allocate(workBufferSumReduced(kBufferLength))
-      allocate(workBufferMinReduced(kBufferLength))
-      allocate(workBufferMaxReduced(kBufferLength))
-      workBufferSum=0.0_RKIND
-      workBufferMin=0.0_RKIND
-      workBufferMax=0.0_RKIND
-      workBufferSumReduced=0.0_RKIND
-      workBufferMinReduced=0.0_RKIND
-      workBufferMaxReduced=0.0_RKIND
+      ! get pointers to analysis member arrays to store results
+      call mpas_pool_get_subpool(domain % blocklist % structs, &
+                               'layerVolumeWeightedAverageAM', &
+                                layerVolumeWeightedAverageAMPool)
+      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, &
+                               'minValueWithinOceanLayerRegion', &
+                                minLayer)
+      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, &
+                               'maxValueWithinOceanLayerRegion', &
+                                maxLayer)
+      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, &
+                               'avgValueWithinOceanLayerRegion', &
+                                avgLayer)
+      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool,  &
+                               'minValueWithinOceanVolumeRegion', &
+                                minField)
+      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool,  &
+                               'maxValueWithinOceanVolumeRegion', &
+                                maxField)
+      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool,  &
+                               'avgValueWithinOceanVolumeRegion', &
+                                avgField)
 
-      ! get pointers to analysis member arrays
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'layerVolumeWeightedAverageAM', layerVolumeWeightedAverageAMPool)
-      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'minValueWithinOceanLayerRegion', minValueWithinOceanLayerRegion)
-      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'maxValueWithinOceanLayerRegion', maxValueWithinOceanLayerRegion)
-      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'avgValueWithinOceanLayerRegion', avgValueWithinOceanLayerRegion)
-      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'minValueWithinOceanVolumeRegion', &
-                               minValueWithinOceanVolumeRegion)
-      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'maxValueWithinOceanVolumeRegion', &
-                               maxValueWithinOceanVolumeRegion)
-      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'avgValueWithinOceanVolumeRegion', &
-                               avgValueWithinOceanVolumeRegion)
-      call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, 'layerVolumeMask', layerVolumeMask)
+      ! initialize so this routine works for multiple blocks
+      avgLayer =  0.0_RKIND
+      minLayer =  1.e20_RKIND
+      maxLayer = -1.e20_RKIND
 
       ! loop over blocks
-      ! NOTE: code is not valid for multiple blocks !
+      iBlock = 0
       block => domain % blocklist
       do while (associated(block))
 
-         ! get pointers to scratch variables
-         call mpas_pool_get_subpool(block % structs, 'layerVolumeWeightedAverageAMScratch', scratchPool)
-         call mpas_pool_get_field(scratchPool, 'workArrayLayerVolume', workArrayField)
-         call mpas_pool_get_field(scratchPool, 'workMinLayerVolume', workMinField)
-         call mpas_pool_get_field(scratchPool, 'workMaxLayerVolume', workMaxField)
-         call mpas_pool_get_field(scratchPool, 'workSumLayerVolume', workSumField)
-         call mpas_allocate_scratch_field(workArrayField, .true.)
-         call mpas_allocate_scratch_field(workMinField, .true.)
-         call mpas_allocate_scratch_field(workMaxField, .true.)
-         call mpas_allocate_scratch_field(workSumField, .true.)
-         workArray => workArrayField % array
-         workMin => workMinField % array
-         workMax => workMaxField % array
-         workSum => workSumField % array
+         iBlock = iBlock + 1
 
          ! get pointers to pools
-         call mpas_pool_get_subpool(block % structs, 'state', statePool)
-         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
-         call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
-         call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+         call mpas_pool_get_subpool(block % structs, 'state',       &
+                                                      statePool)
+         call mpas_pool_get_subpool(block % structs, 'mesh',        &
+                                                      meshPool)
+         call mpas_pool_get_subpool(block % structs, 'diagnostics', &
+                                                      diagnosticsPool)
+         call mpas_pool_get_subpool(block % structs, 'forcing',     &
+                                                      forcingPool)
+         call mpas_pool_get_subpool(statePool,       'tracers',     &
+                                                      tracersPool)
 
          ! get pointers to mesh
-         call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
-         call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells)
-         call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', nVertLevels)
-         call mpas_pool_get_dimension(block % dimensions, 'nLayerVolWeightedAvgFields', nLayerVolWeightedAvgFields)
-         call mpas_pool_get_dimension(block % dimensions, 'nOceanRegionsTmp', nOceanRegionsTmp)
-         call mpas_pool_get_dimension(tracersPool, 'index_temperature', index_temperature)
-         call mpas_pool_get_dimension(tracersPool, 'index_salinity', index_salinity)
-         call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
-         call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
-         call mpas_pool_get_array(meshPool, 'latCell', latCell)
+         call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', &
+                                                           nCellsSolve)
+         call mpas_pool_get_dimension(block % dimensions, 'nCells',      &
+                                                           nCells)
+         call mpas_pool_get_dimension(tracersPool, 'index_temperature', &
+                                                    index_temperature)
+         call mpas_pool_get_dimension(tracersPool, 'index_salinity',    &
+                                                    index_salinity)
+         call mpas_pool_get_array(meshPool, 'areaCell',     areaCell)
          call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
 
-         ! test to make sure the arrays are big enough
-         nDefinedDataFields = size(avgValueWithinOceanLayerRegion,dim=1)
-         if (nDefinedDataFields > nLayerVolWeightedAvgFields) then
-             write (stderrUnit,*) 'Abort: nDefinedDataFields > nLayerVolWeightedAvgFields'
-             write (stderrUnit,*) '     :  increase size of ocn_layer_volume_weighted_averages scratch space'
-             call mpas_dmpar_global_abort('MPAS-ocean: Abort: nDefinedDataFields > nLayerVolWeightedAvgFields')
-         endif
-
          ! get pointers to data that will be analyzed
-         ! listed in the order in which the fields appear in {avg,min,max}ValueWithinOceanLayerRegion
-         call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
-         call mpas_pool_get_array(diagnosticsPool, 'density', density)
-         call mpas_pool_get_array(diagnosticsPool, 'potentialDensity', potentialDensity)
-         call mpas_pool_get_array(diagnosticsPool, 'BruntVaisalaFreqTop', BruntVaisalaFreqTop)
-         call mpas_pool_get_array(diagnosticsPool, 'velocityZonal', velocityZonal)
-         call mpas_pool_get_array(diagnosticsPool, 'velocityMeridional', velocityMeridional)
-         call mpas_pool_get_array(diagnosticsPool, 'vertVelocityTop', vertVelocityTop)
-         call mpas_pool_get_array(diagnosticsPool, 'kineticEnergyCell', kineticEnergyCell)
-         call mpas_pool_get_array(diagnosticsPool, 'relativeVorticityCell', relativeVorticityCell)
-         call mpas_pool_get_array(diagnosticsPool, 'divergence', divergence)
-         call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, 1)
+         ! listed in the order in which the fields appear in output
+         call mpas_pool_get_array(statePool,       'layerThickness', &
+                                                    layerThickness, 1)
+         call mpas_pool_get_array(diagnosticsPool, 'density', &
+                                                    density)
+         call mpas_pool_get_array(diagnosticsPool, 'potentialDensity', &
+                                                    potentialDensity)
+         call mpas_pool_get_array(diagnosticsPool, 'BruntVaisalaFreqTop', &
+                                                    BruntVaisalaFreqTop)
+         call mpas_pool_get_array(diagnosticsPool, 'velocityZonal', &
+                                                    velocityZonal)
+         call mpas_pool_get_array(diagnosticsPool, 'velocityMeridional', &
+                                                    velocityMeridional)
+         call mpas_pool_get_array(diagnosticsPool, 'vertVelocityTop', &
+                                                    vertVelocityTop)
+         call mpas_pool_get_array(diagnosticsPool, 'kineticEnergyCell', &
+                                                    kineticEnergyCell)
+         call mpas_pool_get_array(diagnosticsPool, 'relativeVorticityCell', &
+                                                    relativeVorticityCell)
+         call mpas_pool_get_array(diagnosticsPool, 'divergence', &
+                                                    divergence)
+         call mpas_pool_get_array(tracersPool,     'activeTracers', &
+                                                    activeTracers, 1)
 
-         ! initialize buffers
-         workBufferSum(:) = 0.0_RKIND
-         workBufferMin(:) = +1.0e20_RKIND
-         workBufferMax(:) = -1.0e20_RKIND
 
-         ! loop over the vertical
+         ! allocate arrays to hold local block masks, and fields
+         allocate(fieldTmp(nCellsSolve,nFields))
+         !$omp single
+         allocate(vertMask(nCells,nVertLevels))
+         !$omp end single
+
+         call ocn_LayerVolWgtAvgVertMask(maxLevelCell, nCellsSolve, &
+                                         vertMask)
+
+         !$omp do private(iLevel,iCell,iField,iRegion, &
+         !$omp            maskTmp, fieldTmp)
          do iLevel=1,nVertLevels
 
-            ! copy data into work array
-            workArray( :,:) = 0.0_RKIND
-            workArray( 2,:) = areaCell(:)
-            workArray( 3,:) = layerThickness(iLevel,:)
-            workArray( 4,:) = density(iLevel,:)
-            workArray( 5,:) = potentialDensity(iLevel,:)
-            workArray( 6,:) = BruntVaisalaFreqTop(iLevel,:)
-            workArray( 7,:) = velocityZonal(iLevel,:)
-            workArray( 8,:) = velocityMeridional(iLevel,:)
-            workArray( 9,:) = vertVelocityTop(iLevel,:)
-            if ( associated(activeTracers) ) workArray(10,:) = activeTracers(index_temperature,iLevel,:)
-            if ( associated(activeTracers) ) workArray(11,:) = activeTracers(index_salinity,iLevel,:)
-            workArray(12,:) = kineticEnergyCell(iLevel,:)
-            workArray(13,:) = relativeVorticityCell(iLevel,:)
-            workArray(14,:) = divergence(iLevel,:)
-            workArray(15,:) = relativeVorticityCell(iLevel,:)*relativeVorticityCell(iLevel,:)
+            do iCell=1,nCellsSolve
+               fieldTmp(iCell,1) = vertMask              (iCell,iLevel)
+               fieldTmp(iCell,2) = areaCell              (iCell)
+               fieldTmp(iCell,3) = layerThickness        (iLevel,iCell)
+               fieldTmp(iCell,4) = density               (iLevel,iCell)
+               fieldTmp(iCell,5) = potentialDensity      (iLevel,iCell) 
+               fieldTmp(iCell,6) = BruntVaisalaFreqTop   (iLevel,iCell)
+               fieldTmp(iCell,7) = velocityZonal         (iLevel,iCell)
+               fieldTmp(iCell,8) = velocityMeridional    (iLevel,iCell)
+               fieldTmp(iCell,9) = vertVelocityTop       (iLevel,iCell)
+               fieldTmp(iCell,10) = &
+                          activeTracers(index_temperature,iLevel,iCell)
+               fieldTmp(iCell,11) = &
+                             activeTracers(index_salinity,iLevel,iCell)
+               fieldTmp(iCell,12) = kineticEnergyCell    (iLevel,iCell)
+               fieldTmp(iCell,13) = relativeVorticityCell(iLevel,iCell)
+               fieldTmp(iCell,14) = divergence           (iLevel,iCell)
+               fieldTmp(iCell,15) = relativeVorticityCell(iLevel,iCell)* & 
+                                    relativeVorticityCell(iLevel,iCell)
+            end do
+ 
+            ! compute min and max
+            do iRegion=1,nRegions
+            do iField=1,nFields
+            do iCell=1,nCellsSolve
+               maskTmp = vertMask(iCell,iLevel)* &
+                       regionMask(iCell,iRegion,iBlock)
+               if (maskTmp /= 0.0_RKIND) then
+                  minLayer(iField,iLevel,iRegion) = min( &
+                  minLayer(iField,iLevel,iRegion),fieldTmp(iCell,iField))
+                  maxLayer(iField,iLevel,iRegion) = max( &
+                  maxLayer(iField,iLevel,iRegion),fieldTmp(iCell,iField))
+               endif
+            end do
+            end do
+            end do
 
-            call compute_statistics(nDefinedDataFields, nOceanRegionsTmp, nCellsSolve, workArray, &
-                                    layerVolumeMask(:,:,iLevel), workMin, workMax, workSum)
+            ! for the latter fields, we want volume-weighted sums
+            ! so replace thickness with cell volume
+            do iCell=1,nCellsSolve
+               fieldTmp(iCell,3) = fieldTmp(iCell,2)*fieldTmp(iCell,3)
+            end do
 
-            ! store data in buffer in order to allow only three dmpar calls
-            do iRegion=1,nOceanRegionsTmp
-              do iDataField=1,nDefinedDataFields
-                kBuffer = kBuffer+1
-                workBufferSum(kBuffer) = workBufferSum(kBuffer) + workSum(iDataField,iRegion)
-                workBufferMin(kBuffer) = min(workBufferMin(kBuffer), workMin(iDataField,iRegion))
-                workBufferMax(kBuffer) = max(workBufferMax(kBuffer), workMax(iDataField,iRegion))
-              enddo
-            enddo
+            ! compute layer averages for each region
+            do iRegion=1,nRegions
 
-         enddo ! iLevel
+               ! replace field 1 with combined vertical, region mask
+               do iCell=1,nCellsSolve
+                  fieldTmp(iCell,1) = vertMask(iCell,iLevel)* &
+                                    regionMask(iCell,iRegion,iBlock)
+                  avgLayer(1,iLevel,iRegion) = &
+                  avgLayer(1,iLevel,iRegion) + fieldTmp(iCell,1)
+               end do
 
-         kBuffer = 0
+               ! cell area
+               do iCell=1,nCellsSolve
+                  avgLayer(2,iLevel,iRegion) = &
+                  avgLayer(2,iLevel,iRegion) + fieldTmp(iCell,2)* &
+                                               fieldTmp(iCell,1)
+               end do
 
-         ! deallocate scratch fields
-         call mpas_deallocate_scratch_field(workArrayField, .true.)
-         call mpas_deallocate_scratch_field(workMinField, .true.)
-         call mpas_deallocate_scratch_field(workMaxField, .true.)
-         call mpas_deallocate_scratch_field(workSumField, .true.)
+               ! for field three, we want cell volume instead of thickness
+               do iCell=1,nCellsSolve
+                  avgLayer(3,iLevel,iRegion) = &
+                  avgLayer(3,iLevel,iRegion) + fieldTmp(iCell,3)*&
+                                               fieldTmp(iCell,1)
+               end do
 
+               ! for all remaining fields, we want a volume weighted avg
+               do iField=4,nFields
+               do iCell=1,nCellsSolve
+                  avgLayer(iField,iLevel,iRegion) = &
+                  avgLayer(iField,iLevel,iRegion) + &
+                                   fieldTmp(iCell,iField)* &
+                                   fieldTmp(iCell,3) * &
+                                   fieldTmp(iCell,1)
+               end do
+               end do
+            end do ! iRegion
+      
+         end do !iLevel
+
+         ! deallocate fields from this block
+         !$omp single
+         deallocate(fieldTmp)
+         deallocate(vertMask)
+         !$omp end single
          block => block % next
       end do
 
-      ! communication
-      call mpas_dmpar_sum_real_array(dminfo, kBufferLength, workBufferSum, workBufferSumReduced )
-      call mpas_dmpar_min_real_array(dminfo, kBufferLength, workBufferMin, workBufferMinReduced )
-      call mpas_dmpar_max_real_array(dminfo, kBufferLength, workBufferMax, workBufferMaxReduced )
+      ! allocate buffer for message passing
+      bufferAddr=0
+      bufferLength=nRegions*nFields*nVertLevels
+      !$omp single
+      allocate(msgBuffer       (bufferLength))
+      allocate(msgBufferReduced(bufferLength))
+      !$omp end single
 
-      ! unpack the buffer into intent(out) of this analysis member
-      kBuffer=0
+      ! communication for sums
+      ! pack the buffer 
+      !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
+      do iRegion=1,nRegions
       do iLevel=1,nVertLevels
-      do iRegion=1,nOceanRegionsTmp
-        do iDataField=1,nDefinedDataFields        
-            kBuffer = kBuffer+1
-            avgValueWithinOceanLayerRegion(iDataField,iRegion,iLevel)=workBufferSumReduced(kBuffer)
-            minValueWithinOceanLayerRegion(iDataField,iRegion,iLevel)=workBufferMinReduced(kBuffer)
-            maxValueWithinOceanLayerRegion(iDataField,iRegion,iLevel)=workBufferMaxReduced(kBuffer)
-          enddo
-        enddo
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         msgBuffer(bufferAddr) = avgLayer(iField,iLevel,iRegion)
       enddo
+      enddo
+      enddo
+      !$omp end do
+      call mpas_dmpar_sum_real_array(dminfo, bufferLength, msgBuffer, &
+                                                           msgBufferReduced )
+
+      ! compute normalized averages
+
+      ! unpack the buffer 
+      !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
+      do iRegion=1,nRegions
+      do iLevel=1,nVertLevels
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         avgLayer(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
+      enddo
+      enddo
+      enddo
+      !$omp end do
 
       ! compute vertical sum before layer-by-layer normalization
-      minValueWithinOceanVolumeRegion = 0.0_RKIND
-      maxValueWithinOceanVolumeRegion = 0.0_RKIND
-      avgValueWithinOceanVolumeRegion = 0.0_RKIND
-      do iRegion=1,nOceanRegionsTmp
-        do iDataField=1,nDefinedDataFields
+      !$omp do private(iLevel,iField,iRegion,normFactor)
+      do iRegion=1,nRegions
+        do iField=1,nFields
+          avgField(iField,iRegion) = 0.0_RKIND
           do iLevel=1,nVertLevels
-             avgValueWithinOceanVolumeRegion(iDataField, iRegion) = avgValueWithinOceanVolumeRegion(iDataField,iRegion) &
-                                                                  + avgValueWithinOceanLayerRegion(iDataField,iRegion,iLevel)
+             avgField(iField,iRegion) = avgField(iField,iRegion) &
+                                      + avgLayer(iField,iLevel,iRegion)
           enddo
         enddo
-        do iDataField=4,nDefinedDataFields
-          avgValueWithinOceanVolumeRegion(iDataField, iRegion) = avgValueWithinOceanVolumeRegion(iDataField, iRegion) &
-                                                               / max(avgValueWithinOceanVolumeRegion(3,iRegion),1.0e-8_RKIND)
+        normFactor = 1.0_RKIND / max(avgField(3,iRegion),1.0e-8_RKIND)
+        do iField=4,nFields
+          avgField(iField,iRegion) = avgField(iField,iRegion)*normFactor
         enddo
         ! normalize total region volume by total volume cell area
-        avgValueWithinOceanVolumeRegion(3,iRegion) = avgValueWithinOceanVolumeRegion(3,iRegion) &
-                                                   / max(avgValueWithinOceanVolumeRegion(2,iRegion),1.0e-8_RKIND)
+        avgField(3,iRegion) = avgField(3,iRegion) &
+                            / max(avgField(2,iRegion),1.0e-8_RKIND)
         ! normalize total volume cell area by total number of cells
-        avgValueWithinOceanVolumeRegion(2,iRegion) = avgValueWithinOceanVolumeRegion(2,iRegion) &
-                                                   / max(avgValueWithinOceanVolumeRegion(1,iRegion),1.0e-8_RKIND)
+        avgField(2,iRegion) = avgField(2,iRegion) &
+                            / max(avgField(1,iRegion),1.0e-8_RKIND)
       enddo
-
-      ! find min/max with region volume
-      do iRegion=1,nOceanRegionsTmp
-        do iDataField=1,nDefinedDataFields
-           minValueWithinOceanVolumeRegion(iDataField, iRegion) = minval(minValueWithinOceanLayerRegion(iDataField,iRegion,:))
-           maxValueWithinOceanVolumeRegion(iDataField, iRegion) = maxval(minValueWithinOceanLayerRegion(iDataField,iRegion,:))
-        enddo
-      enddo
+      !$omp end do
 
       ! normalize averages layer-by-layer
+      !$omp do collapse(2) private(iLevel, iRegion, iField, normFactor)
+      do iRegion=1,nRegions
       do iLevel=1,nVertLevels
-        do iRegion=1,nOceanRegionsTmp
-          ! normalize all field by total volume in each layer
-          do iDataField=4,nDefinedDataFields
-            avgValueWithinOceanLayerRegion(iDataField,iRegion,iLevel) = avgValueWithinOceanLayerRegion(iDataField,iRegion,iLevel) &
-                                                               / max(avgValueWithinOceanLayerRegion(3,iRegion,iLevel),1.0e-8_RKIND)
-          enddo
-          ! normalize total layer volume by layer area
-          avgValueWithinOceanLayerRegion(3,iRegion,iLevel) = avgValueWithinOceanLayerRegion(3,iRegion,iLevel) &
-                                                          / max(avgValueWithinOceanLayerRegion(2,iRegion,iLevel),1.0e-8_RKIND)
-          ! normalize total layer area by number of cells in region
-          avgValueWithinOceanLayerRegion(2,iRegion,iLevel) = avgValueWithinOceanLayerRegion(2,iRegion,iLevel) &
-                                                          / max(avgValueWithinOceanLayerRegion(1,iRegion,iLevel),1.0e-8_RKIND)
-      enddo
-      enddo
-
-      ! deallocate buffers
-      deallocate(workBufferSumReduced)
-      deallocate(workBufferMinReduced)
-      deallocate(workBufferMaxReduced)
-
-   contains
-
-   subroutine compute_statistics(nDefinedDataFields, nOceanRegionsTmp, nCellsSolve, workArray, workMask, workMin, workMax, workSum)
-   ! this subroutines does the actual summing, min, max, masking ect
-   ! this hides the messy code from the high-level subroutine
-
-   integer, intent(in) :: nDefinedDataFields, nCellsSolve, nOceanRegionsTmp
-   real(kind=RKIND), dimension(:,:), intent(in) :: workArray, workMask
-   real(kind=RKIND), dimension(:,:), intent(out)  :: workMin, workMax, workSum
-
-   integer :: iCell, iDataField,iRegion
-   real(kind=RKIND) :: cellMask, cellArea, cellVolume
-
-   workSum = 0.0_RKIND
-   do iCell=1,nCellsSolve
-      do iRegion=1,nOceanRegionsTmp
-         cellMask   = workMask(iRegion,iCell)                                           ! mask
-         cellArea   = cellMask * workArray(2,iCell)                             ! area
-         cellVolume = cellArea * workArray(3,iCell)                             ! volume
-         workSum(1,iRegion) = workSum(1,iRegion) + cellMask                                     ! 0/1 mask sum
-         workSum(2,iRegion) = workSum(2,iRegion) + cellArea                                     ! area sum
-         workSum(3,iRegion) = workSum(3,iRegion) + cellVolume                                   ! volume sum
-         do iDataField=4,nDefinedDataFields
-            workSum(iDataField,iRegion) = workSum(iDataField,iRegion) + cellVolume*workArray(iDataField,iCell)  ! volume-weighted sum
-            workMin(iDataField,iRegion) = min(workSum(iDataField,iRegion), workMin(iDataField,iRegion))
-            workMax(iDataField,iRegion) = max(workSum(iDataField,iRegion), workMax(iDataField,iRegion))
+         ! normalize all field by total volume in each layer
+         normFactor = 1.0_RKIND/max(avgLayer(3,iLevel,iRegion),1.0e-8_RKIND)
+         do iField=4,nFields
+            avgLayer(iField,iLevel,iRegion) = &
+            avgLayer(iField,iLevel,iRegion) * normFactor
          enddo
+         ! normalize total layer volume by layer area
+         avgLayer(3,iLevel,iRegion) = avgLayer(3,iLevel,iRegion) &
+                                / max(avgLayer(2,iLevel,iRegion),1.0e-8_RKIND)
+         ! normalize total layer area by number of cells in region
+         avgLayer(2,iLevel,iRegion) = avgLayer(2,iLevel,iRegion) &
+                                / max(avgLayer(1,iLevel,iRegion),1.0e-8_RKIND)
       enddo
-   enddo
+      enddo
+      !$omp end do
 
-   end subroutine compute_statistics
+      ! now compute min/max for each field, region
+      ! find global min/max
+
+      ! pack the buffer for minval 
+      !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
+      do iRegion=1,nRegions
+      do iLevel=1,nVertLevels
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         msgBuffer(bufferAddr) = minLayer(iField,iLevel,iRegion)
+      enddo
+      enddo
+      enddo
+      !$omp end do
+      ! communicate for global min
+      call mpas_dmpar_min_real_array(dminfo, bufferLength, msgBuffer, &
+                                                           msgBufferReduced )
+      ! unpack the buffer
+      !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
+      do iRegion=1,nRegions
+      do iLevel=1,nVertLevels
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         minLayer(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
+      enddo
+      enddo
+      enddo
+      !$omp end do
+
+      ! pack the buffer for maxval 
+      !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
+      do iRegion=1,nRegions
+      do iLevel=1,nVertLevels
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         msgBuffer(bufferAddr) = maxLayer(iField,iLevel,iRegion)
+      enddo
+      enddo
+      enddo
+      !$omp end do
+      call mpas_dmpar_max_real_array(dminfo, bufferLength, msgBuffer, &
+                                                           msgBufferReduced )
+      ! unpack the buffer
+      !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
+      do iRegion=1,nRegions
+      do iLevel=1,nVertLevels
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         maxLayer(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
+      enddo
+      enddo
+      enddo
+      !$omp end do
+
+      ! deallocate buffer
+      !$omp single
+      deallocate(msgBuffer)
+      deallocate(msgBufferReduced)
+      !$omp end single
+
+      ! find min/max with region volume
+      !$omp do collapse(2) private(iRegion, iField)
+      do iRegion=1,nRegions
+      do iField=1,nFields
+         minField(iField,iRegion) = minval(minLayer(iField,:,iRegion))
+         maxField(iField,iRegion) = maxval(maxLayer(iField,:,iRegion))
+      enddo
+      enddo
+      !$omp end do
 
    end subroutine ocn_compute_layer_volume_weighted_averages!}}}
 
@@ -639,6 +729,226 @@ contains
       err = 0
 
    end subroutine ocn_finalize_layer_volume_weighted_averages!}}}
+
+!***********************************************************************
+!
+!  routine ocn_LayerVolWgtAvgRegionMask
+!
+!> \brief   Computes mask to define local regions
+!> \author  Todd Ringler, rev. Phil Jones
+!> \date    April 19, 2017
+!> \details
+!>  This is a local routine for this analysis member that computes
+!>  a multiplicative mask that is 1 if the point is a member of the
+!>  desired region and zero otherwise. 
+!>  NOTE: This routine should be temporary and should be replaced
+!>        once an MPAS-wide ocean region and mask capability 
+!>        are introduced.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_LayerVolWgtAvgRegionMask(iBlock, nCellsSolve, &
+                                           lonCell, latCell)!{{{
+
+     !------------------------------------------------------------------
+     !
+     ! input variables
+     !
+     !------------------------------------------------------------------
+
+     integer, intent(in) :: &
+        iBlock,             &! current block in block decomposition
+        nCellsSolve          ! number of cells owned by this block
+
+     real(kind=RKIND), dimension(:), intent(in) :: &
+        lonCell, latCell     ! lat, lon coordinates for each cell
+     
+     !------------------------------------------------------------------
+     !
+     ! output variables
+     !
+     !------------------------------------------------------------------
+
+     ! output in in module variable regionMask
+
+     !------------------------------------------------------------------
+     !
+     ! local variables
+     !
+     !------------------------------------------------------------------
+
+     integer ::                       &
+        iCell, iRegion,               &! loop indices
+        nCells, nRegions, nCellsMax    ! array sizes
+
+     real(kind=RKIND) ::              &
+        dtr                            ! degree to radian conversion
+
+     !------------------------------------------------------------------
+
+     nCellsMax = size(regionMask, dim=1)
+     nRegions  = size(regionMask, dim=2)
+
+     ! Currently assumes 6 regions, so fail if nRegions not large enough
+     if (nRegions < 6) then
+        !$omp master
+        write (stderrUnit,*) 'Abort: nRegions inconsistent '
+        write (stderrUnit,*) '     : in layer volume weighted avg AM'
+        !$omp end master
+        call mpas_dmpar_global_abort(&
+          'MPAS-ocean: Abort: nRegions inconsistent in layer vol wgt avg AM')
+     endif
+
+     ! degrees to radians
+     dtr = 4.0_RKIND*atan(1.0_RKIND) / 180.0_RKIND
+
+     ! Define masks for each region
+     !$omp do 
+     do iCell=1,nCellsSolve
+
+        ! Define Arctic region (region 1)
+        if (latCell(iCell) < 60.0_RKIND*dtr) then
+           regionMask(iCell,1,iBlock) = 0.0_RKIND
+        else
+           regionMask(iCell,1,iBlock) = 1.0_RKIND
+        endif
+
+        ! Equatorial region (region 2)
+        if (latCell(iCell) >  15.0_RKIND*dtr .or. &
+            latCell(iCell) < -15.0_RKIND*dtr) then
+           regionMask(iCell,2,iBlock) = 0.0_RKIND
+        else
+           regionMask(iCell,2,iBlock) = 1.0_RKIND
+        endif
+
+        ! Southern Ocean (region 3)
+        if (latCell(iCell) > -50.0_RKIND*dtr) then
+           regionMask(iCell,3,iBlock) = 0.0_RKIND
+        else
+           regionMask(iCell,3,iBlock) = 1.0_RKIND
+        endif
+
+        ! Nino 3 (region 4)
+        if (latCell(iCell) >   5.0_RKIND*dtr .or. &
+            latCell(iCell) <  -5.0_RKIND*dtr .or. &
+            lonCell(iCell) < 210.0_RKIND*dtr .or. &
+            lonCell(iCell) > 270.0_RKIND*dtr) then
+           regionMask(iCell,4,iBlock) = 0.0_RKIND
+        else
+           regionMask(iCell,4,iBlock) = 1.0_RKIND
+        endif
+
+        ! Nino 4 (region 5)
+        if (latCell(iCell) >   5.0_RKIND*dtr .or. &
+            latCell(iCell) <  -5.0_RKIND*dtr .or. &
+            lonCell(iCell) < 160.0_RKIND*dtr .or. &
+            lonCell(iCell) > 210.0_RKIND*dtr) then
+           regionMask(iCell,5,iBlock) = 0.0_RKIND
+        else
+           regionMask(iCell,5,iBlock) = 1.0_RKIND
+        endif
+
+        ! Nino 3.4 (region 6)
+        if (latCell(iCell) >   5.0_RKIND*dtr .or. &
+            latCell(iCell) <  -5.0_RKIND*dtr .or. &
+            lonCell(iCell) < 190.0_RKIND*dtr .or. &
+            lonCell(iCell) > 240.0_RKIND*dtr) then
+           regionMask(iCell,6,iBlock) = 0.0_RKIND
+        else
+           regionMask(iCell,6,iBlock) = 1.0_RKIND
+        endif
+
+     enddo
+     !$omp end do
+
+     ! since number of cells varies per block, take care of any
+     ! extra cells in this block
+
+     !$omp do collapse(2)
+     do iRegion=1,nRegions
+     do iCell=nCellsSolve+1,nCellsMax
+        regionMask(iCell,iRegion,iBlock) = 0.0_RKIND
+     end do
+     end do
+     !$omp end do
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_LayerVolWgtAvgRegionMask !}}}
+
+!***********************************************************************
+!
+!  routine ocn_LayerVolWgtAvgVertMask
+!
+!> \brief   Computes mask to define active layers
+!> \author  Todd Ringler, rev. Phil Jones
+!> \date    April 19, 2017
+!> \details
+!>  This is a local routine for this analysis member that computes
+!>  a multiplicative mask that is 1 if a vertical layer is active
+!>  and is zero otherwise. 
+!>  NOTE: This routine should be temporary. An MPAS ocean-wide
+!>        vertical mask will be used eventually.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_LayerVolWgtAvgVertMask(maxLevelCell, nCellsSolve, &
+                                         vertMask)!{{{
+
+     !------------------------------------------------------------------
+     !
+     ! input variables
+     !
+     !------------------------------------------------------------------
+
+     integer, intent(in) :: &
+        nCellsSolve          ! number of cells owned by this subdomain 
+
+     integer, intent(in), dimension(:) :: &
+        maxLevelCell         ! last active cell in each column
+
+     !------------------------------------------------------------------
+     !
+     ! output variables
+     !
+     !------------------------------------------------------------------
+
+     real(kind=RKIND), dimension(:,:), intent(out) :: &
+        vertMask             ! multiplicative mask for active points
+
+     !------------------------------------------------------------------
+     !
+     ! local variables
+     !
+     !------------------------------------------------------------------
+
+     integer :: &
+        iLevel, iCell, &! loop indices
+        maxLevel,      &! last active level in each column
+        nVertLevels,   &! total number of vertical levels
+        nCells          ! total number of cells
+
+     !------------------------------------------------------------------
+
+     nVertLevels = size(vertMask,dim=2)
+
+     ! compute mask assuming all levels are active down to maxLevel
+
+     !$omp do private(iLevel,iCell,maxLevel)
+     do iCell=1,nCellsSolve
+        maxLevel = maxLevelCell(iCell) 
+        do iLevel=1,maxLevel
+           vertMask(iCell,iLevel) = 1.0_RKIND
+        end do 
+        do iLevel=maxLevel+1,nVertLevels
+           vertMask(iCell,iLevel) = 0.0_RKIND
+        end do 
+     end do
+     !$omp end do
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_LayerVolWgtAvgVertMask !}}}
 
 end module ocn_layer_volume_weighted_averages
 
