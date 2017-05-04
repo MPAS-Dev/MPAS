@@ -2,7 +2,7 @@
 		<dim name="nLayerVolWeightedAvgFields" definition="15" units="unitless"
 			 description="A number equal to or greater than the number of var arrays in the layerVolumeWeightedAverageAM var structure below."
 		/>
-		<dim name="nOceanRegionsTmp" definition="6" units="unitless"
+		<dim name="nOceanRegionsTmp" definition="7" units="unitless"
 			 description="The number of regions defined within the global ocean (will eventually be moved up and used uniformly across MPAS-O."
 		/>
 	</dims>
@@ -26,6 +26,14 @@
 		<nml_option name="config_AM_layerVolumeWeightedAverage_output_stream" type="character" default_value="layerVolumeWeightedAverageOutput" units="unitless"
 			description="Name of the string that should be tied to the layer volume weighted average analysis member"
 			possible_values="Any existing stream name or 'none'"
+		/>
+		<nml_option name="config_AM_layerVolumeWeightedAverage_compute_predef_regions" type="logical" default_value=".true." units="unitless"
+			description="Computes predefined regions. (Does not require a region mask file.)"
+			possible_values=".true. or .false."
+		/>
+		<nml_option name="config_AM_layerVolumeWeightedAverage_region_group" type="character" default_value="" units="unitless"
+			description="The name of the region group, for which surface area weighted averages should be computed in addition to the global version."
+			possible_values="'all', '', or the name of a region group."
 		/>
 	</nml_record>
 	<packages>
@@ -314,6 +322,288 @@
 				 description="Average relative enstrophy within region volume"
 			/>
 		</var_array>
+		<var_array name="minValueWithinOceanLayerRF" type="real" dimensions="nVertLevels maxRegionsInGroup Time">
+			<var name="minLayerMaskValueRF" array_group="layerMinsRF" units="none"
+				 description="Minimum value of mask within region layer (should always be 1 for valid layers)"
+			/>
+			<var name="minLayerAreaRF" array_group="layerMinsRF" units="m^2"
+				 description="Minimum area of cell within region layer"
+			/>
+			<var name="minLayerThicknessRF" array_group="layerMinsRF" units="m"
+				 description="Minimum thickness within region layer"
+			/>
+			<var name="minLayerDensityRF" array_group="layerMinsRF" units="kg m^{-3}"
+				 description="Minimum in-situ density within region layer"
+			/>
+			<var name="minLayerPotentialDensityRF" array_group="layerMinsRF" units="kg m^{-3}"
+				 description="Minimum potential density within region layer"
+			/>
+			<var name="minLayerBruntVaisalaFreqTopRF" array_group="layerMinsRF" units="s^{-2}"
+				 description="Minimum Brunt Vaisala frequency within region layer"
+			/>
+			<var name="minLayerVelocityZonalRF" array_group="layerMinsRF" units="m s^{-1}"
+				 description="Minimum zonal velocity within region layer"
+			/>
+			<var name="minLayerVelocityMeridionalRF" array_group="layerMinsRF" units="m s^{-1}"
+				 description="Minimum meridional velocity within region layer"
+			/>
+			<var name="minLayerVertVelocityTopRF" array_group="layerMinsRF" units="m s^{-1}"
+				 description="Minimum vertical velocity within region layer"
+			/>
+			<var name="minLayerTemperatureRF" array_group="layerMinsRF" units="C"
+				 description="Minimum surface temperature within region layer"
+			/>
+			<var name="minLayerSalinityRF" array_group="layerMinsRF" units="PSU"
+				 description="Minimum surface salinity within region layer"
+			/>
+			<var name="minLayerKineticEnergyCellRF" array_group="layerMinsRF" units="m^2 s^{-2}"
+				 description="Minimum kinetic energy within region layer"
+			/>
+			<var name="minLayerRelativeVorticityCellRF" array_group="layerMinsRF" units="s^{-1}"
+				 description="Minimum relative vorticity within region layer"
+			/>
+			<var name="minLayerDivergenceRF" array_group="layerMinsRF" units="s^{-1}"
+				 description="Minimum divergence within region layer"
+			/>
+			<var name="minLayerRelativeEnstrophyCellRF" array_group="layerMinsRF" units="s^{-2}"
+				 description="Minimum relative enstrophy within region layer"
+			/>
+		</var_array>
+		<var_array name="minValueWithinOceanVolumeRF" type="real" dimensions="maxRegionsInGroup Time">
+			<var name="minVolumeMaskValueRF" array_group="volumeMinsRF" units="none"
+				 description="Minimum value of mask within region volume (should always be 1 for valid volumes)"
+			/>
+			<var name="minVolumeAreaRF" array_group="volumeMinsRF" units="m^2"
+				 description="Minimum area of cell within region volume"
+			/>
+			<var name="minVolumeThicknessRF" array_group="volumeMinsRF" units="m"
+				 description="Minimum thickness within region volume"
+			/>
+			<var name="minVolumeDensityRF" array_group="volumeMinsRF" units="kg m^{-3}"
+				 description="Minimum in-situ density within region volume"
+			/>
+			<var name="minVolumePotentialDensityRF" array_group="volumeMinsRF" units="kg m^{-3}"
+				 description="Minimum potential density within region volume"
+			/>
+			<var name="minVolumeBruntVaisalaFreqTopRF" array_group="volumeMinsRF" units="s^{-2}"
+				 description="Minimum Brunt Vaisala frequency within region volume"
+			/>
+			<var name="minVolumeVelocityZonalRF" array_group="volumeMinsRF" units="m s^{-1}"
+				 description="Minimum zonal velocity within region volume"
+			/>
+			<var name="minVolumeVelocityMeridionalRF" array_group="volumeMinsRF" units="m s^{-1}"
+				 description="Minimum meridional velocity within region volume"
+			/>
+			<var name="minVolumeVertVelocityTopRF" array_group="volumeMinsRF" units="m s^{-1}"
+				 description="Minimum vertical velocity within region volume"
+			/>
+			<var name="minVolumeTemperatureRF" array_group="volumeMinsRF" units="C"
+				 description="Minimum surface temperature within region volume"
+			/>
+			<var name="minVolumeSalinityRF" array_group="volumeMinsRF" units="PSU"
+				 description="Minimum surface salinity within region volume"
+			/>
+			<var name="minVolumeKineticEnergyCellRF" array_group="volumeMinsRF" units="m^2 s^{-2}"
+				 description="Minimum kinetic energy within region volume"
+			/>
+			<var name="minVolumeRelativeVorticityCellRF" array_group="volumeMinsRF" units="s^{-1}"
+				 description="Minimum relative vorticity within region volume"
+			/>
+			<var name="minVolumeDivergenceRF" array_group="volumeMinsRF" units="s^{-1}"
+				 description="Minimum divergence within region volume"
+			/>
+			<var name="minVolumeRelativeEnstrophyCellRF" array_group="volumeMinsRF" units="s^{-2}"
+				 description="Minimum relative enstrophy within region volume"
+			/>
+		</var_array>
+		<var_array name="maxValueWithinOceanLayerRF" type="real" dimensions="nVertLevels maxRegionsInGroup Time">
+			<var name="maxLayerMaskValueRF" array_group="layerMaxsRF" units="none"
+				 description="Maximum value of mask within region layer (should always be 1 for valid layers)"
+			/>
+			<var name="maxLayerAreaRF" array_group="layerMaxsRF" units="m^2"
+				 description="Maximum area of cell within region layer"
+			/>
+			<var name="maxLayerThicknessRF" array_group="layerMaxsRF" units="m"
+				 description="Maximum thickness within region layer"
+			/>
+			<var name="maxLayerDensityRF" array_group="layerMaxsRF" units="kg m^{-3}"
+				 description="Maximum in-situ density within region layer"
+			/>
+			<var name="maxLayerPotentialDensityRF" array_group="layerMaxsRF" units="kg m^{-3}"
+				 description="Maximum potential density within region layer"
+			/>
+			<var name="maxLayerBruntVaisalaFreqTopRF" array_group="layerMaxsRF" units="s^{-2}"
+				 description="Maximum Brunt Vaisala frequency within region layer"
+			/>
+			<var name="maxLayerVelocityZonalRF" array_group="layerMaxsRF" units="m s^{-1}"
+				 description="Maximum zonal velocity within region layer"
+			/>
+			<var name="maxLayerVelocityMeridionalRF" array_group="layerMaxsRF" units="m s^{-1}"
+				 description="Maximum meridional velocity within region layer"
+			/>
+			<var name="maxLayerVertVelocityTopRF" array_group="layerMaxsRF" units="m s^{-1}"
+				 description="Maximum vertical velocity within region layer"
+			/>
+			<var name="maxLayerTemperatureRF" array_group="layerMaxsRF" units="C"
+				 description="Maximum surface temperature within region layer"
+			/>
+			<var name="maxLayerSalinityRF" array_group="layerMaxsRF" units="PSU"
+				 description="Maximum surface salinity within region layer"
+			/>
+			<var name="maxLayerKineticEnergyCellRF" array_group="layerMaxsRF" units="m^2 s^{-2}"
+				 description="Maximum kinetic energy within region layer"
+			/>
+			<var name="maxLayerRelativeVorticityCellRF" array_group="layerMaxsRF" units="s^{-1}"
+				 description="Maximum relative vorticity within region layer"
+			/>
+			<var name="maxLayerDivergenceRF" array_group="layerMaxsRF" units="s^{-1}"
+				 description="Maximum divergence within region layer"
+			/>
+			<var name="maxLayerRelativeEnstrophyCellRF" array_group="layerMaxsRF" units="s^{-2}"
+				 description="Maximum relative enstrophy within region layer"
+			/>
+		</var_array>
+		<var_array name="maxValueWithinOceanVolumeRF" type="real" dimensions="maxRegionsInGroup Time">
+			<var name="maxVolumeMaskValueRF" array_group="volumeMaxsRF" units="none"
+				 description="Maximum value of mask within region volume (should always be 1 for valid volumes)"
+			/>
+			<var name="maxVolumeAreaRF" array_group="volumeMaxsRF" units="m^2"
+				 description="Maximum area of cell within region volume"
+			/>
+			<var name="maxVolumeThicknessRF" array_group="volumeMaxsRF" units="m"
+				 description="Maximum thickness within region volume"
+			/>
+			<var name="maxVolumeDensityRF" array_group="volumeMaxsRF" units="kg m^{-3}"
+				 description="Maximum in-situ density within region volume"
+			/>
+			<var name="maxVolumePotentialDensityRF" array_group="volumeMaxsRF" units="kg m^{-3}"
+				 description="Maximum potential density within region volume"
+			/>
+			<var name="maxVolumeBruntVaisalaFreqTopRF" array_group="volumeMaxsRF" units="s^{-2}"
+				 description="Maximum Brunt Vaisala frequency within region volume"
+			/>
+			<var name="maxVolumeVelocityZonalRF" array_group="volumeMaxsRF" units="m s^{-1}"
+				 description="Maximum zonal velocity within region volume"
+			/>
+			<var name="maxVolumeVelocityMeridionalRF" array_group="volumeMaxsRF" units="m s^{-1}"
+				 description="Maximum meridional velocity within region volume"
+			/>
+			<var name="maxVolumeVertVelocityTopRF" array_group="volumeMaxsRF" units="m s^{-1}"
+				 description="Maximum vertical velocity within region volume"
+			/>
+			<var name="maxVolumeTemperatureRF" array_group="volumeMaxsRF" units="C"
+				 description="Maximum surface temperature within region volume"
+			/>
+			<var name="maxVolumeSalinityRF" array_group="volumeMaxsRF" units="PSU"
+				 description="Maximum surface salinity within region volume"
+			/>
+			<var name="maxVolumeKineticEnergyCellRF" array_group="volumeMaxsRF" units="m^2 s^{-2}"
+				 description="Maximum kinetic energy within region volume"
+			/>
+			<var name="maxVolumeRelativeVorticityCellRF" array_group="volumeMaxsRF" units="s^{-1}"
+				 description="Maximum relative vorticity within region volume"
+			/>
+			<var name="maxVolumeDivergenceRF" array_group="volumeMaxsRF" units="s^{-1}"
+				 description="Maximum divergence within region volume"
+			/>
+			<var name="maxVolumeRelativeEnstrophyCellRF" array_group="volumeMaxsRF" units="s^{-2}"
+				 description="Maximum relative enstrophy within region volume"
+			/>
+		</var_array>
+		<var_array name="avgValueWithinOceanLayerRF" type="real" dimensions="nVertLevels maxRegionsInGroup Time">
+			<var name="sumLayerMaskValueRF" array_group="layerAvgsRF" units="none"
+				 description="Sum value of mask within region volume (should always be greater than 0 for valid layer)"
+			/>
+			<var name="avgLayerAreaRF" array_group="layerAvgsRF" units="m^2"
+				 description="Average area of cell within region layer"
+			/>
+			<var name="avgLayerThicknessRF" array_group="layerAvgsRF" units="m"
+				 description="Average thickness within region layer"
+			/>
+			<var name="avgLayerDensityRF" array_group="layerAvgsRF" units="kg m^{-3}"
+				 description="Average in-situ density within region layer"
+			/>
+			<var name="avgLayerPotentialDensityRF" array_group="layerAvgsRF" units="kg m^{-3}"
+				 description="Average potential density within region layer"
+			/>
+			<var name="avgLayerBruntVaisalaFreqTopRF" array_group="layerAvgsRF" units="s^{-2}"
+				 description="Average Brunt Vaisala frequency within region layer"
+			/>
+			<var name="avgLayerVelocityZonalRF" array_group="layerAvgsRF" units="m s^{-1}"
+				 description="Average zonal velocity within region layer"
+			/>
+			<var name="avgLayerVelocityMeridionalRF" array_group="layerAvgsRF" units="m s^{-1}"
+				 description="Average meridional velocity within region layer"
+			/>
+			<var name="avgLayerVertVelocityTopRF" array_group="layerAvgsRF" units="m s^{-1}"
+				 description="Average vertical velocity within region layer"
+			/>
+			<var name="avgLayerTemperatureRF" array_group="layerAvgsRF" units="C"
+				 description="Average surface temperature within region layer"
+			/>
+			<var name="avgLayerSalinityRF" array_group="layerAvgsRF" units="PSU"
+				 description="Average surface salinity within region layer"
+			/>
+			<var name="avgLayerKineticEnergyCellRF" array_group="layerAvgsRF" units="m^2 s^{-2}"
+				 description="Average kinetic energy within region layer"
+			/>
+			<var name="avgLayerRelativeVorticityCellRF" array_group="layerAvgsRF" units="s^{-1}"
+				 description="Average relative vorticity within region layer"
+			/>
+			<var name="avgLayerDivergenceRF" array_group="layerAvgsRF" units="s^{-1}"
+				 description="Average divergence within region layer"
+			/>
+			<var name="avgLayerRelativeEnstrophyCellRF" array_group="layerAvgsRF" units="s^{-2}"
+				 description="Average relative enstrophy within region layer"
+			/>
+		</var_array>
+		<var_array name="avgValueWithinOceanVolumeRF" type="real" dimensions="maxRegionsInGroup Time">
+			<var name="sumVolumeMaskValueRF" array_group="volumeAvgsRF" units="none"
+				 description="Sum value of mask within region volume (should always be greater than 0 for valid volumes)"
+			/>
+			<var name="avgVolumeAreaRF" array_group="volumeAvgsRF" units="m^2"
+				 description="Average area of cell within region volume"
+			/>
+			<var name="avgVolumeThicknessRF" array_group="volumeAvgsRF" units="m"
+				 description="Average thickness within region volume"
+			/>
+			<var name="avgVolumeDensityRF" array_group="volumeAvgsRF" units="kg m^{-3}"
+				 description="Average in-situ density within region volume"
+			/>
+			<var name="avgVolumePotentialDensityRF" array_group="volumeAvgsRF" units="kg m^{-3}"
+				 description="Average potential density within region volume"
+			/>
+			<var name="avgVolumeBruntVaisalaFreqTopRF" array_group="volumeAvgsRF" units="s^{-2}"
+				 description="Average Brunt Vaisala frequency within region volume"
+			/>
+			<var name="avgVolumeVelocityZonalRF" array_group="volumeAvgsRF" units="m s^{-1}"
+				 description="Average zonal velocity within region volume"
+			/>
+			<var name="avgVolumeVelocityMeridionalRF" array_group="volumeAvgsRF" units="m s^{-1}"
+				 description="Average meridional velocity within region volume"
+			/>
+			<var name="avgVolumeVertVelocityTopRF" array_group="volumeAvgsRF" units="m s^{-1}"
+				 description="Average vertical velocity within region volume"
+			/>
+			<var name="avgVolumeTemperatureRF" array_group="volumeAvgsRF" units="C"
+				 description="Average surface temperature within region volume"
+			/>
+			<var name="avgVolumeSalinityRF" array_group="volumeAvgsRF" units="PSU"
+				 description="Average surface salinity within region volume"
+			/>
+			<var name="avgVolumeKineticEnergyCellRF" array_group="volumeAvgsRF" units="m^2 s^{-2}"
+				 description="Average kinetic energy within region volume"
+			/>
+			<var name="avgVolumeRelativeVorticityCellRF" array_group="volumeAvgsRF" units="s^{-1}"
+				 description="Average relative vorticity within region volume"
+			/>
+			<var name="avgVolumeDivergenceRF" array_group="volumeAvgsRF" units="s^{-1}"
+				 description="Average divergence within region volume"
+			/>
+			<var name="avgVolumeRelativeEnstrophyCellRF" array_group="volumeAvgsRF" units="s^{-2}"
+				 description="Average relative enstrophy within region volume"
+			/>
+		</var_array>
 	</var_struct>
 	<streams>
 		<stream name="layerVolumeWeightedAverageOutput"
@@ -333,5 +623,16 @@
 				<var_array name="minValueWithinOceanVolumeRegion"/>
 				<var_array name="maxValueWithinOceanVolumeRegion"/>
 				<var_array name="avgValueWithinOceanVolumeRegion"/>
+				<var_array name="minValueWithinOceanLayerRF"/>
+				<var_array name="maxValueWithinOceanLayerRF"/>
+				<var_array name="avgValueWithinOceanLayerRF"/>
+				<var_array name="minValueWithinOceanVolumeRF"/>
+				<var_array name="maxValueWithinOceanVolumeRF"/>
+				<var_array name="avgValueWithinOceanVolumeRF"/>
+				<!-- needed to correctly plot the regional MHT -->
+				<var name="regionGroupNames"/>
+				<var name="regionNames"/>
+				<var name="nRegionsInGroup"/>
+				<var name="regionsInGroup"/>
 		</stream>
 	</streams>
