@@ -364,7 +364,7 @@ module mpas_log
       ! Open file if it was determined to be active
       if (activeFile .and. .not. alreadyOpen) then
          ! Open the file
-         open (unit = unitNumber, file = fileName, action="WRITE", status="REPLACE", IOSTAT=err_tmp)
+         open (unit = unitNumber, file = fileName, action="WRITE", status="REPLACE", access="APPEND", IOSTAT=err_tmp)
          if ( err_tmp /= 0 ) then
             call mpas_dmpar_global_abort('ERROR: Opening of log file failed for filename: ' // logFileInfo % fileName)
          endif
