@@ -2489,11 +2489,17 @@ contains
     type(mpas_forcing_group_type), pointer :: &
          forcingGroup ! forcing group iterator
 
-    type(MPAS_time_type) :: forcingClockTime
+    type(MPAS_time_type) :: &
+         simulationClockTime, &
+         forcingClockTime
 
-    character(len=strKIND) :: forcingClockTimeStr
+    character(len=strKIND) :: &
+         forcingTimeRestartFilenameUse, &
+         simulationClockTimeStr, &
+         forcingClockTimeStr
 
-    integer :: restartTimestampUnit
+    integer :: &
+         restartTimestampUnit
 
     ! open restart time file
     forcingGroup => forcingGroupHead
@@ -2501,8 +2507,14 @@ contains
 
        if (forcingGroup % domain_ptr % dminfo % my_proc_id == IO_NODE) then
 
+          simulationClockTime = mpas_get_clock_time(forcingGroup % domain_ptr % clock, MPAS_NOW)
+
+          call mpas_get_time(simulationClockTime, dateTimeString=simulationClockTimeStr)
+
+          forcingTimeRestartFilenameUse = trim(forcingTimeRestartFilename)//"_"//trim(simulationClockTimeStr)
+
           call mpas_new_unit(restartTimestampUnit)
-          open(restartTimestampUnit,file=trim(forcingTimeRestartFilename), form='formatted', status='replace')
+          open(restartTimestampUnit,file=trim(forcingTimeRestartFilenameUse), form='formatted', status='replace')
           exit
 
        endif
@@ -2575,17 +2587,27 @@ contains
     type(MPAS_Time_type), intent(in) :: &
          stopTime     ! stop time of forcing clock - !!!! SHOULDNT BE NEEDED
 
-    type(MPAS_time_type) :: forcingClockTime
+    type(MPAS_time_type) :: &
+         simulationClockTime, &
+         forcingClockTime
 
     character(len=strKIND) :: &
+         simulationClockTimeStr, &
+         forcingTimeRestartFilenameUse, &
          forcingClockTimeStr, &
          forcingGroupName
 
     integer :: &
          status
 
+    simulationClockTime = mpas_get_clock_time(forcingGroup % domain_ptr % clock, MPAS_NOW)
+
+    call mpas_get_time(simulationClockTime, dateTimeString=simulationClockTimeStr)
+
+    forcingTimeRestartFilenameUse = trim(forcingTimeRestartFilename)//"_"//trim(simulationClockTimeStr)
+
     ! open restart time file
-    open(22,file=trim(forcingTimeRestartFilename), form='formatted', action='read')
+    open(22,file=trim(forcingTimeRestartFilenameUse), form='formatted', action='read')
 
     ! loop over entries in restart file
     do 
