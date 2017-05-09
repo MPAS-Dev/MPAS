@@ -235,9 +235,9 @@ contains
 
       ! pointers to result arrays
       real (kind=RKIND), dimension(:,:,:), pointer ::    &
-                         avgLayer, minLayer, maxLayer, avgLayerRF, minLayerRF, maxLayerRF
+                         avgLayer, minLayer, maxLayer, avgLayerRegionMask, minLayerRegionMask, maxLayerRegionMask
       real (kind=RKIND), dimension(:,:),   pointer ::     &
-                         avgField, minField, maxField, avgFieldRF, minFieldRF, maxFieldRF
+                         avgField, minField, maxField, avgFieldRegionMask, minFieldRegionMask, maxFieldRegionMask
 
       ! pointers to data in pools to be analyzed
       real (kind=RKIND), dimension(:,:),   pointer :: layerThickness
@@ -342,23 +342,23 @@ contains
 
          ! get pointers to analysis member arrays to store results
          call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, &
-                                  'minValueWithinOceanLayerRF', &
-                                   minLayerRF)
+                                  'minValueWithinOceanLayerRegionMask', &
+                                   minLayerRegionMask)
          call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, &
-                                  'maxValueWithinOceanLayerRF', &
-                                   maxLayerRF)
+                                  'maxValueWithinOceanLayerRegionMask', &
+                                   maxLayerRegionMask)
          call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, &
-                                  'avgValueWithinOceanLayerRF', &
-                                   avgLayerRF)
+                                  'avgValueWithinOceanLayerRegionMask', &
+                                   avgLayerRegionMask)
          call mpas_pool_get_array(layerVolumeWeightedAverageAMPool,  &
-                                  'minValueWithinOceanVolumeRF', &
-                                   minFieldRF)
+                                  'minValueWithinOceanVolumeRegionMask', &
+                                   minFieldRegionMask)
          call mpas_pool_get_array(layerVolumeWeightedAverageAMPool,  &
-                                  'maxValueWithinOceanVolumeRF', &
-                                   maxFieldRF)
+                                  'maxValueWithinOceanVolumeRegionMask', &
+                                   maxFieldRegionMask)
          call mpas_pool_get_array(layerVolumeWeightedAverageAMPool,  &
-                                  'avgValueWithinOceanVolumeRF', &
-                                   avgFieldRF)
+                                  'avgValueWithinOceanVolumeRegionMask', &
+                                   avgFieldRegionMask)
 
          !!! region file variables
          ! if a region file is given and a region is selected, set up region file version
@@ -409,9 +409,9 @@ contains
       avgLayer =  0.0_RKIND
       minLayer =  1.e20_RKIND
       maxLayer = -1.e20_RKIND
-      avgLayerRF =  0.0_RKIND
-      minLayerRF =  1.e20_RKIND
-      maxLayerRF = -1.e20_RKIND
+      avgLayerRegionMask =  0.0_RKIND
+      minLayerRegionMask =  1.e20_RKIND
+      maxLayerRegionMask = -1.e20_RKIND
 
       ! loop over blocks
       iBlock = 0
@@ -573,10 +573,10 @@ contains
                do iCell=1,nCellsSolve
                   maskTmp = vertMask(iCell,iLevel) * regionCellMasks(iRegion,iCell)
                   if (maskTmp /= 0.0_RKIND) then
-                     minLayerRF(iField,iLevel,iRegion) = min( &
-                     minLayerRF(iField,iLevel,iRegion), fieldTmp(iCell,iField))
-                     maxLayerRF(iField,iLevel,iRegion) = max( &
-                     maxLayerRF(iField,iLevel,iRegion), fieldTmp(iCell,iField))
+                     minLayerRegionMask(iField,iLevel,iRegion) = min( &
+                     minLayerRegionMask(iField,iLevel,iRegion), fieldTmp(iCell,iField))
+                     maxLayerRegionMask(iField,iLevel,iRegion) = max( &
+                     maxLayerRegionMask(iField,iLevel,iRegion), fieldTmp(iCell,iField))
                   endif
                end do
                end do
@@ -595,29 +595,29 @@ contains
                   do iCell=1,nCellsSolve
                      fieldTmp(iCell,1) = vertMask(iCell,iLevel)* &
                      regionCellMasks(iRegion,iCell)
-                     avgLayerRF(1,iLevel,iRegion) = &
-                     avgLayerRF(1,iLevel,iRegion) + fieldTmp(iCell,1)
+                     avgLayerRegionMask(1,iLevel,iRegion) = &
+                     avgLayerRegionMask(1,iLevel,iRegion) + fieldTmp(iCell,1)
                   end do
 
                   ! cell area
                   do iCell=1,nCellsSolve
-                     avgLayerRF(2,iLevel,iRegion) = &
-                     avgLayerRF(2,iLevel,iRegion) + fieldTmp(iCell,2)* &
+                     avgLayerRegionMask(2,iLevel,iRegion) = &
+                     avgLayerRegionMask(2,iLevel,iRegion) + fieldTmp(iCell,2)* &
                                                   fieldTmp(iCell,1)
                   end do
 
                   ! for field three, we want cell volume instead of thickness
                   do iCell=1,nCellsSolve
-                     avgLayerRF(3,iLevel,iRegion) = &
-                     avgLayerRF(3,iLevel,iRegion) + fieldTmp(iCell,3)*&
+                     avgLayerRegionMask(3,iLevel,iRegion) = &
+                     avgLayerRegionMask(3,iLevel,iRegion) + fieldTmp(iCell,3)*&
                                                   fieldTmp(iCell,1)
                   end do
 
                   ! for all remaining fields, we want a volume weighted avg
                   do iField=4,nFields
                   do iCell=1,nCellsSolve
-                     avgLayerRF(iField,iLevel,iRegion) = &
-                     avgLayerRF(iField,iLevel,iRegion) + &
+                     avgLayerRegionMask(iField,iLevel,iRegion) = &
+                     avgLayerRegionMask(iField,iLevel,iRegion) + &
                                       fieldTmp(iCell,iField)* &
                                       fieldTmp(iCell,3) * &
                                       fieldTmp(iCell,1)
@@ -803,7 +803,7 @@ contains
          do iField=1,nFields
             bufferAddr = (iRegion -1)*nFields*nVertLevels + &
                          (iLevel  -1)*nFields + iField
-            msgBuffer(bufferAddr) = avgLayerRF(iField,iLevel,iRegion)
+            msgBuffer(bufferAddr) = avgLayerRegionMask(iField,iLevel,iRegion)
          enddo
          enddo
          enddo
@@ -820,7 +820,7 @@ contains
          do iField=1,nFields
             bufferAddr = (iRegion -1)*nFields*nVertLevels + &
                          (iLevel  -1)*nFields + iField
-            avgLayerRF(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
+            avgLayerRegionMask(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
          enddo
          enddo
          enddo
@@ -830,22 +830,22 @@ contains
          !$omp do private(iLevel,iField,iRegion,normFactor)
          do iRegion=1,nRegions
            do iField=1,nFields
-             avgFieldRF(iField,iRegion) = 0.0_RKIND
+             avgFieldRegionMask(iField,iRegion) = 0.0_RKIND
              do iLevel=1,nVertLevels
-                avgFieldRF(iField,iRegion) = avgFieldRF(iField,iRegion) &
-                                         + avgLayerRF(iField,iLevel,iRegion)
+                avgFieldRegionMask(iField,iRegion) = avgFieldRegionMask(iField,iRegion) &
+                                         + avgLayerRegionMask(iField,iLevel,iRegion)
              enddo
            enddo
-           normFactor = 1.0_RKIND / max(avgFieldRF(3,iRegion),1.0e-8_RKIND)
+           normFactor = 1.0_RKIND / max(avgFieldRegionMask(3,iRegion),1.0e-8_RKIND)
            do iField=4,nFields
-             avgFieldRF(iField,iRegion) = avgFieldRF(iField,iRegion)*normFactor
+             avgFieldRegionMask(iField,iRegion) = avgFieldRegionMask(iField,iRegion)*normFactor
            enddo
            ! normalize total region volume by total volume cell area
-           avgFieldRF(3,iRegion) = avgFieldRF(3,iRegion) &
-                               / max(avgFieldRF(2,iRegion),1.0e-8_RKIND)
+           avgFieldRegionMask(3,iRegion) = avgFieldRegionMask(3,iRegion) &
+                               / max(avgFieldRegionMask(2,iRegion),1.0e-8_RKIND)
            ! normalize total volume cell area by total number of cells
-           avgFieldRF(2,iRegion) = avgFieldRF(2,iRegion) &
-                               / max(avgFieldRF(1,iRegion),1.0e-8_RKIND)
+           avgFieldRegionMask(2,iRegion) = avgFieldRegionMask(2,iRegion) &
+                               / max(avgFieldRegionMask(1,iRegion),1.0e-8_RKIND)
          enddo
          !$omp end do
 
@@ -854,17 +854,17 @@ contains
          do iRegion=1,nRegions
          do iLevel=1,nVertLevels
             ! normalize all field by total volume in each layer
-            normFactor = 1.0_RKIND/max(avgLayerRF(3,iLevel,iRegion),1.0e-8_RKIND)
+            normFactor = 1.0_RKIND/max(avgLayerRegionMask(3,iLevel,iRegion),1.0e-8_RKIND)
             do iField=4,nFields
-               avgLayerRF(iField,iLevel,iRegion) = &
-               avgLayerRF(iField,iLevel,iRegion) * normFactor
+               avgLayerRegionMask(iField,iLevel,iRegion) = &
+               avgLayerRegionMask(iField,iLevel,iRegion) * normFactor
             enddo
             ! normalize total layer volume by layer area
-            avgLayerRF(3,iLevel,iRegion) = avgLayerRF(3,iLevel,iRegion) &
-                                   / max(avgLayerRF(2,iLevel,iRegion),1.0e-8_RKIND)
+            avgLayerRegionMask(3,iLevel,iRegion) = avgLayerRegionMask(3,iLevel,iRegion) &
+                                   / max(avgLayerRegionMask(2,iLevel,iRegion),1.0e-8_RKIND)
             ! normalize total layer area by number of cells in region
-            avgLayerRF(2,iLevel,iRegion) = avgLayerRF(2,iLevel,iRegion) &
-                                   / max(avgLayerRF(1,iLevel,iRegion),1.0e-8_RKIND)
+            avgLayerRegionMask(2,iLevel,iRegion) = avgLayerRegionMask(2,iLevel,iRegion) &
+                                   / max(avgLayerRegionMask(1,iLevel,iRegion),1.0e-8_RKIND)
          enddo
          enddo
          !$omp end do
@@ -879,7 +879,7 @@ contains
          do iField=1,nFields
             bufferAddr = (iRegion -1)*nFields*nVertLevels + &
                          (iLevel  -1)*nFields + iField
-            msgBuffer(bufferAddr) = minLayerRF(iField,iLevel,iRegion)
+            msgBuffer(bufferAddr) = minLayerRegionMask(iField,iLevel,iRegion)
          enddo
          enddo
          enddo
@@ -894,7 +894,7 @@ contains
          do iField=1,nFields
             bufferAddr = (iRegion -1)*nFields*nVertLevels + &
                          (iLevel  -1)*nFields + iField
-            minLayerRF(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
+            minLayerRegionMask(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
          enddo
          enddo
          enddo
@@ -907,7 +907,7 @@ contains
          do iField=1,nFields
             bufferAddr = (iRegion -1)*nFields*nVertLevels + &
                          (iLevel  -1)*nFields + iField
-            msgBuffer(bufferAddr) = maxLayerRF(iField,iLevel,iRegion)
+            msgBuffer(bufferAddr) = maxLayerRegionMask(iField,iLevel,iRegion)
          enddo
          enddo
          enddo
@@ -921,7 +921,7 @@ contains
          do iField=1,nFields
             bufferAddr = (iRegion -1)*nFields*nVertLevels + &
                          (iLevel  -1)*nFields + iField
-            maxLayerRF(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
+            maxLayerRegionMask(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
          enddo
          enddo
          enddo
@@ -939,8 +939,8 @@ contains
          !$omp do collapse(2) private(iRegion, iField)
          do iRegion=1,nRegionsTmp
          do iField=1,nFields
-            minFieldRF(iField,iRegion) = minval(minLayerRF(iField,:,iRegion))
-            maxFieldRF(iField,iRegion) = maxval(maxLayerRF(iField,:,iRegion))
+            minFieldRegionMask(iField,iRegion) = minval(minLayerRegionMask(iField,:,iRegion))
+            maxFieldRegionMask(iField,iRegion) = maxval(maxLayerRegionMask(iField,:,iRegion))
          enddo
          enddo
          !$omp end do
@@ -951,13 +951,13 @@ contains
          !$omp do collapse(2) private(iRegion, iField)
          do iRegion=1,nRegions
          do iField=1,nFields
-            minFieldRF(iField,iRegion) = minval(minLayerRF(iField,:,iRegion))
-            maxFieldRF(iField,iRegion) = maxval(maxLayerRF(iField,:,iRegion))
+            minFieldRegionMask(iField,iRegion) = minval(minLayerRegionMask(iField,:,iRegion))
+            maxFieldRegionMask(iField,iRegion) = maxval(maxLayerRegionMask(iField,:,iRegion))
          enddo
          enddo
          !$omp end do
       endif ! region mask files
-      write(stdOutUnit, *) 'maxLayerRF', maxLayerRF
+      write(stdOutUnit, *) 'maxLayerRegionMask', maxLayerRegionMask
       write(stdOutUnit, *) 'maxLayer', maxLayer
    end subroutine ocn_compute_layer_volume_weighted_averages!}}}
 
