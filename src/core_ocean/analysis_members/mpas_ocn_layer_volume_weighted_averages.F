@@ -232,15 +232,11 @@ contains
       type (mpas_pool_type), pointer :: forcingPool
       type (mpas_pool_type), pointer :: tracersPool
 
-      ! arrays to return results
+      ! pointers to result arrays
       real (kind=RKIND), dimension(:,:,:), pointer ::    &
-                         minValueWithinOceanLayerRegion, &
-                         maxValueWithinOceanLayerRegion, &
-                         avgValueWithinOceanLayerRegion
+                         avgLayer, minLayer, maxLayer
       real (kind=RKIND), dimension(:,:),   pointer ::     &
-                         minValueWithinOceanVolumeRegion, &
-                         maxValueWithinOceanVolumeRegion, &
-                         avgValueWithinOceanVolumeRegion
+                         avgField, minField, maxField
 
       ! pointers to data in pools to be analyzed
       real (kind=RKIND), dimension(:,:),   pointer :: layerThickness
@@ -257,7 +253,7 @@ contains
 
       ! pointers to data in mesh pool
       integer, pointer :: nVertLevels, nCells, nCellsSolve, &
-                          nFields, nOceanRegionsTmp
+                          nFields, nRegions
       integer, pointer :: index_temperature, index_salinity
       integer, dimension(:), pointer :: maxLevelCell
       real (kind=RKIND), dimension(:), pointer ::  areaCell
@@ -265,16 +261,11 @@ contains
       ! local variables
       integer :: iCell, iLevel, iRegion, iTracer, iField, iBlock
 
-      real (kind=RKIND) :: normFactor ! for normalizing averages
+      real (kind=RKIND) :: maskTmp, normFactor ! for normalizing averages
 
       real (kind=RKIND), dimension(:,:), allocatable :: &
-         avgField, minField, maxField, &!results in local ordering
          vertMask,                     &!mask for active vertical levels
          fieldTmp                       !field array in local order
-
-      real (kind=RKIND), dimension(:,:,:), allocatable :: &
-         avgLayer, minLayer, maxLayer   !results in local ordering
-
 
       ! buffers data for message passaging
       integer :: bufferAddr, bufferLength
@@ -293,7 +284,7 @@ contains
 
       ! find the number of regions, fields and vertical levels
       call mpas_pool_get_dimension(domain % blocklist % dimensions, &
-                                   'nOceanRegionsTmp', nOceanRegionsTmp)
+                                   'nOceanRegionsTmp', nRegions)
       call mpas_pool_get_dimension(domain % blocklist % dimensions, &
                                    'nLayerVolWeightedAvgFields', nFields)
       call mpas_pool_get_dimension(domain % blocklist % dimensions, &
@@ -305,33 +296,27 @@ contains
                                 layerVolumeWeightedAverageAMPool)
       call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, &
                                'minValueWithinOceanLayerRegion', &
-                                minValueWithinOceanLayerRegion)
+                                minLayer)
       call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, &
                                'maxValueWithinOceanLayerRegion', &
-                                maxValueWithinOceanLayerRegion)
+                                maxLayer)
       call mpas_pool_get_array(layerVolumeWeightedAverageAMPool, &
                                'avgValueWithinOceanLayerRegion', &
-                                avgValueWithinOceanLayerRegion)
+                                avgLayer)
       call mpas_pool_get_array(layerVolumeWeightedAverageAMPool,  &
                                'minValueWithinOceanVolumeRegion', &
-                                minValueWithinOceanVolumeRegion)
+                                minField)
       call mpas_pool_get_array(layerVolumeWeightedAverageAMPool,  &
                                'maxValueWithinOceanVolumeRegion', &
-                                maxValueWithinOceanVolumeRegion)
+                                maxField)
       call mpas_pool_get_array(layerVolumeWeightedAverageAMPool,  &
                                'avgValueWithinOceanVolumeRegion', &
-                                avgValueWithinOceanVolumeRegion)
+                                avgField)
 
-      ! allocate space to hold results and initialize so 
-      ! this routine works for multiple blocks
-      !$omp do single
-      allocate(avgLayer(nVertLevels, nOceanRegionsTmp, nFields))
-      allocate(minLayer(nVertLevels, nOceanRegionsTmp, nFields))
-      allocate(maxLayer(nVertLevels, nOceanRegionsTmp, nFields))
+      ! initialize so this routine works for multiple blocks
       avgLayer =  0.0_RKIND
       minLayer =  1.e20_RKIND
       maxLayer = -1.e20_RKIND
-      !$omp end do single
 
       ! loop over blocks
       iBlock = 0
@@ -357,10 +342,6 @@ contains
                                                            nCellsSolve)
          call mpas_pool_get_dimension(block % dimensions, 'nCells',      &
                                                            nCells)
-         call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', &
-                                                           nVertLevels)
-         call mpas_pool_get_dimension(block % dimensions, 'nOceanRegionsTmp', &
-                                                           nOceanRegionsTmp)
          call mpas_pool_get_dimension(tracersPool, 'index_temperature', &
                                                     index_temperature)
          call mpas_pool_get_dimension(tracersPool, 'index_salinity',    &
@@ -395,206 +376,99 @@ contains
 
 
          ! allocate arrays to hold local block masks, and fields
-         !  in transposed order
+         allocate(fieldTmp(nCellsSolve,nFields))
          !$omp single
-         allocate(fieldTmp   (nCellsSolve,nVertLevels))
-         allocate(vertMask   (nCells,nVertLevels))
+         allocate(vertMask(nCells,nVertLevels))
          !$omp end single
 
          call ocn_LayerVolWgtAvgVertMask(maxLevelCell, nCellsSolve, &
                                          vertMask)
 
-         iField = 1 ! mask
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, vertMask, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
-
-         iField = 2 ! cell area
-         !$omp do collapse(2) private(iCell,iLevel)
+         !$omp do private(iLevel,iCell,iField,iRegion, &
+         !$omp            maskTmp, fieldTmp)
          do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = areaCell(iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
 
-         ! for field 3, min, max refers to layer thickness, but the
-         ! average is for cell volume, so include area in mask
-         ! (will be doing something similar for remaining fields)
-         iField = 3 ! cell volume
-         !$omp do private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            vertMask(iCell,iLevel) = vertMask(iCell,iLevel)*areaCell(iCell)
-            fieldTmp(iCell,iLevel) = layerThickness(iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
+            do iCell=1,nCellsSolve
+               fieldTmp(iCell,1) = vertMask              (iCell,iLevel)
+               fieldTmp(iCell,2) = areaCell              (iCell)
+               fieldTmp(iCell,3) = layerThickness        (iLevel,iCell)
+               fieldTmp(iCell,4) = density               (iLevel,iCell)
+               fieldTmp(iCell,5) = potentialDensity      (iLevel,iCell) 
+               fieldTmp(iCell,6) = BruntVaisalaFreqTop   (iLevel,iCell)
+               fieldTmp(iCell,7) = velocityZonal         (iLevel,iCell)
+               fieldTmp(iCell,8) = velocityMeridional    (iLevel,iCell)
+               fieldTmp(iCell,9) = vertVelocityTop       (iLevel,iCell)
+               fieldTmp(iCell,10) = &
+                          activeTracers(index_temperature,iLevel,iCell)
+               fieldTmp(iCell,11) = &
+                             activeTracers(index_salinity,iLevel,iCell)
+               fieldTmp(iCell,12) = kineticEnergyCell    (iLevel,iCell)
+               fieldTmp(iCell,13) = relativeVorticityCell(iLevel,iCell)
+               fieldTmp(iCell,14) = divergence           (iLevel,iCell)
+               fieldTmp(iCell,15) = relativeVorticityCell(iLevel,iCell)* & 
+                                    relativeVorticityCell(iLevel,iCell)
+            end do
+ 
+            ! compute min and max
+            do iRegion=1,nRegions
+            do iField=1,nFields
+            do iCell=1,nCellsSolve
+               maskTmp = vertMask(iCell,iLevel)* &
+                       regionMask(iCell,iRegion,iBlock)
+               if (maskTmp /= 0.0_RKIND) then
+                  minLayer(iField,iLevel,iRegion) = min( &
+                  minLayer(iField,iLevel,iRegion),fieldTmp(iCell,iField))
+                  maxLayer(iField,iLevel,iRegion) = max( &
+                  maxLayer(iField,iLevel,iRegion),fieldTmp(iCell,iField))
+               endif
+            end do
+            end do
+            end do
 
-         ! for all remaining fields, we want volume-weighted sums
-         ! add layer thickness to the vertMask to get a volume mask
-         ! use the transposed version of layerThick in fieldTmp
-         !$omp do private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            vertMask(iCell,iLevel) = vertMask(iCell,iLevel)* &
-                                     fieldTmp(iCell,iLevel)
-         end do
-         end do
-         !$omp end do
+            ! for the latter fields, we want volume-weighted sums
+            ! so replace thickness with cell volume
+            do iCell=1,nCellsSolve
+               fieldTmp(iCell,3) = fieldTmp(iCell,2)*fieldTmp(iCell,3)
+            end do
 
-         iField = 4 ! density
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = density(iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
+            ! compute layer averages for each region
+            do iRegion=1,nRegions
 
-         iField = 5 ! potential density
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = potentialDensity(iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
+               ! replace field 1 with combined vertical, region mask
+               do iCell=1,nCellsSolve
+                  fieldTmp(iCell,1) = vertMask(iCell,iLevel)* &
+                                    regionMask(iCell,iRegion,iBlock)
+                  avgLayer(1,iLevel,iRegion) = &
+                  avgLayer(1,iLevel,iRegion) + fieldTmp(iCell,1)
+               end do
 
-         iField = 6 ! Brunt Vaisala Freq
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = BruntVaisalaFreqTop(iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
+               ! cell area
+               do iCell=1,nCellsSolve
+                  avgLayer(2,iLevel,iRegion) = &
+                  avgLayer(2,iLevel,iRegion) + fieldTmp(iCell,2)* &
+                                               fieldTmp(iCell,1)
+               end do
 
-         iField = 7 ! zonal velocity
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = velocityZonal(iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
+               ! for field three, we want cell volume instead of thickness
+               do iCell=1,nCellsSolve
+                  avgLayer(3,iLevel,iRegion) = &
+                  avgLayer(3,iLevel,iRegion) + fieldTmp(iCell,3)*&
+                                               fieldTmp(iCell,1)
+               end do
 
-         iField = 8 ! meridional velocity
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = velocityMeridional(iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
-
-         iField = 9 ! vertical velocity
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = vertVelocityTop(iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
-
-         iField = 10 ! temperature
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = &
-                 activeTracers(index_temperature,iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
-
-         iField = 11 ! salinity
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = &
-                 activeTracers(index_salinity,iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
-
-         iField = 12 ! kinetic energy
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = kineticEnergyCell(iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
-
-         iField = 13 ! relative vorticity
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = relativeVorticityCell(iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
-
-         iField = 14 ! divergence
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = divergence(iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
-
-         iField = 15 ! enstrophy
-         !$omp do collapse(2) private(iCell,iLevel)
-         do iLevel=1,nVertLevels
-         do iCell=1,nCellsSolve
-            fieldTmp(iCell,iLevel) = relativeVorticityCell(iLevel,iCell)* & 
-                                     relativeVorticityCell(iLevel,iCell)
-         end do
-         end do
-         !$omp end do
-         call ocn_LayerVolWgtAvgFieldMinMaxSum(                         &
-          avgLayer, minLayer, maxLayer, fieldTmp, vertMask, regionMask, &
-          nCellsSolve, nVertLevels, nOceanRegionsTmp, iField, iBlock)
+               ! for all remaining fields, we want a volume weighted avg
+               do iField=4,nFields
+               do iCell=1,nCellsSolve
+                  avgLayer(iField,iLevel,iRegion) = &
+                  avgLayer(iField,iLevel,iRegion) + &
+                                   fieldTmp(iCell,iField)* &
+                                   fieldTmp(iCell,3) * &
+                                   fieldTmp(iCell,1)
+               end do
+               end do
+            end do ! iRegion
+      
+         end do !iLevel
 
          ! deallocate fields from this block
          !$omp single
@@ -606,19 +480,21 @@ contains
 
       ! allocate buffer for message passing
       bufferAddr=0
-      bufferLength=nOceanRegionsTmp*nFields*nVertLevels
+      bufferLength=nRegions*nFields*nVertLevels
+      !$omp single
       allocate(msgBuffer       (bufferLength))
       allocate(msgBufferReduced(bufferLength))
+      !$omp end single
 
       ! communication for sums
       ! pack the buffer 
       !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
-      do iField=1,nFields
-      do iRegion=1,nOceanRegionsTmp
+      do iRegion=1,nRegions
       do iLevel=1,nVertLevels
-         bufferAddr = (iField  -1)*nOceanRegionsTmp*nVertLevels + &
-                      (iRegion -1)*nVertLevels + iLevel
-         msgBuffer(bufferAddr) = avgLayer(iLevel,iRegion,iField)
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         msgBuffer(bufferAddr) = avgLayer(iField,iLevel,iRegion)
       enddo
       enddo
       enddo
@@ -630,77 +506,58 @@ contains
 
       ! unpack the buffer 
       !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
-      do iField=1,nFields
-      do iRegion=1,nOceanRegionsTmp
+      do iRegion=1,nRegions
       do iLevel=1,nVertLevels
-         bufferAddr = (iField  -1)*nOceanRegionsTmp*nVertLevels + &
-                      (iRegion -1)*nVertLevels + iLevel
-         avgLayer(iLevel,iRegion,iField)=msgBufferReduced(bufferAddr)
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         avgLayer(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
       enddo
       enddo
       enddo
       !$omp end do
 
-      ! allocate space to hold results vertical means
-      !$omp single
-      allocate(avgField(nOceanRegionsTmp,nFields))
-      !$omp end single
-
       ! compute vertical sum before layer-by-layer normalization
       !$omp do private(iLevel,iField,iRegion,normFactor)
-      do iRegion=1,nOceanRegionsTmp
+      do iRegion=1,nRegions
         do iField=1,nFields
-          avgField(iRegion,iField) = 0.0_RKIND
+          avgField(iField,iRegion) = 0.0_RKIND
           do iLevel=1,nVertLevels
-             avgField(iRegion,iField) = avgField(iRegion,iField) &
-                                      + avgLayer(iLevel,iRegion,iField)
+             avgField(iField,iRegion) = avgField(iField,iRegion) &
+                                      + avgLayer(iField,iLevel,iRegion)
           enddo
         enddo
-        normFactor = 1.0_RKIND / max(avgField(iRegion,3),1.0e-8_RKIND)
+        normFactor = 1.0_RKIND / max(avgField(3,iRegion),1.0e-8_RKIND)
         do iField=4,nFields
-          avgField(iRegion,iField) = avgField(iRegion,iField)*normFactor
+          avgField(iField,iRegion) = avgField(iField,iRegion)*normFactor
         enddo
         ! normalize total region volume by total volume cell area
-        avgField(iRegion,3) = avgField(iRegion,3) &
-                            / max(avgField(iRegion,2),1.0e-8_RKIND)
+        avgField(3,iRegion) = avgField(3,iRegion) &
+                            / max(avgField(2,iRegion),1.0e-8_RKIND)
         ! normalize total volume cell area by total number of cells
-        avgField(iRegion,2) = avgField(iRegion,2) &
-                            / max(avgField(iRegion,1),1.0e-8_RKIND)
+        avgField(2,iRegion) = avgField(2,iRegion) &
+                            / max(avgField(1,iRegion),1.0e-8_RKIND)
       enddo
       !$omp end do
 
       ! normalize averages layer-by-layer
       !$omp do collapse(2) private(iLevel, iRegion, iField, normFactor)
-      do iRegion=1,nOceanRegionsTmp
+      do iRegion=1,nRegions
       do iLevel=1,nVertLevels
          ! normalize all field by total volume in each layer
-         normFactor = 1.0_RKIND/max(avgLayer(iLevel,iRegion,3),1.0e-8_RKIND)
+         normFactor = 1.0_RKIND/max(avgLayer(3,iLevel,iRegion),1.0e-8_RKIND)
          do iField=4,nFields
-            avgLayer(iLevel,iRegion,iField) = &
-            avgLayer(iLevel,iRegion,iField) * normFactor
+            avgLayer(iField,iLevel,iRegion) = &
+            avgLayer(iField,iLevel,iRegion) * normFactor
          enddo
          ! normalize total layer volume by layer area
-         avgLayer(iLevel,iRegion,3) = avgLayer(iLevel,iRegion,3) &
-                                / max(avgLayer(iLevel,iRegion,2),1.0e-8_RKIND)
+         avgLayer(3,iLevel,iRegion) = avgLayer(3,iLevel,iRegion) &
+                                / max(avgLayer(2,iLevel,iRegion),1.0e-8_RKIND)
          ! normalize total layer area by number of cells in region
-         avgLayer(iLevel,iRegion,2) = avgLayer(iLevel,iRegion,2) &
-                                / max(avgLayer(iLevel,iRegion,1),1.0e-8_RKIND)
+         avgLayer(2,iLevel,iRegion) = avgLayer(2,iLevel,iRegion) &
+                                / max(avgLayer(1,iLevel,iRegion),1.0e-8_RKIND)
       enddo
       enddo
-      !$omp end do
-
-      ! copy results into final location
-      !$omp do collapse(2) private(iLevel, iRegion, iField)
-      do iField=1,nFields
-      do iRegion=1,nOceanRegionsTmp
-         avgValueWithinOceanVolumeRegion(iField,iRegion) = &
-                                avgField(iRegion,iField)
-         do iLevel=1,nVertLevels
-            avgValueWithinOceanLayerRegion(iField,iLevel,iRegion) = &
-                                  avgLayer(iLevel,iRegion,iField)
-         end do
-      end do
-      end do
       !$omp end do
 
       ! now compute min/max for each field, region
@@ -708,12 +565,12 @@ contains
 
       ! pack the buffer for minval 
       !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
-      do iField=1,nFields
-      do iRegion=1,nOceanRegionsTmp
+      do iRegion=1,nRegions
       do iLevel=1,nVertLevels
-         bufferAddr = (iField  -1)*nOceanRegionsTmp*nVertLevels + &
-                      (iRegion -1)*nVertLevels + iLevel
-         msgBuffer(bufferAddr) = minLayer(iLevel,iRegion,iField)
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         msgBuffer(bufferAddr) = minLayer(iField,iLevel,iRegion)
       enddo
       enddo
       enddo
@@ -723,12 +580,12 @@ contains
                                                            msgBufferReduced )
       ! unpack the buffer
       !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
-      do iField=1,nFields
-      do iRegion=1,nOceanRegionsTmp
+      do iRegion=1,nRegions
       do iLevel=1,nVertLevels
-         bufferAddr = (iField  -1)*nOceanRegionsTmp*nVertLevels + &
-                      (iRegion -1)*nVertLevels + iLevel
-         minLayer(iLevel,iRegion,iField)=msgBufferReduced(bufferAddr)
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         minLayer(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
       enddo
       enddo
       enddo
@@ -736,12 +593,12 @@ contains
 
       ! pack the buffer for maxval 
       !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
-      do iField=1,nFields
-      do iRegion=1,nOceanRegionsTmp
+      do iRegion=1,nRegions
       do iLevel=1,nVertLevels
-         bufferAddr = (iField  -1)*nOceanRegionsTmp*nVertLevels + &
-                      (iRegion -1)*nVertLevels + iLevel
-         msgBuffer(bufferAddr) = maxLayer(iLevel,iRegion,iField)
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         msgBuffer(bufferAddr) = maxLayer(iField,iLevel,iRegion)
       enddo
       enddo
       enddo
@@ -750,62 +607,32 @@ contains
                                                            msgBufferReduced )
       ! unpack the buffer
       !$omp do collapse(3) private(iRegion,iLevel,iField,bufferAddr)
-      do iField=1,nFields
-      do iRegion=1,nOceanRegionsTmp
+      do iRegion=1,nRegions
       do iLevel=1,nVertLevels
-         bufferAddr = (iField  -1)*nOceanRegionsTmp*nVertLevels + &
-                      (iRegion -1)*nVertLevels + iLevel
-         maxLayer(iLevel,iRegion,iField)=msgBufferReduced(bufferAddr)
+      do iField=1,nFields
+         bufferAddr = (iRegion -1)*nFields*nVertLevels + &
+                      (iLevel  -1)*nFields + iField
+         maxLayer(iField,iLevel,iRegion)=msgBufferReduced(bufferAddr)
       enddo
       enddo
       enddo
       !$omp end do
 
-      ! allocate space to hold results and free up avg fields
+      ! deallocate buffer
       !$omp single
       deallocate(msgBuffer)
       deallocate(msgBufferReduced)
-      deallocate(avgLayer)
-      deallocate(avgField)
-      allocate(minField(nOceanRegionsTmp,nFields))
-      allocate(maxField(nOceanRegionsTmp,nFields))
       !$omp end single
 
       ! find min/max with region volume
       !$omp do collapse(2) private(iRegion, iField)
+      do iRegion=1,nRegions
       do iField=1,nFields
-      do iRegion=1,nOceanRegionsTmp
-         minField(iRegion,iField) = minval(minLayer(:,iRegion,iField))
-         maxField(iRegion,iField) = maxval(maxLayer(:,iRegion,iField))
+         minField(iField,iRegion) = minval(minLayer(iField,:,iRegion))
+         maxField(iField,iRegion) = maxval(maxLayer(iField,:,iRegion))
       enddo
       enddo
       !$omp end do
-
-      ! now store in final resting place
-      !$omp do collapse(2) private(iLevel, iRegion, iField)
-      do iField=1,nFields
-      do iRegion=1,nOceanRegionsTmp
-         minValueWithinOceanVolumeRegion(iField,iRegion) = &
-                                minField(iRegion,iField)
-         maxValueWithinOceanVolumeRegion(iField,iRegion) = &
-                                maxField(iRegion,iField)
-         do iLevel=1,nVertLevels
-            minValueWithinOceanLayerRegion(iField,iLevel,iRegion) = &
-                                  minLayer(iLevel,iRegion,iField)
-            maxValueWithinOceanLayerRegion(iField,iLevel,iRegion) = &
-                                  maxLayer(iLevel,iRegion,iField)
-         end do
-      end do
-      end do
-      !$omp end do
-
-      ! deallocate remaining arrays
-      !$omp single
-      deallocate(minLayer)
-      deallocate(maxLayer)
-      deallocate(minField)
-      deallocate(maxField)
-      !$omp end single
 
    end subroutine ocn_compute_layer_volume_weighted_averages!}}}
 
@@ -902,108 +729,6 @@ contains
       err = 0
 
    end subroutine ocn_finalize_layer_volume_weighted_averages!}}}
-
-!***********************************************************************
-!
-!  routine ocn_LayerVolWgtAvgFieldMinMaxSum
-!
-!> \brief   Computes min, max and sum of an input field
-!> \author  Phil Jones
-!> \date    April 19, 2017
-!> \details
-!>  This is a local routine for this analysis member that computes
-!>  the min, max, and sum of a given field under the influence of a 
-!>  mask that defines active layers and regions. The results are packed
-!>  into a buffer for a later reduction call. The calling routine
-!>  supplies the field, a precomputed region mask and a base address 
-!>  for the buffer. 
-!
-!-----------------------------------------------------------------------
-
-   subroutine ocn_LayerVolWgtAvgFieldMinMaxSum(                   &
-          localSum, localMin, localMax, field, vertMask, regMask, &
-          nCellsSolve, numLevels, numRegions, iField, iBlock)!{{{
-
-   !--------------------------------------------------------------------
-   !
-   ! input variables 
-   !
-   !--------------------------------------------------------------------
-
-   integer, intent(in) :: &
-      numLevels,          &! number of vertical levels
-      nCellsSolve,        &! number of cells owned by this field
-      numRegions,         &! number of regions for diagnostics
-      iField,             &! index of field in local arrays
-      iBlock               ! index of current block for region mask
-
-   real (kind=RKIND), dimension(:,:), intent(in) :: &
-      vertMask,           &! multiplicative mask defining active levels
-      field                ! field for which statistics desired in
-                           ! transposed order (nCells, nVertLevels)
-
-   real (kind=RKIND), dimension(:,:,:), intent(in) :: &
-      regMask              ! mask defining active regions
-
-   !--------------------------------------------------------------------
-   !
-   ! input/output variables 
-   !
-   !--------------------------------------------------------------------
-
-   ! results are accumulated to account for multiple blocks
-   ! and are assumed to be initialized elsewhere
-
-   real (kind=RKIND), dimension(:,:,:), intent(inout) :: &
-      localSum, localMin, localMax  ! accumulated local results
-
-   !--------------------------------------------------------------------
-   !
-   ! local variables 
-   !
-   !--------------------------------------------------------------------
-
-   integer :: iCell, k, iRegion, iBuff   ! loop indices and addresses
-
-   real (kind=RKIND) :: maskTmp          ! temp for holding mask info
-
-   ! end preamble
-   !--------------------------------------------------------------------
-   ! begin routine
-
-   ! compute min, max, sum over a masked horizontal region
-
-   !$omp do collapse(2) private(iCell,k,iRegion,maskTmp)
-   do iRegion=1,numRegions 
-   do k=1,numLevels
-      
-      ! compute sum
-      do iCell=1,nCellsSolve
-         localSum(k,iRegion,iField) = &
-         localSum(k,iRegion,iField) + field(iCell,k)* &
-                                   vertMask(iCell,k)* &
-                                    regMask(iCell,iRegion,iBlock)
-      end do
-
-      ! compute min and max
-      do iCell=1,nCellsSolve
-         maskTmp = vertMask(iCell,k)* &
-                    regMask(iCell,iRegion,iBlock)
-         if (maskTmp /= 0.0_RKIND) then
-            localMin(k,iRegion,iField) = min( &
-            localMin(k,iRegion,iField),field(iCell,k))
-            localMax(k,iRegion,iField) = max( &
-            localMax(k,iRegion,iField),field(iCell,k))
-         endif
-      end do
-
-   end do
-   end do
-   !$omp end do
-
-   !--------------------------------------------------------------------
-
-   end subroutine ocn_LayerVolWgtAvgFieldMinMaxSum !}}}
 
 !***********************************************************************
 !
