@@ -128,9 +128,6 @@
 			<var name="minSurfaceNetHeatFlux" array_group="mins" units="W m^{-2}"
 				 description="Minimum net surface heat flux in each region"
 			/>
-			<var name="minSurfaceNetSalinitFlux" array_group="mins" units="kg m s^{-1}"
-				 description="Minimum net surface salinity flux in each region"
-			/>
 			<var name="minSurfaceNetFreshWaterFlux" array_group="mins" units="kg m^{-2} s^{-1}"
 				 description="Minimum net surface fresh water flux in each region"
 			/>
@@ -219,9 +216,6 @@
 			/>
 			<var name="maxSurfaceNetHeatFlux" array_group="maxs" units="W m^{-2}"
 				 description="Maximum net surface heat flux in each region"
-			/>
-			<var name="maxSurfaceNetSalinitFlux" array_group="maxs" units="kg m s^{-1}"
-				 description="Maximum net surface salinity flux in each region"
 			/>
 			<var name="maxSurfaceNetFreshWaterFlux" array_group="maxs" units="kg m^{-2} s^{-1}"
 				 description="Maximum net surface fresh water flux in each region"
@@ -312,9 +306,6 @@
 			<var name="avgSurfaceNetHeatFlux" array_group="avg" units="W m^{-2}"
 				 description="Surface area-weighted average of net surface heat flux in each region"
 			/>
-			<var name="avgSurfaceNetSalinitFlux" array_group="avg" units="kg m s^{-1}"
-				 description="Surface area-weighted average of net surface salinity flux in each region"
-			/>
 			<var name="avgSurfaceNetFreshWaterFlux" array_group="avg" units="kg m^{-2} s^{-1}"
 				 description="Surface area-weighted average of net surface fresh water flux in each region"
 			/>
@@ -403,9 +394,6 @@
 			/>
 			<var name="minSurfaceNetHeatFluxRegionMask" array_group="minsRegionMask" units="W m^{-2}"
 				 description="Minimum net surface heat flux in each region"
-			/>
-			<var name="minSurfaceNetSalinitFluxRegionMask" array_group="minsRegionMask" units="kg m s^{-1}"
-				 description="Minimum net surface salinity flux in each region"
 			/>
 			<var name="minSurfaceNetFreshWaterFluxRegionMask" array_group="minsRegionMask" units="kg m^{-2} s^{-1}"
 				 description="Minimum net surface fresh water flux in each region"
@@ -496,9 +484,6 @@
 			<var name="maxSurfaceNetHeatFluxRegionMask" array_group="maxsRegionMask" units="W m^{-2}"
 				 description="Maximum net surface heat flux in each region"
 			/>
-			<var name="maxSurfaceNetSalinitFluxRegionMask" array_group="maxsRegionMask" units="kg m s^{-1}"
-				 description="Maximum net surface salinity flux in each region"
-			/>
 			<var name="maxSurfaceNetFreshWaterFluxRegionMask" array_group="maxsRegionMask" units="kg m^{-2} s^{-1}"
 				 description="Maximum net surface fresh water flux in each region"
 			/>
@@ -587,9 +572,6 @@
 			/>
 			<var name="avgSurfaceNetHeatFluxRegionMask" array_group="avgRegionMask" units="W m^{-2}"
 				 description="Surface area-weighted average of net surface heat flux in each region"
-			/>
-			<var name="avgSurfaceNetSalinitFluxRegionMask" array_group="avgRegionMask" units="kg m s^{-1}"
-				 description="Surface area-weighted average of net surface salinity flux in each region"
 			/>
 			<var name="avgSurfaceNetFreshWaterFluxRegionMask" array_group="avgRegionMask" units="kg m^{-2} s^{-1}"
 				 description="Surface area-weighted average of net surface fresh water flux in each region"

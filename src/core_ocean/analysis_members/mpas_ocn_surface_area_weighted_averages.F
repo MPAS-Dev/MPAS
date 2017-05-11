@@ -190,6 +190,7 @@ contains
       if(lonCell(iCell).lt.190.0_RKIND*dtr) surfaceMask(6,iCell) = 0.0_RKIND
       if(lonCell(iCell).gt.240.0_RKIND*dtr) surfaceMask(6,iCell) = 0.0_RKIND
    enddo
+   ! global (do nothing)
 
    end subroutine compute_mask!}}}
 
