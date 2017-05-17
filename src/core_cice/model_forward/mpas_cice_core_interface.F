@@ -102,6 +102,9 @@ module cice_core_interface
 
       ierr = 0
 
+      ! forcing for framework
+      call setup_packages_forcing(configPool, packagePool, ierr)
+
       ! dynamics
       call setup_packages_dynamics(configPool, packagePool, ierr)
 
@@ -112,6 +115,46 @@ module cice_core_interface
       call cice_analysis_setup_packages(configPool, packagePool, iocontext, ierr)
 
    end function cice_setup_packages!}}}
+
+   !***********************************************************************
+   !
+   !  routine setup_packages_forcing
+   !
+   !> \brief
+   !> \author  Adrian K. Turner
+   !> \date    16th May 2017
+   !> \details
+   !>
+   !
+   !-----------------------------------------------------------------------
+
+   subroutine setup_packages_forcing(configPool, packagePool, ierr)!{{{
+
+     type (mpas_pool_type), intent(in) :: configPool
+     type (mpas_pool_type), intent(in) :: packagePool
+     integer, intent(out) :: ierr
+
+     logical, pointer :: &
+          config_use_forcing
+
+     logical, pointer :: &
+          pkgForcingActive
+
+     !pkgForcingActive
+
+     call MPAS_pool_get_config(configPool, "config_use_forcing", config_use_forcing)
+
+     call MPAS_pool_get_package(packagePool, "pkgForcingActive", pkgForcingActive)
+
+     ! is forcing being used
+     if (config_use_forcing) then
+
+        ! activate the forcing
+        pkgForcingActive = .true.
+
+     endif ! config_use_forcing
+
+   end subroutine setup_packages_forcing!}}}
 
    !***********************************************************************
    !
