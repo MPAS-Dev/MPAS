@@ -3,7 +3,7 @@
     config_calendar_type = 'gregorian_noleap'
     config_start_time = '2000-01-01_00:00:00'
     config_stop_time = 'none'
-    config_run_duration = '00-00-01_00:00:00'
+    config_run_duration = '24:00:00'
     config_num_halos = 2
 /
 &io
@@ -30,6 +30,7 @@
     config_nCategories = 5
     config_nIceLayers = 7
     config_nSnowLayers = 1
+    config_nBergCategories = 10
 /
 &initialize
     config_initial_condition_type = 'cice_default'
@@ -42,6 +43,7 @@
     config_initial_uvelocity = 0.0
     config_initial_vvelocity = 0.0
     config_calculate_coriolis = true
+    config_berg_initial_condition_type = 'test_everywhere'
 /
 &use_sections
     config_use_velocity_solver = true
@@ -310,6 +312,9 @@
 /
 &diagnostics
     config_check_state = false
+/
+&bergs
+    config_use_bergs = true
 /
 &AM_highFrequencyOutput
     config_AM_highFrequencyOutput_enable = false

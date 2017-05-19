@@ -38,6 +38,9 @@
 		<dim name="nSnowLayers"
 			definition="namelist:config_nSnowLayers"
 		/>
+		<dim name="nBergCategories"
+			definition="namelist:config_nBergCategories"
+		/>		
 		<dim name="nHemispheres"
 			definition="3"
 		/>
@@ -213,6 +216,7 @@
 		<nml_option name="config_nCategories"			type="integer"		default_value="5"/>
 		<nml_option name="config_nIceLayers"			type="integer"		default_value="7"/>
 		<nml_option name="config_nSnowLayers"			type="integer"		default_value="1"/>
+		<nml_option name="config_nBergCategories"		type="integer"		default_value="10"/>
 	</nml_record>
 	<nml_record name="initialize" in_defaults="true">
 		<nml_option name="config_initial_condition_type"	type="character"	default_value="cice_default"
@@ -226,6 +230,7 @@
 		<nml_option name="config_initial_uvelocity"		type="real"		default_value="0.0"/>
 		<nml_option name="config_initial_vvelocity"		type="real"		default_value="0.0"/>
 		<nml_option name="config_calculate_coriolis"		type="logical"		default_value="true"/>
+		<nml_option name="config_berg_initial_condition_type"	type="character" default_value="test_everywhere"/>
 	</nml_record>
 	<nml_record name="use_sections" in_defaults="true">
 		<nml_option name="config_use_velocity_solver"		type="logical"		default_value="true"/>
@@ -515,6 +520,11 @@
 		<nml_option name="config_check_state"				type="logical"		default_value="false"/>
 	</nml_record>
 
+	<!-- icebergs -->
+	<nml_record name="bergs" in_defaults="true">
+		<nml_option name="config_use_bergs"				type="logical"		default_value="true"/>
+	</nml_record>
+
 	<streams>
 		<stream name="mesh"
 				type="none"
@@ -656,6 +666,7 @@
 			<var name="mobileFraction"/>
 			<var name="newlyFormedIce"/>
 			<var name="maximumIcePresence"/>
+			<var name="bergMassCategory"/>
 		</stream>
 
 		<stream name="restart"
@@ -860,6 +871,9 @@
 		<!-- other column packages -->
 		<package name="pkgColumnFormDrag" description=""/>
 
+		<!-- iceberg packages -->
+		<package name="pkgBergs" description=""/>
+
 	</packages>
 
 <!--TODO WHL - Convert iceVolume and snowVolume to iceThickness and snowThickness (and change the source code accordingly) -->
@@ -917,6 +931,7 @@
 		<var name="verticalAerosolsSnow"		type="real"	dimensions="nzAerosolsSnowLayers nCategories nCells Time"	name_in_code="verticalAerosolsSnow"		packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsIce"		type="real"	dimensions="nzAerosolsIceLayers nCategories nCells Time"	name_in_code="verticalAerosolsIce"		packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinity"			type="real"	dimensions="nBioLayers nCategories nCells Time"		name_in_code="verticalSalinity"		packages="pkgTracerZSalinity"/>
+		<var name="bergMassCategory"		type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergMassCategory"		packages="pkgBergs"/>
 	</var_struct>
 	<var_struct name="tracers_aggregate" time_levs="1">
 		<var name="iceAreaCell"			type="real"	dimensions="nCells Time"			name_in_code="iceAreaCell"/>
@@ -970,6 +985,7 @@
 		<var name="verticalAerosolsIceCell"		type="real"	dimensions="nzAerosolsIceLayers nCells Time"	name_in_code="verticalAerosolsIceCell"		packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsConcCell"		type="real"	dimensions="nzAerosolsLayers nCells Time"	name_in_code="verticalAerosolsConcCell"	packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinityCell"		type="real"	dimensions="nBioLayers nCells Time"		name_in_code="verticalSalinityCell"		packages="pkgTracerZSalinity"/>
+		<var name="bergMassCell"				type="real"	dimensions="nCells Time"				name_in_code="bergMassCell"				packages="pkgBergs"/>
 	</var_struct>
 	<var_struct name="icestate" time_levs="1">
 		<var name="iceAreaCellInitial"			type="real"	dimensions="nCells Time"		name_in_code="iceAreaCellInitial"/>
