@@ -111,6 +111,9 @@ module cice_core_interface
       ! set up analysis member packages
       call cice_analysis_setup_packages(configPool, packagePool, iocontext, ierr)
 
+      ! icebergs
+      call setup_packages_bergs(configPool, packagePool, ierr)
+
    end function cice_setup_packages!}}}
 
    !***********************************************************************
@@ -525,6 +528,56 @@ module cice_core_interface
      !pkgColumnFormDragActive = .true.
 
    end subroutine setup_packages_column_physics!}}}
+
+      !***********************************************************************
+   !
+   !  routine setup_packages_bergs
+   !
+   !> \brief
+   !> \author  Darin Comeau
+   !> \date    May 2017
+   !> \details
+   !>
+   !
+   !-----------------------------------------------------------------------
+
+   subroutine setup_packages_bergs(configPool, packagePool, ierr)!{{{
+
+     type (mpas_pool_type), intent(in) :: configPool
+     type (mpas_pool_type), intent(in) :: packagePool
+     integer, intent(out) :: ierr
+
+     ! icebergs package
+     logical, pointer :: &
+          config_use_bergs
+
+     logical, pointer :: &
+          pkgBergsActive
+
+     ierr = 0
+
+     !-----------------------------------------------------------------------
+     ! iceberg routines
+     !-----------------------------------------------------------------------
+
+     call MPAS_pool_get_config(configPool, "config_use_bergs", config_use_bergs)
+
+     call MPAS_pool_get_package(packagePool, "pkgBergsActive", pkgBergsActive)
+
+     pkgBergsActive = config_use_bergs
+
+     ! are icebergs on
+     if (config_use_bergs) then
+
+        pkgBergsActive = .true.
+
+     else
+
+        pkgBergsActive = .false.
+
+     endif
+  
+   end subroutine setup_packages_bergs!}}}
 
    !***********************************************************************
    !
