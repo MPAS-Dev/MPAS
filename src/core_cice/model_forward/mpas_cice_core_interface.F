@@ -537,7 +537,7 @@ module cice_core_interface
    !> \author  Darin Comeau
    !> \date    19 May 2017
    !> \details This routine is intended to set the icebergs package PkgBergs
-   !> as active/inactive based on the namelist option config_use_bergs
+   !> as active/inactive based on the namelist option config_use_bergs.
    !>
    !
    !-----------------------------------------------------------------------
@@ -576,7 +576,7 @@ module cice_core_interface
    !> \date    19 May 2017
    !> \details
    !> This routine is intended to activate / deactivate the icebergs
-   !> package pkgBergs
+   !> package pkgBergs.
    !
    !-----------------------------------------------------------------------
 

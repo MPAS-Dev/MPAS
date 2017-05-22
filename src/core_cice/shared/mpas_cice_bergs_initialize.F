@@ -6,7 +6,6 @@
 !> \author  Darin Comeau, LANL
 !> \date    19 May 2017
 !> \details This module is intended to initialize the iceberg model.
-!>
 !
 !-----------------------------------------------------------------------
 
@@ -63,7 +62,7 @@ module cice_bergs_initialize
 !> \date    19 May 2017
 !> \details This routine is intended to initialize the iceberg model
 !> physical state variables based on the namelist option
-!> berg_initial_condition_type
+!> berg_initial_condition_type.
 !
 !-----------------------------------------------------------------------
 
@@ -129,7 +128,6 @@ module cice_bergs_initialize
 !> \date    19 May 2017
 !> \details This routine is intended to initialize the iceberg mass 
 !> variables as 0 at all grid cells.
-!>
 !
 !-----------------------------------------------------------------------
 
@@ -191,7 +189,6 @@ module cice_bergs_initialize
       enddo
 
    end subroutine init_berg_state_everywhere
-
 
 !-----------------------------------------------------------------------
 
