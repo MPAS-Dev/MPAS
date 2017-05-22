@@ -522,7 +522,7 @@
 
 	<!-- icebergs -->
 	<nml_record name="bergs" in_defaults="true">
-		<nml_option name="config_use_bergs"				type="logical"		default_value="true"/>
+		<nml_option name="config_use_bergs"			type="logical"		default_value="true"/>
 	</nml_record>
 
 	<streams>
