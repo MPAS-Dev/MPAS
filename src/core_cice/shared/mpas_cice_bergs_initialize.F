@@ -170,7 +170,6 @@ module cice_bergs_initialize
       call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory, 1)
       call MPAS_pool_get_array(tracers_aggregate, "bergMassCell", bergMassCell, 1)
 
-
       do iCell = 1, nCellsSolve
 
          do iCategory = 1, nBergCategories

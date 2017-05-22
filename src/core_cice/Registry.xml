@@ -230,7 +230,7 @@
 		<nml_option name="config_initial_uvelocity"		type="real"		default_value="0.0"/>
 		<nml_option name="config_initial_vvelocity"		type="real"		default_value="0.0"/>
 		<nml_option name="config_calculate_coriolis"		type="logical"		default_value="true"/>
-		<nml_option name="config_berg_initial_condition_type"	type="character" default_value="test_everywhere"/>
+		<nml_option name="config_berg_initial_condition_type"	type="character" 	default_value="test_everywhere"/>
 	</nml_record>
 	<nml_record name="use_sections" in_defaults="true">
 		<nml_option name="config_use_velocity_solver"		type="logical"		default_value="true"/>
