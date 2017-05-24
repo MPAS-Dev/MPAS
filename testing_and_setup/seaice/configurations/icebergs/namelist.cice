@@ -314,7 +314,7 @@
     config_check_state = false
 /
 &bergs
-    config_use_bergs = false
+    config_use_bergs = true
 /
 &AM_highFrequencyOutput
     config_AM_highFrequencyOutput_enable = false
