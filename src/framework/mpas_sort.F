@@ -412,10 +412,14 @@ if (top > 1000) call mpas_log_write('Quicksort exhausted its stack.', MPAS_LOG_E
 !  integer function mpas_binary_search
 !
 !> \brief   MPAS Binary search routine
-!> \author  Michael Duda
-!> \date    03/27/13
+!> \author  Michael Duda, modified by Dom Heinzeller
+!> \date    03/27/13, modified 05/29/17
 !> \details 
-!> This routine performs a binary search in array for the key. It either returns the index of the key within array, or n2+1 if the key is not found.
+!> This routine performs a binary search in array for the key. It either
+!> returns the index of the key within array, or n2+1 if the key is not
+!> found. As every binary search, it requires a sorted array to search.
+!> This allows to shorten/skip the search if the key is smaller than the
+!> first item in the array, or larger than the last item.
 !
 !-----------------------------------------------------------------------
    integer function mpas_binary_search(array, d1, n1, n2, key)!{{{
@@ -428,6 +432,10 @@ if (top > 1000) call mpas_log_write('Quicksort exhausted its stack.', MPAS_LOG_E
       integer :: l, u, k
 
       mpas_binary_search = n2+1
+
+      if (key < array(1,n1) .or. key > array(1,n2)) then
+         return
+      end if
 
       l = n1
       u = n2
