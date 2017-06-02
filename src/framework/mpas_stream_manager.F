@@ -5245,6 +5245,7 @@ module mpas_stream_manager
                         call mpas_quicksort(indexSpaceDim, sortedID)
 
                         ! Reindex the field
+!$OMP parallel do default(none) shared(outerDim, innerDim, sortedID, indexSpaceDim, int2DField) private(i,j,k)
                         do i = 1, outerDim
                             do j = 1, innerDim
                                 k = mpas_binary_search(sortedID, 2, 1, indexSpaceDim, int2DField % array(j,i))
@@ -5255,6 +5256,7 @@ module mpas_stream_manager
                                 end if
                             end do
                         end do
+!$OMP end parallel do
 
                         deallocate(sortedID)
                         int2DField => int2DField % next
