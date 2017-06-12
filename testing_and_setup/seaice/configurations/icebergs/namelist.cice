@@ -43,7 +43,6 @@
     config_initial_uvelocity = 0.0
     config_initial_vvelocity = 0.0
     config_calculate_coriolis = true
-    config_berg_initial_condition_type = 'test_everywhere'
 /
 &use_sections
     config_use_velocity_solver = true
@@ -315,6 +314,8 @@
 /
 &bergs
     config_use_bergs = true
+    config_berg_initial_condition = 'no_bergs'
+    config_berg_calving_distribution = 'Gladstone01'
 /
 &AM_highFrequencyOutput
     config_AM_highFrequencyOutput_enable = false
