@@ -53,7 +53,7 @@ contains
 
     if (config_use_bergs) then
 
-       call mpas_log_write("cice_bergs_init: Initialize iceberg model")
+       call mpas_log_write("Initialize iceberg model")
 
        ! initialize berg calving distribution
        call mpas_log_write(" Initialize iceberg calving distribution...")
@@ -122,8 +122,8 @@ contains
     enddo
 
     ! halo exchanges
-    call MPAS_dmpar_field_halo_exch(domain, 'bergMassCategory', timeLevel=1)
-    call MPAS_dmpar_field_halo_exch(domain, 'bergMassCell', timeLevel=1)
+    call MPAS_dmpar_field_halo_exch(domain, 'bergMassCategory')
+    call MPAS_dmpar_field_halo_exch(domain, 'bergMassCell')
 
    end subroutine init_berg_state
 
@@ -170,8 +170,8 @@ contains
     call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
     call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
 
-    call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory, 1)
-    call MPAS_pool_get_array(tracers_aggregate, "bergMassCell", bergMassCell, 1)
+    call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory)
+    call MPAS_pool_get_array(tracers_aggregate, "bergMassCell", bergMassCell)
 
     do iCell = 1, nCellsSolve
 
@@ -238,9 +238,9 @@ contains
     call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
     call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
 
-    call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory, 1)
-    call MPAS_pool_get_array(tracers, "bergLength", bergLength, 1)
-    call MPAS_pool_get_array(tracers, "bergHeight", bergHeight, 1)
+    call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory)
+    call MPAS_pool_get_array(tracers, "bergLength", bergLength)
+    call MPAS_pool_get_array(tracers, "bergHeight", bergHeight)
     call MPAS_pool_get_array(bergs, "bergCalvingLength", bergCalvingLength)
     call MPAS_pool_get_array(bergs, "bergCalvingHeight", bergCalvingHeight)
 
@@ -306,8 +306,8 @@ contains
     call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
     call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
 
-    call MPAS_pool_get_array(tracers, "uBergVelocity", uBergVelocity, 1)
-    call MPAS_pool_get_array(tracers, "vBergVelocity", vBergVelocity, 1)
+    call MPAS_pool_get_array(tracers, "uBergVelocity", uBergVelocity)
+    call MPAS_pool_get_array(tracers, "vBergVelocity", vBergVelocity)
 
     do iCell = 1, nCellsSolve
 
@@ -371,10 +371,10 @@ contains
     call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
     call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
 
-    call MPAS_pool_get_array(tracers, "bergFreshwaterFluxCategory", bergFreshwaterFluxCategory, 1)
-    call MPAS_pool_get_array(tracers, "bergLatentHeatFluxCategory", bergLatentHeatFluxCategory, 1)
-    call MPAS_pool_get_array(tracers_aggregate, "bergFreshwaterFluxCell", bergFreshwaterFluxCell, 1)
-    call MPAS_pool_get_array(tracers_aggregate, "bergLatentHeatFluxCell", bergLatentHeatFluxCell, 1)
+    call MPAS_pool_get_array(tracers, "bergFreshwaterFluxCategory", bergFreshwaterFluxCategory)
+    call MPAS_pool_get_array(tracers, "bergLatentHeatFluxCategory", bergLatentHeatFluxCategory)
+    call MPAS_pool_get_array(tracers_aggregate, "bergFreshwaterFluxCell", bergFreshwaterFluxCell)
+    call MPAS_pool_get_array(tracers_aggregate, "bergLatentHeatFluxCell", bergLatentHeatFluxCell)
 
     do iCell = 1, nCellsSolve
 
