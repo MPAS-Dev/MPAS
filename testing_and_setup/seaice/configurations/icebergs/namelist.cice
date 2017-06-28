@@ -30,7 +30,6 @@
     config_nCategories = 5
     config_nIceLayers = 7
     config_nSnowLayers = 1
-    config_nBergCategories = 10
 /
 &initialize
     config_initial_condition_type = 'cice_default'
@@ -315,7 +314,6 @@
 &bergs
     config_use_bergs = true
     config_berg_initial_condition = 'no_bergs'
-    config_berg_calving_distribution = 'Gladstone01'
 /
 &AM_highFrequencyOutput
     config_AM_highFrequencyOutput_enable = false

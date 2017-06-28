@@ -39,7 +39,6 @@
 			definition="namelist:config_nSnowLayers"
 		/>
 		<dim name="nBergCategories"
-			definition="namelist:config_nBergCategories"
 		/>		
 		<dim name="nHemispheres"
 			definition="3"
@@ -523,7 +522,6 @@
 	<nml_record name="bergs" in_defaults="true">
 		<nml_option name="config_use_bergs"			type="logical"		default_value="true"/>
 		<nml_option name="config_berg_initial_condition"	type="character" 	default_value="no_bergs"/>
-		<nml_option name="config_berg_calving_distribution"	type="character"	default_value="Gladstone01"/>
 	</nml_record>
 
 	<streams>
@@ -705,6 +703,17 @@
 				output_interval="00-01-00_00:00:00"
 				clobber_mode="replace_files"
 				runtime_format="single_file">
+		</stream>
+
+		<stream name="bergCalving"
+				type="input"
+				filename_template="berg_calving_distribution.nc"
+				filename_interval="none"
+				input_interval="initial_only"
+				immutable="true">
+			<var name="bergCalvingDistribution"/>
+			<var name="bergCalvingLength"/>
+			<var name="bergCalvingHeight"/>
 		</stream>
 
 		<!-- forcing streams -->
