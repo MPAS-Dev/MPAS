@@ -130,7 +130,8 @@ contains
 
       real (kind=RKIND), dimension(:), pointer :: &
         latCell, lonCell, bottomDepth, surfaceBuoyancyForcing, surfaceFrictionVelocity, fCell, &
-        boundaryLayerDepth, ssh, indexBoundaryLayerDepth, dcEdge, dvEdge, areaCell, iceFraction
+        boundaryLayerDepth, ssh, indexBoundaryLayerDepth, dcEdge, dvEdge, areaCell, iceFraction, &
+        boundaryLayerDepthSmooth
 
       real (kind=RKIND), dimension(:,:), pointer :: &
         vertViscTopOfCell, vertDiffTopOfCell, layerThickness, &
@@ -139,8 +140,8 @@ contains
         bulkRichardsonNumberBuoy, bulkRichardsonNumberShear, unresolvedShear, normalVelocity
 
       real (kind=RKIND), dimension(:,:,:), pointer :: vertNonLocalFlux
-      integer, pointer :: index_vertNonLocalFluxTemp, config_cvmix_num_ri_smooth_loops
-      integer, dimension(:,:), pointer :: edgesOnCell
+      integer, pointer :: index_vertNonLocalFluxTemp, config_cvmix_num_ri_smooth_loops, config_cvmix_num_BLD_smooth_loops
+      integer, dimension(:,:), pointer :: edgesOnCell, cellsOnCell
 
       logical, pointer :: config_use_cvmix_shear, config_use_cvmix_convection, config_use_cvmix_kpp
       logical, pointer :: config_use_cvmix_fixed_boundary_layer
@@ -150,13 +151,13 @@ contains
       character (len=StrKIND), pointer :: config_cvmix_shear_mixing_scheme, config_cvmix_kpp_matching
 
       integer :: k, i, iCell, jCell, iNeighbor, iter, timeLevel, kIndexOBL, kav, iEdge, nCells
-      integer :: topIndex, nsmooth
+      integer :: nEdges, topIndex, nsmooth, kpp_stage
       integer, pointer :: nVertLevels, nVertLevelsP1
       integer, dimension(:), pointer :: nCellsArray
       integer, dimension(:), allocatable :: surfaceAverageIndex
 
       real (kind=RKIND) :: r, layerSum, bulkRichardsonNumberStop, sfc_layer_depth, invAreaCell
-      real (kind=RKIND) :: normalVelocityAv, factor, delU2
+      real (kind=RKIND) :: normalVelocityAv, factor, delU2, areaSum
       real (kind=RKIND) :: sigma, turbulentScalarVelocityScalePoint
       real (kind=RKIND), dimension(:), allocatable :: Nsqr_iface, turbulentScalarVelocityScale, &
                                                       deltaVelocitySquared, normalVelocitySum, &
@@ -207,6 +208,7 @@ contains
       call mpas_pool_get_config(ocnConfigs, 'config_cvmix_kpp_boundary_layer_depth', config_cvmix_kpp_boundary_layer_depth)
       call mpas_pool_get_config(ocnConfigs, 'config_cvmix_kpp_surface_layer_extent', config_cvmix_kpp_surface_layer_extent)
       call mpas_pool_get_config(ocnConfigs, 'config_cvmix_num_ri_smooth_loops', config_cvmix_num_ri_smooth_loops)
+      call mpas_pool_get_config(ocnConfigs, 'config_cvmix_num_bld_smooth_loops', config_cvmix_num_bld_smooth_loops)
       call mpas_pool_get_config(ocnConfigs, 'configure_cvmix_kpp_minimum_OBL_under_sea_ice', &
                                 configure_cvmix_kpp_minimum_OBL_under_sea_ice)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
@@ -218,7 +220,7 @@ contains
       call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
       call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
-
+      call mpas_pool_get_array(meshPool, 'cellsOnCell', cellsOnCell)
       !
       ! set pointers for fields related to position on sphere
       !
@@ -247,6 +249,7 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'bulkRichardsonNumber', bulkRichardsonNumber)
       call mpas_pool_get_array(diagnosticsPool, 'unresolvedShear', unresolvedShear)
       call mpas_pool_get_array(diagnosticsPool, 'boundaryLayerDepth', boundaryLayerDepth)
+      call mpas_pool_get_array(diagnosticsPool, 'boundaryLayerDepthSmooth', boundaryLayerDepthSmooth)
       call mpas_pool_get_array(diagnosticsPool, 'RiTopOfCell', RiTopOfCell)
       call mpas_pool_get_array(diagnosticsPool, 'BruntVaisalaFreqTop',BruntVaisalaFreqTop)
       call mpas_pool_get_array(diagnosticsPool, 'bulkRichardsonNumberBuoy',bulkRichardsonNumberBuoy)
@@ -343,6 +346,7 @@ contains
       Nsqr_iface(nVertLevelsP1) = 0.0_RKIND
 
       call mpas_timer_start('cvmix cell loop', .false.)
+      do kpp_stage = 1,2
       !$omp do schedule(runtime) private(k, bulkRichardsonNumberStop, kIndexOBL, bulkRichardsonFlag)
       do iCell = 1, nCells
          invAreaCell = 1.0_RKIND / areaCell(iCell)
@@ -381,7 +385,7 @@ contains
          cvmix_variables % AdiabWaterDensity_cntr => displacedDensity(1:maxLevelCell(iCell), iCell)
 
          ! fill Ri
-
+         if (kpp_stage == 2) then
          RiSmoothed(1:maxLevelCell(iCell)) = RiTopOfCell(1:maxLevelCell(iCell),iCell)
          RiSmoothed(maxLevelCell(iCell)+1) = RiSmoothed(maxLevelCell(iCell))
          RiTemp(1:maxLevelCell(iCell)+1) = RiSmoothed(1:maxLevelCell(iCell)+1)
@@ -396,6 +400,8 @@ contains
 
          cvmix_variables%ShearRichardson_iface => RiSmoothed(1:maxLevelCell(iCell)+1)
 
+         endif
+
          ! fill BVF
          BVFSmoothed(1:maxLevelCell(iCell)) = max(0.0_RKIND,BruntVaisalaFreqTop(1:maxLevelCell(iCell),iCell))
          BVFSmoothed(maxLevelCell(iCell)+1) = max(0.0_RKIND,BVFSmoothed(maxLevelCell(iCell)))
@@ -406,6 +412,7 @@ contains
          cvmix_variables % SurfaceBuoyancyForcing = surfaceBuoyancyForcing(iCell)
          cvmix_variables % BulkRichardson_cntr => bulkRichardsonNumber(1:maxLevelCell(iCell), iCell)
 
+         if (kpp_stage == 2) then
          if (config_use_cvmix_shear) then
 
             do k = 1, maxLevelCell(iCell) + 1
@@ -432,15 +439,11 @@ contains
             end do
 
          endif ! if (config_use_cvmix_shear)
+          endif ! stage 2 shear compute
          ! call kpp ocean mixed layer scheme
          if (cvmixKPPOn) then
 
-            ! copy data into cvmix_variables
-            do k = 1, maxLevelCell(iCell) + 1
-              cvmix_variables % Mdiff_iface(k) = vertViscTopOfCell(k, iCell)
-              cvmix_variables % Tdiff_iface(k) = vertDiffTopOfCell(k, iCell)
-            end do
-
+          if (kpp_stage==1) then
             if (config_use_cvmix_fixed_boundary_layer) then
                cvmix_variables % BoundaryLayerDepth = config_cvmix_kpp_boundary_layer_depth
                cvmix_variables % kOBL_depth = cvmix_kpp_compute_kOBL_depth(  &
@@ -587,7 +590,16 @@ contains
 
              endif
 
-!           call mpas_timer_start('cvmix coeffs kpp', .false.)
+     endif !kpp stage 1 -- boundary layer compute
+
+     if (kpp_stage == 2) then
+            ! copy data into cvmix_variables
+            do k = 1, maxLevelCell(iCell) + 1
+              cvmix_variables % Mdiff_iface(k) = vertViscTopOfCell(k, iCell)
+              cvmix_variables % Tdiff_iface(k) = vertDiffTopOfCell(k, iCell)
+            end do
+ 
+             !           call mpas_timer_start('cvmix coeffs kpp', .false.)
             call cvmix_coeffs_kpp(                                              &
                           Mdiff_out = cvmix_variables % Mdiff_iface(1:maxLevelCell(iCell)+1),       &
                           Tdiff_out = cvmix_variables % Tdiff_iface(1:maxLevelCell(iCell)+1),       &
@@ -635,8 +647,10 @@ contains
             ! both of these operations are done in ocn_tracer_nonlocalflux_tend routine
             vertNonLocalFlux(index_vertNonLocalFluxTemp,:,iCell) = cvmix_variables % kpp_Tnonlocal_iface(:)
 
+    endif ! kpp stage 2
          endif !if (config_use_cvmix_kpp)
 
+         if ( kpp_stage == 2) then
          ! call convective mixing scheme
          if (config_use_cvmix_convection) then
             do k = 1, maxLevelCell(iCell) + 1
@@ -678,8 +692,36 @@ contains
             vertDiffTopOfCell(k, iCell)=0.0_RKIND
          end do
 
+ endif ! kpp stage 2 convection calc
       end do  ! do iCell=1,mesh%nCells
       !$omp end do
+      if (kpp_stage == 1) then ! smooth boundary layer
+
+           boundaryLayerDepthSmooth(1:nCells) = boundaryLayerDepth(1:nCells)
+
+         do nsmooth=1,config_cvmix_num_bld_smooth_loops
+           nCells = nCellsArray(1)
+           do iCell=1,nCells
+              nEdges = nEdgesOnCell(iCell)
+              areaSum = nEdges * areaCell(iCell)
+              boundaryLayerDepthSmooth(iCell) = areaSum * boundaryLayerDepth(iCell)
+              if ( areaSum /= 0) then 
+                do iEdge = 1,nEdges
+                   iNeighbor = cellsOnCell(iEdge,iCell)
+                   boundaryLayerDepthSmooth(iCell) = boundaryLayerDepthSmooth(iCell) +  &
+                                      areaCell(iNeighbor) * boundaryLayerDepth(iNeighbor)
+                   areaSum = areaSum + areaCell(iNeighbor)
+                end do
+                boundaryLayerDepthSmooth(iCell) = boundaryLayerDepthSmooth(iCell) / areaSum
+             endif
+          end do
+
+          boundaryLayerDepth(1:nCells) = boundaryLayerDepthSmooth(1:nCells)
+         enddo
+
+        nCells = nCellsArray(2)
+        endif !stage 1 BLD smoothing
+      end do ! kpp_stage
       call mpas_timer_stop('cvmix cell loop')
 
       ! dellocate cmvix variables
