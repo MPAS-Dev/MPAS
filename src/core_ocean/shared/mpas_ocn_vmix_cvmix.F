@@ -208,7 +208,7 @@ contains
       call mpas_pool_get_config(ocnConfigs, 'config_cvmix_kpp_boundary_layer_depth', config_cvmix_kpp_boundary_layer_depth)
       call mpas_pool_get_config(ocnConfigs, 'config_cvmix_kpp_surface_layer_extent', config_cvmix_kpp_surface_layer_extent)
       call mpas_pool_get_config(ocnConfigs, 'config_cvmix_num_ri_smooth_loops', config_cvmix_num_ri_smooth_loops)
-      call mpas_pool_get_config(ocnConfigs, 'config_cvmix_num_bld_smooth_loops', config_cvmix_num_bld_smooth_loops)
+      call mpas_pool_get_config(ocnConfigs, 'config_cvmix_num_BLD_smooth_loops', config_cvmix_num_BLD_smooth_loops)
       call mpas_pool_get_config(ocnConfigs, 'configure_cvmix_kpp_minimum_OBL_under_sea_ice', &
                                 configure_cvmix_kpp_minimum_OBL_under_sea_ice)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
@@ -590,6 +590,7 @@ contains
 
              endif
 
+             boundaryLayerDepth(iCell) = cvmix_variables % BoundaryLayerDepth
      endif !kpp stage 1 -- boundary layer compute
 
      if (kpp_stage == 2) then
@@ -598,7 +599,12 @@ contains
               cvmix_variables % Mdiff_iface(k) = vertViscTopOfCell(k, iCell)
               cvmix_variables % Tdiff_iface(k) = vertDiffTopOfCell(k, iCell)
             end do
- 
+                 cvmix_variables % kOBL_depth = cvmix_kpp_compute_kOBL_depth(  &
+                          zw_iface = cvmix_variables%zw_iface(1:maxLevelCell(iCell)+1), &
+                          zt_cntr = cvmix_variables%zt_cntr(1:maxLevelCell(iCell)),    &
+                          OBL_depth = boundaryLayerDepth(iCell) )
+
+
              !           call mpas_timer_start('cvmix coeffs kpp', .false.)
             call cvmix_coeffs_kpp(                                              &
                           Mdiff_out = cvmix_variables % Mdiff_iface(1:maxLevelCell(iCell)+1),       &
@@ -609,7 +615,7 @@ contains
                           old_Mdiff = cvmix_variables%Mdiff_iface(1:maxLevelCell(iCell)+1),         &
                           old_Tdiff = cvmix_variables%Tdiff_iface(1:maxLevelCell(iCell)+1),         &
                           old_Sdiff = cvmix_variables%Sdiff_iface(1:maxLevelCell(iCell)+1),         &
-                          OBL_depth = cvmix_variables%BoundaryLayerDepth,                   &
+                          OBL_depth = boundaryLayerDepth(iCell),                   &
                           kOBL_depth = cvmix_variables%kOBL_depth,                           &
                           Tnonlocal = cvmix_variables%kpp_Tnonlocal_iface(1:maxLevelCell(iCell)+1), &
                           Snonlocal = cvmix_variables%kpp_Snonlocal_iface(1:maxLevelCell(iCell)+1), &
@@ -620,7 +626,6 @@ contains
 !           call mpas_timer_stop('cvmix coeffs kpp')
 
             ! intent out of BoundaryLayerDepth is boundary layer depth measured in meters and vertical index
-            boundaryLayerDepth(iCell) = cvmix_variables % BoundaryLayerDepth
             indexBoundaryLayerDepth(iCell) = cvmix_variables % kOBL_depth
 
 
@@ -699,7 +704,7 @@ contains
 
            boundaryLayerDepthSmooth(1:nCells) = boundaryLayerDepth(1:nCells)
 
-         do nsmooth=1,config_cvmix_num_bld_smooth_loops
+         do nsmooth=1,config_cvmix_num_BLD_smooth_loops
            nCells = nCellsArray(1)
            do iCell=1,nCells
               nEdges = nEdgesOnCell(iCell)
