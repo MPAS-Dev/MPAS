@@ -290,7 +290,7 @@ contains
       end do
       !$omp end do
 
-      nCells = nCellsArray( 2 )
+      nCells = nCellsArray( 3 )
 
       !
       ! start by adding the mininum background values to the visocity/diffusivity arrays
@@ -702,10 +702,8 @@ contains
       !$omp end do
       if (kpp_stage == 1) then ! smooth boundary layer
 
-           boundaryLayerDepthSmooth(1:nCells) = boundaryLayerDepth(1:nCells)
-
-         do nsmooth=1,config_cvmix_num_BLD_smooth_loops
-           nCells = nCellsArray(1)
+         do nsmooth=1,min(config_cvmix_num_BLD_smooth_loops,1)
+           nCells = nCellsArray(2)
            do iCell=1,nCells
               nEdges = nEdgesOnCell(iCell)
               areaSum = nEdges * areaCell(iCell)
@@ -721,10 +719,12 @@ contains
              endif
           end do
 
-          boundaryLayerDepth(1:nCells) = boundaryLayerDepthSmooth(1:nCells)
+          do iCell=1, nCells
+             boundaryLayerDepth(iCell) = boundaryLayerDepthSmooth(iCell)
+          enddo
          enddo
 
-        nCells = nCellsArray(2)
+     
         endif !stage 1 BLD smoothing
       end do ! kpp_stage
       call mpas_timer_stop('cvmix cell loop')
