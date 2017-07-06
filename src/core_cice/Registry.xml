@@ -39,8 +39,7 @@
 			definition="namelist:config_nSnowLayers"
 		/>
 		<dim name="nBergCategories"
-			definition="namelist:config_nBergCategories"
-		/>		
+		/>
 		<dim name="nHemispheres"
 			definition="3"
 		/>
@@ -230,7 +229,6 @@
 		<nml_option name="config_initial_uvelocity"		type="real"		default_value="0.0"/>
 		<nml_option name="config_initial_vvelocity"		type="real"		default_value="0.0"/>
 		<nml_option name="config_calculate_coriolis"		type="logical"		default_value="true"/>
-		<nml_option name="config_berg_initial_condition_type"	type="character" 	default_value="test_everywhere"/>
 	</nml_record>
 	<nml_record name="use_sections" in_defaults="true">
 		<nml_option name="config_use_velocity_solver"		type="logical"		default_value="true"/>
@@ -522,7 +520,8 @@
 
 	<!-- icebergs -->
 	<nml_record name="bergs" in_defaults="true">
-		<nml_option name="config_use_bergs"			type="logical"		default_value="true"/>
+		<nml_option name="config_use_bergs"			type="logical"		default_value="false"/>
+		<nml_option name="config_berg_initial_condition"	type="character"	default_value="no_bergs"/>
 	</nml_record>
 
 	<streams>
@@ -667,6 +666,10 @@
 			<var name="newlyFormedIce"/>
 			<var name="maximumIcePresence"/>
 			<var name="bergMassCategory"/>
+			<var name="bergLength"/>
+			<var name="bergHeight"/>
+			<var name="uBergVelocity"/>
+			<var name="vBergVelocity"/>
 		</stream>
 
 		<stream name="restart"
@@ -700,6 +703,17 @@
 				output_interval="00-01-00_00:00:00"
 				clobber_mode="replace_files"
 				runtime_format="single_file">
+		</stream>
+
+		<stream name="bergCalving"
+				type="input"
+				filename_template="berg_calving_distribution.nc"
+				filename_interval="none"
+				input_interval="initial_only"
+				immutable="true">
+			<var name="bergCalvingDistribution"/>
+			<var name="bergCalvingLength"/>
+			<var name="bergCalvingHeight"/>
 		</stream>
 
 		<!-- forcing streams -->
@@ -932,6 +946,12 @@
 		<var name="verticalAerosolsIce"		type="real"	dimensions="nzAerosolsIceLayers nCategories nCells Time"	name_in_code="verticalAerosolsIce"		packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinity"			type="real"	dimensions="nBioLayers nCategories nCells Time"		name_in_code="verticalSalinity"		packages="pkgTracerZSalinity"/>
 		<var name="bergMassCategory"		type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergMassCategory"		packages="pkgBergs"/>
+		<var name="bergLength"			type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergLength"		packages="pkgBergs"/>
+		<var name="bergHeight"			type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergHeight"		packages="pkgBergs"/>
+		<var name="uBergVelocity"		type="real"	dimensions="nBergCategories nCells Time"				name_in_code="uBergVelocity"		packages="pkgBergs"/>
+		<var name="vBergVelocity"		type="real"	dimensions="nBergCategories nCells Time"				name_in_code="vBergVelocity"		packages="pkgBergs"/>
+		<var name="bergFreshwaterFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergFreshwaterFluxCategory"		packages="pkgBergs"/>
+		<var name="bergLatentHeatFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergLatentHeatFluxCategory"		packages="pkgBergs"/>
 	</var_struct>
 	<var_struct name="tracers_aggregate" time_levs="1">
 		<var name="iceAreaCell"			type="real"	dimensions="nCells Time"			name_in_code="iceAreaCell"/>
@@ -985,7 +1005,9 @@
 		<var name="verticalAerosolsIceCell"		type="real"	dimensions="nzAerosolsIceLayers nCells Time"	name_in_code="verticalAerosolsIceCell"		packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsConcCell"		type="real"	dimensions="nzAerosolsLayers nCells Time"	name_in_code="verticalAerosolsConcCell"	packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinityCell"		type="real"	dimensions="nBioLayers nCells Time"		name_in_code="verticalSalinityCell"		packages="pkgTracerZSalinity"/>
-		<var name="bergMassCell"				type="real"	dimensions="nCells Time"				name_in_code="bergMassCell"				packages="pkgBergs"/>
+		<var name="bergMassCell"			type="real"	dimensions="nCells Time"				name_in_code="bergMassCell"				packages="pkgBergs"/>
+		<var name="bergFreshwaterFluxCell"		type="real"	dimensions="nCells Time"				name_in_code="bergFreshwaterFluxCell"				packages="pkgBergs"/>
+		<var name="bergLatentHeatFluxCell"		type="real"	dimensions="nCells Time"				name_in_code="bergLatentHeatFluxCell"				packages="pkgBergs"/>
 	</var_struct>
 	<var_struct name="icestate" time_levs="1">
 		<var name="iceAreaCellInitial"			type="real"	dimensions="nCells Time"		name_in_code="iceAreaCellInitial"/>
@@ -2145,6 +2167,13 @@
 		<var name="lonPoint" type="real" dimensions="nPoints" units="radians"
 			 description="Longitude of point locations."
 		/>
+	</var_struct>
+
+	<!-- icebergs -->
+	<var_struct name="bergs" time_levs="1" packages="pkgBergs">
+		<var name="bergCalvingDistribution"		type="real"	dimensions="nBergCategories"	name_in_code="bergCalvingDistribution"/>
+		<var name="bergCalvingLength"			type="real"	dimensions="nBergCategories"		name_in_code="bergCalvingLength"/>
+		<var name="bergCalvingHeight"			type="real"	dimensions="nBergCategories"		name_in_code="bergCalvingHeight"/>
 	</var_struct>
 
 #include "analysis_members/Registry_cice_analysis_members.xml"

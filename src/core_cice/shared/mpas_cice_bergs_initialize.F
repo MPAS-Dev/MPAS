@@ -27,7 +27,7 @@ module cice_bergs_initialize
    public :: &
       cice_bergs_init
 
-   contains
+contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -36,22 +36,32 @@ module cice_bergs_initialize
 !> \brief   Initialize iceberg model         
 !> \author  Darin Comeau, LANL
 !> \date    19 May 2017
-!> \details This routine is intended to initialize the iceberg model.
+!> \details This routine is intended to initialize the iceberg model if
+!> icebergs are turned on based on the namelist option config_use_bergs.
 !
 !-----------------------------------------------------------------------
 
-   subroutine cice_bergs_init(domain)
+  subroutine cice_bergs_init(domain)
 
-      type(domain_type), intent(inout) :: &
+    type(domain_type), intent(inout) :: &
          domain
 
-      call mpas_log_write("cice_bergs_init: Initialize iceberg model")
+    logical, pointer :: &
+         config_use_bergs
 
-      ! initialize berg state
-      call mpas_log_write(" Initialize iceberg state...")
-      call init_berg_state(domain)
+    call MPAS_pool_get_config(domain % configs, "config_use_bergs", config_use_bergs)
 
-   end subroutine cice_bergs_init
+    if (config_use_bergs) then
+
+       call mpas_log_write("Initialize iceberg model")
+
+       ! initialize berg state
+       call mpas_log_write(" Initialize iceberg state...")
+       call init_berg_state(domain)
+
+    endif
+
+  end subroutine cice_bergs_init
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -62,132 +72,321 @@ module cice_bergs_initialize
 !> \date    19 May 2017
 !> \details This routine is intended to initialize the iceberg model
 !> physical state variables based on the namelist option
-!> berg_initial_condition_type.
+!> config_berg_initial_condition.
 !
 !-----------------------------------------------------------------------
 
-   subroutine init_berg_state(domain)
+  subroutine init_berg_state(domain)
 
-      type(domain_type), intent(inout) :: &
+    type(domain_type), intent(inout) :: &
          domain
 
-      type(block_type), pointer :: &
+    type(block_type), pointer :: &
          block
 
-      logical, pointer :: &
-         config_use_bergs, &
-         config_do_restart
+    character(len=strKIND), pointer :: &
+         config_berg_initial_condition
 
-      character(len=strKIND), pointer :: &
-         config_berg_initial_condition_type
+    call MPAS_pool_get_config(domain % configs, "config_berg_initial_condition", config_berg_initial_condition)
 
-      call MPAS_pool_get_config(domain % configs, "config_use_bergs", config_use_bergs)
-      call MPAS_pool_get_config(domain % configs, "config_do_restart", config_do_restart)
+    block => domain % blocklist
+    do while(associated(block))
 
-      if (.not. config_do_restart .and. config_use_bergs) then
+       ! set berg masses
+       if (trim(config_berg_initial_condition) == "no_bergs") then
 
-         call MPAS_pool_get_config(domain % configs, "config_berg_initial_condition_type", config_berg_initial_condition_type)
+          call init_berg_state_no_bergs(block)
 
-         ! set berg masses
-         block => domain % blocklist
-         do while(associated(block))
+       else
 
-            if (trim(config_berg_initial_condition_type) == "test_everywhere") then
+          call mpas_log_write(&
+               "init_berg_state: config_berg_initial_condition unknown:"//trim(config_berg_initial_condition), &
+               MPAS_LOG_CRIT)
 
-               call init_berg_state_everywhere(&
-                  block, &
-                  domain % configs)
+       endif
 
-            else
+       ! set berg size dimensions
+       call init_berg_size(block)
 
-               call mpas_log_write(&
-                  "init_berg_state: config_berg_initial_condition_type unknown:"//trim(config_berg_initial_condition_type), &
-                  MPAS_LOG_CRIT)
+       ! set berg velocities
+       call init_berg_velocity(block)
 
-            endif
+       ! set berg fluxes
+       call init_berg_fluxes(block)
 
-            block => block % next
-         enddo
+       block => block % next
+    enddo
 
-         ! set berg velocities (later)
-
-         ! halo exchanges
-         call MPAS_dmpar_field_halo_exch(domain, 'bergMassCategory', timeLevel=1)
-         call MPAS_dmpar_field_halo_exch(domain, 'bergMassCell', timeLevel=1)
-
-      endif ! restart / use_bergs
+    ! halo exchanges
+    call MPAS_dmpar_field_halo_exch(domain, 'bergMassCategory')
+    call MPAS_dmpar_field_halo_exch(domain, 'bergMassCell')
 
    end subroutine init_berg_state
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  init_berg_state_everywhere
+!  init_berg_state_no_bergs
 !
-!> \brief   Initialize icebergs everywhere            
+!> \brief   Initialize with no icebergs everywhere
 !> \author  Darin Comeau, LANL
 !> \date    19 May 2017
-!> \details This routine is intended to initialize the iceberg mass 
+!> \details This routine is intended to initialize the iceberg mass
 !> variables as 0 at all grid cells.
 !
 !-----------------------------------------------------------------------
 
-   subroutine init_berg_state_everywhere(&
-      block, &
-      configs)
+  subroutine init_berg_state_no_bergs(block)
 
-      type(block_type), intent(inout) :: &
+    type(block_type), intent(inout) :: &
          block
 
-      type(MPAS_pool_type), pointer, intent(in) :: &
-         configs
-
-      type(MPAS_pool_type), pointer :: &
+    type(MPAS_pool_type), pointer :: &
          mesh, &
          tracers, &
          tracers_aggregate
 
-      integer, pointer :: &
+    integer, pointer :: &
          nCellsSolve, &
-         nBergCategories           
+         nBergCategories
 
-      real(kind=RKIND), dimension(:,:), pointer :: &
+    real(kind=RKIND), dimension(:,:), pointer :: &
          bergMassCategory
 
-      real(kind=RKIND), dimension(:), pointer :: &
+    real(kind=RKIND), dimension(:), pointer :: &
          bergMassCell
 
-      integer :: &
+    integer :: &
          iCell, &
          iCategory
 
-      call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
-      call MPAS_pool_get_subpool(block % structs, "tracers", tracers)
-      call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracers_aggregate)
+    call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
+    call MPAS_pool_get_subpool(block % structs, "tracers", tracers)
+    call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracers_aggregate)
 
-      call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
-      call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)      
+    call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
 
-      call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory, 1)
-      call MPAS_pool_get_array(tracers_aggregate, "bergMassCell", bergMassCell, 1)
+    call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory)
+    call MPAS_pool_get_array(tracers_aggregate, "bergMassCell", bergMassCell)
 
-      do iCell = 1, nCellsSolve
+    do iCell = 1, nCellsSolve
 
-         do iCategory = 1, nBergCategories
+       do iCategory = 1, nBergCategories
 
-            bergMassCategory(iCategory,iCell) = 0.0_RKIND
+          bergMassCategory(iCategory,iCell) = 0.0_RKIND
 
-         enddo
+       enddo
 
-      enddo
+    enddo
 
-      ! integrated quantities
-      do iCell = 1, nCellsSolve
+    ! integrated quantities
+    do iCell = 1, nCellsSolve
 
-         bergMassCell(iCell) = sum(bergMassCategory(:,iCell))
+       bergMassCell(iCell) = sum(bergMassCategory(:,iCell))
 
-      enddo
+    enddo
 
-   end subroutine init_berg_state_everywhere
+  end subroutine init_berg_state_no_bergs
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  init_berg_size
+!
+!> \brief   Initialize icebergs size dimensions
+!> \author  Darin Comeau, LANL
+!> \date    6 June 2017
+!> \details This routine is intended to initialize the iceberg size
+!> dimensions as newly calved bergs.
+!
+!-----------------------------------------------------------------------
+
+  subroutine init_berg_size(block)
+
+    type(block_type), intent(inout) :: &
+         block
+
+    type(MPAS_pool_type), pointer :: &
+         mesh, &
+         tracers, &
+         bergs
+
+    integer, pointer :: &
+         nCellsSolve, &
+         nBergCategories
+
+    real(kind=RKIND), dimension(:,:), pointer :: &
+         bergMassCategory, &
+         bergLength, &
+         bergHeight
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         bergCalvingLength, &
+         bergCalvingHeight
+
+    integer :: &
+         iCell, &
+         iCategory
+
+    call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
+    call MPAS_pool_get_subpool(block % structs, "tracers", tracers)
+    call MPAS_pool_get_subpool(block % structs, "bergs", bergs)
+
+    call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
+
+    call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory)
+    call MPAS_pool_get_array(tracers, "bergLength", bergLength)
+    call MPAS_pool_get_array(tracers, "bergHeight", bergHeight)
+    call MPAS_pool_get_array(bergs, "bergCalvingLength", bergCalvingLength)
+    call MPAS_pool_get_array(bergs, "bergCalvingHeight", bergCalvingHeight)
+
+    do iCell = 1, nCellsSolve
+
+       do iCategory = 1, nBergCategories
+
+          if (bergMassCategory(iCategory,iCell) > 0.0_RKIND) then
+
+             bergLength(iCategory,iCell) = bergCalvingLength(iCategory)
+             bergHeight(iCategory,iCell) = bergCalvingHeight(iCategory)
+
+          else
+
+             bergLength(iCategory,iCell) = 0.0_RKIND
+             bergHeight(iCategory,iCell) = 0.0_RKIND
+
+          endif
+
+       enddo
+
+    enddo
+
+  end subroutine init_berg_size
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  init_berg_velocity
+!
+!> \brief   Initialize icebergs velocity
+!> \author  Darin Comeau, LANL
+!> \date    6 June 2017
+!> \details This routine is intended to initialize iceberg velocities.
+!
+!-----------------------------------------------------------------------
+
+  subroutine init_berg_velocity(block)
+
+    type(block_type), intent(inout) :: &
+         block
+
+    type(MPAS_pool_type), pointer :: &
+         mesh, &
+         tracers, &
+         bergs
+
+    integer, pointer :: &
+         nCellsSolve, &
+         nBergCategories
+
+    real(kind=RKIND), dimension(:,:), pointer :: &
+         uBergVelocity, &
+         vBergVelocity
+
+    integer :: &
+         iCell, &
+         iCategory
+
+    call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
+    call MPAS_pool_get_subpool(block % structs, "tracers", tracers)
+    call MPAS_pool_get_subpool(block % structs, "bergs", bergs)
+
+    call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
+
+    call MPAS_pool_get_array(tracers, "uBergVelocity", uBergVelocity)
+    call MPAS_pool_get_array(tracers, "vBergVelocity", vBergVelocity)
+
+    do iCell = 1, nCellsSolve
+
+       do iCategory = 1, nBergCategories
+
+          uBergVelocity(iCategory,iCell) = 0.0_RKIND
+          vBergVelocity(iCategory,iCell) = 0.0_RKIND
+
+       enddo
+
+    enddo
+
+    ! initialize velocity solver type (later)
+
+  end subroutine init_berg_velocity
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  init_berg_fluxes
+!
+!> \brief   Initialize icebergs fluxes
+!> \author  Darin Comeau, LANL
+!> \date    6 June 2017
+!> \details This routine is intended to initialize freshwater and latent
+!> heat fluxes due to icebergs.
+!
+!-----------------------------------------------------------------------
+
+  subroutine init_berg_fluxes(block)
+
+    type(block_type), intent(inout) :: &
+         block
+
+    type(MPAS_pool_type), pointer :: &
+         mesh, &
+         tracers, &
+         tracers_aggregate, &
+         bergs
+
+    integer, pointer :: &
+         nCellsSolve, &
+         nBergCategories
+
+    real(kind=RKIND), dimension(:,:), pointer :: &
+         bergFreshwaterFluxCategory, &
+         bergLatentHeatFluxCategory
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         bergFreshwaterFluxCell, &
+         bergLatentHeatFluxCell
+
+    integer :: &
+         iCell, &
+         iCategory
+
+    call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
+    call MPAS_pool_get_subpool(block % structs, "tracers", tracers)
+    call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracers_aggregate)
+    call MPAS_pool_get_subpool(block % structs, "bergs", bergs)
+
+    call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
+
+    call MPAS_pool_get_array(tracers, "bergFreshwaterFluxCategory", bergFreshwaterFluxCategory)
+    call MPAS_pool_get_array(tracers, "bergLatentHeatFluxCategory", bergLatentHeatFluxCategory)
+    call MPAS_pool_get_array(tracers_aggregate, "bergFreshwaterFluxCell", bergFreshwaterFluxCell)
+    call MPAS_pool_get_array(tracers_aggregate, "bergLatentHeatFluxCell", bergLatentHeatFluxCell)
+
+    do iCell = 1, nCellsSolve
+
+       bergFreshwaterFluxCell(iCell) = 0.0_RKIND
+       bergLatentHeatFluxCell(iCell) = 0.0_RKIND
+
+       do iCategory = 1, nBergCategories
+
+          bergLatentHeatFluxCategory(iCategory,iCell) = 0.0_RKIND
+          bergLatentHeatFluxCategory(iCategory,iCell) = 0.0_RKIND
+
+       enddo
+
+    enddo
+
+  end subroutine init_berg_fluxes
 
 !-----------------------------------------------------------------------
 

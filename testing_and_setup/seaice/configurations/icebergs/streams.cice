@@ -16,6 +16,12 @@
                   input_interval="initial_only"
                   output_interval="00-03-00_00:00:00" />
 
+<immutable_stream name="bergCalving"
+                  type="input"
+                  filename_template="berg_calving_distribution.nc"
+                  filename_interval="none"
+                  input_interval="initial_only" />
+
 <stream name="output"
         type="output"
         filename_template="output/output.$Y.nc"
