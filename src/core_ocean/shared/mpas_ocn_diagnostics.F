@@ -135,8 +135,8 @@ contains
 
       real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue
       real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceLayerValue
-      real (kind=RKIND), dimension(:),   pointer :: normalVelocitySurfaceLayer
-      real (kind=RKIND), dimension(:),   pointer :: indexSurfaceLayerDepth
+      real (kind=RKIND), dimension(:),   pointer :: normalVelocitySurfaceLayer, normalVelocityCorrection
+      real (kind=RKIND), dimension(:),   pointer :: indexSurfaceLayerDepth, divergenceVC
 
       type (field2DReal), pointer :: kineticEnergyVertexField, kineticEnergyVertexOnCellsField
       type (field2DReal), pointer :: normalizedRelativeVorticityVertexField, normalizedPlanetaryVorticityVertexField
@@ -181,6 +181,8 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
       call mpas_pool_get_array(diagnosticsPool, 'zTop', zTop)
       call mpas_pool_get_array(diagnosticsPool, 'divergence', divergence)
+      call mpas_pool_get_array(diagnosticsPool, 'divergenceVC', divergenceVC)
+      call mpas_pool_get_array(diagnosticsPool, 'normalVelocityCorrection', normalVelocityCorrection)
       call mpas_pool_get_array(diagnosticsPool, 'circulation', circulation)
       call mpas_pool_get_array(diagnosticsPool, 'relativeVorticity', relativeVorticity)
       call mpas_pool_get_array(diagnosticsPool, 'relativeVorticityCell', relativeVorticityCell)
@@ -294,6 +296,7 @@ contains
       !$omp do schedule(runtime)
       do iCell = 1, nCells
          divergence(:, iCell) = 0.0_RKIND
+         divergenceVC(iCell) = 0.0_RKIND
          vertVelocityTop(:, iCell) = 0.0_RKIND
          kineticEnergyCell(:, iCell) = 0.0_RKIND
       end do
@@ -345,6 +348,8 @@ contains
          invAreaCell1 = 1.0_RKIND / areaCell(iCell)
          do i = 1, nEdgesOnCell(iCell)
             iEdge = edgesOnCell(i, iCell)
+            divergenceVC(iCell) = divergenceVC(iCell) - dvEdge(iEdge) * invAreaCell1 *   &
+                                 edgeSignOnCell(i, iCell) * normalVelocityCorrection(iEdge)
             do k = 1, maxLevelCell(iCell)
                r_tmp = dvEdge(iEdge) * normalVelocity(k, iEdge) * invAreaCell1
 

@@ -2155,6 +2155,10 @@
 			 description="horizontal velocity used to transport mass and tracers"
 			 packages="forwardMode;analysisMode"
 		/>
+		<var name="normalVelocityCorrection" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="normal velocity correction"
+			 packages="forwardMode;analysisMode"
+	 	/> 
 		<var name="vertAleTransportTop" type="real" dimensions="nVertLevelsP1 nCells Time" units="m s^{-1}"
 			 description="vertical transport through the layer interface at the top of the cell"
 			 packages="forwardMode;analysisMode"
@@ -2211,6 +2215,10 @@
 			 description="divergence of horizonal velocity"
 			 packages="forwardMode;analysisMode"
 		/>
+		<var name="divergenceVC" type="real" dimensions="nCells Time" units="s^{-1}"
+			 description="divergence due to velocity correction"
+			 packages="forwardMode;analysisMode"
+		/> 
 		<var name="circulation" type="real" dimensions="nVertLevels nVertices Time" units="m^2 s^{-1}"
 			 description="area-integrated vorticity"
 			 packages="forwardMode;analysisMode"
