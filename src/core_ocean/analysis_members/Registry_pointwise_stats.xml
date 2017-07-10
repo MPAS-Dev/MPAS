@@ -64,7 +64,7 @@
     <var name="vertViscTopOfCell"/>
     <var name="vertVelocityTop"/>
     <var name="RiTopOfCell"/>
-    <var name="vertNonLocalFlux"/>
+    <var name="vertNonLocalFluxTemp"/>
     <var name="bulkRichardsonNumber"/>
     <var name="bulkRichardsonNumberBuoy"/>
     <var name="velocityZonal"/>

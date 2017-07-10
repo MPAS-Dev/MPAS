@@ -1363,9 +1363,9 @@ module ocn_time_integration_split
                   divergenceBTF(iCell) = 0.0_RKIND
                   invAreaCell = 1.0_RKIND / areaCell(iCell)
                   do iEdge = 1, nEdgesOnCell(iCell)
-                     k = edgesOnCell(iEdge, iCell)
-                     divergenceBTF(iCell) = divergenceBTF(iCell) - dvEdge(k) * invAreaCell * &
-                               edgeSignOnCell(iEdge, iCell) * barotropicThicknessFlux(k)
+                     j = edgesOnCell(iEdge, iCell)
+                     divergenceBTF(iCell) = divergenceBTF(iCell) - dvEdge(j) * invAreaCell * &
+                               edgeSignOnCell(iEdge, iCell) * barotropicThicknessFlux(j)
                   enddo
                enddo
 
