@@ -27,8 +27,8 @@
 		<var name="kineticEnergyAtSurface" type="real" dimensions="nCells Time" units="m^2 s^{-2}"
 			description="kinetic energy at surface"
 		/>
-		<var name="kineticEnergyAt100m" type="real" dimensions="nCells Time" units="m^2 s^{-2}"
-			description="kinetic energy at a depth of approximately 100 m"
+		<var name="kineticEnergyAt250m" type="real" dimensions="nCells Time" units="m^2 s^{-2}"
+			description="kinetic energy at a depth of approximately 250 m"
 		/>
 		<var name="barotropicSpeed" type="real" dimensions="nCells Time" units="m s^{-1}"
 			description="speed = sqrt(2*ke), where kinetic energy is computed from barotropic velocity = sum(h*u)/sum(h) over the full depth of an edge"
@@ -36,23 +36,63 @@
 		<var name="columnIntegratedSpeed" type="real" dimensions="nCells Time" units="m^2 s^{-1}"
 			description="speed = sum(h*sqrt(2*ke)), where ke is kineticEnergyCell and the sum is over the full column at cell centers."
 		/>
-		<var name="relativeVorticityAt100m" type="real" dimensions="nCells Time" units="s^{-1}"
-			description="relative vorticity at cell centers at a depth of approximately 100 m"
+		<var name="relativeVorticityAt250m" type="real" dimensions="nCells Time" units="s^{-1}"
+			description="relative vorticity at cell centers at a depth of approximately 250 m"
 		/>
-		<var name="divergenceAt100m" type="real" dimensions="nCells Time" units="s^{-1}"
-			description="divergence at cell centers at a depth of approximately 100 m"
+		<var name="divergenceAt250m" type="real" dimensions="nCells Time" units="s^{-1}"
+			description="divergence at cell centers at a depth of approximately 250 m"
 		/>
-		<var name="relativeVorticityVertexAt100m" type="real" dimensions="nVertices Time" units="s^{-1}"
-			description="relative vorticity at cell vertices at a depth of approximately 100 m"
+		<var name="relativeVorticityVertexAt250m" type="real" dimensions="nVertices Time" units="s^{-1}"
+			description="relative vorticity at cell vertices at a depth of approximately 250 m"
 		/>
-		<var_array name="activeTracersAtSurface" type="real" dimensions="nCells Time">
-			<var name="temperatureAtSurface" array_group="activeTracersAtSurface" units="^\circ C" name_in_code="temperatureAtSurface"
-				description="sea surface temperature"
+		<var_array name="activeTracersAt250m" type="real" dimensions="nCells Time">
+			<var name="temperatureAt250m" array_group="activeTracersAt250m" units="^\circ C" name_in_code="temperatureAt250m"
+				description="ocean temperature at 250m"
 			/>
-			<var name="salinityAtSurface" array_group="activeTracersAtSurface" units="PSU" name_in_code="salinityAtSurface"
-				description="sea surface salinity"
+			<var name="salinityAt250m" array_group="activeTracersAt250m" units="PSU" name_in_code="salinityAt250m"
+				description="salinity at 250 m"
 			/>
-	</var_array>
+	        </var_array>
+                <var_array name="activeTracersAvgTopto0100" type="real" dimensions="nCells Time">
+                        <var name="temperaturecAvgTopto0100" array_group="activeTracersAvgTopto0100" units="^\circ C" name_in_code="temperatureAvgTopto0100"
+                                description="ocean temperature averaged between surface and 100 m"
+                        />
+                        <var name="salinityAvgTopto0100" array_group="activeTracersAvgTopto0100" units="PSU" name_in_code="salinityAvgTopto0100"
+                                description="salinity averaged between surface and 100 m"
+                        />
+                </var_array>
+                <var_array name="activeTracersAvg0100to0250" type="real" dimensions="nCells Time">
+                        <var name="temperaturecAvg0100to0250" array_group="activeTracersAvg0100to0250" units="^\circ C" name_in_code="temperatureAvg0100to0250"
+                                description="ocean temperature averaged between surface and 100 m"
+                        />
+                        <var name="salinityAvg0100to0250" array_group="activeTracersAvg0100to0250" units="PSU" name_in_code="salinityAvg0100to0250"
+                                description="salinity averaged between surface and 100 m"
+                        />
+                </var_array>
+                <var_array name="activeTracersAvg0250to0700" type="real" dimensions="nCells Time">
+                        <var name="temperaturecAvg0250to0700" array_group="activeTracersAvg0250to0700" units="^\circ C" name_in_code="temperatureAvg0250to0700"
+                                description="ocean temperature averaged between surface and 100 m"
+                        />
+                        <var name="salinityAvg0250to0700" array_group="activeTracersAvg0250to0700" units="PSU" name_in_code="salinityAvg0250to0700"
+                                description="salinity averaged between surface and 100 m"
+                        />
+                </var_array>
+                <var_array name="activeTracersAvg0700to2000" type="real" dimensions="nCells Time">
+                        <var name="temperaturecAvg0700to2000" array_group="activeTracersAvg0700to2000" units="^\circ C" name_in_code="temperatureAvg0700to2000"
+                                description="ocean temperature averaged between surface and 100 m"
+                        />
+                        <var name="salinityAvg0700to2000" array_group="activeTracersAvg0700to2000" units="PSU" name_in_code="salinityAvg0700to2000"
+                                description="salinity averaged between surface and 100 m"
+                        />
+                </var_array>
+                <var_array name="activeTracersAvg2000toBottom" type="real" dimensions="nCells Time">
+                        <var name="temperaturecAvg2000toBottom" array_group="activeTracersAvg2000toBottom" units="^\circ C" name_in_code="temperatureAvg2000toBottom"
+                                description="ocean temperature averaged between surface and 100 m"
+                        />
+                        <var name="salinityAvg2000toBottom" array_group="activeTracersAvg2000toBottom" units="PSU" name_in_code="salinityAvg2000toBottom"
+                                description="salinity averaged between surface and 100 m"
+                        />
+                </var_array>
 	</var_struct>
 	<streams>
 		<stream name="highFrequencyOutput" type="output"
@@ -66,11 +106,19 @@
 				runtime_format="single_file">
 			<stream name="mesh"/>
 			<var name="xtime"/>
-			<var name="kineticEnergyAt100m"/>
+			<var name="kineticEnergyAt250m"/>
+                        <var name="relativeVorticityAt250m"/>
+                        <var name="divergenceAt250m"/>
+                        <var name="relativeVorticityAt250m"/>
 			<var name="barotropicSpeed"/>
 			<var name="columnIntegratedSpeed"/>
-			<var name="relativeVorticityAt100m"/>
-			<var_array name="activeTracersAtSurface"/>
+			<var name="relativeVorticityVertexAt250m"/>
+                        <var name="boundaryLayerDepth"/>
+			<var_array name="activeTracersAt250m"/>
+                        <var_array name="activeTracersAvgTopto0100"/>
+                        <var_array name="activeTracersAvg0100to0250"/>
+                        <var_array name="activeTracersAvg0250to0700"/>
+                        <var_array name="activeTracersAvg0700to2000"/>
+                        <var_array name="activeTracersAvg2000toBottom"/>
 		</stream>
 	</streams>
-
