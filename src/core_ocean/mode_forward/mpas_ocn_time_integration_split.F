@@ -122,6 +122,7 @@ module ocn_time_integration_split
       real (kind=RKIND), dimension(:), pointer :: btrvel_temp, normalVelocityCorrection
       type (field1DReal), pointer :: btrvel_tempField
       real (kind=RKIND), dimension(:,:), allocatable:: tracersTemp
+      real (kind=RKIND) :: invAreaCell
 
       integer :: tsIter
       integer :: edgeHaloComputeCounter, cellHaloComputeCounter
@@ -180,6 +181,7 @@ module ocn_time_integration_split
 
       ! Diagnostics Array Pointers
       real (kind=RKIND), dimension(:), pointer :: barotropicForcing, barotropicThicknessFlux
+      real (kind=RKIND), dimension(:), pointer :: divergenceBTF
       real (kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge, normalTransportVelocity, normalGMBolusVelocity
       real (kind=RKIND), dimension(:,:), pointer :: vertAleTransportTop
       real (kind=RKIND), dimension(:,:), pointer :: velocityX, velocityY, velocityZ
@@ -1295,6 +1297,7 @@ module ocn_time_integration_split
                call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
                call mpas_pool_get_array(diagnosticsPool, 'barotropicThicknessFlux', barotropicThicknessFlux)
 
+               call mpas_pool_get_array(diagnosticsPool, 'divergenceBTF', divergenceBTF)
                call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
                call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
@@ -1355,6 +1358,16 @@ module ocn_time_integration_split
                !$omp end do
 
                deallocate(uTemp)
+
+               do iCell = 1, nCells
+                  divergenceBTF(iCell) = 0.0_RKIND
+                  invAreaCell = 1.0_RKIND / areaCell(iCell)
+                  do iEdge = 1, nEdgesOnCell(iCell)
+                     k = edgesOnCell(iEdge, iCell)
+                     divergenceBTF(iCell) = divergenceBTF(iCell) - dvEdge(k) * invAreaCell * &
+                               edgeSignOnCell(iEdge, iCell) * barotropicThicknessFlux(k)
+                  enddo
+               enddo
 
                block => block % next
             end do  ! block

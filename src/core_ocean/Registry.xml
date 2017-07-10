@@ -2218,7 +2218,11 @@
 		<var name="divergenceVC" type="real" dimensions="nCells Time" units="s^{-1}"
 			 description="divergence due to velocity correction"
 			 packages="forwardMode;analysisMode"
-		/> 
+	        />
+		<var name="divergenceBTF" type="real" dimensions="nCells Time" units="s^{-1}"
+			 description="divergence of barotropic thickness flux"
+			 packages="forwardMode;analysisMode"
+		/>
 		<var name="circulation" type="real" dimensions="nVertLevels nVertices Time" units="m^2 s^{-1}"
 			 description="area-integrated vorticity"
 			 packages="forwardMode;analysisMode"
