@@ -1,4 +1,4 @@
-! Copyright (c) 2013,  Los Alamos National Security, LLC (LANS)
+!Copyright (c) 2013,  Los Alamos National Security, LLC (LANS)
 ! and the University Corporation for Atmospheric Research (UCAR).
 !
 ! Unless noted otherwise source code is licensed under the BSD license.
@@ -162,15 +162,19 @@ contains
       type (mpas_pool_type), pointer :: scratchPool
 
       integer :: iLevel, iLevelTarget, iCell, iEdge, i, cell1, cell2, k
+      integer :: iLevel0100, iLevel0250, iLevel0700, iLevel2000
+      real (kind=RKIND) :: sumLayerThickness
       integer, pointer :: nVertLevels, nCells, nEdges
       integer, dimension(:), pointer :: nEdgesOnCell, maxLevelEdgeTop, maxLevelCell
       integer, dimension(:,:), pointer :: edgesOnCell, cellsOnEdge
 
       real (kind=RKIND) :: invAreaCell1, layerThicknessEdge1, coeff
-      real (kind=RKIND), dimension(:), pointer :: refBottomDepth, kineticEnergyAt100m, kineticEnergyAtSurface, relativeVorticityAt100m
-      real (kind=RKIND), dimension(:), pointer :: divergenceAt100m, relativeVorticityVertexAt100m
+      real (kind=RKIND), dimension(:), pointer :: refBottomDepth, kineticEnergyAt250m, kineticEnergyAtSurface, relativeVorticityAt250m
+      real (kind=RKIND), dimension(:), pointer :: divergenceAt250m, relativeVorticityVertexAt250m
       real (kind=RKIND), dimension(:), pointer :: barotropicSpeed, columnIntegratedSpeed, dvEdge, dcEdge, areaCell
-      real (kind=RKIND), dimension(:,:), pointer :: kineticEnergyCell, relativeVorticityCell, activeTracersAtSurface
+      real (kind=RKIND), dimension(:,:), pointer :: kineticEnergyCell, relativeVorticityCell
+      real (kind=RKIND), dimension(:,:), pointer :: activeTracersAt250m, activeTracersAvgTopto0100, activeTracersAvg0100to0250
+      real (kind=RKIND), dimension(:,:), pointer :: activeTracersAvg0250to0700, activeTracersAvg0700to2000, activeTracersAvg2000toBottom
       real (kind=RKIND), dimension(:,:), pointer :: relativeVorticity, divergence, layerThickness, normalVelocity
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
 
@@ -209,12 +213,17 @@ contains
          call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, timeLevel)
 
          ! get arrays that can be written to output at high freqency
-         call mpas_pool_get_array(highFrequencyOutputAMPool, 'kineticEnergyAt100m', kineticEnergyAt100m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'kineticEnergyAt250m', kineticEnergyAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'kineticEnergyAtSurface', kineticEnergyAtSurface)
-         call mpas_pool_get_array(highFrequencyOutputAMPool, 'relativeVorticityAt100m', relativeVorticityAt100m)
-         call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAtSurface', activeTracersAtSurface)
-         call mpas_pool_get_array(highFrequencyOutputAMPool, 'divergenceAt100m', divergenceAt100m)
-         call mpas_pool_get_array(highFrequencyOutputAMPool, 'relativeVorticityVertexAt100m', relativeVorticityVertexAt100m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'relativeVorticityAt250m', relativeVorticityAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'divergenceAt250m', divergenceAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'relativeVorticityVertexAt250m', relativeVorticityVertexAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAt250m', activeTracersAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAvgTopto0100', activeTracersAvgTopto0100)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAvg0100to0250', activeTracersAvg0100to0250)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAvg0250to0700', activeTracersAvg0250to0700)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAvg0700to2000', activeTracersAvg0700to2000)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAvg2000toBottom', activeTracersAvg2000toBottom)
 
          !
          ! note for future build out
@@ -224,21 +233,59 @@ contains
          ! for now, just get close enough
          iLevelTarget = 1
          do iLevel=2,nVertLevels
-           if(refBottomDepth(iLevel) > 100.0_RKIND) then
+           if(refBottomDepth(iLevel) > 250.0_RKIND) then
               iLevelTarget = iLevel-1
               exit
            endif
          enddo
 
+         ! find vertical level that is just above the 100 m reference level
+         iLevel0100 = 1
+         do iLevel=2,nVertLevels
+           if(refBottomDepth(iLevel) > 100.0_RKIND) then
+              iLevel0100 = iLevel-1
+              exit
+           endif
+         enddo
+
+         ! find vertical level that is just above the 250 m reference level
+         iLevel0250 = 1
+         do iLevel=2,nVertLevels
+           if(refBottomDepth(iLevel) > 250.0_RKIND) then
+              iLevel0250 = iLevel-1
+              exit
+           endif
+         enddo
+
+         ! find vertical level that is just above the 700 m reference level
+         iLevel0700 = 1
+         do iLevel=2,nVertLevels
+           if(refBottomDepth(iLevel) > 700.0_RKIND) then
+              iLevel0700 = iLevel-1
+              exit
+           endif
+         enddo
+
+         ! find vertical level that is just above the 2000 m reference level
+         iLevel2000 = 1
+         do iLevel=2,nVertLevels
+           if(refBottomDepth(iLevel) > 2000.0_RKIND) then
+              iLevel2000 = iLevel-1
+              exit
+           endif
+         enddo
+
+         ! avg between surface and 100 m
+
+
          ! copy data into high frequency output fields
-         ! tracer data will be converted to new tracer infrastrcture (and this line removed) before June 23 2015.
-         kineticEnergyAt100m(:) = kineticEnergyCell(iLevelTarget,:)
-         relativeVorticityAt100m(:) = relativeVorticityCell(iLevelTarget,:)
-         divergenceAt100m(:) = divergence(iLevelTarget,:)
-         relativeVorticityVertexAt100m = relativeVorticity(iLevelTarget,:)
+         kineticEnergyAt250m(:) = kineticEnergyCell(iLevelTarget,:)
+         relativeVorticityAt250m(:) = relativeVorticityCell(iLevelTarget,:)
+         divergenceAt250m(:) = divergence(iLevelTarget,:)
+         relativeVorticityVertexAt250m = relativeVorticity(iLevelTarget,:)
          kineticEnergyAtSurface(:) = kineticEnergyCell(1,:)
-         activeTracersAtSurface(1,:) = activeTracers(1,1,:)
-         activeTracersAtSurface(2,:) = activeTracers(2,1,:)
+         activeTracersAt250m(1,:) = activeTracers(1,iLevelTarget,:)
+         activeTracersAt250m(2,:) = activeTracers(2,iLevelTarget,:)
 
          !
          ! compute barotropic kinetic energy
@@ -255,6 +302,76 @@ contains
          call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'barotropicSpeed', barotropicSpeed)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'columnIntegratedSpeed', columnIntegratedSpeed)
+
+         !
+         ! compute layer averaged tracers
+         !
+         activeTracersAvgTopto0100(:,:) = -1.0e34_RKIND
+         do iCell = 1, nCells
+           sumLayerThickness = layerThickness(1,iCell)
+           activeTracersAvgTopto0100(:,iCell) = activeTracers(:,1,iCell)*layerThickness(1,iCell)
+           do k=2, min(maxLevelCell(iCell),iLevel0100)
+              sumLayerThickness = sumLayerThickness + layerThickness(k,iCell)
+              activeTracersAvgTopto0100(:,iCell) = activeTracersAvgTopto0100(:,iCell) + activeTracers(:,k,iCell)*layerThickness(k,iCell)
+           enddo
+           activeTracersAvgTopto0100(:,iCell) = activeTracersAvgTopto0100(:,iCell) / max(sumLayerThickness,1.0_RKIND)
+         enddo
+
+         activeTracersAvg0100to0250(:,:) = -1.0e34_RKIND
+         do iCell = 1, nCells
+           if (iLevel0100+1.ge.maxLevelCell(iCell)) then
+              sumLayerThickness = layerThickness(iLevel0100+1,iCell)
+              activeTracersAvg0100to0250(:,iCell) = activeTracers(:,iLevel0100+1,iCell)*layerThickness(iLevel0100,iCell)
+              do k=iLevel0100+2, min(maxLevelCell(iCell),iLevel0250)
+                 sumLayerThickness = sumLayerThickness + layerThickness(k,iCell)
+                 activeTracersAvg0100to0250(:,iCell) = activeTracersAvg0100to0250(:,iCell) + activeTracers(:,k,iCell)*layerThickness(k,iCell)
+              enddo
+              activeTracersAvg0100to0250(:,iCell) = activeTracersAvg0100to0250(:,iCell) / max(sumLayerThickness,1.0_RKIND)
+           endif
+         enddo
+
+         activeTracersAvg0250to0700(:,:) = -1.0e34_RKIND
+         do iCell = 1, nCells
+           if (iLevel0250+1.ge.maxLevelCell(iCell)) then
+              sumLayerThickness = layerThickness(iLevel0250+1,iCell)
+              activeTracersAvg0250to0700(:,iCell) = activeTracers(:,iLevel0250+1,iCell)*layerThickness(iLevel0250+1,iCell)
+              do k=iLevel0250+2, min(maxLevelCell(iCell),iLevel0700)
+                 sumLayerThickness = sumLayerThickness + layerThickness(k,iCell)
+                 activeTracersAvg0250to0700(:,iCell) = activeTracersAvg0250to0700(:,iCell) + activeTracers(:,k,iCell)*layerThickness(k,iCell)
+              enddo
+              activeTracersAvg0250to0700(:,iCell) = activeTracersAvg0250to0700(:,iCell) / max(sumLayerThickness,1.0_RKIND)
+           endif
+         enddo
+
+         activeTracersAvg0700to2000(:,:) = -1.0e34_RKIND
+         do iCell = 1, nCells
+           if (iLevel0700+1.ge.maxLevelCell(iCell)) then
+              sumLayerThickness = layerThickness(iLevel0700+1,iCell)
+              activeTracersAvg0700to2000(:,iCell) = activeTracers(:,iLevel0700+1,iCell)*layerThickness(iLevel0700+1,iCell)
+              do k=iLevel0700+2, min(maxLevelCell(iCell),iLevel2000)
+                 sumLayerThickness = sumLayerThickness + layerThickness(k,iCell)
+                 activeTracersAvg0700to2000(:,iCell) = activeTracersAvg0700to2000(:,iCell) + activeTracers(:,k,iCell)*layerThickness(k,iCell)
+              enddo
+              activeTracersAvg0700to2000(:,iCell) = activeTracersAvg0700to2000(:,iCell) / max(sumLayerThickness,1.0_RKIND)
+           endif
+         enddo
+
+         activeTracersAvg2000toBottom(:,:) = -1.0e34_RKIND
+         do iCell = 1, nCells
+           if (iLevel2000+1.ge.maxLevelCell(iCell)) then
+              sumLayerThickness = layerThickness(iLevel2000+1,iCell)
+              activeTracersAvg2000toBottom(:,iCell) = activeTracers(:,iLevel2000+1,iCell)*layerThickness(iLevel2000+1,iCell)
+              do k=iLevel2000+2, maxLevelCell(iCell)
+                 sumLayerThickness = sumLayerThickness + layerThickness(k,iCell)
+                 activeTracersAvg2000toBottom(:,iCell) = activeTracersAvg2000toBottom(:,iCell) + activeTracers(:,k,iCell)*layerThickness(k,iCell)
+              enddo
+              activeTracersAvg2000toBottom(:,iCell) = activeTracersAvg2000toBottom(:,iCell) / max(sumLayerThickness,1.0_RKIND)
+           endif
+         enddo
+
+         !
+         ! compute barotropic kinetic energy
+         !
 
          ! scratch arrays
          call mpas_pool_get_field(scratchPool, 'normalThicknessFluxSum', normalThicknessFluxSumField)
