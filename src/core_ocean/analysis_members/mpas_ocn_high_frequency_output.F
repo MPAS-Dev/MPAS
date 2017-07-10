@@ -250,7 +250,7 @@ contains
 
          ! find vertical level that is just above the 250 m reference level
          iLevel0250 = 1
-         do iLevel=2,nVertLevels
+         do iLevel=iLevel0100,nVertLevels
            if(refBottomDepth(iLevel) > 250.0_RKIND) then
               iLevel0250 = iLevel-1
               exit
@@ -259,7 +259,7 @@ contains
 
          ! find vertical level that is just above the 700 m reference level
          iLevel0700 = 1
-         do iLevel=2,nVertLevels
+         do iLevel=iLevel0250,nVertLevels
            if(refBottomDepth(iLevel) > 700.0_RKIND) then
               iLevel0700 = iLevel-1
               exit
@@ -268,7 +268,7 @@ contains
 
          ! find vertical level that is just above the 2000 m reference level
          iLevel2000 = 1
-         do iLevel=2,nVertLevels
+         do iLevel=iLevel0700,nVertLevels
            if(refBottomDepth(iLevel) > 2000.0_RKIND) then
               iLevel2000 = iLevel-1
               exit
@@ -319,7 +319,7 @@ contains
 
          activeTracersAvg0100to0250(:,:) = -1.0e34_RKIND
          do iCell = 1, nCells
-           if (iLevel0100+1.ge.maxLevelCell(iCell)) then
+           if (iLevel0100+1.le.maxLevelCell(iCell)) then
               sumLayerThickness = layerThickness(iLevel0100+1,iCell)
               activeTracersAvg0100to0250(:,iCell) = activeTracers(:,iLevel0100+1,iCell)*layerThickness(iLevel0100,iCell)
               do k=iLevel0100+2, min(maxLevelCell(iCell),iLevel0250)
@@ -332,7 +332,7 @@ contains
 
          activeTracersAvg0250to0700(:,:) = -1.0e34_RKIND
          do iCell = 1, nCells
-           if (iLevel0250+1.ge.maxLevelCell(iCell)) then
+           if (iLevel0250+1.le.maxLevelCell(iCell)) then
               sumLayerThickness = layerThickness(iLevel0250+1,iCell)
               activeTracersAvg0250to0700(:,iCell) = activeTracers(:,iLevel0250+1,iCell)*layerThickness(iLevel0250+1,iCell)
               do k=iLevel0250+2, min(maxLevelCell(iCell),iLevel0700)
@@ -345,7 +345,7 @@ contains
 
          activeTracersAvg0700to2000(:,:) = -1.0e34_RKIND
          do iCell = 1, nCells
-           if (iLevel0700+1.ge.maxLevelCell(iCell)) then
+           if (iLevel0700+1.le.maxLevelCell(iCell)) then
               sumLayerThickness = layerThickness(iLevel0700+1,iCell)
               activeTracersAvg0700to2000(:,iCell) = activeTracers(:,iLevel0700+1,iCell)*layerThickness(iLevel0700+1,iCell)
               do k=iLevel0700+2, min(maxLevelCell(iCell),iLevel2000)
@@ -358,7 +358,7 @@ contains
 
          activeTracersAvg2000toBottom(:,:) = -1.0e34_RKIND
          do iCell = 1, nCells
-           if (iLevel2000+1.ge.maxLevelCell(iCell)) then
+           if (iLevel2000+1.le.maxLevelCell(iCell)) then
               sumLayerThickness = layerThickness(iLevel2000+1,iCell)
               activeTracersAvg2000toBottom(:,iCell) = activeTracers(:,iLevel2000+1,iCell)*layerThickness(iLevel2000+1,iCell)
               do k=iLevel2000+2, maxLevelCell(iCell)
