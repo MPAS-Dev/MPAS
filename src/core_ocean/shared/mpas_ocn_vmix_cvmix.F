@@ -712,8 +712,8 @@ contains
                 do iEdge = 1,nEdges
                    iNeighbor = cellsOnCell(iEdge,iCell)
                    boundaryLayerDepthSmooth(iCell) = boundaryLayerDepthSmooth(iCell) +  &
-                                      areaCell(iNeighbor) * boundaryLayerDepth(iNeighbor)
-                   areaSum = areaSum + areaCell(iNeighbor)
+                                      2.0_RKIND * areaCell(iNeighbor) * boundaryLayerDepth(iNeighbor)
+                   areaSum = areaSum + 2.0_RKIND * areaCell(iNeighbor)
                 end do
                 boundaryLayerDepthSmooth(iCell) = boundaryLayerDepthSmooth(iCell) / areaSum
              endif
