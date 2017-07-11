@@ -133,7 +133,7 @@ contains
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers, derivTwo
       character :: c1*6
 
-      real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue
+      real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue, divergenceTransportVel
       real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceLayerValue
       real (kind=RKIND), dimension(:),   pointer :: normalVelocitySurfaceLayer, normalVelocityCorrection
       real (kind=RKIND), dimension(:),   pointer :: indexSurfaceLayerDepth, divergenceVC
@@ -182,6 +182,7 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'zTop', zTop)
       call mpas_pool_get_array(diagnosticsPool, 'divergence', divergence)
       call mpas_pool_get_array(diagnosticsPool, 'divergenceVC', divergenceVC)
+      call mpas_pool_get_array(diagnosticsPool, 'divergenceTransportVel', divergenceTransportVel)
       call mpas_pool_get_array(diagnosticsPool, 'normalVelocityCorrection', normalVelocityCorrection)
       call mpas_pool_get_array(diagnosticsPool, 'circulation', circulation)
       call mpas_pool_get_array(diagnosticsPool, 'relativeVorticity', relativeVorticity)
@@ -360,6 +361,8 @@ contains
                ! Compute vertical velocity from the horizontal total transport
                div_huTransport(k) = div_huTransport(k) - layerThicknessEdge(k, iEdge) * edgeSignOnCell(i, iCell) &
                                   * dvEdge(iEdge) * normalTransportVelocity(k, iEdge) * invAreaCell1
+               divergenceTransportVel(iCell,k) = div_huTransport(k)
+
                ! Compute vertical velocity from the horizontal GM Bolus velocity
                div_huGMBolus(k) = div_huGMBolus(k) - layerThicknessEdge(k, iEdge) * edgeSignOnCell(i, iCell) * dvEdge(iEdge) &
                                 * normalGMBolusVelocity(k, iEdge) * invAreaCell1

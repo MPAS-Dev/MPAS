@@ -2215,6 +2215,10 @@
 			 description="divergence of horizonal velocity"
 			 packages="forwardMode;analysisMode"
 		/>
+  		<var name="divergenceTransportVel" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+			 description="divergence of horizonal Transport velocity"
+			 packages="forwardMode;analysisMode"
+		/>
 		<var name="divergenceVC" type="real" dimensions="nCells Time" units="s^{-1}"
 			 description="divergence due to velocity correction"
 			 packages="forwardMode;analysisMode"
