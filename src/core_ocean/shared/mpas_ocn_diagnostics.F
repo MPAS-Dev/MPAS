@@ -361,7 +361,6 @@ contains
                ! Compute vertical velocity from the horizontal total transport
                div_huTransport(k) = div_huTransport(k) - layerThicknessEdge(k, iEdge) * edgeSignOnCell(i, iCell) &
                                   * dvEdge(iEdge) * normalTransportVelocity(k, iEdge) * invAreaCell1
-               divergenceTransportVel(iCell,k) = div_huTransport(k)
 
                ! Compute vertical velocity from the horizontal GM Bolus velocity
                div_huGMBolus(k) = div_huGMBolus(k) - layerThicknessEdge(k, iEdge) * edgeSignOnCell(i, iCell) * dvEdge(iEdge) &
@@ -370,6 +369,7 @@ contains
          end do
          ! Vertical velocity at bottom (maxLevelCell(iCell)+1) is zero, initialized above.
          do k=maxLevelCell(iCell),1,-1
+            divergenceTransportVel(k,iCell) = div_huTransport(k)
             vertVelocityTop(k,iCell) = vertVelocityTop(k+1,iCell) - div_hu(k)
             vertTransportVelocityTop(k,iCell) = vertTransportVelocityTop(k+1,iCell) - div_huTransport(k)
             vertGMBolusVelocityTop(k,iCell) = vertGMBolusVelocityTop(k+1,iCell) - div_huGMBolus(k)
