@@ -141,7 +141,7 @@ contains
 
       real (kind=RKIND), dimension(:,:,:), pointer :: vertNonLocalFlux
       integer, pointer :: index_vertNonLocalFluxTemp, config_cvmix_num_ri_smooth_loops, config_cvmix_num_BLD_smooth_loops
-      integer, dimension(:,:), pointer :: edgesOnCell, cellsOnCell
+      integer, dimension(:,:), pointer :: edgesOnCell, cellsOnCell, cellMask
 
       logical, pointer :: config_use_cvmix_shear, config_use_cvmix_convection, config_use_cvmix_kpp
       logical, pointer :: config_use_cvmix_fixed_boundary_layer
@@ -157,7 +157,7 @@ contains
       integer, dimension(:), allocatable :: surfaceAverageIndex
 
       real (kind=RKIND) :: r, layerSum, bulkRichardsonNumberStop, sfc_layer_depth, invAreaCell
-      real (kind=RKIND) :: normalVelocityAv, factor, delU2, areaSum
+      real (kind=RKIND) :: normalVelocityAv, factor, delU2, areaSum, blTemp
       real (kind=RKIND) :: sigma, turbulentScalarVelocityScalePoint
       real (kind=RKIND), dimension(:), allocatable :: Nsqr_iface, turbulentScalarVelocityScale, &
                                                       deltaVelocitySquared, normalVelocitySum, &
@@ -221,6 +221,8 @@ contains
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
       call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
       call mpas_pool_get_array(meshPool, 'cellsOnCell', cellsOnCell)
+      call mpas_pool_get_array(meshPool, 'cellMask', cellMask)
+
       !
       ! set pointers for fields related to position on sphere
       !
@@ -599,7 +601,12 @@ contains
               cvmix_variables % Mdiff_iface(k) = vertViscTopOfCell(k, iCell)
               cvmix_variables % Tdiff_iface(k) = vertDiffTopOfCell(k, iCell)
             end do
-                 cvmix_variables % kOBL_depth = cvmix_kpp_compute_kOBL_depth(  &
+
+            !must reapply max and min limits to boundaryLayerDepth
+            blTemp = max(boundaryLayerDepth(iCell), layerThickness(1,iCell)/2.0_RKIND)
+            boundaryLayerDepth(iCell) = min(blTemp, abs(cvmix_variables%zt_cntr(maxLevelCell(iCell))))
+
+            cvmix_variables % kOBL_depth = cvmix_kpp_compute_kOBL_depth(  &
                           zw_iface = cvmix_variables%zw_iface(1:maxLevelCell(iCell)+1), &
                           zt_cntr = cvmix_variables%zt_cntr(1:maxLevelCell(iCell)),    &
                           OBL_depth = boundaryLayerDepth(iCell) )
@@ -712,8 +719,9 @@ contains
                 do iEdge = 1,nEdges
                    iNeighbor = cellsOnCell(iEdge,iCell)
                    boundaryLayerDepthSmooth(iCell) = boundaryLayerDepthSmooth(iCell) +  &
-                                      2.0_RKIND * areaCell(iNeighbor) * boundaryLayerDepth(iNeighbor)
-                   areaSum = areaSum + 2.0_RKIND * areaCell(iNeighbor)
+                                 2.0_RKIND * cellMask(1,iNeighbor) * areaCell(iNeighbor)    &
+                                   * boundaryLayerDepth(iNeighbor)
+                   areaSum = areaSum + 2.0_RKIND * areaCell(iNeighbor) * cellMask(1,iNeighbor)
                 end do
                 boundaryLayerDepthSmooth(iCell) = boundaryLayerDepthSmooth(iCell) / areaSum
              endif

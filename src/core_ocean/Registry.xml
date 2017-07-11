@@ -2219,7 +2219,7 @@
 			 description="divergence due to velocity correction"
 			 packages="forwardMode;analysisMode"
 	        />
-		<var name="divergenceBTF" type="real" dimensions="nCells Time" units="s^{-1}"
+		<var name="divergenceBTF" type="real" dimensions="nCells Time" units="m s^{-1}"
 			 description="divergence of barotropic thickness flux"
 			 packages="forwardMode;analysisMode"
 		/>
