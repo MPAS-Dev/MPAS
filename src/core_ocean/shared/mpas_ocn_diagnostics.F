@@ -283,7 +283,7 @@ contains
       do iEdge = 1, nEdges
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
-         layerThicknessSum(iEdge) = 0.0_RKIND
+         layerThicknessEdgeSum(iEdge) = 0.0_RKIND
          do k = 1, maxLevelEdgeTop(iEdge)
             layerThicknessEdge(k,iEdge) = 0.5_RKIND * (layerThickness(k,cell1) + layerThickness(k,cell2))
             layerThicknessEdgeSum(iEdge) = layerThicknessEdgeSum(iEdge) + layerThicknessEdge(k,iEdge) 
