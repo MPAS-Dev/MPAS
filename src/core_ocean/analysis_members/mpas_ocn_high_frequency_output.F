@@ -290,7 +290,7 @@ contains
          kineticEnergyAt250m(:) = kineticEnergyCell(iLevelTarget,:)
          relativeVorticityAt250m(:) = relativeVorticityCell(iLevelTarget,:)
          divergenceAt250m(:) = divergence(iLevelTarget,:)
-         relativeVorticityVertexAt250m = relativeVorticity(iLevelTarget,:)
+         relativeVorticityVertexAt250m(:) = relativeVorticity(iLevelTarget,:)
          kineticEnergyAtSurface(:) = kineticEnergyCell(1,:)
          activeTracersAt250m(1,:) = activeTracers(1,iLevelTarget,:)
          activeTracersAt250m(2,:) = activeTracers(2,iLevelTarget,:)

@@ -133,7 +133,7 @@ contains
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers, derivTwo
       character :: c1*6
 
-      real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue, divergenceTransportVel
+      real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue, divergenceHU, divergenceTransportVel
       real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceLayerValue
       real (kind=RKIND), dimension(:),   pointer :: normalVelocitySurfaceLayer, normalVelocityCorrection
       real (kind=RKIND), dimension(:),   pointer :: indexSurfaceLayerDepth, divergenceVC
@@ -152,6 +152,9 @@ contains
       real (kind=RKIND), pointer :: config_flux_attenuation_coefficient_runoff
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficient
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientRunoff
+
+      !LPV temporary variable to compute a quantity do NOT COMMIT DELETE ME
+      real (kind=RKIND), dimension(:), allocatable :: layerThicknessEdgeSum
 
       call mpas_timer_start('diagnostic solve')
 
@@ -183,6 +186,7 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'divergence', divergence)
       call mpas_pool_get_array(diagnosticsPool, 'divergenceVC', divergenceVC)
       call mpas_pool_get_array(diagnosticsPool, 'divergenceTransportVel', divergenceTransportVel)
+      call mpas_pool_get_array(diagnosticsPool, 'divergenceHU', divergenceHU)
       call mpas_pool_get_array(diagnosticsPool, 'normalVelocityCorrection', normalVelocityCorrection)
       call mpas_pool_get_array(diagnosticsPool, 'circulation', circulation)
       call mpas_pool_get_array(diagnosticsPool, 'relativeVorticity', relativeVorticity)
@@ -264,10 +268,13 @@ contains
       nCells = nCellsArray( size(nCellsArray) )
       nVertices = nVerticesArray( size(nVerticesArray) )
 
+      allocate(layerThicknessEdgeSum(nEdges))
+
       ! initialize layerThicknessEdge to avoid divide by zero and NaN problems.
       !$omp do schedule(runtime)
       do iEdge = 1, nEdges
          layerThicknessEdge(:, iEdge) = -1.0e34_RKIND
+         layerThicknessEdgeSum(iEdge) = -1.0e34_RKIND
       end do
       !$omp end do
       coef_3rd_order = config_coef_3rd_order
@@ -276,8 +283,10 @@ contains
       do iEdge = 1, nEdges
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
+         layerThicknessSum(iEdge) = 0.0_RKIND
          do k = 1, maxLevelEdgeTop(iEdge)
             layerThicknessEdge(k,iEdge) = 0.5_RKIND * (layerThickness(k,cell1) + layerThickness(k,cell2))
+            layerThicknessEdgeSum(iEdge) = layerThicknessEdgeSum(iEdge) + layerThicknessEdge(k,iEdge) 
          end do
       end do
       !$omp end do
@@ -349,7 +358,7 @@ contains
          invAreaCell1 = 1.0_RKIND / areaCell(iCell)
          do i = 1, nEdgesOnCell(iCell)
             iEdge = edgesOnCell(i, iCell)
-            divergenceVC(iCell) = divergenceVC(iCell) - dvEdge(iEdge) * invAreaCell1 *   &
+            divergenceVC(iCell) = divergenceVC(iCell) - layerThicknessEdgeSum(iEdge) * dvEdge(iEdge) * invAreaCell1 *   &
                                  edgeSignOnCell(i, iCell) * normalVelocityCorrection(iEdge)
             do k = 1, maxLevelCell(iCell)
                r_tmp = dvEdge(iEdge) * normalVelocity(k, iEdge) * invAreaCell1
@@ -370,6 +379,7 @@ contains
          ! Vertical velocity at bottom (maxLevelCell(iCell)+1) is zero, initialized above.
          do k=maxLevelCell(iCell),1,-1
             divergenceTransportVel(k,iCell) = div_huTransport(k)
+            divergenceHU(k,iCell) = div_hu(k)
             vertVelocityTop(k,iCell) = vertVelocityTop(k+1,iCell) - div_hu(k)
             vertTransportVelocityTop(k,iCell) = vertTransportVelocityTop(k+1,iCell) - div_huTransport(k)
             vertGMBolusVelocityTop(k,iCell) = vertGMBolusVelocityTop(k+1,iCell) - div_huGMBolus(k)
@@ -377,7 +387,7 @@ contains
       end do
       !$omp end do
 
-      deallocate(div_hu,div_huTransport,div_huGMBolus)
+      deallocate(div_hu,div_huTransport,div_huGMBolus,layerThicknessEdgeSum)
 
       nEdges = nEdgesArray( 2 )
 
