@@ -2215,11 +2215,11 @@
 			 description="divergence of horizonal velocity"
 			 packages="forwardMode;analysisMode"
 		/>
-  		<var name="divergencetransportvel" type="real" dimensions="nvertlevels ncells time" units="s^{-1}"
+  		<var name="divergenceTransportVel" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
 			 description="divergence of horizonal transport velocity"
 			 packages="forwardmode;analysismode"
 			 />
-  		<var name="divergenceHU" type="real" dimensions="nvertlevels ncells time" units="s^{-1}"
+  		<var name="divergenceHU" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
 			 description="divergence of horizonal normal velocity thickness flux"
 			 packages="forwardmode;analysismode"
 			 />
