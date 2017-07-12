@@ -151,7 +151,7 @@ contains
       character (len=StrKIND), pointer :: config_cvmix_shear_mixing_scheme, config_cvmix_kpp_matching
 
       integer :: k, i, iCell, jCell, iNeighbor, iter, timeLevel, kIndexOBL, kav, iEdge, nCells
-      integer :: nEdges, topIndex, nsmooth, kpp_stage
+      integer :: edgeCount, nEdges, topIndex, nsmooth, kpp_stage
       integer, pointer :: nVertLevels, nVertLevelsP1
       integer, dimension(:), pointer :: nCellsArray
       integer, dimension(:), allocatable :: surfaceAverageIndex
@@ -711,25 +711,36 @@ contains
 
          do nsmooth=1,min(config_cvmix_num_BLD_smooth_loops,1)
            nCells = nCellsArray(2)
+
            do iCell=1,nCells
               nEdges = nEdgesOnCell(iCell)
-              areaSum = nEdges * areaCell(iCell)
-              boundaryLayerDepthSmooth(iCell) = areaSum * boundaryLayerDepth(iCell)
-              if ( areaSum /= 0) then 
+!              areaSum = nEdges * areaCell(iCell)
+!              boundaryLayerDepthSmooth(iCell) = areaSum * boundaryLayerDepth(iCell)
+
+               boundaryLayerDepthSmooth(iCell) = 0.0_RKIND
+               areaSum = 0.0_RKIND
+               edgeCount = 0
+
+!               if ( areaSum /= 0) then 
                 do iEdge = 1,nEdges
                    iNeighbor = cellsOnCell(iEdge,iCell)
                    boundaryLayerDepthSmooth(iCell) = boundaryLayerDepthSmooth(iCell) +  &
                                  2.0_RKIND * cellMask(1,iNeighbor) * areaCell(iNeighbor)    &
                                    * boundaryLayerDepth(iNeighbor)
                    areaSum = areaSum + 2.0_RKIND * areaCell(iNeighbor) * cellMask(1,iNeighbor)
+                   edgeCount = edgeCount + cellMask(1,iNeighbor)
                 end do
+                areaSum = areaSum + edgeCount * areaCell(iCell)
+                boundaryLayerDepthSmooth(iCell) = boundaryLayerDepthSmooth(iCell) +   &
+                           boundaryLayerDepth(iCell) * edgeCount * areaCell(iCell)
                 boundaryLayerDepthSmooth(iCell) = boundaryLayerDepthSmooth(iCell) / areaSum
-             endif
+!             endif
           end do
 
           do iCell=1, nCells
              boundaryLayerDepth(iCell) = boundaryLayerDepthSmooth(iCell)
           enddo
+
          enddo
 
      
