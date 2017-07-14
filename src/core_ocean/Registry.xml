@@ -943,6 +943,10 @@
 		<nml_option name="config_vel_correction" type="logical" default_value=".true." units="unitless"
 					description="If true, the velocity correction term is included in the horizontal advection of thickness and tracers"
 					possible_values=".true. or .false."
+					/>
+		<nml_option name="config_add_VC_to_barotropic" type="logical" default_value=".false." units="unitless"
+					description="if true add velocity correction to normal barotropic velocity"
+					possible_values=".true. or .false."
 		/>
 		<nml_option name="config_btr_subcycle_loop_factor" type="integer" default_value="2" units="unitless"
 					description="Barotropic subcycles proceed from $t$ to $t+n\Delta t$, where $n$ is this configuration option."

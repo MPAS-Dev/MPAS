@@ -132,7 +132,7 @@ module ocn_time_integration_split
       integer, pointer :: config_n_bcl_iter_mid, config_n_bcl_iter_beg, config_n_bcl_iter_end
       integer, pointer :: config_n_ts_iter, config_btr_subcycle_loop_factor
       integer, pointer :: config_n_btr_cor_iter, config_num_halos
-      logical, pointer :: config_use_standardGM
+      logical, pointer :: config_use_standardGM, config_add_VC_to_barotropic
 
       logical, pointer :: config_use_freq_filtered_thickness, config_btr_solve_SSH2, config_filter_btr_mode
       logical, pointer :: config_vel_correction, config_prescribe_velocity, config_prescribe_thickness
@@ -210,6 +210,7 @@ module ocn_time_integration_split
 
       call mpas_timer_start("se timestep")
 
+      call mpas_pool_get_config(domain % configs, 'config_add_VC_to_barotropic', config_add_VC_to_barotropic)
       call mpas_pool_get_config(domain % configs, 'config_n_bcl_iter_beg', config_n_bcl_iter_beg)
       call mpas_pool_get_config(domain % configs, 'config_n_bcl_iter_mid', config_n_bcl_iter_mid)
       call mpas_pool_get_config(domain % configs, 'config_n_bcl_iter_end', config_n_bcl_iter_end)
@@ -1353,6 +1354,11 @@ module ocn_time_integration_split
                            *( normalBarotropicVelocityNew(iEdge) + normalBaroclinicVelocityNew(k,iEdge) &
                            + normalGMBolusVelocity(k,iEdge) + normalVelocityCorrection(iEdge) )
                   enddo
+
+                  if (config_add_VC_to_barotropic) then
+                      normalBarotropicVelocityNew(iEdge) = normalBarotropicVelocityNew(iEdge) +  &
+                                                                  normalVelocityCorrection(iEdge)
+                  endif
 
                end do ! iEdge
                !$omp end do

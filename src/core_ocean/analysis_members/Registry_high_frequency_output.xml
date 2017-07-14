@@ -128,6 +128,7 @@
 			<var name="vertGMvelocitySFC"/>
 			<var name="vertTransportVelocitySFC"/>
 			<var name="vertVelSFC"/>
+			<var name="divergenceVC"/>
 			<var_array name="activeTracersAt250m"/>
                         <var_array name="activeTracersAvgTopto0100"/>
                         <var_array name="activeTracersAvg0100to0250"/>
