@@ -296,8 +296,8 @@ contains
          activeTracersAt250m(2,:) = activeTracers(2,iLevelTarget,:)
 
          vertGMvelocitySFC(:) = vertGMBolusVelocityTop(1,:)
-         vertTransportVelocitySFC(:) = vertVelocityTop(1,:)
-         vertVelSFC(:) = vertTransportVelocityTop(1,:)
+         vertTransportVelocitySFC(:) = vertTransportVelocityTop(1,:)
+         vertVelSFC(:) = vertVelocityTop(1,:)
          !
          ! compute barotropic kinetic energy
          !
