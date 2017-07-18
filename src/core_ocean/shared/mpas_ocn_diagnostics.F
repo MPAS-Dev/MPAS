@@ -87,7 +87,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, &!{{{
+   subroutine ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, tracersPool, &
                                    timeLevelIn)
 
       real (kind=RKIND), intent(in) :: dt !< Input: Time step
@@ -133,10 +133,10 @@ contains
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers, derivTwo
       character :: c1*6
 
-      real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue
+      real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue, divergenceHU, divergenceTransportVel
       real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceLayerValue
-      real (kind=RKIND), dimension(:),   pointer :: normalVelocitySurfaceLayer
-      real (kind=RKIND), dimension(:),   pointer :: indexSurfaceLayerDepth
+      real (kind=RKIND), dimension(:),   pointer :: normalVelocitySurfaceLayer, normalVelocityCorrection
+      real (kind=RKIND), dimension(:),   pointer :: indexSurfaceLayerDepth, divergenceVC
 
       type (field2DReal), pointer :: kineticEnergyVertexField, kineticEnergyVertexOnCellsField
       type (field2DReal), pointer :: normalizedRelativeVorticityVertexField, normalizedPlanetaryVorticityVertexField
@@ -152,6 +152,9 @@ contains
       real (kind=RKIND), pointer :: config_flux_attenuation_coefficient_runoff
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficient
       real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientRunoff
+
+      !LPV temporary variable to compute a quantity do NOT COMMIT DELETE ME
+      real (kind=RKIND), dimension(:), allocatable :: layerThicknessEdgeSum
 
       call mpas_timer_start('diagnostic solve')
 
@@ -181,6 +184,10 @@ contains
       call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
       call mpas_pool_get_array(diagnosticsPool, 'zTop', zTop)
       call mpas_pool_get_array(diagnosticsPool, 'divergence', divergence)
+      call mpas_pool_get_array(diagnosticsPool, 'divergenceVC', divergenceVC)
+      call mpas_pool_get_array(diagnosticsPool, 'divergenceTransportVel', divergenceTransportVel)
+      call mpas_pool_get_array(diagnosticsPool, 'divergenceHU', divergenceHU)
+      call mpas_pool_get_array(diagnosticsPool, 'normalVelocityCorrection', normalVelocityCorrection)
       call mpas_pool_get_array(diagnosticsPool, 'circulation', circulation)
       call mpas_pool_get_array(diagnosticsPool, 'relativeVorticity', relativeVorticity)
       call mpas_pool_get_array(diagnosticsPool, 'relativeVorticityCell', relativeVorticityCell)
@@ -261,10 +268,13 @@ contains
       nCells = nCellsArray( size(nCellsArray) )
       nVertices = nVerticesArray( size(nVerticesArray) )
 
+      allocate(layerThicknessEdgeSum(nEdges))
+
       ! initialize layerThicknessEdge to avoid divide by zero and NaN problems.
       !$omp do schedule(runtime)
       do iEdge = 1, nEdges
          layerThicknessEdge(:, iEdge) = -1.0e34_RKIND
+         layerThicknessEdgeSum(iEdge) = -1.0e34_RKIND
       end do
       !$omp end do
       coef_3rd_order = config_coef_3rd_order
@@ -273,8 +283,10 @@ contains
       do iEdge = 1, nEdges
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
+         layerThicknessEdgeSum(iEdge) = 0.0_RKIND
          do k = 1, maxLevelEdgeTop(iEdge)
             layerThicknessEdge(k,iEdge) = 0.5_RKIND * (layerThickness(k,cell1) + layerThickness(k,cell2))
+            layerThicknessEdgeSum(iEdge) = layerThicknessEdgeSum(iEdge) + layerThicknessEdge(k,iEdge) 
          end do
       end do
       !$omp end do
@@ -294,6 +306,7 @@ contains
       !$omp do schedule(runtime)
       do iCell = 1, nCells
          divergence(:, iCell) = 0.0_RKIND
+         divergenceVC(iCell) = 0.0_RKIND
          vertVelocityTop(:, iCell) = 0.0_RKIND
          kineticEnergyCell(:, iCell) = 0.0_RKIND
       end do
@@ -345,6 +358,8 @@ contains
          invAreaCell1 = 1.0_RKIND / areaCell(iCell)
          do i = 1, nEdgesOnCell(iCell)
             iEdge = edgesOnCell(i, iCell)
+            divergenceVC(iCell) = divergenceVC(iCell) - layerThicknessEdgeSum(iEdge) * dvEdge(iEdge) * invAreaCell1 *   &
+                                 edgeSignOnCell(i, iCell) * normalVelocityCorrection(iEdge)
             do k = 1, maxLevelCell(iCell)
                r_tmp = dvEdge(iEdge) * normalVelocity(k, iEdge) * invAreaCell1
 
@@ -355,6 +370,7 @@ contains
                ! Compute vertical velocity from the horizontal total transport
                div_huTransport(k) = div_huTransport(k) - layerThicknessEdge(k, iEdge) * edgeSignOnCell(i, iCell) &
                                   * dvEdge(iEdge) * normalTransportVelocity(k, iEdge) * invAreaCell1
+
                ! Compute vertical velocity from the horizontal GM Bolus velocity
                div_huGMBolus(k) = div_huGMBolus(k) - layerThicknessEdge(k, iEdge) * edgeSignOnCell(i, iCell) * dvEdge(iEdge) &
                                 * normalGMBolusVelocity(k, iEdge) * invAreaCell1
@@ -362,6 +378,8 @@ contains
          end do
          ! Vertical velocity at bottom (maxLevelCell(iCell)+1) is zero, initialized above.
          do k=maxLevelCell(iCell),1,-1
+            divergenceTransportVel(k,iCell) = div_huTransport(k)
+            divergenceHU(k,iCell) = div_hu(k)
             vertVelocityTop(k,iCell) = vertVelocityTop(k+1,iCell) - div_hu(k)
             vertTransportVelocityTop(k,iCell) = vertTransportVelocityTop(k+1,iCell) - div_huTransport(k)
             vertGMBolusVelocityTop(k,iCell) = vertGMBolusVelocityTop(k+1,iCell) - div_huGMBolus(k)
@@ -369,7 +387,7 @@ contains
       end do
       !$omp end do
 
-      deallocate(div_hu,div_huTransport,div_huGMBolus)
+      deallocate(div_hu,div_huTransport,div_huGMBolus,layerThicknessEdgeSum)
 
       nEdges = nEdgesArray( 2 )
 
@@ -873,7 +891,7 @@ contains
       call mpas_deallocate_scratch_field(normalizedPlanetaryVorticityVertexField, .true.)
       call mpas_timer_stop('diagnostic solve')
 
-   end subroutine ocn_diagnostic_solve!}}}
+   end subroutine ocn_diagnostic_solve
 
 !***********************************************************************
 !
@@ -888,7 +906,7 @@ contains
 !
 !-----------------------------------------------------------------------
    subroutine ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, scratchPool, oldLayerThickness, layerThicknessEdge, &
-     normalVelocity, oldSSH, dt, vertAleTransportTop, err, newHighFreqThickness)!{{{
+     normalVelocity, oldSSH, dt, vertAleTransportTop, err, newHighFreqThickness)
 
       !-----------------------------------------------------------------
       !
@@ -1051,7 +1069,7 @@ contains
       call mpas_deallocate_scratch_field(projectedSSHField, .true.)
       call mpas_deallocate_scratch_field(ALE_ThicknessField, .true.)
 
-   end subroutine ocn_vert_transport_velocity_top!}}}
+   end subroutine ocn_vert_transport_velocity_top
 
 !***********************************************************************
 !
@@ -1065,7 +1083,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_fuperp(statePool, meshPool, timeLevelIn)!{{{
+   subroutine ocn_fuperp(statePool, meshPool, timeLevelIn)
 
       type (mpas_pool_type), intent(inout) :: statePool !< Input/Output: State information
       type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
@@ -1130,7 +1148,7 @@ contains
       call mpas_threading_barrier()
       call mpas_timer_stop("ocn_fuperp")
 
-   end subroutine ocn_fuperp!}}}
+   end subroutine ocn_fuperp
 
 !***********************************************************************
 !
@@ -1143,7 +1161,7 @@ contains
 !>  This routine filters barotropic mode out of the velocity variable.
 !
 !-----------------------------------------------------------------------
-   subroutine ocn_filter_btr_mode_vel(statePool, diagnosticsPool, meshPool, timeLevelIn)!{{{
+   subroutine ocn_filter_btr_mode_vel(statePool, diagnosticsPool, meshPool, timeLevelIn)
 
       type (mpas_pool_type), intent(inout) :: statePool !< Input/Output: State information
       type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostics information
@@ -1199,7 +1217,7 @@ contains
 
       call mpas_timer_stop("ocn_filter_btr_mode_vel")
 
-   end subroutine ocn_filter_btr_mode_vel!}}}
+   end subroutine ocn_filter_btr_mode_vel
 
 !***********************************************************************
 !
@@ -1212,7 +1230,7 @@ contains
 !>  This routine filters barotropic mode out of the velocity tendency.
 !
 !-----------------------------------------------------------------------
-   subroutine ocn_filter_btr_mode_tend_vel(tendPool, statePool, diagnosticsPool, meshPool, timeLevelIn)!{{{
+   subroutine ocn_filter_btr_mode_tend_vel(tendPool, statePool, diagnosticsPool, meshPool, timeLevelIn)
 
       type (mpas_pool_type), intent(inout) :: tendPool !< Input/Output: Tendency information
       type (mpas_pool_type), intent(in) :: statePool !< Input: State information
@@ -1268,7 +1286,7 @@ contains
 
       call mpas_timer_stop("ocn_filter_btr_mode_tend_vel")
 
-   end subroutine ocn_filter_btr_mode_tend_vel!}}}
+   end subroutine ocn_filter_btr_mode_tend_vel
 
 !***********************************************************************
 !
@@ -1282,7 +1300,7 @@ contains
 !>  other diagnostics routines.
 !
 !-----------------------------------------------------------------------
-   subroutine ocn_diagnostics_init(err)!{{{
+   subroutine ocn_diagnostics_init(err)
       integer, intent(out) :: err !< Output: Error flag
 
       logical, pointer :: config_include_KE_vertex
@@ -1311,7 +1329,7 @@ contains
           fCoef = 0
       end if
 
-    end subroutine ocn_diagnostics_init!}}}
+    end subroutine ocn_diagnostics_init
 
 !***********************************************************************
 !
@@ -1331,7 +1349,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-    subroutine ocn_compute_KPP_input_fields(statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, timeLevelIn)!{{{
+    subroutine ocn_compute_KPP_input_fields(statePool, forcingPool, meshPool, diagnosticsPool, scratchPool, timeLevelIn)
 
       type (mpas_pool_type), intent(in) :: statePool !< Input/Output: State information
       type (mpas_pool_type), intent(in) :: forcingPool !< Input: Forcing information
@@ -1449,7 +1467,7 @@ contains
       salineContractionCoeff => salineContractionCoeffField % array
 
       ! Only need to compute over the 0 and 1 halos
-      nCells = nCellsArray( 2 )
+      nCells = nCellsArray( 3 )
 
       ! compute EOS by displacing SST/SSS to every vertical layer in column
       call ocn_equation_of_state_density(statePool, diagnosticsPool, meshPool, scratchPool, nCells, 0, 'surfaceDisplaced', &
@@ -1529,7 +1547,7 @@ contains
 
       call mpas_timer_stop('KPP input fields')
 
-    end subroutine ocn_compute_KPP_input_fields!}}}
+    end subroutine ocn_compute_KPP_input_fields
 
 
 !***********************************************************************
@@ -1545,7 +1563,7 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_compute_land_ice_flux_input_fields(meshPool, statePool, &
-      forcingPool, scratchPool, diagnosticsPool, timeLevel)!{{{
+      forcingPool, scratchPool, diagnosticsPool, timeLevel)
 
       type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
       type (mpas_pool_type), intent(in) :: statePool !< Input: State information
@@ -1833,7 +1851,7 @@ contains
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_compute_land_ice_flux_input_fields!}}}
+   end subroutine ocn_compute_land_ice_flux_input_fields
 
 !***********************************************************************
 !
@@ -1847,7 +1865,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool) !{{{
+   subroutine ocn_reconstruct_gm_vectors(diagnosticsPool, meshPool) 
 
       type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
       type (mpas_pool_type), intent(in) :: diagnosticsPool !< Input: Diagnostic information
@@ -1929,7 +1947,7 @@ contains
 
       call mpas_timer_stop('reconstruct gm vecs')
 
-   end subroutine ocn_reconstruct_gm_vectors!}}}
+   end subroutine ocn_reconstruct_gm_vectors
 
 
 !***********************************************************************
@@ -1948,7 +1966,7 @@ contains
 !>  for detecting issues with the state.
 !
 !-----------------------------------------------------------------------
-   subroutine ocn_validate_state(domain, timeLevel)!{{{
+   subroutine ocn_validate_state(domain, timeLevel)
       type (domain_type), intent(inout) :: domain
       integer, intent(in), optional :: timeLevel
 
@@ -2040,7 +2058,7 @@ contains
          end do
 
          ! If an error was found, we need to open the file to write data out.
-         if ( thickNanFound .or. tracersNanFound .or. velNanFound ) then!{{{
+         if ( thickNanFound .or. tracersNanFound .or. velNanFound ) then
             open(unit=debugUnit, file=debugFilename, form='formatted', status='unknown')
 
             write(debugUnit, *) 'ERROR: NaN Detected in state see below for which field contained a NaN.'
@@ -2118,10 +2136,10 @@ contains
                maxValue = max( maxValue, real1DArr(iCell) )
             end do
             call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
-         end if!}}}
+         end if
 
          ! If there was a thickness NaN found, write out information about fields that affect thickness
-         if ( thickNanFound ) then!{{{
+         if ( thickNanFound ) then
             write(debugUnit, *) ''
             write(debugUnit, *) ''
             write(debugUnit, *) 'ERROR: NaN Detected in layerThickness.'
@@ -2230,10 +2248,10 @@ contains
                end do
                call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
             end if
-         end if!}}}
+         end if
 
          ! If there was a velocity NaN found, write out information about fields that affect velocity
-         if ( velNanFound ) then!{{{
+         if ( velNanFound ) then
             write(debugUnit, *) ''
             write(debugUnit, *) ''
             write(debugUnit, *) 'ERROR: NaN Detected in normalVelocity.'
@@ -2329,10 +2347,10 @@ contains
                end do
                call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
             end if
-         end if!}}}
+         end if
 
          ! If there was a tracers NaN found, write out information about fields that affect tracers
-         if ( tracersNanFound ) then!{{{
+         if ( tracersNanFound ) then
             write(debugUnit, *) ''
             write(debugUnit, *) ''
             write(debugUnit, *) 'ERROR: NaN Detected in activeTracers.'
@@ -2494,14 +2512,14 @@ contains
                end do
                call ocn_write_field_statistics(debugUnit, fieldName, minValue, maxValue)
             end if
-         end if!}}}
+         end if
 
          ! If an error was found, we need to close the file now.
-         if ( thickNanFound .or. tracersNanFound .or. velNanFound ) then!{{{
+         if ( thickNanFound .or. tracersNanFound .or. velNanFound ) then
             flush(debugUnit)
             close(debugUnit)
             fatalErrorDetected = .true.
-         end if!}}}
+         end if
 
          block => block % next
       end do
@@ -2514,9 +2532,9 @@ contains
             MPAS_LOG_CRIT)
       end if
 
-   end subroutine ocn_validate_state!}}}
+   end subroutine ocn_validate_state
 
-   function ocn_build_log_filename(prefix, identifier) result(filename)!{{{
+   function ocn_build_log_filename(prefix, identifier) result(filename)
       character (len=*), intent(in) :: prefix
       integer, intent(in) :: identifier
 
@@ -2544,9 +2562,9 @@ contains
 
       filename = trim(prefix) // trim(identifierString)
 
-   end function ocn_build_log_filename!}}}
+   end function ocn_build_log_filename
 
-   subroutine ocn_write_field_statistics(unitNumber, fieldName, minValue, maxValue)!{{{
+   subroutine ocn_write_field_statistics(unitNumber, fieldName, minValue, maxValue)
       integer, intent(in) :: unitNumber
       character (len=*), intent(in) :: fieldName
       real (kind=RKIND), intent(in) :: minValue, maxValue
@@ -2555,7 +2573,7 @@ contains
       write(unitNumber, *) '        Min: ', minValue
       write(unitNumber, *) '        Max: ', maxValue
 
-   end subroutine ocn_write_field_statistics!}}}
+   end subroutine ocn_write_field_statistics
 
 !***********************************************************************
 

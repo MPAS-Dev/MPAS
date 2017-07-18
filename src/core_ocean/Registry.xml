@@ -564,6 +564,10 @@
 					description="Number of smoothing passes over RiTopOfCell for LMD94 shear instability mixing"
 					possible_values="any integer"
 		/>
+		<nml_option name="config_cvmix_num_BLD_smooth_loops" type="integer" default_value="1" units="NA"
+					description="Number of smoothing passes of BLD for KPP mixing" 
+					possible_values="any integer"
+		/>
 		<nml_option name="config_cvmix_shear_mixing_scheme" type="character" default_value="PP" units="NA"
 					description="Choose between Pacanowski/Philander or Large et al. shear mixing"
 					possible_values="PP or KPP"
@@ -938,6 +942,10 @@
 		/>
 		<nml_option name="config_vel_correction" type="logical" default_value=".true." units="unitless"
 					description="If true, the velocity correction term is included in the horizontal advection of thickness and tracers"
+					possible_values=".true. or .false."
+					/>
+		<nml_option name="config_add_VC_to_barotropic" type="logical" default_value=".false." units="unitless"
+					description="if true add velocity correction to normal barotropic velocity"
 					possible_values=".true. or .false."
 		/>
 		<nml_option name="config_btr_subcycle_loop_factor" type="integer" default_value="2" units="unitless"
@@ -2151,6 +2159,10 @@
 			 description="horizontal velocity used to transport mass and tracers"
 			 packages="forwardMode;analysisMode"
 		/>
+		<var name="normalVelocityCorrection" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="normal velocity correction"
+			 packages="forwardMode;analysisMode"
+	 	/> 
 		<var name="vertAleTransportTop" type="real" dimensions="nVertLevelsP1 nCells Time" units="m s^{-1}"
 			 description="vertical transport through the layer interface at the top of the cell"
 			 packages="forwardMode;analysisMode"
@@ -2205,6 +2217,22 @@
 		/>
 		<var name="divergence" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
 			 description="divergence of horizonal velocity"
+			 packages="forwardMode;analysisMode"
+		/>
+  		<var name="divergenceTransportVel" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+			 description="divergence of horizonal transport velocity"
+			 packages="forwardmode;analysismode"
+			 />
+  		<var name="divergenceHU" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+			 description="divergence of horizonal normal velocity thickness flux"
+			 packages="forwardmode;analysismode"
+			 />
+		<var name="divergenceVC" type="real" dimensions="nCells Time" units="s^{-1}"
+			 description="divergence due to velocity correction"
+			 packages="forwardMode;analysisMode"
+	        />
+		<var name="divergenceBTF" type="real" dimensions="nCells Time" units="m s^{-1}"
+			 description="divergence of barotropic thickness flux"
 			 packages="forwardMode;analysisMode"
 		/>
 		<var name="circulation" type="real" dimensions="nVertLevels nVertices Time" units="m^2 s^{-1}"
@@ -2366,6 +2394,9 @@
 		/>
 		<var name="boundaryLayerDepth" type="real" dimensions="nCells Time" units="m"
 			 description="CVMix/KPP: diagnosed depth of the ocean surface boundary layer"
+		/>
+		<var name="boundaryLayerDepthSmooth" type="real" dimensions="nCells Time" units="m"
+			 description="CVMix/KPP: smoothed boundary layer depth"
 		/>
 		<var name="boundaryLayerDepthEdge" type="real" dimensions="nEdges Time" units="m"
 			 description="CVMix/KPP: diagnosed depth of the ocean surface boundary layer averaged to cell edges"

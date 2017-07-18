@@ -113,15 +113,16 @@ module ocn_time_integration_split
       integer, dimension(:), allocatable :: n_bcl_iter
       type (block_type), pointer :: block
       real (kind=RKIND) :: normalThicknessFluxSum, thicknessSum, flux, sshEdge, hEdge1, &
-                 CoriolisTerm, normalVelocityCorrection, temp, temp_h, coef, barotropicThicknessFlux_coeff, sshCell1, sshCell2
+                 CoriolisTerm, temp, temp_h, coef, barotropicThicknessFlux_coeff, sshCell1, sshCell2
       integer :: useVelocityCorrection, err
       real (kind=RKIND), dimension(:,:), pointer :: &
                  vertViscTopOfEdge, vertDiffTopOfCell
       real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroup
       real (kind=RKIND), dimension(:), allocatable:: uTemp
-      real (kind=RKIND), dimension(:), pointer :: btrvel_temp
+      real (kind=RKIND), dimension(:), pointer :: btrvel_temp, normalVelocityCorrection
       type (field1DReal), pointer :: btrvel_tempField
       real (kind=RKIND), dimension(:,:), allocatable:: tracersTemp
+      real (kind=RKIND) :: invAreaCell
 
       integer :: tsIter
       integer :: edgeHaloComputeCounter, cellHaloComputeCounter
@@ -131,7 +132,7 @@ module ocn_time_integration_split
       integer, pointer :: config_n_bcl_iter_mid, config_n_bcl_iter_beg, config_n_bcl_iter_end
       integer, pointer :: config_n_ts_iter, config_btr_subcycle_loop_factor
       integer, pointer :: config_n_btr_cor_iter, config_num_halos
-      logical, pointer :: config_use_standardGM
+      logical, pointer :: config_use_standardGM, config_add_VC_to_barotropic
 
       logical, pointer :: config_use_freq_filtered_thickness, config_btr_solve_SSH2, config_filter_btr_mode
       logical, pointer :: config_vel_correction, config_prescribe_velocity, config_prescribe_thickness
@@ -180,6 +181,7 @@ module ocn_time_integration_split
 
       ! Diagnostics Array Pointers
       real (kind=RKIND), dimension(:), pointer :: barotropicForcing, barotropicThicknessFlux
+      real (kind=RKIND), dimension(:), pointer :: divergenceBTF
       real (kind=RKIND), dimension(:,:), pointer :: layerThicknessEdge, normalTransportVelocity, normalGMBolusVelocity
       real (kind=RKIND), dimension(:,:), pointer :: vertAleTransportTop
       real (kind=RKIND), dimension(:,:), pointer :: velocityX, velocityY, velocityZ
@@ -208,6 +210,7 @@ module ocn_time_integration_split
 
       call mpas_timer_start("se timestep")
 
+      call mpas_pool_get_config(domain % configs, 'config_add_VC_to_barotropic', config_add_VC_to_barotropic)
       call mpas_pool_get_config(domain % configs, 'config_n_bcl_iter_beg', config_n_bcl_iter_beg)
       call mpas_pool_get_config(domain % configs, 'config_n_bcl_iter_mid', config_n_bcl_iter_mid)
       call mpas_pool_get_config(domain % configs, 'config_n_bcl_iter_end', config_n_bcl_iter_end)
@@ -1290,10 +1293,12 @@ module ocn_time_integration_split
                call mpas_pool_get_array(statePool, 'normalBaroclinicVelocity', normalBaroclinicVelocityNew, 2)
 
                call mpas_pool_get_array(diagnosticsPool, 'normalTransportVelocity', normalTransportVelocity)
+               call mpas_pool_get_array(diagnosticsPool, 'normalVelocityCorrection', normalVelocityCorrection)
                call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
                call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdge', layerThicknessEdge)
                call mpas_pool_get_array(diagnosticsPool, 'barotropicThicknessFlux', barotropicThicknessFlux)
 
+               call mpas_pool_get_array(diagnosticsPool, 'divergenceBTF', divergenceBTF)
                call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
                call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
@@ -1333,7 +1338,7 @@ module ocn_time_integration_split
                      thicknessSum  =  thicknessSum + layerThicknessEdge(k,iEdge)
                   enddo
 
-                  normalVelocityCorrection = useVelocityCorrection * (( barotropicThicknessFlux(iEdge) - normalThicknessFluxSum) &
+                  normalVelocityCorrection(iEdge) = useVelocityCorrection * (( barotropicThicknessFlux(iEdge) - normalThicknessFluxSum) &
                                            / thicknessSum)
 
                   do k = 1, nVertLevels
@@ -1347,13 +1352,28 @@ module ocn_time_integration_split
                      normalTransportVelocity(k,iEdge) &
                            = edgeMask(k,iEdge) &
                            *( normalBarotropicVelocityNew(iEdge) + normalBaroclinicVelocityNew(k,iEdge) &
-                           + normalGMBolusVelocity(k,iEdge) + normalVelocityCorrection )
+                           + normalGMBolusVelocity(k,iEdge) + normalVelocityCorrection(iEdge) )
                   enddo
+
+                  if (config_add_VC_to_barotropic) then
+                      normalBarotropicVelocityNew(iEdge) = normalBarotropicVelocityNew(iEdge) +  &
+                                                                  normalVelocityCorrection(iEdge)
+                  endif
 
                end do ! iEdge
                !$omp end do
 
                deallocate(uTemp)
+
+               do iCell = 1, nCells
+                  divergenceBTF(iCell) = 0.0_RKIND
+                  invAreaCell = 1.0_RKIND / areaCell(iCell)
+                  do iEdge = 1, nEdgesOnCell(iCell)
+                     j = edgesOnCell(iEdge, iCell)
+                     divergenceBTF(iCell) = divergenceBTF(iCell) - dvEdge(j) * invAreaCell * &
+                               edgeSignOnCell(iEdge, iCell) * barotropicThicknessFlux(j)
+                  enddo
+               enddo
 
                block => block % next
             end do  ! block
