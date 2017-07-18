@@ -171,6 +171,8 @@ contains
       real (kind=RKIND) :: invAreaCell1, layerThicknessEdge1, coeff
       real (kind=RKIND), dimension(:), pointer :: refBottomDepth, kineticEnergyAt250m, kineticEnergyAtSurface, relativeVorticityAt250m
       real (kind=RKIND), dimension(:), pointer :: divergenceAt250m, relativeVorticityVertexAt250m
+      real (kind=RKIND), dimension(:), pointer :: divergenceTransportVelAt250m, vertVelAt250m 
+      real (kind=RKIND), dimension(:), pointer :: vertTransportVelocityAt250m, vertGMvelocityAt250m
       real (kind=RKIND), dimension(:), pointer :: vertVelSFC, vertTransportVelocitySFC, vertGMvelocitySFC
       real (kind=RKIND), dimension(:), pointer :: barotropicSpeed, columnIntegratedSpeed, dvEdge, dcEdge, areaCell
       real (kind=RKIND), dimension(:,:), pointer :: kineticEnergyCell, relativeVorticityCell
@@ -178,6 +180,7 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: activeTracersAvg0250to0700, activeTracersAvg0700to2000, activeTracersAvg2000toBottom
       real (kind=RKIND), dimension(:,:), pointer :: relativeVorticity, divergence, layerThickness, normalVelocity
       real (kind=RKIND), dimension(:,:), pointer :: vertVelocityTop, vertGMBolusVelocityTop, vertTransportVelocityTop
+      real (kind=RKIND), dimension(:,:), pointer :: divergenceTransportVel
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
 
       ! scratch space
@@ -213,7 +216,7 @@ contains
          call mpas_pool_get_array(diagnosticsPool, 'relativeVorticity', relativeVorticity, timeLevel)
          call mpas_pool_get_array(diagnosticsPool, 'divergence', divergence, timeLevel)
          call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, timeLevel)
-
+         call mpas_pool_get_array(diagnosticsPool, 'divergenceTransportVel', divergenceTransportVel)
          call mpas_pool_get_array(diagnosticsPool, 'vertGMBolusVelocityTop', vertGMBolusVelocityTop)
          call mpas_pool_get_array(diagnosticsPool, 'vertTransportVelocityTop', vertTransportVelocityTop)
          call mpas_pool_get_array(diagnosticsPool, 'vertVelocityTop', vertVelocityTop)
@@ -223,6 +226,7 @@ contains
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'kineticEnergyAtSurface', kineticEnergyAtSurface)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'relativeVorticityAt250m', relativeVorticityAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'divergenceAt250m', divergenceAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'divergenceTransportVelAt250m', divergenceTransportVelAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'relativeVorticityVertexAt250m', relativeVorticityVertexAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAt250m', activeTracersAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAvgTopto0100', activeTracersAvgTopto0100)
@@ -232,7 +236,11 @@ contains
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAvg2000toBottom', activeTracersAvg2000toBottom)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertGMvelocitySFC', vertGMvelocitySFC)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertTransportVelocitySFC', vertTransportVelocitySFC)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertVelAt250m', vertVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertGMvelocityAt250m', vertGMvelocityAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertTransportVelocityAt250m', vertTransportVelocityAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertVelSFC', vertVelSFC)
+         
          !
          ! note for future build out
          ! HERE: interpolate vertically to target z-level or isopycnal or some other surface
@@ -294,10 +302,15 @@ contains
          kineticEnergyAtSurface(:) = kineticEnergyCell(1,:)
          activeTracersAt250m(1,:) = activeTracers(1,iLevelTarget,:)
          activeTracersAt250m(2,:) = activeTracers(2,iLevelTarget,:)
-
+         divergenceTransportVelAt250m(:) = divergenceTransportVel(iLevelTarget,:)
          vertGMvelocitySFC(:) = vertGMBolusVelocityTop(1,:)
          vertTransportVelocitySFC(:) = vertTransportVelocityTop(1,:)
          vertVelSFC(:) = vertVelocityTop(1,:)
+         vertGMvelocityAt250m(:) = vertGMBolusVelocityTop(iLevelTarget,:)
+         vertTransportVelocityAt250m(:) = vertTransportVelocityTop(iLevelTarget,:)
+         vertVelAt250m(:) = vertVelocityTop(iLevelTarget,:)
+
+
          !
          ! compute barotropic kinetic energy
          !

@@ -36,6 +36,15 @@
 		<var name="vertVelSFC" type="real" dimensions="nCells Time" units="m s^{-1}"
 			description="vertical velocity due to normal velocity divergence"
 		/>
+		<var name="vertGMvelocityAt250m" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="vertical velocity due to GM parameterization at approximately 250m"
+		/>
+		<var name="vertTransportVelocityAt250m" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="vertical velocity due to normal transport velocity divergence at approximately 250m"
+		/>
+		<var name="vertVelAt250m" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="vertical velocity due to normal velocity divergence at approximately 250m"
+		/>
 		<var name="kineticEnergyAt250m" type="real" dimensions="nCells Time" units="m^2 s^{-2}"
 			description="kinetic energy at a depth of approximately 250 m"
 		/>
@@ -50,6 +59,9 @@
 		/>
 		<var name="divergenceAt250m" type="real" dimensions="nCells Time" units="s^{-1}"
 			description="divergence at cell centers at a depth of approximately 250 m"
+		/>
+		<var name="divergenceTransportVelAt250m" type="real" dimensions="nCells Time" units="s^{-1}"
+			description="divergence of transport velocity at cell centers at a depth of approximately 250 m"
 		/>
 		<var name="relativeVorticityVertexAt250m" type="real" dimensions="nVertices Time" units="s^{-1}"
 			description="relative vorticity at cell vertices at a depth of approximately 250 m"
@@ -129,6 +141,10 @@
 			<var name="vertTransportVelocitySFC"/>
 			<var name="vertVelSFC"/>
 			<var name="divergenceVC"/>
+			<var name="divergenceTransportVelAt250m"/>
+			<var name="vertGMvelocityAt250m"/>
+			<var name="vertTransportVelocityAt250m"/>
+			<var name="vertVelAt250m"/>
 			<var_array name="activeTracersAt250m"/>
                         <var_array name="activeTracersAvgTopto0100"/>
                         <var_array name="activeTracersAvg0100to0250"/>
