@@ -45,6 +45,15 @@
 		<var name="vertVelAt250m" type="real" dimensions="nCells Time" units="m s^{-1}"
 			description="vertical velocity due to normal velocity divergence at approximately 250m"
 		/>
+		<var name="normalVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="normal velocity at approximately 250m"
+		/>
+		<var name="tangentialVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="tangential velocity at approximately 250m"
+		/>
+		<var name="BruntVaisalaFreqTopAt250m" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="Brunt Vaisala Frequency at approximately 250m"
+		/>
 		<var name="kineticEnergyAt250m" type="real" dimensions="nCells Time" units="m^2 s^{-2}"
 			description="kinetic energy at a depth of approximately 250 m"
 		/>
@@ -145,11 +154,16 @@
 			<var name="vertGMvelocityAt250m"/>
 			<var name="vertTransportVelocityAt250m"/>
 			<var name="vertVelAt250m"/>
+			<var name="normalVelAt250m"/>
+			<var name="tangentialVelAt250m"/>
+			<var name="BruntVaisalaFreqTopAt250m"/>
+			<var name="windStressZonal"/>
+			<var name="windStressMeridional"/>
 			<var_array name="activeTracersAt250m"/>
-                        <var_array name="activeTracersAvgTopto0100"/>
-                        <var_array name="activeTracersAvg0100to0250"/>
-                        <var_array name="activeTracersAvg0250to0700"/>
-                        <var_array name="activeTracersAvg0700to2000"/>
-                        <var_array name="activeTracersAvg2000toBottom"/>
+			<var_array name="activeTracersAvgTopto0100"/>
+			<var_array name="activeTracersAvg0100to0250"/>
+			<var_array name="activeTracersAvg0250to0700"/>
+			<var_array name="activeTracersAvg0700to2000"/>
+			<var_array name="activeTracersAvg2000toBottom"/>
 		</stream>
 	</streams>
