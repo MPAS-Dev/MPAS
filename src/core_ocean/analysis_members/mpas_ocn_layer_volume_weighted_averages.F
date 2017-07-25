@@ -178,6 +178,8 @@ contains
       real (kind=RKIND), dimension(:,:),   pointer :: velocityMeridional
       real (kind=RKIND), dimension(:,:),   pointer :: vertVelocityTop
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
+      real (kind=RKIND),dimension(:,:,:),pointer::activeTracerVertMixTendency
+      real (kind=RKIND),dimension(:,:,:),pointer::activeTracerAdvectionTendency
       real (kind=RKIND), dimension(:,:),   pointer :: kineticEnergyCell
       real (kind=RKIND), dimension(:,:),   pointer :: relativeVorticityCell
       real (kind=RKIND), dimension(:,:),   pointer :: divergence
@@ -306,6 +308,10 @@ contains
          call mpas_pool_get_array(diagnosticsPool, 'relativeVorticityCell', relativeVorticityCell)
          call mpas_pool_get_array(diagnosticsPool, 'divergence', divergence)
          call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, 1)
+         call mpas_pool_get_array(diagnosticsPool,&
+              'activeTracerAdvectionTendency',activeTracerAdvectionTendency)
+         call mpas_pool_get_array(diagnosticsPool,&
+              'activeTracerVertMixTendency',activeTracerVertMixTendency)
 
          ! initialize buffers
          workBufferSum(:) = 0.0_RKIND
@@ -338,6 +344,14 @@ contains
             workArray(13,:) = relativeVorticityCell(iLevel,:)
             workArray(14,:) = divergence(iLevel,:)
             workArray(15,:) = relativeVorticityCell(iLevel,:)*relativeVorticityCell(iLevel,:)
+            if ( associated(activeTracers) ) workArray(16,:) = &
+               activeTracerAdvectionTendency(index_temperature,iLevel,:)
+            if ( associated(activeTracers) ) workArray(17,:) = &
+               activeTracerAdvectionTendency(index_salinity,iLevel,:)
+            if ( associated(activeTracers) ) workArray(18,:) = &
+               activeTracerVertMixTendency(index_temperature,iLevel,:)
+            if ( associated(activeTracers) ) workArray(19,:) = &
+               activeTracerVertMixTendency(index_salinity,iLevel,:)
 
             call compute_statistics(nDefinedDataFields, nCellsSolve, workArray, workMask, workMin, workMax, workSum)
 
