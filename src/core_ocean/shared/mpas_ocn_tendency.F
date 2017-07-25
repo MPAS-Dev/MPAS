@@ -779,6 +779,13 @@ contains
                if (trim(groupItr % memberName) == 'activeTracers') then
                   call mpas_log_write("monoAdvDiff",MPAS_LOG_WARN)
                   activeTracerAdvectionTendency(:,:,:)=tracerGroupTend(:,:,:)-activeTracerAdvectionTendency(:,:,:)
+                  do iCell = 1, nCells
+                     do k = 1, maxLevelCell(iCell)
+                        activeTracerAdvectionTendency(:,k,iCell) = &
+                            activeTracerAdvectionTendency(:,k,iCell) / &
+                            layerThickness(k,iCell)
+                     end do
+                  end do
                endif
 
                !
