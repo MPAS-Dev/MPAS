@@ -431,6 +431,9 @@ contains
 
       real (kind=RKIND), dimension(:,:,:), pointer :: tracerGroupInteriorRestoringRate, tracerGroupInteriorRestoringValue
 
+      real (kind=RKIND), dimension(:,:,:), pointer :: &
+        activeTracerAdvectionTendency
+
       !
       ! Field pointers
       !
@@ -495,6 +498,11 @@ contains
 
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
+
+      !
+      ! get diagnostic arrays for temperature/salinity budget
+      !
+      call mpas_pool_get_array(diagnosticsPool,'activeTracerAdvectionTendency',activeTracerAdvectionTendency)
 
       if(config_disable_tr_all_tend) return
 
@@ -757,8 +765,21 @@ contains
                !
 
                ! Monotonoic Advection, or standard advection
+
+               ! store tendency
+               if (trim(groupItr % memberName) == 'activeTracers') then
+                  call mpas_log_write("monoAdvstore",MPAS_LOG_WARN)
+                  activeTracerAdvectionTendency(:,:,:) = tracerGroupTend(:,:,:)
+               endif
+
                call ocn_tracer_advection_tend(tracerGroup, normalThicknessFlux, vertAleTransportTop, layerThickness, &
                                               layerThickness, dt, meshPool, scratchPool, tend_layerThickness, tracerGroupTend)
+
+               ! difference tendency to get contribution due to advection
+               if (trim(groupItr % memberName) == 'activeTracers') then
+                  call mpas_log_write("monoAdvDiff",MPAS_LOG_WARN)
+                  activeTracerAdvectionTendency(:,:,:)=tracerGroupTend(:,:,:)-activeTracerAdvectionTendency(:,:,:)
+               endif
 
                !
                ! tracer tendency: del2 horizontal tracer diffusion, div(h \kappa_2 \nabla \phi)
