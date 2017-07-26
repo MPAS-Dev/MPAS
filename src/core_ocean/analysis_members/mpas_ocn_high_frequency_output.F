@@ -173,6 +173,8 @@ contains
       real (kind=RKIND), dimension(:), pointer :: divergenceAt250m, relativeVorticityVertexAt250m
       real (kind=RKIND), dimension(:), pointer :: divergenceTransportVelAt250m, vertVelAt250m 
       real (kind=RKIND), dimension(:), pointer :: normalVelAt250m, tangentialVelAt250m, BruntVaisalaFreqTopAt250m
+      real (kind=RKIND), dimension(:), pointer :: zonalVelAt250m, meridionalVelAt250m
+      real (kind=RKIND), dimension(:), pointer :: angleEdge
       real (kind=RKIND), dimension(:), pointer :: vertTransportVelocityAt250m, vertGMvelocityAt250m
       real (kind=RKIND), dimension(:), pointer :: vertVelSFC, vertTransportVelocitySFC, vertGMvelocitySFC
       real (kind=RKIND), dimension(:), pointer :: barotropicSpeed, columnIntegratedSpeed, dvEdge, dcEdge, areaCell
@@ -244,6 +246,8 @@ contains
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertVelAt250m', vertVelAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalVelAt250m', normalVelAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialVelAt250m', tangentialVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalVelAt250m', zonalVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalVelAt250m', meridionalVelAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'BruntVaisalaFreqTopAt250m', BruntVaisalaFreqTopAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertGMvelocityAt250m', vertGMvelocityAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertTransportVelocityAt250m', vertTransportVelocityAt250m)
@@ -332,11 +336,18 @@ contains
          call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
          call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
          call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
+         call mpas_pool_get_array(meshPool, 'angleEdge', angleEdge)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'barotropicSpeed', barotropicSpeed)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'columnIntegratedSpeed', columnIntegratedSpeed)
 
          normalVelAt250m(:) = normalVelocity(iLevelTarget,:)
          tangentialVelAt250m(:) = tangentialVelocity(iLevelTarget,:)
+         do iEdge = 1, nEdges
+           zonalVelAt250m(iEdge) = normalVelAt250m(iEdge)*cos(angleEdge(iEdge)) &
+                                   - tangentialVelAt250m(iEdge)*sin(angleEdge(iEdge))
+           meridionalVelAt250m(iEdge) = normalVelAt250m(iEdge)*sin(angleEdge(iEdge)) &
+                                        + tangentialVelAt250m(iEdge)*cos(angleEdge(iEdge))
+         end do
          BruntVaisalaFreqTopAt250m(:) = BruntVaisalaFreqTop(iLevelTarget,:)
 
          !
