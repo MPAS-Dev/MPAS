@@ -75,14 +75,31 @@
 		<var name="relativeVorticityVertexAt250m" type="real" dimensions="nVertices Time" units="s^{-1}"
 			description="relative vorticity at cell vertices at a depth of approximately 250 m"
 		/>
-		<var_array name="activeTracersAt250m" type="real" dimensions="nCells Time">
-			<var name="temperatureAt250m" array_group="activeTracersAt250m" units="^\circ C" name_in_code="temperatureAt250m"
-				description="ocean temperature at 250m"
+                <var_array name="activeTracersAt250m" type="real" dimensions="nCells Time">
+                        <var name="temperatureAt250m" array_group="activeTracersAt250m" units="^\circ C" name_in_code="temperatureAt250m"
+                                description="ocean temperature at 250 m"
+                        />
+                        <var name="salinityAt250m" array_group="activeTracersAt250m" units="PSU" name_in_code="salinityAt250m"
+                                description="salinity at 250 m"
+                        />
+                </var_array>
+		<var_array name="activeTracersAtBottom" type="real" dimensions="nCells Time">
+			<var name="temperatureAtBottom" array_group="activeTracersAtBottom" units="^\circ C" name_in_code="temperatureAtBottom"
+				description="ocean temperature at bottom"
 			/>
-			<var name="salinityAt250m" array_group="activeTracersAt250m" units="PSU" name_in_code="salinityAt250m"
-				description="salinity at 250 m"
+			<var name="salinityAtBottom" array_group="activeTracersAtBottom" units="PSU" name_in_code="salinityAtBottom"
+				description="salinity at bottom"
 			/>
 	        </var_array>
+                <var name="kineticEnergyAtBottom" type="real" dimensions="nCells Time" units="m^2 s^{-2}"
+                        description="kinetic energy at cell centers at bottom"
+                />
+                <var name="relativeVorticityAtBottom" type="real" dimensions="nCells Time" units="s^{-1}"
+                        description="relative vorticity at cell centers at bottom"
+                />
+                <var name="divergenceAtBottom" type="real" dimensions="nCells Time" units="s^{-1}"
+                        description="divergence at cell centers at bottom"
+                />
                 <var_array name="activeTracersAvgTopto0100" type="real" dimensions="nCells Time">
                         <var name="temperatureAvgTopto0100" array_group="activeTracersAvgTopto0100" units="^\circ C" name_in_code="temperatureAvgTopto0100"
                                 description="ocean temperature averaged between surface and 100 m"

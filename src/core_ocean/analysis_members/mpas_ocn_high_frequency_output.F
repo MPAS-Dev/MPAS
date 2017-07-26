@@ -171,6 +171,7 @@ contains
       real (kind=RKIND) :: invAreaCell1, layerThicknessEdge1, coeff
       real (kind=RKIND), dimension(:), pointer :: refBottomDepth, kineticEnergyAt250m, kineticEnergyAtSurface, relativeVorticityAt250m
       real (kind=RKIND), dimension(:), pointer :: divergenceAt250m, relativeVorticityVertexAt250m
+      real (kind=RKIND), dimension(:), pointer :: divergenceAtBottom,relativeVorticityAtBottom,kineticEnergyAtBottom
       real (kind=RKIND), dimension(:), pointer :: divergenceTransportVelAt250m, vertVelAt250m 
       real (kind=RKIND), dimension(:), pointer :: normalVelAt250m, tangentialVelAt250m, BruntVaisalaFreqTopAt250m
       real (kind=RKIND), dimension(:), pointer :: vertTransportVelocityAt250m, vertGMvelocityAt250m
@@ -178,6 +179,7 @@ contains
       real (kind=RKIND), dimension(:), pointer :: barotropicSpeed, columnIntegratedSpeed, dvEdge, dcEdge, areaCell
       real (kind=RKIND), dimension(:,:), pointer :: kineticEnergyCell, relativeVorticityCell
       real (kind=RKIND), dimension(:,:), pointer :: activeTracersAt250m, activeTracersAvgTopto0100, activeTracersAvg0100to0250
+      real (kind=RKIND), dimension(:,:), pointer :: activeTracersAtBottom
       real (kind=RKIND), dimension(:,:), pointer :: activeTracersAvg0250to0700, activeTracersAvg0700to2000, activeTracersAvg2000toBottom
       real (kind=RKIND), dimension(:,:), pointer :: relativeVorticity, divergence, layerThickness
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, tangentialVelocity, BruntVaisalaFreqTop
@@ -231,9 +233,13 @@ contains
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'kineticEnergyAtSurface', kineticEnergyAtSurface)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'relativeVorticityAt250m', relativeVorticityAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'divergenceAt250m', divergenceAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'relativeVorticityAtBottom', relativeVorticityAtBottom)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'divergenceAtBottom', divergenceAtBottom)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'kineticEnergyAtBottom', kineticEnergyAtBottom)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'divergenceTransportVelAt250m', divergenceTransportVelAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'relativeVorticityVertexAt250m', relativeVorticityVertexAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAt250m', activeTracersAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAtBottom', activeTracersAtBottom)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAvgTopto0100', activeTracersAvgTopto0100)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAvg0100to0250', activeTracersAvg0100to0250)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'activeTracersAvg0250to0700', activeTracersAvg0250to0700)
@@ -249,6 +255,19 @@ contains
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertTransportVelocityAt250m', vertTransportVelocityAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertVelSFC', vertVelSFC)
          
+         call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
+         call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, 1)
+         call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
+         call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+         call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
+         call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
+         call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
+         call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
+         call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
+         call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'barotropicSpeed', barotropicSpeed)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'columnIntegratedSpeed', columnIntegratedSpeed)
+
          !
          ! note for future build out
          ! HERE: interpolate vertically to target z-level or isopycnal or some other surface
@@ -318,22 +337,19 @@ contains
          vertTransportVelocityAt250m(:) = vertTransportVelocityTop(iLevelTarget,:)
          vertVelAt250m(:) = vertVelocityTop(iLevelTarget,:)
 
+         ! copy data at bottom
+         do iCell=1,nCells
+           iLevelTarget = maxLevelCell(iCell)
+           relativeVorticityAtBottom(iCell) = relativeVorticityCell(iLevelTarget,iCell)
+           divergenceAtBottom(iCell) = divergence(iLevelTarget,iCell)
+           kineticEnergyAtBottom(iCell) = kineticEnergyCell(iLevelTarget,iCell)
+           activeTracersAtBottom(1,iCell) = activeTracers(1,iLevelTarget,iCell)
+           activeTracersAtBottom(2,iCell) = activeTracers(2,iLevelTarget,iCell)
+         enddo
 
          !
          ! compute barotropic kinetic energy
          !
-         call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
-         call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, 1)
-         call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-         call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-         call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
-         call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
-         call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
-         call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
-         call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
-         call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
-         call mpas_pool_get_array(highFrequencyOutputAMPool, 'barotropicSpeed', barotropicSpeed)
-         call mpas_pool_get_array(highFrequencyOutputAMPool, 'columnIntegratedSpeed', columnIntegratedSpeed)
 
          normalVelAt250m(:) = normalVelocity(iLevelTarget,:)
          tangentialVelAt250m(:) = tangentialVelocity(iLevelTarget,:)
