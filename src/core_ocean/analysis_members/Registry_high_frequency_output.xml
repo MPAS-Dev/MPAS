@@ -51,6 +51,12 @@
 		<var name="tangentialVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
 			description="tangential velocity at approximately 250m"
 		/>
+		<var name="zonalVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="zonal velocity at approximately 250m"
+		/>
+		<var name="meridionalVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="meridional velocity at approximately 250m"
+		/>
 		<var name="BruntVaisalaFreqTopAt250m" type="real" dimensions="nCells Time" units="m s^{-1}"
 			description="Brunt Vaisala Frequency at approximately 250m"
 		/>
