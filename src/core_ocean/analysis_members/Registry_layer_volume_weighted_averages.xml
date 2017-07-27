@@ -83,7 +83,7 @@
                         />
                         <var name="minLayerSalinityAdv" array_group="layerMins" units="PSU s^{-1}"
                                  description="Minimum salinity advection within region layer"
-
+                        />
                         <var name="minLayerTemperatureVertMix" array_group="layerMins" units="C s^{-1}"
                                  description="Minimum temperature vertical mixing within region layer"
                         />
