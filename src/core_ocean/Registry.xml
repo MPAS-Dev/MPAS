@@ -1779,6 +1779,14 @@
 			 description="baroclinic velocity, used in split-explicit time-stepping"
 			 packages="splitTimeIntegrator"
 		/>
+		<var name="BtrAvgOfBaroclinicVelocity" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="barotropic average of baroclinic velocity"
+			 packages="splitTimeIntegrator"
+		/>
+		<var name="BtrAvgOfGMBolusVelocity" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="barotropic average of GM  Bolus velocity"
+			 packages="splitTimeIntegrator"
+		/>
 
 		<!-- FIELD FOR LAND-ICE COUPLING -->
 		<var name="effectiveDensityInLandIce" type="real" dimensions="nCells Time" units="kg m^{-3}"
