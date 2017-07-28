@@ -95,7 +95,7 @@
 			description="Depth of the bottom of the ocean for the CVMix WSwSBF unit test case."
 			possible_values="Any positive real number."
 		/>
-		<nml_option name="config_cvmix_WSwSBF_max_windstress" type="real" default_value="0.10" units="N m^{-2}"
+		<nml_option name="config_cvmix_WSwSBF_max_windstress_zonal" type="real" default_value="0.10" units="N m^{-2}"
 			description="Maximum surface windstress over the domain."
 			possible_values="Any real number."
 		/>
@@ -103,5 +103,60 @@
 			description="Coriolis parameter for WSwSBF test case"
 			possible_values="Any real number."
 		/>
-
+		<nml_option name="config_cvmix_WSwSBF_coriolis_gradient" type="real" default_value="0.0" units="s^{-1}"
+                        description="Coriolis gradient (Beta) for WSwSBF test case"
+                        possible_values="Any real number."
+                />
+		<nml_option name="config_cvmix_WSwSBF_domain_y_length" type="real" default_value="1920000" units="s^{-1}"
+                        description="Domain width for planar variation case"
+                        possible_values="Any real number."
+                />
+		<nml_option name="config_cvmix_WSwSBF_wind_zonal_variation" type="logical" default_value=".false." units="s^{-1}"
+                        description="flag to use or not the variable zonal stress"
+                        possible_values="true or false"
+                />
+		<nml_option name="config_cvmix_WSwSBF_max_windstress_meridional" type="real" default_value="0.10" units="N m^{-2}"
+                        description="Maximum meridional surface windstress over the domain."
+                        possible_values="Any real number."
+                />
+		<nml_option name="config_cvmix_ocean_debug_tracer_xCell_center" type="real" default_value=".25" units="unitless"
+                        description="Location of longitude center point for debug tracer disk in degrees."
+                        possible_values="percentage of domain width"
+                />
+                <nml_option name="config_cvmix_ocean_debug_tracer_yCell_center" type="real" default_value=".5" units="unitless"
+                        description="Location of latitude center point for debug tracer disk in degrees."
+                        possible_values="percentage of domain width"
+                />
+                <nml_option name="config_cvmix_ocean_debug_tracer_disk_radius" type="real" default_value="5" units="unitless"
+                        description="Radius of disk for debug tracers in number of grid cells."
+                        possible_values="Any real, positive value less than nx."
+                />
+                <nml_option name="config_cvmix_ocean_debug_tracer_min_levels" type="integer" default_value="0" units="unitless"
+                        description="Minimum index level for debug tracer"
+                        possible_values="Any positive integer."
+                />
+                <nml_option name="config_cvmix_ocean_debug_tracer_max_levels" type="integer" default_value="10" units="unitless"
+                        description="Maximum index level for debug tracer"
+                        possible_values="Any positive integer."
+                />
+                <nml_option name="config_cvmix_WSwSBF_useSeaMount" type="logical" default_value=".false." units="unitless"
+                        description="logical to control use of sea mount"
+                        possible_values=".true. or .false."
+                />
+                <nml_option name="config_cvmix_WSwSBF_seaMountHeight" type="real" default_value="300" units="m"
+                        description="Height of the sea mount"
+                        possible_values="positive real numbers"
+                />
+                <nml_option name="config_cvmix_WSwSBF_seaMountWidth" type="real" default_value="1E6" units="m"
+                        description="width of sea mount in meters"
+                        possible_values="positive real numbers"
+                />
+                <nml_option name="config_cvmix_WSwSBF_seaMount_xCenter" type="real" default_value="2E6" units="m"
+                        description="center position of seamount in x"
+                        possible_values="positive real numbers"
+                />
+                <nml_option name="config_cvmix_WSwSBF_seaMount_yCenter" type="real" default_value="2E6" units="m"
+                        description="center position of seamount in y"
+                        possible_values="positive real numbers"
+                />
 	</nml_record>

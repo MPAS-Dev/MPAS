@@ -27,6 +27,8 @@ module ocn_init_cvmix_WSwSBF
    use mpas_derived_types
    use mpas_pool_routines
    use mpas_constants
+   use mpas_stream_manager
+   use mpas_dmpar
 
    use ocn_init_cell_markers
    use ocn_init_vertical_grids
@@ -89,23 +91,27 @@ contains
                                         tracersSurfaceRestoringFieldsPool, &
                                         tracersInteriorRestoringFieldsPool
 
-      integer, pointer :: nVertLevels, nVertLevelsP1, nCellsSolve, nEdgesSolve, nVerticesSolve
+      integer :: nCellsSolve
+      integer, pointer :: nVertLevels, nVertLevelsP1, nEdgesSolve, nVerticesSolve
       integer, pointer :: index_temperature, index_salinity, index_tracer1
 
-      integer, dimension(:), pointer :: maxLevelCell
+      integer, dimension(:), pointer :: maxLevelCell,nCellsArray
       real (kind=RKIND), dimension(:), pointer :: refBottomDepth, refZMid, vertCoordMovementWeights
       real (kind=RKIND), dimension(:), pointer :: windStressZonal, windStressMeridional
       real (kind=RKIND), dimension(:), pointer :: latentHeatFlux, sensibleHeatFlux, shortWaveHeatFlux
       real (kind=RKIND), dimension(:), pointer :: evaporationFlux, rainFlux
-      real (kind=RKIND), dimension(:), pointer :: salinityRestore, bottomDepth, angleEdge
-      real (kind=RKIND), dimension(:), pointer :: fCell, fEdge, fVertex
+      real (kind=RKIND), dimension(:), pointer :: salinityRestore, bottomDepth, angleEdge, dcEdge
+      real (kind=RKIND), dimension(:), pointer :: xCell, yCell, yEdge, yVertex, fCell, fEdge, fVertex
       real (kind=RKIND), dimension(:, :), pointer :: layerThickness, restingThickness
       real (kind=RKIND), dimension(:, :, :), pointer :: activeTracers, debugTracers
       real (kind=RKIND), dimension(:, :), pointer ::    activeTracersPistonVelocity, activeTracersSurfaceRestoringValue
       real (kind=RKIND), dimension(:, :, :), pointer :: activeTracersInteriorRestoringValue, activeTracersInteriorRestoringRate
 
-      real (kind=RKIND), dimension(:), pointer :: interfaceLocations
+      real (kind=RKIND) :: xMin, xMax, yMin, yMax, yMinGlobal, yMaxGlobal, dcEdgeMin, dcEdgeMinGlobal
 
+      real (kind=RKIND), dimension(:), pointer :: interfaceLocations
+      integer :: directionProperty
+      character (len=StrKIND) :: streamID
       integer :: iCell, iEdge, iVertex, k, kML
 
       real (kind=RKIND) :: BLdepth
@@ -114,6 +120,12 @@ contains
                                           config_cvmix_WSwSBF_vertical_grid
 
       integer, pointer ::                 config_cvmix_WSwSBF_vert_levels
+
+      logical, pointer :: config_cvmix_WSwSBF_wind_zonal_variation
+
+      logical, pointer :: config_cvmix_WSwSBF_useSeaMount
+
+      real(kind=RKIND), pointer :: y_period
 
       real (kind=RKIND), pointer ::       config_cvmix_WSwSBF_surface_temperature, &
                                           config_cvmix_WSwSBF_surface_salinity, &
@@ -131,14 +143,29 @@ contains
                                           config_cvmix_WSwSBF_temperature_gradient, &
                                           config_cvmix_WSwSBF_salinity_gradient, &
                                           config_cvmix_WSwSBF_bottom_depth, &
-                                          config_cvmix_WSwSBF_max_windstress, &
+                                          config_cvmix_WSwSBF_max_windstress_zonal, &
                                           config_cvmix_WSwSBF_coriolis_parameter, &
                                           config_cvmix_WSwSBF_temperature_gradient_mixed_layer, &
                                           config_cvmix_WSwSBF_salinity_gradient_mixed_layer, &
                                           config_cvmix_WSwSBF_mixed_layer_depth_temperature, &
                                           config_cvmix_WSwSBF_mixed_layer_depth_salinity,    &
                                           config_cvmix_WSwSBF_mixed_layer_temperature_change,       &
-                                          config_cvmix_WSwSBF_mixed_layer_salinity_change
+                                          config_cvmix_WSwSBF_mixed_layer_salinity_change,       &
+                                          config_cvmix_WSwSBF_domain_y_length, &
+                                          config_cvmix_WSwSBF_coriolis_gradient, &
+                                          config_cvmix_WSwSBF_max_windstress_meridional, &
+                                          config_cvmix_ocean_debug_tracer_xCell_center, &
+                                          config_cvmix_ocean_debug_tracer_yCell_center, &
+                                          config_cvmix_ocean_debug_tracer_disk_radius, &
+                                          config_cvmix_WSwSBF_seaMountHeight, &
+                                          config_cvmix_WSwSBF_seaMount_xCenter, &
+                                          config_cvmix_WSwSBF_seaMount_yCenter, &
+                                          config_cvmix_WSwSBF_seaMountWidth
+
+      integer, pointer :: config_cvmix_ocean_debug_tracer_min_levels, config_cvmix_ocean_debug_tracer_max_levels	
+
+      real(kind=RKIND) :: dist, xCenter, yCenter, tracerRadius
+
       ! assume no error
       iErr = 0
 
@@ -179,7 +206,8 @@ contains
                                 config_cvmix_WSwSBF_temperature_gradient)
       call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_salinity_gradient', config_cvmix_WSwSBF_salinity_gradient)
       call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_bottom_depth', config_cvmix_WSwSBF_bottom_depth)
-      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_max_windstress', config_cvmix_WSwSBF_max_windstress)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_max_windstress_zonal', config_cvmix_WSwSBF_max_windstress_zonal)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_max_windstress_meridional', config_cvmix_WSwSBF_max_windstress_meridional)
       call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_coriolis_parameter', config_cvmix_WSwSBF_coriolis_parameter)
       call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_temperature_gradient_mixed_layer', &
                 config_cvmix_WSwSBF_temperature_gradient_mixed_layer)
@@ -193,6 +221,24 @@ contains
                 config_cvmix_WSwSBF_mixed_layer_temperature_change)
       call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_mixed_layer_salinity_change', &
                 config_cvmix_WSwSBF_mixed_layer_salinity_change)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_coriolis_gradient', config_cvmix_WSwSBF_coriolis_gradient)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_domain_y_length', config_cvmix_WSwSBF_domain_y_length)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_wind_zonal_variation', config_cvmix_WSwSBF_wind_zonal_variation)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_ocean_debug_tracer_xCell_center', config_cvmix_ocean_debug_tracer_xCell_center)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_ocean_debug_tracer_yCell_center', config_cvmix_ocean_debug_tracer_yCell_center)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_ocean_debug_tracer_disk_radius', config_cvmix_ocean_debug_tracer_disk_radius) 
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_ocean_debug_tracer_min_levels', config_cvmix_ocean_debug_tracer_min_levels)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_ocean_debug_tracer_max_levels', config_cvmix_ocean_debug_tracer_max_levels)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_useSeaMount', &
+                config_cvmix_WSwSBF_useSeaMount)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_seaMountHeight', &
+                config_cvmix_WSwSBF_seaMountHeight)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_seaMountWidth', &
+                config_cvmix_WSwSBF_seaMountWidth)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_seaMount_xCenter', &
+                config_cvmix_WSwSBF_seaMount_xCenter)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_seaMount_yCenter', &
+                config_cvmix_WSwSBF_seaMount_yCenter)
 
       ! load data that required to initialize the ocean simulation
       block_ptr => domain % blocklist
@@ -208,7 +254,7 @@ contains
         call mpas_pool_get_subpool(forcingPool, 'tracersInteriorRestoringFields', tracersInteriorRestoringFieldsPool)
 
         call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
-        call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
+        call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
         call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
         call mpas_pool_get_dimension(meshPool, 'nVerticesSolve', nVerticesSolve)
 
@@ -225,6 +271,13 @@ contains
         call mpas_pool_get_array(meshPool, 'fCell', fCell)
         call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
         call mpas_pool_get_array(meshPool, 'fVertex', fVertex)
+
+	call mpas_pool_get_array(meshPool, 'xCell', xCell)
+        call mpas_pool_get_array(meshPool, 'yCell', yCell)
+        call mpas_pool_get_array(meshPool, 'yEdge', yEdge)
+        call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
+
+        call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
 
         call mpas_pool_get_array(verticalMeshPool, 'refZMid', refZMid)
         call mpas_pool_get_array(verticalMeshPool, 'restingThickness', restingThickness)
@@ -248,7 +301,7 @@ contains
         call mpas_pool_get_array(forcingPool, 'evaporationFlux', evaporationFlux)
         call mpas_pool_get_array(forcingPool, 'rainFlux', rainFlux)
 
-
+      nCellsSolve = nCellsArray(1)
         ! Set refBottomDepth and refBottomDepthTopOfCell
         do k = 1, nVertLevels
            refBottomDepth(k) = config_cvmix_WSwSBF_bottom_depth * interfaceLocations(k+1)
@@ -258,23 +311,112 @@ contains
         ! Set vertCoordMovementWeights
         vertCoordMovementWeights(:) = 1.0_RKIND
 
+        yMin = 1.0E10_RKIND
+	yMax = -1.0E10_RKIND
+	dcEdgeMin = 1.0E10_RKIND
+        xMin =1E10_RKIND
+	yMax = -1.0E10_RKIND
+
+	
+	    ! Determine local min and max values.
+ 
+          call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
+
+          yMin = min( yMin, minval(yCell(1:nCellsSolve)))
+          yMax = max( yMax, maxval(yCell(1:nCellsSolve)))
+	  xMin = min( xMin, minval(xCell(1:nCellsSolve)))
+	  xMax = max( xMax, maxval(xCell(1:nCellsSolve)))
+
+          dcEdgeMin = min( dcEdgeMin, minval(dcEdge(1:nEdgesSolve)))
+
+
+!        call mpas_dmpar_min_real(domain % dminfo, yMin, yMinGlobal)
+!        call mpas_dmpar_max_real(domain % dminfo, yMax, yMaxGlobal)
+!        call mpas_dmpar_min_real(domain % dminfo, dcEdgeMin, dcEdgeMinGlobal)
+
+        ! mark north / south boundaries
+        if(abs(config_cvmix_WSwSBF_coriolis_gradient) .gt. 1.0E-12_RKIND) then
+          call ocn_mark_north_boundary(meshPool, yMax, dcEdgeMin, iErr)
+          call ocn_mark_south_boundary(meshPool, yMin, dcEdgeMin, iErr)
+          call mpas_pool_get_config(meshPool, 'y_period', y_period)
+          y_period = 0.0_RKIND
+    
+        call mpas_stream_mgr_begin_iteration(domain % streamManager)
+        do while (mpas_stream_mgr_get_next_stream(domain % streamManager, streamID, directionProperty))
+          if ( directionProperty == MPAS_STREAM_OUTPUT .or. directionProperty == MPAS_STREAM_INPUT_OUTPUT ) then
+            call mpas_stream_mgr_add_att(domain % streamManager, 'y_period', 0.0_RKIND, streamID)
+          end if
+        end do
+        end if
+        if(associated(debugTracers)) then
+          do iCell = 1, nCellsSolve
+             do k=1,nVertLevels
+                debugTracers(index_tracer1,k,iCell) = 0.0_RKIND
+             end do
+          end do
+        do iCell=1,nCellsSolve
+
+        if ( config_cvmix_WSwSBF_useSeaMount ) then
+                bottomDepth(iCell) = config_cvmix_WSwSBF_bottom_depth - config_cvmix_WSwSBF_seaMountHeight * &
+                 exp(-((yCell(iCell) - config_cvmix_WSwSBF_seaMount_xCenter)**2 /            &
+                  config_cvmix_WSwSBF_seaMountWidth**2 + (xCell(iCell) - &
+                  config_cvmix_WSwSBF_seaMount_yCenter)**2 / config_cvmix_WSwSBF_seaMountWidth**2))
+                bottomDepth(iCell) = max(bottomDepth(iCell),0.0_RKIND)
+        else
+                bottomDepth(iCell) = config_cvmix_WSwSBF_bottom_depth
+        endif
+
+        maxLevelCell(iCell) = nVertLevels
+        do k=1,nVertLevels
+          if (refZmid(k) < -bottomDepth(iCell)) then
+            maxLevelCell(iCell) = k-1
+            exit
+          endif
+        enddo
+
+      enddo
+
+          xCenter = (xMax - xMin) * config_cvmix_ocean_debug_tracer_xCell_center + xMin
+	  yCenter = (yMax - yMin) * config_cvmix_ocean_debug_tracer_yCell_center + yMin
+          tracerRadius = dcEdgeMin * config_cvmix_ocean_debug_tracer_disk_radius
+  
+   	  do iCell = 1, nCellsSolve
+	     dist = sqrt((xCell(iCell) - xCenter)**2.0_RKIND + (yCell(iCell) - yCenter)**2.0_RKIND)  
+             if ( dist < tracerRadius ) then
+		call mpas_log_write('setting debug tracer for found match')
+		do k = 1,nVertLevels
+		  if (config_cvmix_ocean_debug_tracer_min_levels > config_cvmix_ocean_debug_tracer_max_levels) then
+		  call mpas_log_write("Error, debug_tracer_max_levels of $i is smaller than debug_tracer_min_levels of $i", &
+		  	MPAS_LOG_CRIT, intArgs = (/ config_cvmix_ocean_debug_tracer_min_levels, &
+				config_cvmix_ocean_debug_tracer_max_levels/))
+		  endif
+		  if (config_cvmix_ocean_debug_tracer_min_levels <= k .and. &
+		     k <= config_cvmix_ocean_debug_tracer_max_levels .and. &
+		     k <= maxLevelCell(iCell)) then
+		    debugTracers(index_tracer1,k,iCell) = 1.0_RKIND
+		  endif
+		enddo
+	     endif
+	  enddo
+	endif
+ 
         do iCell = 1, nCellsSolve
            if(associated(activeTracers) ) then
 
            ! Loop from surface through surface layer depth
            k=1
 
-           do while (k .le. nVertLevels .and. refZMid(k) > - config_cvmix_WSwSBF_mixed_layer_depth_temperature)
+           do while (k .le. maxLevelCell(iCell) .and. refZMid(k) > - config_cvmix_WSwSBF_mixed_layer_depth_temperature)
               temperature = config_cvmix_WSwSBF_surface_temperature + refZMid(k) *  &
                             config_cvmix_WSwSBF_temperature_gradient_mixed_layer
-              activeTracers(index_temperature, k, iCell) = temperature
+              activeTracers(index_temperature, k, iCell) = max(0.0_RKIND, temperature)
               k = k + 1
            enddo
 
            ! the value of k is now the first layer below the surface layer
            if ( k > 1 ) then
               temperature = activeTracers(index_temperature, k-1, iCell) + config_cvmix_WSwSBF_mixed_layer_temperature_change
-              activeTracers(index_temperature, k, iCell) = temperature
+              activeTracers(index_temperature, k, iCell) = max(temperature, 0.0_RKIND)
               BLdepth = refZMid(k)
            else
               activeTracers(index_temperature, k, iCell) = config_cvmix_WSwSBF_surface_temperature
@@ -285,10 +427,10 @@ contains
            kML = k + 1
 
            ! now loop from the bottom of the mixed layer thru to the bottom of the domain
-           do k = kML, nVertLevels
+           do k = kML, maxLevelCell(iCell) 
               temperature = activeTracers(index_temperature, kML-1, iCell) + (refZMid(k) - BLdepth) * &
               config_cvmix_WSwSBF_temperature_gradient
-              activeTracers(index_temperature, k, iCell) = temperature
+              activeTracers(index_temperature, k, iCell) = max(0.0_RKIND, temperature)
            enddo
 
            !
@@ -297,7 +439,7 @@ contains
 
            ! Loop from surface through surface layer depth
            k=1
-           do while (k .le. nVertLevels .and. refZMid(k) > - config_cvmix_WSwSBF_mixed_layer_depth_salinity)
+           do while (k .le. maxLevelCell(iCell) .and. refZMid(k) > - config_cvmix_WSwSBF_mixed_layer_depth_salinity)
               salinity = config_cvmix_WSwSBF_surface_salinity + refZMid(k) * config_cvmix_WSwSBF_salinity_gradient_mixed_layer
               activeTracers(index_salinity, k, iCell) = salinity
               k = k + 1
@@ -317,28 +459,47 @@ contains
             kML = k + 1
 
             ! now loop from the bottom of the mixed layer thru to the bottom of the domain
-            do k = kML, nVertLevels
+            do k = kML, maxLevelCell(iCell) 
                salinity = activeTracers(index_salinity, kML-1, iCell) + (refZMid(k) - BLdepth) *  &
                config_cvmix_WSwSBF_salinity_gradient
                activeTracers(index_salinity, k, iCell) = salinity
             enddo
 
+            activeTracers(:,maxLevelCell(iCell)+1:nVertLevels,iCell) = -1.0E34
         endif ! if (associated(activeTracer))
 
         ! as a place holder, have some debug tracer in the top few layers and zero below
-        if ( associated(debugTracers) ) then
-           debugTracers(index_tracer1, k, iCell) = 0.0_RKIND
-           do k=1,min(4,nVertLevels)
-              debugTracers(index_tracer1, k, iCell) = 1.0_RKIND
-           enddo
-        endif
+!        if ( associated(debugTracers) ) then
+!           debugTracers(index_tracer1, k, iCell) = 0.0_RKIND
+!           do k=1,min(4,nVertLevels)
+!              debugTracers(index_tracer1, k, iCell) = 1.0_RKIND
+!           enddo
+!        endif
 
+        ! set bottom depth
+!        if ( config_cvmix_WSwSBF_useSeaMount ) then
+!          bottomDepth(iCell) = config_cvmix_WSwSBF_bottom_depth - config_cvmix_WSwSBF_seaMountHeight * &
+!                           exp(-((yCell(iCell) - config_cvmix_WSwSBF_seaMount_xCenter)**2 /            &
+!                            config_cvmix_WSwSBF_seaMountWidth**2 + (xCell(iCell) - &
+!                            config_cvmix_WSwSBF_seaMount_yCenter)**2 / config_cvmix_WSwSBF_seaMountWidth**2))
+!          bottomDepth(iCell) = max(bottomDepth(iCell),0.0_RKIND)
+!        else
+!          bottomDepth(iCell) = config_cvmix_WSwSBF_bottom_depth
+!        endif
+
+        layerThickness(:,iCell) = 0.0_RKIND
         ! Set layerThickness
-        do k = 1, nVertLevels
-           layerThickness(k, iCell) = config_cvmix_WSwSBF_bottom_depth * (interfaceLocations(k+1) - interfaceLocations(k))
+        layerThickness(1,iCell) = refBottomDepth(1)
+        do k = 2, maxLevelCell(iCell) 
+          
+           layerThickness(k, iCell) = abs(refBottomDepth(k-1) - refBottomDepth(k))
            restingThickness(k, iCell) = layerThickness(k, iCell)
         end do
 
+          print *, '******************'
+          print *, sum(layerThickness(:,ICell)),bottomDepth(iCell)
+          print *, '*****************'
+                  bottomDepth(iCell) = sum(layerThickness(:,iCell))
         ! Set surface temperature restoring value and rate
         ! Value in units of C, piston velocity in units of m/s
         if ( associated(activeTracersSurfaceRestoringValue) ) then
@@ -371,7 +532,7 @@ contains
         evaporationFlux(iCell) = config_cvmix_WSwSBF_evaporation_flux
 
         ! Set interior temperature restoring value and rate
-        do k = 1, nVertLevels
+        do k = 1, maxLevelCell(iCell) 
            if ( associated(activeTracersInteriorRestoringValue) ) then
               activeTracersInteriorRestoringValue(index_temperature, k, iCell) = activeTracers(index_temperature, k, iCell)
            end if
@@ -382,7 +543,7 @@ contains
         enddo
 
         ! Set interior salinity restoring value and rate
-        do k = 1, nVertLevels
+        do k = 1, maxLevelCell(iCell) 
            if ( associated(activeTracersInteriorRestoringValue) ) then
               activeTracersInteriorRestoringValue(index_salinity, k, iCell) = activeTracers(index_salinity, k, iCell)
            end if
@@ -395,24 +556,36 @@ contains
         fCell(iCell) = config_cvmix_WSwSBF_coriolis_parameter
 
         ! Set bottomDepth
-        bottomDepth(iCell) = config_cvmix_WSwSBF_bottom_depth
+!        bottomDepth(iCell) = config_cvmix_WSwSBF_bottom_depth
 
         ! Set maxLevelCell
-        maxLevelCell(iCell) = nVertLevels
 
      end do  ! do iCell
 
      do iCell = 1, nCellsSolve
-        windStressZonal(iCell) = config_cvmix_WSwSBF_max_windstress
-        windStressMeridional(iCell) = 0.0_RKIND
+        windStressZonal(iCell) = config_cvmix_WSwSBF_max_windstress_zonal
+        windStressMeridional(iCell) = config_cvmix_WSwSBF_max_windstress_meridional
+     enddo
+
+     if(config_cvmix_WSwSBF_wind_zonal_variation) then
+	config_cvmix_WSwSBF_domain_y_length = yMax - yMin
+       do iCell = 1, nCellsSolve
+          windStressZonal(iCell) = config_cvmix_WSwSBF_max_windstress_zonal * sin(2.0_RKIND*3.14159265_RKIND &
+                                       * yCell(iCell) / config_cvmix_WSwSBF_domain_y_length)
+	  windStressMeridional(iCell) = 0.0_RKIND
+       enddo
+     endif
+
+     do iCell = 1, nCellsSolve
+        fCell(iCell) = config_cvmix_WSwSBF_coriolis_parameter + config_cvmix_WSwSBF_coriolis_gradient * yCell(iCell)
      enddo
 
      do iEdge = 1, nEdgesSolve
-        fEdge(iEdge) = config_cvmix_WSwSBF_coriolis_parameter
+        fEdge(iEdge) = config_cvmix_WSwSBF_coriolis_parameter + config_cvmix_WSwSBF_coriolis_gradient * yEdge(iEdge)
      end do
 
      do iVertex=1, nVerticesSolve
-        fVertex(iVertex) = config_cvmix_WSwSBF_coriolis_parameter
+        fVertex(iVertex) = config_cvmix_WSwSBF_coriolis_parameter + config_cvmix_WSwSBF_coriolis_gradient * yVertex(iVertex)
      end do
 
      block_ptr => block_ptr % next
