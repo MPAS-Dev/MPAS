@@ -161,21 +161,47 @@ contains
       type (mpas_pool_type), pointer :: tracersPool
       type (mpas_pool_type), pointer :: scratchPool
 
-      integer :: iLevel, iLevelTarget, iCell, iEdge, i, cell1, cell2, k
+      integer :: iLevel, iLevelTarget, iCell, iEdge, i, cell1, cell2, k, eoe
       integer :: iLevel0100, iLevel0250, iLevel0700, iLevel2000
       real (kind=RKIND) :: sumLayerThickness
       integer, pointer :: nVertLevels, nCells, nEdges
-      integer, dimension(:), pointer :: nEdgesOnCell, maxLevelEdgeTop, maxLevelCell
-      integer, dimension(:,:), pointer :: edgesOnCell, cellsOnEdge
+      integer, dimension(:), pointer :: nEdgesOnCell, maxLevelEdgeTop, maxLevelEdgeBot, maxLevelCell, nEdgesOnEdge
+      integer, dimension(:,:), pointer :: edgesOnCell, cellsOnEdge, edgesOnEdge
 
       real (kind=RKIND) :: invAreaCell1, layerThicknessEdge1, coeff
       real (kind=RKIND), dimension(:), pointer :: refBottomDepth, kineticEnergyAt250m, kineticEnergyAtSurface, relativeVorticityAt250m
       real (kind=RKIND), dimension(:), pointer :: divergenceAt250m, relativeVorticityVertexAt250m
       real (kind=RKIND), dimension(:), pointer :: divergenceAtBottom,relativeVorticityAtBottom,kineticEnergyAtBottom
-      real (kind=RKIND), dimension(:), pointer :: divergenceTransportVelAt250m, vertVelAt250m 
-      real (kind=RKIND), dimension(:), pointer :: normalVelAt250m, tangentialVelAt250m, BruntVaisalaFreqTopAt250m
-      real (kind=RKIND), dimension(:), pointer :: zonalVelAt250m, meridionalVelAt250m
+      real (kind=RKIND), dimension(:), pointer :: divergenceTransportVelAt250m, vertVelAt250m
+      real (kind=RKIND), dimension(:), pointer :: BruntVaisalaFreqTopAtSFC, BruntVaisalaFreqTopAt250m, BruntVaisalaFreqTopAtBottom
+
+      real (kind=RKIND), dimension(:), pointer :: normalVelAtSFC, normalVelAt250m, normalVelAtBottom
+      real (kind=RKIND), dimension(:), pointer :: tangentialVelAtSFC, tangentialVelAt250m, tangentialVelAtBottom
+      real (kind=RKIND), dimension(:), pointer :: zonalVelAtSFC, zonalVelAt250m, zonalVelAtBottom
+      real (kind=RKIND), dimension(:), pointer :: meridionalVelAtSFC, meridionalVelAt250m, meridionalVelAtBottom
+
+      real (kind=RKIND), dimension(:), pointer :: normalBarotropicVel
+      real (kind=RKIND), dimension(:), pointer :: tangentialBarotropicVel
+      real (kind=RKIND), dimension(:), pointer :: zonalBarotropicVel
+      real (kind=RKIND), dimension(:), pointer :: meridionalBarotropicVel
+
+      real (kind=RKIND), dimension(:), pointer :: normalBaroclinicVelAtSFC, normalBaroclinicVelAt250m, normalBaroclinicVelAtBottom
+      real (kind=RKIND), dimension(:), pointer :: tangentialBaroclinicVelAtSFC, tangentialBaroclinicVelAt250m, tangentialBaroclinicVelAtBottom
+      real (kind=RKIND), dimension(:), pointer :: zonalBaroclinicVelAtSFC, zonalBaroclinicVelAt250m, zonalBaroclinicVelAtBottom
+      real (kind=RKIND), dimension(:), pointer :: meridionalBaroclinicVelAtSFC, meridionalBaroclinicVelAt250m, meridionalBaroclinicVelAtBottom
+
+      real (kind=RKIND), dimension(:), pointer :: normalVelCorr
+      real (kind=RKIND), dimension(:), pointer :: tangentialVelCorr
+      real (kind=RKIND), dimension(:), pointer :: zonalVelCorr
+      real (kind=RKIND), dimension(:), pointer :: meridionalVelCorr
+
+      real (kind=RKIND), dimension(:), pointer :: normalGMBolusVelAtSFC, normalGMBolusVelAt250m, normalGMBolusVelAtBottom
+      real (kind=RKIND), dimension(:), pointer :: tangentialGMBolusVelAtSFC, tangentialGMBolusVelAt250m, tangentialGMBolusVelAtBottom
+      real (kind=RKIND), dimension(:), pointer :: zonalGMBolusVelAtSFC, zonalGMBolusVelAt250m, zonalGMBolusVelAtBottom
+      real (kind=RKIND), dimension(:), pointer :: meridionalGMBolusVelAtSFC, meridionalGMBolusVelAt250m, meridionalGMBolusVelAtBottom
+
       real (kind=RKIND), dimension(:), pointer :: angleEdge
+      real (kind=RKIND), dimension(:,:), pointer :: weightsOnEdge
       real (kind=RKIND), dimension(:), pointer :: vertTransportVelocityAt250m, vertGMvelocityAt250m
       real (kind=RKIND), dimension(:), pointer :: vertVelSFC, vertTransportVelocitySFC, vertGMvelocitySFC
       real (kind=RKIND), dimension(:), pointer :: barotropicSpeed, columnIntegratedSpeed, dvEdge, dcEdge, areaCell
@@ -186,8 +212,13 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: relativeVorticity, divergence, layerThickness
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocity, tangentialVelocity, BruntVaisalaFreqTop
       real (kind=RKIND), dimension(:,:), pointer :: vertVelocityTop, vertGMBolusVelocityTop, vertTransportVelocityTop
+      real (kind=RKIND), dimension(:,:), pointer :: normalGMBolusVelocity
+      real (kind=RKIND), dimension(:,:), pointer :: normalBaroclinicVelocity ! baroclinic/barotropic pressume split explicit
+      real (kind=RKIND), dimension(:), pointer :: normalBarotropicVelocity ! baroclinic/barotropic pressume split explicit
+      real (kind=RKIND), dimension(:), pointer :: normalVelocityCorrection
       real (kind=RKIND), dimension(:,:), pointer :: divergenceTransportVel
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
+      character (len=StrKIND), pointer :: config_time_integrator
 
       ! scratch space
       type (field1DReal), pointer :: normalThicknessFluxSumField, layerThicknessSumEdgeField
@@ -229,6 +260,8 @@ contains
          call mpas_pool_get_array(diagnosticsPool, 'normalVelocity', normalVelocity)
          call mpas_pool_get_array(diagnosticsPool, 'tangentialVelocity', tangentialVelocity)
          call mpas_pool_get_array(diagnosticsPool, 'BruntVaisalaFreqTop', BruntVaisalaFreqTop)
+         call mpas_pool_get_array(diagnosticsPool, 'normalVelocityCorrection', normalVelocityCorrection)
+         call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', normalGMBolusVelocity)
 
          ! get arrays that can be written to output at high freqency
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'kineticEnergyAt250m', kineticEnergyAt250m)
@@ -250,18 +283,84 @@ contains
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertGMvelocitySFC', vertGMvelocitySFC)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertTransportVelocitySFC', vertTransportVelocitySFC)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertVelAt250m', vertVelAt250m)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalVelAtSFC', normalVelAtSFC)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalVelAt250m', normalVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalVelAtBottom', normalVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialVelAtSFC', tangentialVelAtSFC)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialVelAt250m', tangentialVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialVelAtBottom', tangentialVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalVelAtSFC', zonalVelAtSFC)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalVelAt250m', zonalVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalVelAtBottom', zonalVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalVelAtSFC', meridionalVelAtSFC)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalVelAt250m', meridionalVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalVelAtBottom', meridionalVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalBarotropicVel', normalBarotropicVel)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialBarotropicVel', tangentialBarotropicVel)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalBarotropicVel', zonalBarotropicVel)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalBarotropicVel', meridionalBarotropicVel)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalVelCorr', normalVelCorr)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialVelCorr', tangentialVelCorr)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalVelCorr', zonalVelCorr)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalVelCorr', meridionalVelCorr)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalBaroclinicVelAtSFC', normalBaroclinicVelAtSFC)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalBaroclinicVelAt250m', normalBaroclinicVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalBaroclinicVelAtBottom', normalBaroclinicVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialBaroclinicVelAtSFC', tangentialBaroclinicVelAtSFC)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialBaroclinicVelAt250m', tangentialBaroclinicVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialBaroclinicVelAtBottom', tangentialBaroclinicVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalBaroclinicVelAtSFC', zonalBaroclinicVelAtSFC)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalBaroclinicVelAt250m', zonalBaroclinicVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalBaroclinicVelAtBottom', zonalBaroclinicVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalBaroclinicVelAtSFC', meridionalBaroclinicVelAtSFC)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalBaroclinicVelAt250m', meridionalBaroclinicVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalBaroclinicVelAtBottom', meridionalBaroclinicVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalGMBolusVelAtSFC', normalGMBolusVelAtSFC)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalGMBolusVelAt250m', normalGMBolusVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalGMBolusVelAtBottom', normalGMBolusVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialGMBolusVelAtSFC', tangentialGMBolusVelAtSFC)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialGMBolusVelAt250m', tangentialGMBolusVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialGMBolusVelAtBottom', tangentialGMBolusVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalGMBolusVelAtSFC', zonalGMBolusVelAtSFC)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalGMBolusVelAt250m', zonalGMBolusVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalGMBolusVelAtBottom', zonalGMBolusVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalGMBolusVelAtSFC', meridionalGMBolusVelAtSFC)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalGMBolusVelAt250m', meridionalGMBolusVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalGMBolusVelAtBottom', meridionalGMBolusVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'BruntVaisalaFreqTopAtSFC', BruntVaisalaFreqTopAtSFC)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'BruntVaisalaFreqTopAt250m', BruntVaisalaFreqTopAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'BruntVaisalaFreqTopAtBottom', BruntVaisalaFreqTopAtBottom)
+
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertGMvelocityAt250m', vertGMvelocityAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertTransportVelocityAt250m', vertTransportVelocityAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'vertVelSFC', vertVelSFC)
-         
+
+         ! split explicit specific arrays
+         call mpas_pool_get_config(ocnConfigs, 'config_time_integrator', config_time_integrator)
+         if ( config_time_integrator == trim('split_explicit')) then
+           call mpas_pool_get_array(statePool, 'normalBaroclinicVelocity', normalBaroclinicVelocity, 1)
+           call mpas_pool_get_array(statePool, 'normalBarotropicVelocity', normalBarotropicVelocity, 1)
+         endif
+
          call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
          call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, 1)
          call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
+         call mpas_pool_get_array(meshPool, 'maxLevelEdgeBot', maxLevelEdgeBot)
          call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
          call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
          call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
@@ -270,6 +369,9 @@ contains
          call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
          call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
          call mpas_pool_get_array(meshPool, 'angleEdge', angleEdge)
+         call mpas_pool_get_array(meshPool, 'edgesOnEdge', edgesOnEdge)
+         call mpas_pool_get_array(meshPool, 'weightsOnEdge', weightsOnEdge)
+         call mpas_pool_get_array(meshPool, 'nEdgesOnEdge', nEdgesOnEdge)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'barotropicSpeed', barotropicSpeed)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'columnIntegratedSpeed', columnIntegratedSpeed)
 
@@ -356,15 +458,196 @@ contains
          ! compute barotropic kinetic energy
          !
 
-         normalVelAt250m(:) = normalVelocity(iLevelTarget,:)
-         tangentialVelAt250m(:) = tangentialVelocity(iLevelTarget,:)
-         do iEdge = 1, nEdges
-           zonalVelAt250m(iEdge) = normalVelAt250m(iEdge)*cos(angleEdge(iEdge)) &
-                                   - tangentialVelAt250m(iEdge)*sin(angleEdge(iEdge))
-           meridionalVelAt250m(iEdge) = normalVelAt250m(iEdge)*sin(angleEdge(iEdge)) &
-                                        + tangentialVelAt250m(iEdge)*cos(angleEdge(iEdge))
+         ! SFC
+         iLevelTarget = 1
+         do iCell = 1, nCells
+           BruntVaisalaFreqTopAtSFC(iCell) = BruntVaisalaFreqTop(iLevelTarget,iCell)
          end do
-         BruntVaisalaFreqTopAt250m(:) = BruntVaisalaFreqTop(iLevelTarget,:)
+         do iEdge = 1, nEdges
+           normalVelAtSFC(iEdge) = normalVelocity(iLevelTarget,iEdge)
+           tangentialVelAtSFC(iEdge) = tangentialVelocity(iLevelTarget,iEdge)
+           zonalVelAtSFC(iEdge) = normalVelAtSFC(iEdge)*cos(angleEdge(iEdge)) &
+                                  - tangentialVelAtSFC(iEdge)*sin(angleEdge(iEdge))
+           meridionalVelAtSFC(iEdge) = normalVelAtSFC(iEdge)*sin(angleEdge(iEdge)) &
+                                       + tangentialVelAtSFC(iEdge)*cos(angleEdge(iEdge))
+         end do
+
+         iLevelTarget = 1
+         do iEdge = 1, nEdges
+           normalVelCorr(iEdge) = normalVelocityCorrection(iEdge)
+         end do
+         do iEdge = 1, nEdges
+           tangentialVelCorr(iEdge) = 0.0_RKIND
+           do i = 1, nEdgesOnEdge(iEdge)
+             eoe = edgesOnEdge(i,iEdge)
+             tangentialVelCorr(iEdge) = tangentialVelCorr(iEdge) + weightsOnEdge(i,iEdge) * normalVelCorr(eoe)
+           end do
+
+           zonalVelCorr(iEdge) = normalVelCorr(iEdge)*cos(angleEdge(iEdge)) &
+             - tangentialVelCorr(iEdge)*sin(angleEdge(iEdge))
+           meridionalVelCorr(iEdge) = normalVelCorr(iEdge)*sin(angleEdge(iEdge)) &
+             + tangentialVelCorr(iEdge)*cos(angleEdge(iEdge))
+         end do
+
+         iLevelTarget = 1
+         do iEdge = 1, nEdges
+           normalGMBolusVelAtSFC(iEdge) = normalGMBolusVelocity(iLevelTarget,iEdge)
+         end do
+         do iEdge = 1, nEdges
+           tangentialGMBolusVelAtSFC(iEdge) = 0.0_RKIND
+           do i = 1, nEdgesOnEdge(iEdge)
+             eoe = edgesOnEdge(i,iEdge)
+             tangentialGMBolusVelAtSFC(iEdge) = tangentialGMBolusVelAtSFC(iEdge) + weightsOnEdge(i,iEdge) * normalGMBolusVelAtSFC(eoe)
+           end do
+
+           zonalGMBolusVelAtSFC(iEdge) = normalGMBolusVelAtSFC(iEdge)*cos(angleEdge(iEdge)) &
+             - tangentialGMBolusVelAtSFC(iEdge)*sin(angleEdge(iEdge))
+           meridionalGMBolusVelAtSFC(iEdge) = normalGMBolusVelAtSFC(iEdge)*sin(angleEdge(iEdge)) &
+             + tangentialGMBolusVelAtSFC(iEdge)*cos(angleEdge(iEdge))
+         end do
+
+         if ( config_time_integrator == trim('split_explicit')) then
+
+           iLevelTarget = 1
+           do iEdge = 1, nEdges
+             normalBarotropicVel(iEdge) = normalBarotropicVelocity(iEdge)
+           end do
+           do iEdge = 1, nEdges
+             tangentialBarotropicVel(iEdge) = 0.0_RKIND
+             do i = 1, nEdgesOnEdge(iEdge)
+               eoe = edgesOnEdge(i,iEdge)
+               tangentialBarotropicVel(iEdge) = tangentialBarotropicVel(iEdge) + weightsOnEdge(i,iEdge) * normalBarotropicVel(eoe)
+             end do
+
+             zonalBarotropicVel(iEdge) = normalBarotropicVel(iEdge)*cos(angleEdge(iEdge)) &
+               - tangentialBarotropicVel(iEdge)*sin(angleEdge(iEdge))
+             meridionalBarotropicVel(iEdge) = normalBarotropicVel(iEdge)*sin(angleEdge(iEdge)) &
+               + tangentialBarotropicVel(iEdge)*cos(angleEdge(iEdge))
+           end do
+
+           iLevelTarget = 1
+           do iEdge = 1, nEdges
+             normalBaroclinicVelAtSFC(iEdge) = normalBaroclinicVelocity(iLevelTarget,iEdge)
+           end do
+           do iEdge = 1, nEdges
+             tangentialBaroclinicVelAtSFC(iEdge) = 0.0_RKIND
+             do i = 1, nEdgesOnEdge(iEdge)
+               eoe = edgesOnEdge(i,iEdge)
+               tangentialBaroclinicVelAtSFC(iEdge) = tangentialBaroclinicVelAtSFC(iEdge) + weightsOnEdge(i,iEdge) * normalBaroclinicVelAtSFC(eoe)
+             end do
+
+             zonalBaroclinicVelAtSFC(iEdge) = normalBaroclinicVelAtSFC(iEdge)*cos(angleEdge(iEdge)) &
+               - tangentialBaroclinicVelAtSFC(iEdge)*sin(angleEdge(iEdge))
+             meridionalBaroclinicVelAtSFC(iEdge) = normalBaroclinicVelAtSFC(iEdge)*sin(angleEdge(iEdge)) &
+               + tangentialBaroclinicVelAtSFC(iEdge)*cos(angleEdge(iEdge))
+           end do
+
+         endif
+
+         ! 250m
+         iLevelTarget = iLevel0250
+         do iCell = 1, nCells
+           BruntVaisalaFreqTopAt250m(iCell) = BruntVaisalaFreqTop(iLevelTarget,iCell)
+         end do
+         do iEdge = 1, nEdges
+           normalVelAt250m(iEdge) = normalVelocity(iLevelTarget,iEdge)
+           tangentialVelAt250m(iEdge) = tangentialVelocity(iLevelTarget,iEdge)
+           zonalVelAt250m(iEdge) = normalVelAt250m(iEdge)*cos(angleEdge(iEdge)) &
+                                  - tangentialVelAt250m(iEdge)*sin(angleEdge(iEdge))
+           meridionalVelAt250m(iEdge) = normalVelAt250m(iEdge)*sin(angleEdge(iEdge)) &
+                                       + tangentialVelAt250m(iEdge)*cos(angleEdge(iEdge))
+         end do
+
+         iLevelTarget = iLevel0250
+         do iEdge = 1, nEdges
+           normalGMBolusVelAt250m(iEdge) = normalGMBolusVelocity(iLevelTarget,iEdge)
+         end do
+         do iEdge = 1, nEdges
+           tangentialGMBolusVelAt250m(iEdge) = 0.0_RKIND
+           do i = 1, nEdgesOnEdge(iEdge)
+             eoe = edgesOnEdge(i,iEdge)
+             tangentialGMBolusVelAt250m(iEdge) = tangentialGMBolusVelAt250m(iEdge) + weightsOnEdge(i,iEdge) * normalGMBolusVelAt250m(eoe)
+           end do
+
+           zonalGMBolusVelAt250m(iEdge) = normalGMBolusVelAt250m(iEdge)*cos(angleEdge(iEdge)) &
+             - tangentialGMBolusVelAt250m(iEdge)*sin(angleEdge(iEdge))
+           meridionalGMBolusVelAt250m(iEdge) = normalGMBolusVelAt250m(iEdge)*sin(angleEdge(iEdge)) &
+             + tangentialGMBolusVelAt250m(iEdge)*cos(angleEdge(iEdge))
+         end do
+
+         if ( config_time_integrator == trim('split_explicit')) then
+
+           iLevelTarget = iLevel0250
+           do iEdge = 1, nEdges
+             normalBaroclinicVelAt250m(iEdge) = normalBaroclinicVelocity(iLevelTarget,iEdge)
+           end do
+           do iEdge = 1, nEdges
+             tangentialBaroclinicVelAt250m(iEdge) = 0.0_RKIND
+             do i = 1, nEdgesOnEdge(iEdge)
+               eoe = edgesOnEdge(i,iEdge)
+               tangentialBaroclinicVelAt250m(iEdge) = tangentialBaroclinicVelAt250m(iEdge) + weightsOnEdge(i,iEdge) * normalBaroclinicVelAt250m(eoe)
+             end do
+
+             zonalBaroclinicVelAt250m(iEdge) = normalBaroclinicVelAt250m(iEdge)*cos(angleEdge(iEdge)) &
+               - tangentialBaroclinicVelAt250m(iEdge)*sin(angleEdge(iEdge))
+             meridionalBaroclinicVelAt250m(iEdge) = normalBaroclinicVelAt250m(iEdge)*sin(angleEdge(iEdge)) &
+               + tangentialBaroclinicVelAt250m(iEdge)*cos(angleEdge(iEdge))
+           end do
+
+         endif
+
+         ! bottom
+         do iCell = 1, nCells
+           iLevelTarget = maxLevelCell(iCell)
+           BruntVaisalaFreqTopAtBottom(iCell) = BruntVaisalaFreqTop(iLevelTarget,iCell)
+         end do
+         do iEdge = 1, nEdges
+           iLevelTarget = maxLevelEdgeBot(iEdge)
+           normalVelAtBottom(iEdge) = normalVelocity(iLevelTarget,iEdge)
+           tangentialVelAtBottom(iEdge) = tangentialVelocity(iLevelTarget,iEdge)
+           zonalVelAtBottom(iEdge) = normalVelAtBottom(iEdge)*cos(angleEdge(iEdge)) &
+                                  - tangentialVelAtBottom(iEdge)*sin(angleEdge(iEdge))
+           meridionalVelAtBottom(iEdge) = normalVelAtBottom(iEdge)*sin(angleEdge(iEdge)) &
+                                       + tangentialVelAtBottom(iEdge)*cos(angleEdge(iEdge))
+         end do
+
+         do iEdge = 1, nEdges
+           iLevelTarget = maxLevelEdgeBot(iEdge)
+           normalGMBolusVelAtBottom(iEdge) = normalGMBolusVelocity(iLevelTarget,iEdge)
+         end do
+         do iEdge = 1, nEdges
+           tangentialGMBolusVelAtBottom(iEdge) = 0.0_RKIND
+           do i = 1, nEdgesOnEdge(iEdge)
+             eoe = edgesOnEdge(i,iEdge)
+             tangentialGMBolusVelAtBottom(iEdge) = tangentialGMBolusVelAtBottom(iEdge) + weightsOnEdge(i,iEdge) * normalGMBolusVelAtBottom(eoe)
+           end do
+
+           zonalGMBolusVelAtBottom(iEdge) = normalGMBolusVelAtBottom(iEdge)*cos(angleEdge(iEdge)) &
+             - tangentialGMBolusVelAtBottom(iEdge)*sin(angleEdge(iEdge))
+           meridionalGMBolusVelAtBottom(iEdge) = normalGMBolusVelAtBottom(iEdge)*sin(angleEdge(iEdge)) &
+             + tangentialGMBolusVelAtBottom(iEdge)*cos(angleEdge(iEdge))
+         end do
+
+         if ( config_time_integrator == trim('split_explicit')) then
+
+           do iEdge = 1, nEdges
+             iLevelTarget = maxLevelEdgeBot(iEdge)
+             normalBaroclinicVelAtBottom(iEdge) = normalBaroclinicVelocity(iLevelTarget,iEdge)
+           end do
+           do iEdge = 1, nEdges
+             tangentialBaroclinicVelAtBottom(iEdge) = 0.0_RKIND
+             do i = 1, nEdgesOnEdge(iEdge)
+               eoe = edgesOnEdge(i,iEdge)
+               tangentialBaroclinicVelAtBottom(iEdge) = tangentialBaroclinicVelAtBottom(iEdge) + weightsOnEdge(i,iEdge) * normalBaroclinicVelAtBottom(eoe)
+             end do
+
+             zonalBaroclinicVelAtBottom(iEdge) = normalBaroclinicVelAtBottom(iEdge)*cos(angleEdge(iEdge)) &
+               - tangentialBaroclinicVelAtBottom(iEdge)*sin(angleEdge(iEdge))
+             meridionalBaroclinicVelAtBottom(iEdge) = normalBaroclinicVelAtBottom(iEdge)*sin(angleEdge(iEdge)) &
+               + tangentialBaroclinicVelAtBottom(iEdge)*cos(angleEdge(iEdge))
+           end do
+
+         endif
 
          !
          ! compute layer averaged tracers
