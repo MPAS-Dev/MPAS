@@ -519,7 +519,8 @@ contains
       call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
 
       call mpas_timer_start('vmix coefs', .false.)
-      call ocn_vmix_coefs(meshPool, statePool, forcingPool, diagnosticsPool, scratchPool, err, timeLevel)
+      ! Use old time level to compute coefficients:
+      call ocn_vmix_coefs(meshPool, statePool, forcingPool, diagnosticsPool, scratchPool, err, timeLevelIn)
       call mpas_timer_stop('vmix coefs')
 
       ! if using CVMix, then viscosity has to be averaged from cell centers to cell edges
@@ -566,7 +567,9 @@ contains
             endif
        
             if ( associated(tracersGroup) ) then
+	     if ( trim(groupItr % memberName) .ne. 'debugTracers') then
                call ocn_tracer_vmix_tend_implicit(meshPool, dt, vertDiffTopOfCell, layerThickness, tracersGroup, err)
+             endif
             end if
 
             ! difference tracers to compute influence of vertical mixing and divide by dt
