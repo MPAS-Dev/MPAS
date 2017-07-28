@@ -45,20 +45,150 @@
 		<var name="vertVelAt250m" type="real" dimensions="nCells Time" units="m s^{-1}"
 			description="vertical velocity due to normal velocity divergence at approximately 250m"
 		/>
+		<var name="normalVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="normal velocity at surface"
+		/>
 		<var name="normalVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
 			description="normal velocity at approximately 250m"
+		/>
+		<var name="normalVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="normal velocity at approximately Bottom"
+		/>
+		<var name="tangentialVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="tangential velocity at surface"
 		/>
 		<var name="tangentialVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
 			description="tangential velocity at approximately 250m"
 		/>
+		<var name="tangentialVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="tangential velocity at approximately Bottom"
+		/>
+		<var name="zonalVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="zonal velocity at surface"
+		/>
 		<var name="zonalVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
 			description="zonal velocity at approximately 250m"
+		/>
+		<var name="zonalVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="zonal velocity at approximately Bottom"
+		/>
+		<var name="meridionalVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="meridional velocity at surface"
 		/>
 		<var name="meridionalVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
 			description="meridional velocity at approximately 250m"
 		/>
+		<var name="meridionalVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="meridional velocity at approximately Bottom"
+		/>
+		<var name="normalBarotropicVel" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="normal barotropic velocity"
+		/>
+		<var name="tangentialBarotropicVel" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="tangential barotropic velocity"
+		/>
+		<var name="zonalBarotropicVel" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="zonal barotropic velocity"
+		/>
+		<var name="meridionalBarotropicVel" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="meridional barotropic velocity"
+		/>
+
+		<var name="normalBaroclinicVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="normal baroclinic velocity at surface"
+		/>
+		<var name="normalBaroclinicVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="normal baroclinic velocity at 250m"
+		/>
+		<var name="normalBaroclinicVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="normal baroclinic velocity at bottom"
+		/>
+		<var name="tangentialBaroclinicVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="tangential baroclinic velocity at surface"
+		/>
+		<var name="tangentialBaroclinicVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="tangential baroclinic velocity at 250m"
+		/>
+		<var name="tangentialBaroclinicVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="tangential baroclinic velocity at bottom"
+		/>
+		<var name="zonalBaroclinicVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="zonal baroclinic velocity at surface"
+		/>
+		<var name="zonalBaroclinicVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="zonal baroclinic velocity at 250m"
+		/>
+		<var name="zonalBaroclinicVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="zonal baroclinic velocity at bottom"
+		/>
+		<var name="meridionalBaroclinicVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="meridional baroclinic velocity at surface"
+		/>
+		<var name="meridionalBaroclinicVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="meridional baroclinic velocity at 250m"
+		/>
+		<var name="meridionalBaroclinicVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="meridional baroclinic velocity at bottom"
+		/>
+
+		<var name="normalVelCorr" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="normal velocity correction"
+		/>
+		<var name="tangentialVelCorr" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="tangential velocity correction"
+		/>
+		<var name="zonalVelCorr" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="zonal velocity correction"
+		/>
+		<var name="meridionalVelCorr" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			description="meridional velocity correction"
+		/>
+
+		<var name="normalGMBolusVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="normal Bolus velocity in Gent-McWilliams eddy parameterization at the surface"
+		/>
+		<var name="normalGMBolusVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="normal Bolus velocity in Gent-McWilliams eddy parameterization at 250m"
+		/>
+		<var name="normalGMBolusVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="normal Bolus velocity in Gent-McWilliams eddy parameterization at the bottom"
+		/>
+		<var name="tangentialGMBolusVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="tangential Bolus velocity in Gent-McWilliams eddy parameterization at the surface"
+		/>
+		<var name="tangentialGMBolusVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="tangential Bolus velocity in Gent-McWilliams eddy parameterization at 250m"
+		/>
+		<var name="tangentialGMBolusVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="tangential Bolus velocity in Gent-McWilliams eddy parameterization at the bottom"
+		/>
+		<var name="zonalGMBolusVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="zonal Bolus velocity in Gent-McWilliams eddy parameterization at the surface"
+		/>
+		<var name="zonalGMBolusVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="zonal Bolus velocity in Gent-McWilliams eddy parameterization at 250m"
+		/>
+		<var name="zonalGMBolusVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="zonal Bolus velocity in Gent-McWilliams eddy parameterization at the bottom"
+		/>
+		<var name="meridionalGMBolusVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="meridional Bolus velocity in Gent-McWilliams eddy parameterization at the surface"
+		/>
+		<var name="meridionalGMBolusVelAt250m" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="meridional Bolus velocity in Gent-McWilliams eddy parameterization at 250m"
+		/>
+		<var name="meridionalGMBolusVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
+			 description="meridional Bolus velocity in Gent-McWilliams eddy parameterization at the bottom"
+		/>
+
+		<var name="BruntVaisalaFreqTopAtSFC" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="Brunt Vaisala Frequency at surface"
+		/>
 		<var name="BruntVaisalaFreqTopAt250m" type="real" dimensions="nCells Time" units="m s^{-1}"
 			description="Brunt Vaisala Frequency at approximately 250m"
+		/>
+		<var name="BruntVaisalaFreqTopAtBottom" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="Brunt Vaisala Frequency at approximately Bottom"
 		/>
 		<var name="kineticEnergyAt250m" type="real" dimensions="nCells Time" units="m^2 s^{-2}"
 			description="kinetic energy at a depth of approximately 250 m"
