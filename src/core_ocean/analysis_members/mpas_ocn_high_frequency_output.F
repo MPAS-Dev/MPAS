@@ -168,7 +168,7 @@ contains
       integer, dimension(:), pointer :: nEdgesOnCell, maxLevelEdgeTop, maxLevelEdgeBot, maxLevelCell, nEdgesOnEdge
       integer, dimension(:,:), pointer :: edgesOnCell, cellsOnEdge, edgesOnEdge
 
-      real (kind=RKIND) :: invAreaCell1, layerThicknessEdge1, coeff
+      real (kind=RKIND) :: invAreaCell1, layerThicknessEdge1, coeff, weightedNormalVel, cellArea
       real (kind=RKIND), dimension(:), pointer :: refBottomDepth, kineticEnergyAt250m, kineticEnergyAtSurface, relativeVorticityAt250m
       real (kind=RKIND), dimension(:), pointer :: divergenceAt250m, relativeVorticityVertexAt250m
       real (kind=RKIND), dimension(:), pointer :: divergenceAtBottom,relativeVorticityAtBottom,kineticEnergyAtBottom
@@ -179,6 +179,9 @@ contains
       real (kind=RKIND), dimension(:), pointer :: tangentialVelAtSFC, tangentialVelAt250m, tangentialVelAtBottom
       real (kind=RKIND), dimension(:), pointer :: zonalVelAtSFC, zonalVelAt250m, zonalVelAtBottom
       real (kind=RKIND), dimension(:), pointer :: meridionalVelAtSFC, meridionalVelAt250m, meridionalVelAtBottom
+
+      real (kind=RKIND), dimension(:), pointer :: zonalAreaWeightedCellVelAtSFC, zonalAreaWeightedCellVelAt250m, zonalAreaWeightedCellVelAtBottom
+      real (kind=RKIND), dimension(:), pointer :: meridionalAreaWeightedCellVelAtSFC, meridionalAreaWeightedCellVelAt250m, meridionalAreaWeightedCellVelAtBottom
 
       real (kind=RKIND), dimension(:), pointer :: normalBarotropicVel
       real (kind=RKIND), dimension(:), pointer :: tangentialBarotropicVel
@@ -299,6 +302,14 @@ contains
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalVelAtSFC', meridionalVelAtSFC)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalVelAt250m', meridionalVelAt250m)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalVelAtBottom', meridionalVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalAreaWeightedCellVelAtSFC', zonalAreaWeightedCellVelAtSFC)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalAreaWeightedCellVelAt250m', zonalAreaWeightedCellVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'zonalAreaWeightedCellVelAtBottom', zonalAreaWeightedCellVelAtBottom)
+
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalAreaWeightedCellVelAtSFC', meridionalAreaWeightedCellVelAtSFC)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalAreaWeightedCellVelAt250m', meridionalAreaWeightedCellVelAt250m)
+         call mpas_pool_get_array(highFrequencyOutputAMPool, 'meridionalAreaWeightedCellVelAtBottom', meridionalAreaWeightedCellVelAtBottom)
 
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'normalBarotropicVel', normalBarotropicVel)
          call mpas_pool_get_array(highFrequencyOutputAMPool, 'tangentialBarotropicVel', tangentialBarotropicVel)
@@ -648,6 +659,61 @@ contains
            end do
 
          endif
+
+         !
+         ! compute Perot reconstructed cell-centered velocities
+         !
+
+         do iCell = 1, nCells
+           zonalAreaWeightedCellVelAtSFC(iCell) = 0.0_RKIND
+           meridionalAreaWeightedCellVelAtSFC(iCell) = 0.0_RKIND
+           cellArea = 0.0_RKIND
+            do i = 1, nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i, iCell)
+               ! note, we don't necessarily have d_{i,j} computed (Fringer, 2006), so we allow averaging between cells via 0.5_RKIND*dcEdge(iEdge) to compute
+               ! segment of cell area d_{i,j}-- the key is that the edge-normal velocities are a convex combination
+               cellArea = cellArea + 0.5_RKIND*dcEdge(iEdge)*dvEdge(iEdge)
+               weightedNormalVel = normalVelAtSFC(iEdge)*0.5_RKIND*dcEdge(iEdge)*dvEdge(iEdge)
+               zonalAreaWeightedCellVelAtSFC(iCell) = zonalAreaWeightedCellVelAtSFC(iCell) + cos(angleEdge(iEdge)) * weightedNormalVel
+               meridionalAreaWeightedCellVelAtSFC(iCell) = meridionalAreaWeightedCellVelAtSFC(iCell) + sin(angleEdge(iEdge)) * weightedNormalVel
+           end do
+           zonalAreaWeightedCellVelAtSFC(iCell) = zonalAreaWeightedCellVelAtSFC(iCell)/cellArea
+           meridionalAreaWeightedCellVelAtSFC(iCell) = meridionalAreaWeightedCellVelAtSFC(iCell)/cellArea
+         end do
+
+         do iCell = 1, nCells
+           zonalAreaWeightedCellVelAt250m(iCell) = 0.0_RKIND
+           meridionalAreaWeightedCellVelAt250m(iCell) = 0.0_RKIND
+           cellArea = 0.0_RKIND
+            do i = 1, nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i, iCell)
+               ! note, we don't necessarily have d_{i,j} computed (Fringer, 2006), so we allow averaging between cells via 0.5_RKIND*dcEdge(iEdge) to compute
+               ! segment of cell area d_{i,j}-- the key is that the edge-normal velocities are a convex combination
+               cellArea = cellArea + 0.5_RKIND*dcEdge(iEdge)*dvEdge(iEdge)
+               weightedNormalVel = normalVelAt250m(iEdge)*0.5_RKIND*dcEdge(iEdge)*dvEdge(iEdge)
+               zonalAreaWeightedCellVelAt250m(iCell) = zonalAreaWeightedCellVelAt250m(iCell) + cos(angleEdge(iEdge)) * weightedNormalVel
+               meridionalAreaWeightedCellVelAt250m(iCell) = meridionalAreaWeightedCellVelAt250m(iCell) + sin(angleEdge(iEdge)) * weightedNormalVel
+           end do
+           zonalAreaWeightedCellVelAt250m(iCell) = zonalAreaWeightedCellVelAt250m(iCell)/cellArea
+           meridionalAreaWeightedCellVelAt250m(iCell) = meridionalAreaWeightedCellVelAt250m(iCell)/cellArea
+         end do
+
+         do iCell = 1, nCells
+           zonalAreaWeightedCellVelAtBottom(iCell) = 0.0_RKIND
+           meridionalAreaWeightedCellVelAtBottom(iCell) = 0.0_RKIND
+           cellArea = 0.0_RKIND
+            do i = 1, nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i, iCell)
+               ! note, we don't necessarily have d_{i,j} computed (Fringer, 2006), so we allow averaging between cells via 0.5_RKIND*dcEdge(iEdge) to compute
+               ! segment of cell area d_{i,j}-- the key is that the edge-normal velocities are a convex combination
+               cellArea = cellArea + 0.5_RKIND*dcEdge(iEdge)*dvEdge(iEdge)
+               weightedNormalVel = normalVelAtBottom(iEdge)*0.5_RKIND*dcEdge(iEdge)*dvEdge(iEdge)
+               zonalAreaWeightedCellVelAtBottom(iCell) = zonalAreaWeightedCellVelAtBottom(iCell) + cos(angleEdge(iEdge)) * weightedNormalVel
+               meridionalAreaWeightedCellVelAtBottom(iCell) = meridionalAreaWeightedCellVelAtBottom(iCell) + sin(angleEdge(iEdge)) * weightedNormalVel
+           end do
+           zonalAreaWeightedCellVelAtBottom(iCell) = zonalAreaWeightedCellVelAtBottom(iCell)/cellArea
+           meridionalAreaWeightedCellVelAtBottom(iCell) = meridionalAreaWeightedCellVelAtBottom(iCell)/cellArea
+         end do
 
          !
          ! compute layer averaged tracers

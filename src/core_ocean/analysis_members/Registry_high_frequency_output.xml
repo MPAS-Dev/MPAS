@@ -72,6 +72,15 @@
 		<var name="zonalVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
 			description="zonal velocity at approximately Bottom"
 		/>
+		<var name="zonalAreaWeightedCellVelAtSFC" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="area-weighted cell zonal velocity at surface"
+		/>
+		<var name="zonalAreaWeightedCellVelAt250m" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="area-weighted cell zonal velocity at approximately 250m"
+		/>
+		<var name="zonalAreaWeightedCellVelAtBottom" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="area-weighted cell zonal velocity at approximately Bottom"
+		/>
 		<var name="meridionalVelAtSFC" type="real" dimensions="nEdges Time" units="m s^{-1}"
 			description="meridional velocity at surface"
 		/>
@@ -80,6 +89,15 @@
 		/>
 		<var name="meridionalVelAtBottom" type="real" dimensions="nEdges Time" units="m s^{-1}"
 			description="meridional velocity at approximately Bottom"
+		/>
+		<var name="meridionalAreaWeightedCellVelAtSFC" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="area-weighted cell meridional velocity at surface"
+		/>
+		<var name="meridionalAreaWeightedCellVelAt250m" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="area-weighted cell meridional velocity at approximately 250m"
+		/>
+		<var name="meridionalAreaWeightedCellVelAtBottom" type="real" dimensions="nCells Time" units="m s^{-1}"
+			description="area-weighted cell meridional velocity at approximately Bottom"
 		/>
 		<var name="normalBarotropicVel" type="real" dimensions="nEdges Time" units="m s^{-1}"
 			description="normal barotropic velocity"
