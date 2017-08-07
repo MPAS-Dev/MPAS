@@ -310,9 +310,8 @@ contains
          enddo
 
          ! Apply bottom drag boundary condition on the viscous term
-         ! second line uses sqrt(2.0*kineticEnergyEdge(k,iEdge))
-         B(N) = 1 - A(N) + dt*config_bottom_drag_coeff  &
-              * sqrt(kineticEnergyCell(k,cell1) + kineticEnergyCell(k,cell2)) / layerThicknessEdge(k,iEdge)
+         B(N) = 1.0_RKIND - A(N) + dt*config_bottom_drag_coeff  &
+              * abs(normalVelocity(N,iEdge)) / layerThicknessEdge(N,iEdge)
 
          call tridiagonal_solve(A(2:N),B,C(1:N-1),normalVelocity(:,iEdge),velTemp,N)
 
