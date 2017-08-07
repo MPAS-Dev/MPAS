@@ -39,6 +39,18 @@
 			description="maximum allowable difference between surface salinity and climatology"
 			possible_values="any non-negative number"
 		/>
+		<nml_option name="config_correct_surfaceHeatFlux_RainEvap" type="logical" default_value=".false." units="unitless"
+			description="if true, apply a uniform global correction for temperature flux from rain and evaporation" 
+			possible_values=".true. or .false."
+		/>
+		<nml_option name="config_correct_surfaceHeatFlux_Runoff" type="logical" default_value=".false." units="unitless"
+			description="if true, apply a uniform global correction for temperature flux from runoff"
+			possible_values=".true. or .false."
+		/>
+		<nml_option name="config_correct_surfaceHeatFlux_SeaIce" type="logical" default_value=".false." units="unitless"
+			description="if true, apply a uniform global correction for temperature flux from sea ice"
+			possible_values=".true. or .false."
+		/>
 	</nml_record>
 
 	<packages>

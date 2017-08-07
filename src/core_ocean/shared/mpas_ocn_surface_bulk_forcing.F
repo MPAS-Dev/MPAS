@@ -389,8 +389,10 @@ contains
       !
       !-----------------------------------------------------------------
 
+      logical, pointer :: config_correct_surfaceHeatFlux_RainEvap, config_correct_surfaceHeatFlux_Runoff, config_correct_surfaceHeatFlux_SeaIce
+
       integer :: iCell, nCells
-      integer, pointer :: index_temperature_flux, index_salinity_flux
+      integer, pointer :: index_temperature_flux, index_salinity_flux, nCellsSolve
       integer, dimension(:), pointer :: nCellsArray
 
       type(mpas_pool_type),pointer :: tracersSurfaceFluxPool
@@ -399,18 +401,24 @@ contains
                                                   seaIceHeatFlux, evaporationFlux, riverRunoffFlux
       real (kind=RKIND), dimension(:), pointer :: seaIceFreshWaterFlux, seaIceSalinityFlux, iceRunoffFlux
       real (kind=RKIND), dimension(:), pointer :: shortWaveHeatFlux, penetrativeTemperatureFlux
-      real (kind=RKIND), dimension(:), pointer :: snowFlux, rainFlux
-      real (kind=RKIND) :: requiredSalt, allowedSalt
+      real (kind=RKIND), dimension(:), pointer :: snowFlux, rainFlux, areaCell, surfaceHeatFluxSums
+      real (kind=RKIND) :: requiredSalt, allowedSalt, fluxTerm
 
       err = 0
+
+      call mpas_pool_get_config(ocnConfigs,'config_correct_surfaceHeatFlux_RainEvap',config_correct_surfaceHeatFlux_RainEvap)
+      call mpas_pool_get_config(ocnConfigs,'config_correct_surfaceHeatFlux_Runoff',config_correct_surfaceHeatFlux_Runoff)
+      call mpas_pool_get_config(ocnConfigs,'config_correct_surfaceHeatFlux_SeaIce',config_correct_surfaceHeatFlux_SeaIce)
 
       call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
 
       call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux',tracersSurfaceFluxPool)
 
+      call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
       call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_temperatureSurfaceFlux', index_temperature_flux)
       call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_salinitySurfaceFlux', index_salinity_flux)
 
+      call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
       call mpas_pool_get_array(forcingPool, 'latentHeatFlux', latentHeatFlux)
       call mpas_pool_get_array(forcingPool, 'sensibleHeatFlux', sensibleHeatFlux)
       call mpas_pool_get_array(forcingPool, 'longWaveHeatFluxUp', longWaveHeatFluxUp)
@@ -426,8 +434,10 @@ contains
       call mpas_pool_get_array(forcingPool, 'iceRunoffFlux', iceRunoffFlux)
       call mpas_pool_get_array(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
       call mpas_pool_get_array(forcingPool, 'penetrativeTemperatureFlux', penetrativeTemperatureFlux)
+      call mpas_pool_get_array(forcingPool, 'surfaceHeatFluxSums', surfaceHeatFluxSums)
 
       nCells = nCellsArray( 2 )
+      surfaceHeatFluxSums = 0.0_RKIND
 
       ! Build surface fluxes at cell centers
       !$omp do schedule(runtime) private(allowedSalt, requiredSalt)
@@ -466,21 +476,49 @@ contains
       ! indices on tracerGroup are (iTracer, iLevel, iCell)
       if (bulkThicknessFluxOn) then
          !$omp do schedule(runtime)
-         do iCell = 1, nCells
+         do iCell = 1, nCellsSolve
 
            ! Accumulate fluxes that use the surface temperature
-           tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) &
-                      + (rainFlux(iCell) + evaporationFlux(iCell)) * tracerGroup(index_temperature_flux,1,iCell) / rho_sw
+           fluxTerm = (rainFlux(iCell) + evaporationFlux(iCell)) * tracerGroup(index_temperature_flux,1,iCell) / rho_sw
+           tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) + fluxTerm
+           surfaceHeatFluxSums(1) = surfaceHeatFluxSums(1) + fluxTerm * areaCell(iCell)
 
            ! Runoff can only have a minimum temperature of 0.0C, since it is fresh water.
-           tracersSurfaceFluxRunoff(index_temperature_flux,iCell) = riverRunoffFlux(iCell) &
-                      * max(tracerGroup(index_temperature_flux,1,iCell), 0.0_RKIND) / rho_sw
+           fluxTerm = riverRunoffFlux(iCell) * max(tracerGroup(index_temperature_flux,1,iCell), 0.0_RKIND) / rho_sw
+           tracersSurfaceFluxRunoff(index_temperature_flux,iCell) = fluxTerm
+           surfaceHeatFluxSums(2) = surfaceHeatFluxSums(2) + fluxTerm * areaCell(iCell)
 
            ! Accumulate fluxes that use the freezing point
-           tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) &
-               + seaIceFreshWaterFlux(iCell) * ocn_freezing_temperature( tracerGroup(index_salinity_flux, 1, iCell) , &
+           fluxTerm = seaIceFreshWaterFlux(iCell) * ocn_freezing_temperature( tracerGroup(index_salinity_flux, 1, iCell) , &
                                                                          pressure=0.0_RKIND, &
                                                                          inLandIceCavity=.false.) / rho_sw
+           tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) + fluxTerm
+           surfaceHeatFluxSums(3) = surfaceHeatFluxSums(3) + fluxTerm * areaCell(iCell)
+
+           ! Fields with zero temperature are not accumulated. These include:
+           !    snowFlux
+           !    iceRunoffFlux
+
+         end do
+
+         ! This loop is split because the correction sums are only collected
+         ! for active cells, not halo cells.
+! mrp: I need to know whether to add !$omp do schedule(runtime) here.
+         do iCell = nCellsSolve+1,nCells
+
+           ! Accumulate fluxes that use the surface temperature
+           fluxTerm = (rainFlux(iCell) + evaporationFlux(iCell)) * tracerGroup(index_temperature_flux,1,iCell) / rho_sw
+           tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) + fluxTerm
+
+           ! Runoff can only have a minimum temperature of 0.0C, since it is fresh water.
+           fluxTerm = riverRunoffFlux(iCell) * max(tracerGroup(index_temperature_flux,1,iCell), 0.0_RKIND) / rho_sw
+           tracersSurfaceFluxRunoff(index_temperature_flux,iCell) = fluxTerm
+
+           ! Accumulate fluxes that use the freezing point
+           fluxTerm = seaIceFreshWaterFlux(iCell) * ocn_freezing_temperature( tracerGroup(index_salinity_flux, 1, iCell) , &
+                                                                         pressure=0.0_RKIND, &
+                                                                         inLandIceCavity=.false.) / rho_sw
+           tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) + fluxTerm
 
            ! Fields with zero temperature are not accumulated. These include:
            !    snowFlux
@@ -488,6 +526,7 @@ contains
 
          end do
          !$omp end do
+
       endif ! bulkThicknessFluxOn
 
       ! convert short wave heat flux to a temperature flux

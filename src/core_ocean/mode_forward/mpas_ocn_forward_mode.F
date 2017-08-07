@@ -110,14 +110,14 @@ module ocn_forward_mode
       type (block_type), pointer :: block
 
       integer :: err_tmp
-      integer, pointer :: nVertLevels
-      real (kind=RKIND) :: maxDensity, maxDensity_global
-      real (kind=RKIND), dimension(:), pointer :: meshDensity
+      integer, pointer :: nVertLevels, nCellsSolve
+      real (kind=RKIND) :: maxDensity, maxDensity_global, areaCellLocalSum
+      real (kind=RKIND), dimension(:), pointer :: meshDensity, areaCell
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: diagnosticsPool
 
       character (len=StrKIND), pointer :: xtime, simulationStartTime
-      real (kind=RKIND), pointer :: daysSinceStartOfSim
+      real (kind=RKIND), pointer :: daysSinceStartOfSim, areaCellTotal
       type (MPAS_Time_type) :: xtime_timeType, simulationStartTime_timeType
       type (MPAS_Time_Type) :: startTime
       type (MPAS_TimeInterval_type) :: timeStep
@@ -300,6 +300,18 @@ module ocn_forward_mode
         call mpas_dmpar_max_real(domain % dminfo, maxDensity, maxDensity_global)
         config_maxMeshDensity = maxDensity_global
       endif
+
+      ! find the global sum of areaCell
+      block => domain % blocklist
+      do while (associated(block))
+         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+         call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
+         call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
+         areaCellLocalSum = sum(areaCell(1:nCellsSolve))
+         block => block % next
+      end do
+      call mpas_pool_get_array(meshPool,'areaCellTotal',areaCellTotal)
+      call mpas_dmpar_sum_real(domain % dminfo, areaCellLocalSum, areaCellTotal)
 
       !
       ! Initialize core

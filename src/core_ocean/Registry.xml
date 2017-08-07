@@ -1883,6 +1883,9 @@
 		<var name="areaCell" type="real" dimensions="nCells" units="m^2"
 			 description="Area of each cell in the primary grid."
 		/>
+		<var name="areaCellTotal" type="real" dimensions="" units="m^2"
+			 description="Global sum of area cell"
+		/>
 		<var name="areaTriangle" type="real" dimensions="nVertices" units="m^2"
 			 description="Area of each cell (triangle) in the dual grid."
 		/>
@@ -2649,6 +2652,9 @@
 		<var name="shortWaveHeatFlux" type="real" dimensions="nCells Time" units="W m^{-2}"
 			 description="Short wave flux at cell centers from coupler. Positive into the ocean."
 			 packages="activeTracersBulkRestoringPKG;ecosysTracersPKG"
+		/>
+		<var name="surfaceHeatFluxSums" type="real" dimensions="R3"  units="^\circ C m s^{-1}"
+			description="Sum of surface heat used for corrections, indices are: (1) rain and evaporation (2) runoff (3) sea ice"
 		/>
 
 
