@@ -91,11 +91,12 @@ contains
                                         tracersSurfaceRestoringFieldsPool, &
                                         tracersInteriorRestoringFieldsPool
 
-      integer :: nCellsSolve
+      integer,parameter :: seed = 2017
+      integer :: nCellsSolve, spot
       integer, pointer :: nVertLevels, nVertLevelsP1, nEdgesSolve, nVerticesSolve
       integer, pointer :: index_temperature, index_salinity, index_tracer1
 
-      integer, dimension(:), pointer :: maxLevelCell,nCellsArray
+      integer, dimension(:), pointer :: cullCell,maxLevelCell,nCellsArray
       real (kind=RKIND), dimension(:), pointer :: refBottomDepth, refZMid, vertCoordMovementWeights
       real (kind=RKIND), dimension(:), pointer :: windStressZonal, windStressMeridional
       real (kind=RKIND), dimension(:), pointer :: latentHeatFlux, sensibleHeatFlux, shortWaveHeatFlux
@@ -107,7 +108,7 @@ contains
       real (kind=RKIND), dimension(:, :), pointer ::    activeTracersPistonVelocity, activeTracersSurfaceRestoringValue
       real (kind=RKIND), dimension(:, :, :), pointer :: activeTracersInteriorRestoringValue, activeTracersInteriorRestoringRate
 
-      real (kind=RKIND) :: xMin, xMax, yMin, yMax, yMinGlobal, yMaxGlobal, dcEdgeMin, dcEdgeMinGlobal
+      real (kind=RKIND) :: randN, xMin, xMax, yMin, yMax, yMinGlobal, yMaxGlobal, dcEdgeMin, dcEdgeMinGlobal
 
       real (kind=RKIND), dimension(:), pointer :: interfaceLocations
       integer :: directionProperty
@@ -123,7 +124,9 @@ contains
 
       logical, pointer :: config_cvmix_WSwSBF_wind_zonal_variation
 
-      logical, pointer :: config_cvmix_WSwSBF_useSeaMount
+      logical, pointer :: config_cvmix_WSwSBF_useSeaMount, config_cvmix_WSwSBF_bottom_noise
+
+      logical, pointer :: config_cvmix_WSwSBF_useIsland, config_write_cull_cell_mask
 
       real(kind=RKIND), pointer :: y_period
 
@@ -160,9 +163,17 @@ contains
                                           config_cvmix_WSwSBF_seaMountHeight, &
                                           config_cvmix_WSwSBF_seaMount_xCenter, &
                                           config_cvmix_WSwSBF_seaMount_yCenter, &
-                                          config_cvmix_WSwSBF_seaMountWidth
+                                          config_cvmix_WSwSBF_seaMountWidth, &
+                                          config_cvmix_WSwSBF_smooth_radius, &
+                                          config_cvmix_WSwSBF_smooth_xctr, &
+                                          config_cvmix_WSwSBF_smooth_yctr, &
+                                          config_cvmix_WSwSBF_island_radius, &
+                                          config_cvmix_WSwSBF_island_xctr, &
+                                          config_cvmix_WSwSBF_island_yctr
 
       integer, pointer :: config_cvmix_ocean_debug_tracer_min_levels, config_cvmix_ocean_debug_tracer_max_levels	
+
+      integer, pointer :: config_cvmix_WSwSBF_max_dz
 
       real(kind=RKIND) :: dist, xCenter, yCenter, tracerRadius
 
@@ -239,7 +250,27 @@ contains
                 config_cvmix_WSwSBF_seaMount_xCenter)
       call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_seaMount_yCenter', &
                 config_cvmix_WSwSBF_seaMount_yCenter)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_bottom_noise', &
+                config_cvmix_WSwSBF_bottom_noise)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_smooth_radius', &
+                config_cvmix_WSwSBF_smooth_radius)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_smooth_xctr', &
+                config_cvmix_WSwSBF_smooth_xctr)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_smooth_yctr', &  
+                config_cvmix_WSwSBF_smooth_yctr)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_max_dz', &
+                config_cvmix_WSwSBF_max_dz)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_useIsland', &
+                config_cvmix_WSwSBF_useIsland)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_island_xctr', &
+                config_cvmix_WSwSBF_island_xctr)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_island_yctr', &
+                config_cvmix_WSwSBF_island_yctr)
+      call mpas_pool_get_config(domain % configs, 'config_cvmix_WSwSBF_island_radius', &
+                config_cvmix_WSwSBF_island_radius)
 
+      call mpas_pool_get_config(domain % configs, 'config_write_cull_cell_mask',      &
+                config_write_cull_cell_mask)
       ! load data that required to initialize the ocean simulation
       block_ptr => domain % blocklist
       do while(associated(block_ptr))
@@ -276,6 +307,7 @@ contains
         call mpas_pool_get_array(meshPool, 'yCell', yCell)
         call mpas_pool_get_array(meshPool, 'yEdge', yEdge)
         call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
+        call mpas_pool_get_array(meshPool, 'cullCell', cullCell)
 
         call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
 
@@ -348,6 +380,7 @@ contains
           end if
         end do
         end if
+
         if(associated(debugTracers)) then
           do iCell = 1, nCellsSolve
              do k=1,nVertLevels
@@ -362,10 +395,38 @@ contains
                   config_cvmix_WSwSBF_seaMountWidth**2 + (xCell(iCell) - &
                   config_cvmix_WSwSBF_seaMount_yCenter)**2 / config_cvmix_WSwSBF_seaMountWidth**2))
                 bottomDepth(iCell) = max(bottomDepth(iCell),0.0_RKIND)
+        elseif ( config_cvmix_WSwSBF_bottom_noise ) then
+                dist = sqrt((xCell(iCell) - config_cvmix_WSwSBF_smooth_xctr)**2 +   &
+                          (yCell(iCell) - config_cvmix_WSwSBF_smooth_yctr)**2)
+                if ( dist < config_cvmix_WSwSBF_smooth_radius ) then
+                   bottomDepth(iCell) = refBottomDepth(nVertLevels - config_cvmix_WSwSBF_max_dz)
+                else
+                   
+                   call srand(seed) 
+                   randN = rand(seed)
+
+                   if ( randN >= 0.5 ) then
+                      spot = nVertLevels - 2*config_cvmix_WSwSBF_max_dz
+                      bottomDepth(iCell) = refBottomDepth(spot)
+                   else
+                      bottomDepth(iCell) = refBottomDepth(nVertLevels)
+                   endif
+                endif
         else
                 bottomDepth(iCell) = config_cvmix_WSwSBF_bottom_depth
         endif
 
+        if (config_write_cull_cell_mask .and. config_cvmix_WSwSBF_useIsland) then
+           dist = sqrt((xCell(iCell) - config_cvmix_WSwSBF_island_xctr)**2 +   &
+                     (yCell(iCell) - config_cvmix_WSwSBF_island_yctr)**2)
+           if (dist < config_cvmix_WSwSBF_island_radius) then
+                        cullCell(iCell) = 1
+           endif
+
+           bottomDepth(iCell) = config_cvmix_WSwSBF_bottom_depth
+        endif
+
+        print *, iCell
         maxLevelCell(iCell) = nVertLevels
         do k=1,nVertLevels
           if (refZmid(k) < -bottomDepth(iCell)) then

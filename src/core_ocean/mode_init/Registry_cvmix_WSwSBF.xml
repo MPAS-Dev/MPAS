@@ -158,5 +158,43 @@
                 <nml_option name="config_cvmix_WSwSBF_seaMount_yCenter" type="real" default_value="2E6" units="m"
                         description="center position of seamount in y"
                         possible_values="positive real numbers"
+		/>
+		<nml_option name="config_cvmix_WSwSBF_bottom_noise" type="logical" default_value=".false." units="NA"
+                        description="flag for using bottom noise in bathymetry"
+                        possible_values=".true. or .false."
+		/>
+ 		<nml_option name="config_cvmix_WSwSBF_smooth_radius" type="real" default_value="1E6" units="m"
+                        description="radius of smooth bathymetry patch"
+                        possible_values="positive real numbers"
                 />
+                <nml_option name="config_cvmix_WSwSBF_smooth_xctr" type="real" default_value="2E6" units="m"
+                        description="center position of smooth patch in x"
+                        possible_values="positive real numbers"
+                />
+                <nml_option name="config_cvmix_WSwSBF_smooth_yctr" type="real" default_value="2E6" units="m"
+                        description="center position of smooth patch in y"
+                        possible_values="positive real numbers"
+		/>
+		<nml_option name="config_cvmix_WSwSBF_max_dz" type="integer" default_value="1" units="NA"
+			description="size of bathymetry perturbation in grid level units"
+			possible_values="possible values less than nVertLevels"
+		/>
+		<nml_option name="config_cvmix_WSwSBF_useIsland" type="logical" default_value=".false." units="NA"
+			description="flag to use an island in domain"
+			possible_values=".true. or .false."
+		/>
+		<nml_option name="config_cvmix_WSwSBF_island_radius" type="real" default_value="1E6" units="m"
+                        description="width of island in meters"
+                        possible_values="positive real numbers"
+                />
+                <nml_option name="config_cvmix_WSwSBF_island_xctr" type="real" default_value="2E6" units="m"
+                        description="center position of island in x"
+                        possible_values="positive real numbers"
+                />
+                <nml_option name="config_cvmix_WSwSBF_island_yctr" type="real" default_value="2E6" units="m"
+                        description="center position of island in y"
+                        possible_values="positive real numbers"
+		/>
+		
+
 	</nml_record>
