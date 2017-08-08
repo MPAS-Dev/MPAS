@@ -1,5 +1,5 @@
 	<dims>
-		<dim name="nLayerVolWeightedAvgFields" definition="22" units="unitless"
+		<dim name="nLayerVolWeightedAvgFields" definition="28" units="unitless"
 			 description="A number equal to or greater than the number of var arrays in the layerVolumeWeightedAverageAM var structure below."
 		/>
 		<dim name="nOceanRegionsTmp" definition="7" units="unitless"
@@ -84,7 +84,25 @@
                         <var name="minLayerSalinityAdv" array_group="layerMins" units="PSU s^{-1}"
                                  description="Minimum salinity advection within region layer"
                         />
-                        <var name="minLayerTemperatureVertMix" array_group="layerMins" units="C s^{-1}"
+			<var name="minLayerTemperatureSfcFlux" array_group="layerMins" units="C s^{-1}"
+                                 description="Minimum temperature surface flux tend within region layer"
+                        />
+                        <var name="minLayerSalinitySfcFlux" array_group="layerMins" units="PSU s^{-1}"
+                                 description="Minimum salinity surface flux tend within region layer"
+                        />
+			<var name="minLayerTemperatureSW" array_group="layerMins" units="C s^{-1}"
+                                 description="Minimum temperature short wave tend within region layer"
+                        />
+                        <var name="minLayerSalinitySW" array_group="layerMins" units="PSU s^{-1}"
+                                 description="Minimum salinity short wave tend within region layer"
+                        />
+			<var name="minLayerTemperatureNL" array_group="layerMins" units="C s^{-1}"
+                                 description="Minimum temperature non local tend within region layer"
+                        />
+                        <var name="minLayerSalinityNL" array_group="layerMins" units="PSU s^{-1}"
+                                 description="Minimum salinity kpp non local tend within region layer"
+                        />
+			<var name="minLayerTemperatureVertMix" array_group="layerMins" units="C s^{-1}"
                                  description="Minimum temperature vertical mixing within region layer"
                         />
                         <var name="minLayerSalinityVertMix" array_group="layerMins" units="PSU s^{-1}"
@@ -143,7 +161,25 @@
                         <var name="minVolumeSalinityAdv" array_group="volumeMins" units="PSU s^{-1}"
                                  description="Minimum salinity advection within region volumeMins"
                         />
-                        <var name="minVolumeTemperatureVertMix" array_group="volumeMins" units="C s^{-1}"
+			<var name="minVolumeTemperatureSfcFlux" array_group="volumeMins" units="C s^{-1}"
+                                 description="Minimum temperature surface flux tend within region volumeMins"
+                        />
+                        <var name="minVolumeSalinitySfcFlux" array_group="volumeMins" units="PSU s^{-1}"
+                                 description="Minimum salinity surface flux tend within region volumeMins"
+                        />
+			<var name="minVolumeTemperatureSW" array_group="volumeMins" units="C s^{-1}"
+                                 description="Minimum temperature short wave tend within region volumeMins"
+                        />
+                        <var name="minVolumeSalinitySW" array_group="volumeMins" units="PSU s^{-1}"
+                                 description="Minimum salinity short wave tend within region volumeMins"
+                        />
+			<var name="minVolumeTemperatureNL" array_group="volumeMins" units="C s^{-1}"
+                                 description="Minimum temperature kpp non local tend within region volumeMins"
+                        />
+                        <var name="minVolumeSalinityNL" array_group="volumeMins" units="PSU s^{-1}"
+                                 description="Minimum salinity kpp non local tend within region volumeMins"
+                        />
+			<var name="minVolumeTemperatureVertMix" array_group="volumeMins" units="C s^{-1}"
                                  description="Minimum temperature vertical mixing within region volumeMins"
                         />
                         <var name="minVolumeSalinityVertMix" array_group="volumeMins" units="PSU s^{-1}"
@@ -201,6 +237,24 @@
                         />
                         <var name="maxLayerSalinityAdv" array_group="layerMaxs" units="PSU s^{-1}"
                                  description="Max salinity advection within region layer"
+                        />
+                        <var name="maxLayerTemperatureSfcFlux" array_group="layerMaxs" units="C s^{-1}"
+                                 description="Max temperature surface flux tend within region layer"
+                        />
+                        <var name="maxLayerSalinitySfcFlux" array_group="layerMaxs" units="PSU s^{-1}"
+                                 description="Max salinity surface flux tend within region layer"
+                        />
+                        <var name="maxLayerTemperatureSW" array_group="layerMaxs" units="C s^{-1}"
+                                 description="Max temperature short wave tend within region layer"
+                        />
+                        <var name="maxLayerSalinitySW" array_group="layerMaxs" units="PSU s^{-1}"
+                                 description="Max salinity short wave tend within region layer"
+                        />
+                        <var name="maxLayerTemperatureNL" array_group="layerMaxs" units="C s^{-1}"
+                                 description="Max temperature non local tend within region layer"
+                        />
+                        <var name="maxLayerSalinityNL" array_group="layerMaxs" units="PSU s^{-1}"
+                                 description="Max salinity non local tend within region layer"
                         />
                         <var name="maxLayerTemperatureVertMix" array_group="layerMaxs" units="C s^{-1}"
                                  description="Max temperature vertical mixing within region layer"
@@ -261,6 +315,24 @@
                         <var name="maxVolumeSalinityAdv" array_group="volumeMaxs" units="PSU s^{-1}"
                                  description="Max salinity advection within region volume"
                         />
+                        <var name="maxVolumeTemperatureSfcFlux" array_group="volumeMaxs" units="C s^{-1}"
+                                 description="Max temperature surface flux tend within region volume"
+                        />
+                        <var name="maxVolumeSalinitySfcFlux" array_group="volumeMaxs" units="PSU s^{-1}"
+                                 description="Max salinity surface flux tend within region volume"
+                        />
+                        <var name="maxVolumeTemperatureSW" array_group="volumeMaxs" units="C s^{-1}"
+                                 description="Max temperature short wave tend within region volume"
+                        />
+                        <var name="maxVolumeSalinitySW" array_group="volumeMaxs" units="PSU s^{-1}"
+                                 description="Max salinity short wave tend within region volume"
+                        />
+                        <var name="maxVolumeTemperatureNL" array_group="volumeMaxs" units="C s^{-1}"
+                                 description="Max temperature non local tend within region volume"
+                        />
+                        <var name="maxVolumeSalinityNL" array_group="volumeMaxs" units="PSU s^{-1}"
+                                 description="Max salinity non local tend within region volume"
+                        />
                         <var name="maxVolumeTemperatureVertMix" array_group="volumeMaxs" units="C s^{-1}"
                                  description="Max temperature vertical mixing within region volume"
                         />
@@ -320,6 +392,24 @@
                         <var name="avgLayerSalinityAdv" array_group="layerAvgs" units="PSU s^{-1}"
                                  description="Max salinity advection within region layer"
                         />
+                        <var name="avgLayerTemperatureSfcFlux" array_group="layerAvgs" units="C s^{-1}"
+                                 description="Max temperature surface flux tend within region layer"
+                        />
+                        <var name="avgLayerSalinitySfcFlux" array_group="layerAvgs" units="PSU s^{-1}"
+                                 description="Max salinity surface flux tend within region layer"
+                        />
+                        <var name="avgLayerTemperatureSW" array_group="layerAvgs" units="C s^{-1}"
+                                 description="Max temperature shortwave tend within region layer"
+                        />
+                        <var name="avgLayerSalinitySW" array_group="layerAvgs" units="PSU s^{-1}"
+                                 description="Max salinity shortwave tend within region layer"
+                        />
+                        <var name="avgLayerTemperatureNL" array_group="layerAvgs" units="C s^{-1}"
+                                 description="Max temperature non local tend within region layer"
+                        />
+                        <var name="avgLayerSalinityNL" array_group="layerAvgs" units="PSU s^{-1}"
+                                 description="Max salinity non local tend within region layer"
+                        />
                         <var name="avgLayerTemperatureVertMix" array_group="layerAvgs" units="C s^{-1}"
                                  description="Max temperature vertical mixing within region layer"
                         />
@@ -378,6 +468,24 @@
                         />
                         <var name="avgVolumeSalinityAdv" array_group="volumeAvgs" units="PSU s^{-1}"
                                  description="Max salinity advection within region volume"
+                        />
+                        <var name="avgVolumeTemperatureSfcFlux" array_group="volumeAvgs" units="C s^{-1}"
+                                 description="Max temperature surface flux tend within region volume"
+                        />
+                        <var name="avgVolumeSalinitySfcFlux" array_group="volumeAvgs" units="PSU s^{-1}"
+                                 description="Max salinity surface flux tend within region volume"
+                        />
+                        <var name="avgVolumeTemperatureSW" array_group="volumeAvgs" units="C s^{-1}"
+                                 description="Max temperature shortwave tend within region volume"
+                        />
+                        <var name="avgVolumeSalinitySW" array_group="volumeAvgs" units="PSU s^{-1}"
+                                 description="Max salinity shortwave tend within region volume"
+                        />
+                        <var name="avgVolumeTemperatureNL" array_group="volumeAvgs" units="C s^{-1}"
+                                 description="Max temperature non local tend within region volume"
+                        />
+                        <var name="avgVolumeSalinitySfcNL" array_group="volumeAvgs" units="PSU s^{-1}"
+                                 description="Max salinity non local tend within region volume"
                         />
                         <var name="avgVolumeTemperatureVertMix" array_group="volumeAvgs" units="C s^{-1}"
                                  description="Max temperature vertical mixing within region volume"
