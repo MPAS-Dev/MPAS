@@ -522,10 +522,16 @@
 	<nml_record name="bergs" in_defaults="true">
 		<nml_option name="config_use_bergs"			type="logical"		default_value="false"/>
 		<nml_option name="config_berg_initial_condition"	type="character"	default_value="no_bergs"	possible_values="'no_bergs' or 'bergs_everywhere'"/>
+		<nml_option name="config_berg_initial_mass"		type="real"		default_value="100.0"/>
+		<nml_option name="config_berg_initial_uvelocity_geo"		type="real"		default_value="0.0"/>
+		<nml_option name="config_berg_initial_vvelocity_geo"		type="real"		default_value="0.0"/>
 		<nml_option name="config_use_berg_velocity_solver"			type="logical"		default_value="false"/>
 		<nml_option name="config_berg_dynamics_subcycle_number"	type="integer"		default_value="15"		possible_values="any positive integer"/>
+		<nml_option name="config_berg_ice_concentration_threshold"		type="real"		default_value="0.9"/>
+		<nml_option name="config_berg_ice_min_concentration_threshold"		type="real"		default_value="0.15"/>
+		<nml_option name="config_berg_ice_strength_threshold"		type="real"		default_value="1000.0"/>
 		<nml_option name="config_berg_velocity_solver_type"	type="character"	default_value="forward_euler"/>
-		<nml_option name="config_berg_horizontal_shape"	type="character"	default_value="tabular1_1p5"	possible_values="'tabular1_1p5' or 'cylindrical'"/>
+		<nml_option name="config_berg_horizontal_shape"	type="character"	default_value="tabular_1:1.5"	possible_values="'tabular_1:1.5' or 'cylindrical'"/>
 		<nml_option name="config_berg_density" type="real" default_value="850.0"/>
 	</nml_record>
 
@@ -2181,26 +2187,28 @@
 		<var name="bergDraft"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergDraft"/>
 		<var name="oneBergArea"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="oneBergArea"/>
 		<var name="oneBergMass"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="oneBergMass"/>
-		<var name="bergVertAir"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergVertAir"/>
-		<var name="bergVertOcn"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergVertOcn"/>
-		<var name="bergVertIce"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergVertIce"/>
+		<var name="bergAirContactArea"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergAirContactArea"/>
+		<var name="bergOcnContactArea"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergOcnContactArea"/>
+		<var name="bergIceContactArea"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergIceContactArea"/>
 	</var_struct>
 
 	<!-- iceberg velocity solver -->
 	<var_struct name="berg_velocity_solver" time_levs="1" packages="pkgBergs">
 		<var name="bergDynamicsTimeStep"		type="real"	dimensions=""				name_in_code="bergDynamicsTimeStep"/>
-		<var name="uBergVelocity"				type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="uBergVelocity"/>
-		<var name="vBergVelocity"				type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="vBergVelocity"/>
+		<var name="uBergVelocity"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="uBergVelocity"/>
+		<var name="vBergVelocity"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="vBergVelocity"/>
+		<var name="uBergVelocityCell"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="uBergVelocityCell"/>
+		<var name="vBergVelocityCell"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="vBergVelocityCell"/>
 		<var name="uBergVelocityInitial"		type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="uBergVelocityInitial"/>
 		<var name="vBergVelocityInitial"		type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="vBergVelocityInitial"/>
 		<var name="bergMassVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergMassVertex"/>
 		<var name="bergVelocityMask"			type="integer"	dimensions="nBergCategories nVertices Time"		name_in_code="bergVelocityMask"/>
-		<var name="bergDraftVertex"				type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergDraftVertex"/>
+		<var name="bergDraftVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergDraftVertex"/>
 		<var name="oneBergAreaVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="oneBergAreaVertex"/>
 		<var name="oneBergMassVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="oneBergMassVertex"/>
-		<var name="bergVertAirVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergVertAirVertex"/>
-		<var name="bergVertOcnVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergVertOcnVertex"/>
-		<var name="bergVertIceVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergVertIceVertex"/>
+		<var name="bergAirContactAreaVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergAirContactAreaVertex"/>
+		<var name="bergOcnContactAreaVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergOcnContactAreaVertex"/>
+		<var name="bergIceContactAreaVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergIceContactAreaVertex"/>
 		<var name="uAirVelocityVertex"			type="real"	dimensions="nVertices Time"		name_in_code="uAirVelocityVertex"/>
 		<var name="vAirVelocityVertex"			type="real"	dimensions="nVertices Time"		name_in_code="vAirVelocityVertex"/>
 		<var name="airDensityVertex"			type="real"	dimensions="nVertices Time"		name_in_code="airDensityVertex"/>

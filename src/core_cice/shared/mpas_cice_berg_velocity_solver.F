@@ -33,8 +33,7 @@ module cice_berg_velocity_solver
 
   ! berg velocity solver constants
   real(kind=RKIND), parameter, private :: &
-       bergMassMinimum = 0.01_RKIND, &
-       strengthThresh = 1.0e4_RKIND
+       bergMassMinimum = 0.01_RKIND
 
 contains
 
@@ -72,7 +71,7 @@ contains
     integer, pointer :: &
          config_berg_dynamics_subcycle_number
 
-    ! set timesteps and initialize velocities to 0
+    ! set timesteps and initialize velocities
     block => domain % blocklist
     do while (associated(block))
 
@@ -98,11 +97,16 @@ contains
 !> \brief   Initialize icebergs velocity
 !> \author  Darin Comeau, LANL
 !> \date    6 June 2017
-!> \details This routine is intended to initialize iceberg velocities.
+!> \details This routine is intended to initialize iceberg velocities
+!> from the geographical grid to the local rotated grid
 !
 !-----------------------------------------------------------------------
 
   subroutine init_berg_velocity(block)
+
+    use cice_mesh, only: &
+         cice_latlon_vector_rotation_forward, &
+         cice_interpolate_cell_to_vertex
 
     type(block_type), intent(inout) :: &
          block
@@ -113,33 +117,93 @@ contains
 
     integer, pointer :: &
          nVerticesSolve, &
+         nCellsSolve, &
          nBergCategories
 
     real(kind=RKIND), dimension(:,:), pointer :: &
          uBergVelocity, &
-         vBergVelocity
+         vBergVelocity, &
+         uBergVelocityCell, &
+         vBergVelocityCell
+
+    real(kind=RKIND), pointer :: &
+         config_berg_initial_uvelocity_geo, &
+         config_berg_initial_vvelocity_geo
+
+    logical, pointer :: &
+         config_rotate_cartesian_grid
+
+    real(kind=RKIND), pointer :: &
+         sphere_radius
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         latCell, &
+         lonCell, &
+         xCell, &
+         yCell, &
+         zCell
 
     integer :: &
          iVertex, &
+         iCell, &
          iCategory
 
     call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
     call MPAS_pool_get_subpool(block % structs, "berg_velocity_solver", bergVelocitySolverPool)
 
     call MPAS_pool_get_dimension(meshPool, "nVerticesSolve", nVerticesSolve)
+    call MPAS_pool_get_dimension(meshPool, "nCellsSolve", nCellsSolve)
     call MPAS_pool_get_dimension(meshPool, "nBergCategories", nBergCategories)
 
     call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocity", uBergVelocity)
     call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocity)
+    call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocityCell", uBergVelocityCell)
+    call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocityCell", vBergVelocityCell)
 
-    do iVertex = 1, nVerticesSolve
+    call MPAS_pool_get_config(block % configs, "config_rotate_cartesian_grid", config_rotate_cartesian_grid)
+    call MPAS_pool_get_config(block % configs, "config_berg_initial_uvelocity_geo", config_berg_initial_uvelocity_geo)
+    call MPAS_pool_get_config(block % configs, "config_berg_initial_vvelocity_geo", config_berg_initial_vvelocity_geo)
+
+    call MPAS_pool_get_array(meshPool, "latCell", latCell)
+    call MPAS_pool_get_array(meshPool, "lonCell", lonCell)
+    call MPAS_pool_get_array(meshPool, "xCell", xCell)
+    call MPAS_pool_get_array(meshPool, "yCell", yCell)
+    call MPAS_pool_get_array(meshPool, "zCell", zCell)
+
+    call MPAS_pool_get_config(meshPool, "sphere_radius", sphere_radius)
+
+    do iCell = 1, nCellsSolve
 
        do iCategory = 1, nBergCategories
 
-          uBergVelocity(iCategory,iVertex) = 0.0_RKIND
-          vBergVelocity(iCategory,iVertex) = 0.0_RKIND
+          call cice_latlon_vector_rotation_forward(&
+               uBergVelocityCell(iCategory,iCell), &
+               vBergVelocityCell(iCategory,iCell), &
+               config_berg_initial_uvelocity_geo, &
+               config_berg_initial_vvelocity_geo, &
+               latCell(iCell), &
+               lonCell(iCell), &
+               xCell(iCell), &
+               yCell(iCell), &
+               zCell(iCell), &
+               sphere_radius, &
+               config_rotate_cartesian_grid)
 
        enddo
+
+    enddo
+
+    do iCategory = 1, nBergCategories
+
+       call cice_interpolate_cell_to_vertex(&
+            meshPool, &
+            uBergVelocity(iCategory,:), &
+            uBergVelocityCell(iCategory,:))
+
+       call cice_interpolate_cell_to_vertex(&
+            meshPool, &
+            vBergVelocity(iCategory,:), &
+            vBergVelocityCell(iCategory,:))
 
     enddo
 
@@ -266,9 +330,9 @@ contains
          bergMassVertex, &
          oneBergMassVertex, &
          oneBergAreaVertex, &
-         bergVertAirVertex, &
-         bergVertOcnVertex, &
-         bergVertIceVertex, &
+         bergAirContactAreaVertex, &
+         bergOcnContactAreaVertex, &
+         bergIceContactAreaVertex, &
          bergCoefAtmU, &
          bergCoefAtmV, &
          bergCoefOcnU, &
@@ -313,9 +377,9 @@ contains
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergMassVertex", bergMassVertex)
        call MPAS_pool_get_array(bergVelocitySolverPool, "oneBergMassVertex", oneBergMassVertex)
        call MPAS_pool_get_array(bergVelocitySolverPool, "oneBergAreaVertex", oneBergAreaVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergVertAirVertex", bergVertAirVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergVertOcnVertex", bergVertOcnVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergVertIceVertex", bergVertIceVertex)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergAirContactAreaVertex", bergAirContactAreaVertex)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergOcnContactAreaVertex", bergOcnContactAreaVertex)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergIceContactAreaVertex", bergIceContactAreaVertex)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefAtmU", bergCoefAtmU)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefAtmV", bergCoefAtmV)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefOcnU", bergCoefOcnU)
@@ -333,24 +397,6 @@ contains
 
              uBergVelocityInitial(iCategory,iVertex) = uBergVelocity(iCategory,iVertex)
              vBergVelocityInitial(iCategory,iVertex) = vBergVelocity(iCategory,iVertex)
-             bergVelocityMask(iCategory,iVertex) = 0
-             bergDraftVertex(iCategory,iVertex) = 0.0_RKIND
-             bergMassVertex(iCategory,iVertex)  = 0.0_RKIND
-             oneBergMassVertex(iCategory,iVertex) = 0.0_RKIND
-             oneBergAreaVertex(iCategory,iVertex) = 0.0_RKIND
-             bergVertAirVertex(iCategory,iVertex) = 0.0_RKIND
-             bergVertOcnVertex(iCategory,iVertex) = 0.0_RKIND
-             bergVertIceVertex(iCategory,iVertex) = 0.0_RKIND
-             bergCoefAtmU(iCategory,iVertex) = 0.0_RKIND
-             bergCoefAtmV(iCategory,iVertex) = 0.0_RKIND
-             bergCoefOcnU(iCategory,iVertex) = 0.0_RKIND
-             bergCoefOcnV(iCategory,iVertex) = 0.0_RKIND
-             bergCoefIceU(iCategory,iVertex) = 0.0_RKIND
-             bergCoefIceV(iCategory,iVertex) = 0.0_RKIND
-             bergCoefCorU(iCategory,iVertex) = 0.0_RKIND
-             bergCoefCorV(iCategory,iVertex) = 0.0_RKIND
-             bergCoefTltU(iCategory,iVertex) = 0.0_RKIND
-             bergCoefTltV(iCategory,iVertex) = 0.0_RKIND
 
           enddo ! iCategory
 
@@ -553,6 +599,10 @@ contains
     integer, dimension(:,:), pointer :: &
          cellsOnVertex
 
+    real(kind=RKIND), pointer :: &
+         config_berg_ice_concentration_threshold, &
+         config_berg_ice_strength_threshold
+
     integer :: &
          iVertex, &
          iCategory, &
@@ -592,6 +642,9 @@ contains
        call MPAS_pool_get_array(meshPool, "cellsOnVertex", cellsOnVertex)
        call MPAS_pool_get_array(meshPool, "areaCell", areaCell)
 
+    call MPAS_pool_get_config(domain % configs, "config_berg_ice_concentration_threshold", config_berg_ice_concentration_threshold)
+    call MPAS_pool_get_config(domain % configs, "config_berg_ice_strength_threshold", config_berg_ice_strength_threshold)
+
        do iVertex = 1, nVerticesSolve
 
           do iCategory = 1, nBergCategories
@@ -609,9 +662,13 @@ contains
 
                    iCell = cellsOnVertex(iVertexDegree,iVertex)
 
-                   ! this berg is captured by sea ice
-                   if (iceAreaCell(iCell)/areaCell(iCell) > 0.9_RKIND .and. icePressure(iCell) > strengthThresh) &
+                   if (iceAreaCell(iCell)/areaCell(iCell) > config_berg_ice_concentration_threshold &
+                      .and. icePressure(iCell) > config_berg_ice_strength_threshold) then
+
+                      ! this berg is captured by sea ice
                       bergVelocityMask(iCategory,iVertex) = 2
+
+                   endif
 
                 enddo
 
@@ -676,17 +733,17 @@ contains
          bergDraft, &
          oneBergArea, &
          oneBergMass, &
-         bergVertAir, &
-         bergVertOcn, &
-         bergVertIce
+         bergAirContactArea, &
+         bergOcnContactArea, &
+         bergIceContactArea
 
     real(kind=RKIND), dimension(:,:), pointer :: &
          bergDraftVertex, &
          oneBergAreaVertex, &
          oneBergMassVertex, &
-         bergVertAirVertex, &
-         bergVertOcnVertex, &
-         bergVertIceVertex
+         bergAirContactAreaVertex, &
+         bergOcnContactAreaVertex, &
+         bergIceContactAreaVertex
 
     real(kind=RKIND), dimension(:), pointer :: &
          bergMassCell, &
@@ -713,12 +770,15 @@ contains
          seaIceThick, &
          seaIceSnow, &
          seaIceDraft, &
-         zAir, &
-         zOcn, &
-         zIce, &
-         tab2cyl, &
-         p66, &
-         p83
+         bergAirContactHeight, &
+         bergOcnContactHeight, &
+         bergIceContactHeight
+
+    ! these parameters assume a horizontal aspect ratio of 1:1.5
+    real(kind=RKIND), parameter :: &
+         bergWidthFactor = 2.0_RKIND/3.0_RKIND , &
+         bergAvgLengthWidthFactor = 5.0_RKIND/6.0_RKIND, &
+         tabularToCylindricalConvFactor = 2.0_RKIND*sqrt(2.0_RKIND/(3.0_RKIND*pii))
 
     call MPAS_pool_get_config(domain % configs, "config_berg_horizontal_shape", config_berg_horizontal_shape)
     call MPAS_pool_get_config(domain % configs, "config_berg_density", bergDensity)
@@ -746,21 +806,18 @@ contains
        call MPAS_pool_get_array(bergStatePool, "bergDraft", bergDraft)
        call MPAS_pool_get_array(bergStatePool, "oneBergArea", oneBergArea)
        call MPAS_pool_get_array(bergStatePool, "oneBergMass", oneBergMass)
-       call MPAS_pool_get_array(bergStatePool, "bergVertAir", bergVertAir)
-       call MPAS_pool_get_array(bergStatePool, "bergVertOcn", bergVertOcn)
-       call MPAS_pool_get_array(bergStatePool, "bergVertIce", bergVertIce)
+       call MPAS_pool_get_array(bergStatePool, "bergAirContactArea", bergAirContactArea)
+       call MPAS_pool_get_array(bergStatePool, "bergOcnContactArea", bergOcnContactArea)
+       call MPAS_pool_get_array(bergStatePool, "bergIceContactArea", bergIceContactArea)
 
        call MPAS_pool_get_array(bergVelocityPool, "bergDraftVertex", bergDraftVertex)
        call MPAS_pool_get_array(bergVelocityPool, "oneBergAreaVertex", oneBergAreaVertex)
        call MPAS_pool_get_array(bergVelocityPool, "oneBergMassVertex", oneBergMassVertex)
-       call MPAS_pool_get_array(bergVelocityPool, "bergVertAirVertex", bergVertAirVertex)
-       call MPAS_pool_get_array(bergVelocityPool, "bergVertOcnVertex", bergVertOcnVertex)
-       call MPAS_pool_get_array(bergVelocityPool, "bergVertIceVertex", bergVertIceVertex)
+       call MPAS_pool_get_array(bergVelocityPool, "bergAirContactAreaVertex", bergAirContactAreaVertex)
+       call MPAS_pool_get_array(bergVelocityPool, "bergOcnContactAreaVertex", bergOcnContactAreaVertex)
+       call MPAS_pool_get_array(bergVelocityPool, "bergIceContactAreaVertex", bergIceContactAreaVertex)
 
        bergSnow = 0.0_RKIND ! no snow on bergs for now
-       p66 = 2.0_RKIND/3.0_RKIND
-       p83 = 5.0_RKIND/6.0_RKIND
-       tab2cyl = 2.0_RKIND*sqrt(2.0_RKIND/(3.0_RKIND*pii))
 
        do iCell = 1, nCellsSolve
 
@@ -782,28 +839,28 @@ contains
              bergDraft(iCategory,iCell) = (ciceDensitySnow*bergSnow + bergDensity*bergHeight(iCategory,iCell))/ciceDensitySeaWater
 
              ! vertical (m) areas in contact with each field
-             zOcn = bergDraft(iCategory,iCell) - seaIceDraft
-             zIce = seaIceDraft
-             zAir = bergHeight(iCategory,iCell) - zOcn - zIce
+             bergOcnContactHeight = bergDraft(iCategory,iCell) - seaIceDraft
+             bergIceContactHeight = seaIceDraft
+             bergAirContactHeight = bergHeight(iCategory,iCell) - bergOcnContactHeight - bergIceContactHeight
 
-             ! horizontal area of one iceberg
-             oneBergArea(iCategory,iCell) = p66*bergLength(iCategory,iCell)**2
+             ! horizontal area of one iceberg (assumes horizontal aspect ratio of 1:1.5)
+             oneBergArea(iCategory,iCell) = bergWidthFactor*bergLength(iCategory,iCell)**2
 
              ! mass of one iceberg
              oneBergMass(iCategory,iCell) = oneBergArea(iCategory,iCell)*bergHeight(iCategory,iCell)*bergDensity
 
-             if (trim(config_berg_horizontal_shape) == "cylindrical") then
+             if (trim(config_berg_horizontal_shape) == "tabular_1:1.5") then
 
-                oneBergArea(iCategory,iCell) = pii*(tab2cyl*bergLength(iCategory,iCell))**2
-                bergVertAir(iCategory,iCell) = 2.0_RKIND*tab2cyl*bergLength(iCategory,iCell)*zAir
-                bergVertOcn(iCategory,iCell) = 2.0_RKIND*tab2cyl*bergLength(iCategory,iCell)*zOcn
-                bergVertIce(iCategory,iCell) = 2.0_RKIND*tab2cyl*bergLength(iCategory,iCell)*zIce
+                bergAirContactArea(iCategory,iCell) = bergAvgLengthWidthFactor*bergLength(iCategory,iCell)*bergAirContactHeight
+                bergOcnContactArea(iCategory,iCell) = bergAvgLengthWidthFactor*bergLength(iCategory,iCell)*bergOcnContactHeight
+                bergIceContactArea(iCategory,iCell) = bergAvgLengthWidthFactor*bergLength(iCategory,iCell)*bergIceContactHeight
 
-             elseif (trim(config_berg_horizontal_shape) == "tabular1_1p5") then
+             elseif (trim(config_berg_horizontal_shape) == "cylindrical") then
 
-                bergVertAir(iCategory,iCell) = p83*bergLength(iCategory,iCell)*zAir
-                bergVertOcn(iCategory,iCell) = p83*bergLength(iCategory,iCell)*zOcn
-                bergVertIce(iCategory,iCell) = p83*bergLength(iCategory,iCell)*zIce
+                oneBergArea(iCategory,iCell) = pii*(tabularToCylindricalConvFactor*bergLength(iCategory,iCell))**2
+                bergAirContactArea(iCategory,iCell) = tabularToCylindricalConvFactor*bergLength(iCategory,iCell)*bergAirContactHeight
+                bergOcnContactArea(iCategory,iCell) = tabularToCylindricalConvFactor*bergLength(iCategory,iCell)*bergOcnContactHeight
+                bergIceContactArea(iCategory,iCell) = tabularToCylindricalConvFactor*bergLength(iCategory,iCell)*bergIceContactHeight
 
              else
 
@@ -837,18 +894,18 @@ contains
 
           call cice_interpolate_cell_to_vertex(&
              meshPool, &
-             bergVertAirVertex(iCategory,:), &
-             bergVertAir(iCategory,:))
+             bergAirContactAreaVertex(iCategory,:), &
+             bergAirContactArea(iCategory,:))
 
           call cice_interpolate_cell_to_vertex(&
              meshPool, &
-             bergVertOcnVertex(iCategory,:), &
-             bergVertOcn(iCategory,:))
+             bergOcnContactAreaVertex(iCategory,:), &
+             bergOcnContactArea(iCategory,:))
 
           call cice_interpolate_cell_to_vertex(&
              meshPool, &
-             bergVertIceVertex(iCategory,:), &
-             bergVertIce(iCategory,:))
+             bergIceContactAreaVertex(iCategory,:), &
+             bergIceContactArea(iCategory,:))
 
           enddo
 
@@ -934,7 +991,7 @@ contains
        call mpas_timer_stop("Calculate berg forcing terms")
 
        call mpas_timer_start("Berg velocity solver compute")
-       call solve_berg_velocity_FE(domain)
+       call solve_berg_velocity_forward_euler(domain)
        call mpas_timer_stop("Berg velocity solver compute")
 
     else
@@ -1001,6 +1058,58 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
+!  berg_drag_forcing
+!
+!> \brief   Calculate drag term in iceberg momentum equation
+!> \author  Darin Comeau, LANL
+!> \date    August 15, 2017
+!> \details This subroutine calculates the drag term common to air, ocn,
+!> and ice forcing in the iceberg momentum equation.
+!
+!-----------------------------------------------------------------------
+
+  subroutine berg_drag_forcing(&
+       uFieldVelocity, &
+       vFieldVelocity, &
+       uBergVelocity, &
+       vBergVelocity, &
+       fieldDensity, &
+       fieldVertDragCoef, &
+       fieldHorizDragCoef, &
+       bergFieldVertContactArea, &
+       bergFieldHorizContactArea, &
+       bergCoefU, &
+       bergCoefV)
+
+    real(kind=RKIND), intent(in) :: &
+         uFieldVelocity, &
+         vFieldVelocity, &
+         uBergVelocity, &
+         vBergVelocity, &
+         fieldDensity, &
+         fieldVertDragCoef, &
+         fieldHorizDragCoef, &
+         bergFieldVertContactArea, &
+         bergFieldHorizContactArea
+
+    real(kind=RKIND), intent(out) :: &
+         bergCoefU, &
+         bergCoefV
+
+    real(kind=RKIND) :: &
+         relSpeed, &
+         dragCoef
+
+    relSpeed = sqrt((uFieldVelocity - uBergVelocity)**2 + (vFieldVelocity - vBergVelocity)**2)
+    dragCoef = fieldDensity*relSpeed*(fieldVertDragCoef*bergFieldVertContactArea + fieldHorizDragCoef*bergFieldHorizContactArea)
+
+    bergCoefU = dragCoef*(uFieldVelocity - uBergVelocity)
+    bergCoefV = dragCoef*(vFieldVelocity - vBergVelocity)
+
+  end subroutine berg_drag_forcing
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
 !  berg_atm_forcing
 !
 !> \brief   Calculate atmospheric forcing term
@@ -1042,7 +1151,7 @@ contains
          uBergVelocity, &
          vBergVelocity, &
          oneBergAreaVertex, &
-         bergVertAirVertex, &
+         bergAirContactAreaVertex, &
          bergCoefAtmU, &
          bergCoefAtmV
 
@@ -1052,10 +1161,6 @@ contains
     integer, pointer :: &
          nVerticesSolve, &
          nBergCategories
-
-    real(kind=RKIND) :: &
-         relSpeed, &
-         atmCoef
 
     integer :: &
          iVertex, &
@@ -1079,7 +1184,7 @@ contains
        call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocity)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergVelocityMask", bergVelocityMask)
        call MPAS_pool_get_array(bergVelocitySolverPool, "oneBergAreaVertex", oneBergAreaVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergVertAirVertex", bergVertAirVertex)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergAirContactAreaVertex", bergAirContactAreaVertex)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefAtmU", bergCoefAtmU)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefAtmV", bergCoefAtmV)
        call MPAS_pool_get_array(bergVelocitySolverPool, "uAirVelocityVertex", uAirVelocityVertex)
@@ -1112,11 +1217,18 @@ contains
 
              if (bergVelocityMask(iCategory,iVertex) > 0) then
 
-             relSpeed = sqrt((uAirVelocityVertex(iVertex) - uBergVelocity(iCategory,iVertex))**2 + (vAirVelocityVertex(iVertex) - vBergVelocity(iCategory,iVertex))**2)
-             atmCoef = airDensityVertex(iVertex)*relSpeed*(airVertDragCoef*bergVertAirVertex(iCategory,iVertex) + airHorizDragCoef*oneBergAreaVertex(iCategory,iVertex))
-
-             bergCoefAtmU(iCategory,iVertex) = atmCoef*(uAirVelocityVertex(iVertex) - uBergVelocity(iCategory,iVertex))
-             bergCoefAtmV(iCategory,iVertex) = atmCoef*(vAirVelocityVertex(iVertex) - vBergVelocity(iCategory,iVertex))
+                call berg_drag_forcing(&
+                     uAirVelocityVertex(iVertex), &
+                     vAirVelocityVertex(iVertex), &
+                     uBergVelocity(iCategory,iVertex), &
+                     vBergVelocity(iCategory,iVertex), &
+                     airDensityVertex(iVertex), &
+                     airVertDragCoef, &
+                     airHorizDragCoef, &
+                     bergAirContactAreaVertex(iCategory,iVertex), &
+                     oneBergAreaVertex(iCategory,iVertex), &
+                     bergCoefAtmU(iCategory,iVertex), &
+                     bergCoefAtmV(iCategory,iVertex))
 
              endif
 
@@ -1166,7 +1278,7 @@ contains
          uBergVelocity, &
          vBergVelocity, &
          oneBergAreaVertex, &
-         bergVertOcnVertex, &
+         bergOcnContactAreaVertex, &
          bergCoefOcnU, &
          bergCoefOcnV
 
@@ -1184,10 +1296,6 @@ contains
     integer, pointer :: &
          nVerticesSolve, &
          nBergCategories
-
-    real(kind=RKIND) :: &
-         relSpeed, &
-         ocnCoef
 
     integer :: &
          iVertex, &
@@ -1212,7 +1320,7 @@ contains
        call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocity)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergVelocityMask", bergVelocityMask)
        call MPAS_pool_get_array(bergVelocitySolverPool, "oneBergAreaVertex", oneBergAreaVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergVertOcnVertex", bergVertOcnVertex)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergOcnContactAreaVertex", bergOcnContactAreaVertex)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefOcnU", bergCoefOcnU)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefOcnV", bergCoefOcnV)
 
@@ -1239,11 +1347,18 @@ contains
 
              if (bergVelocityMask(iCategory,iVertex) > 0) then
 
-             relSpeed = sqrt((uOceanVelocityVertex(iVertex) - uBergVelocity(iCategory,iVertex))**2 + (vOceanVelocityVertex(iVertex) - vBergVelocity(iCategory,iVertex))**2)
-             ocnCoef = ciceDensitySeaWater*relSpeed*(ocnVertDragCoef*bergVertOcnVertex(iCategory,iVertex) + ocnHorizDragCoef*oneBergAreaVertex(iCategory,iVertex))
-
-             bergCoefOcnU(iCategory,iVertex) = ocnCoef*(uOceanVelocityVertex(iVertex) - uBergVelocity(iCategory,iVertex))
-             bergCoefOcnV(iCategory,iVertex) = ocnCoef*(vOceanVelocityVertex(iVertex) - vBergVelocity(iCategory,iVertex))
+                call berg_drag_forcing(&
+                     uOceanVelocityVertex(iVertex), &
+                     vOceanVelocityVertex(iVertex), &
+                     uBergVelocity(iCategory,iVertex), &
+                     vBergVelocity(iCategory,iVertex), &
+                     ciceDensitySeaWater, &
+                     ocnVertDragCoef, &
+                     ocnHorizDragCoef, &
+                     bergOcnContactAreaVertex(iCategory,iVertex), &
+                     oneBergAreaVertex(iCategory,iVertex), &
+                     bergCoefOcnU(iCategory,iVertex), &
+                     bergCoefOcnV(iCategory,iVertex))
 
              endif
 
@@ -1298,7 +1413,7 @@ contains
          uBergVelocity, &
          vBergVelocity, &
          oneBergAreaVertex, &
-         bergVertIceVertex, &
+         bergIceContactAreaVertex, &
          bergCoefIceU, &
          bergCoefIceV
 
@@ -1313,9 +1428,8 @@ contains
     integer, dimension(:,:), pointer :: &
          cellsOnVertex
 
-    real(kind=RKIND) :: &
-         relSpeed, &
-         iceCoef
+    real(kind=RKIND), pointer :: &
+         config_berg_ice_min_concentration_threshold
 
     integer :: &
          iCell, &
@@ -1324,7 +1438,10 @@ contains
          iVertexDegree
 
     real(kind=RKIND), parameter :: &
-         iceDragCoef = 0.5_RKIND
+         iceVertDragCoef = 0.5_RKIND, &
+         iceHorizDragCoef = 0.0_RKIND
+
+    call MPAS_pool_get_config(domain % configs, "config_berg_ice_min_concentration_threshold", config_berg_ice_min_concentration_threshold)
 
     block => domain % blocklist
     do while (associated(block))
@@ -1345,7 +1462,7 @@ contains
        call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocity)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergVelocityMask", bergVelocityMask)
        call MPAS_pool_get_array(bergVelocitySolverPool, "oneBergAreaVertex", oneBergAreaVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergVertIceVertex", bergVertIceVertex)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergIceContactAreaVertex", bergIceContactAreaVertex)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefIceU", bergCoefIceU)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefIceV", bergCoefIceV)
 
@@ -1360,19 +1477,31 @@ contains
 
              if (bergVelocityMask(iCategory,iVertex) > 0) then
 
-             relSpeed = sqrt((uVelocity(iVertex) - uBergVelocity(iCategory,iVertex))**2 + (vVelocity(iVertex) - vBergVelocity(iCategory,iVertex))**2)
-             iceCoef = ciceDensityIce*relSpeed*iceDragCoef*bergVertIceVertex(iCategory,iVertex)
+                call berg_drag_forcing(&
+                     uVelocity(iVertex), &
+                     vVelocity(iVertex), &
+                     uBergVelocity(iCategory,iVertex), &
+                     vBergVelocity(iCategory,iVertex), &
+                     ciceDensityIce, &
+                     iceVertDragCoef, &
+                     iceHorizDragCoef, &
+                     bergIceContactAreaVertex(iCategory,iVertex), &
+                     oneBergAreaVertex(iCategory,iVertex), &
+                     bergCoefIceU(iCategory,iVertex), &
+                     bergCoefIceV(iCategory,iVertex))
 
-             do iVertexDegree = 1, vertexDegree
+                do iVertexDegree = 1, vertexDegree
 
-                iCell = cellsOnVertex(iVertexDegree,iVertex)
+                   iCell = cellsOnVertex(iVertexDegree,iVertex)
 
-                if (iceAreaCell(iCell)/areaCell(iCell) < 0.15_RKIND) iceCoef = 0.0_RKIND
+                   if (iceAreaCell(iCell)/areaCell(iCell) < config_berg_ice_min_concentration_threshold) then
 
-             enddo
+                        bergCoefIceU(iCategory,iVertex) = 0.0_RKIND 
+                        bergCoefIceV(iCategory,iVertex) = 0.0_RKIND
 
-             bergCoefIceU(iCategory,iVertex) = iceCoef*(uVelocity(iVertex) - uBergVelocity(iCategory,iVertex))
-             bergCoefIceV(iCategory,iVertex) = iceCoef*(vVelocity(iVertex) - vBergVelocity(iCategory,iVertex))
+                   endif
+
+                enddo
 
              endif
 
@@ -1461,8 +1590,8 @@ contains
 
              if (bergVelocityMask(iCategory,iVertex) > 0) then
 
-             bergCoefCorU(iCategory,iVertex) =  vBergVelocity(iCategory,iVertex)*oneBergMassVertex(iCategory,iVertex)*2.0_RKIND*omega*sin(latVertex(iVertex))
-             bergCoefCorV(iCategory,iVertex) = -uBergVelocity(iCategory,iVertex)*oneBergMassVertex(iCategory,iVertex)*2.0_RKIND*omega*sin(latVertex(iVertex))
+                bergCoefCorU(iCategory,iVertex) =  vBergVelocity(iCategory,iVertex)*oneBergMassVertex(iCategory,iVertex)*2.0_RKIND*omega*sin(latVertex(iVertex))
+                bergCoefCorV(iCategory,iVertex) = -uBergVelocity(iCategory,iVertex)*oneBergMassVertex(iCategory,iVertex)*2.0_RKIND*omega*sin(latVertex(iVertex))
 
              endif
 
@@ -1576,8 +1705,8 @@ contains
 
              if (bergVelocityMask(iCategory,iVertex) > 0) then
 
-             bergCoefTltU(iCategory,iVertex) = -seaSurfaceTiltVertexU(iVertex)*oneBergMassVertex(iCategory,iVertex)*ciceGravity
-             bergCoefTltV(iCategory,iVertex) = -seaSurfaceTiltVertexV(iVertex)*oneBergMassVertex(iCategory,iVertex)*ciceGravity
+                bergCoefTltU(iCategory,iVertex) = -seaSurfaceTiltVertexU(iVertex)*oneBergMassVertex(iCategory,iVertex)*ciceGravity
+                bergCoefTltV(iCategory,iVertex) = -seaSurfaceTiltVertexV(iVertex)*oneBergMassVertex(iCategory,iVertex)*ciceGravity
 
              endif
 
@@ -1592,7 +1721,7 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  solve_berg_velocity_FE
+!  solve_berg_velocity_forward_euler
 !
 !> \brief   Solve for berg velocities by forward Euler
 !> \author  Darin Comeau, LANL
@@ -1602,7 +1731,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine solve_berg_velocity_FE(domain)
+  subroutine solve_berg_velocity_forward_euler(domain)
 
     use cice_constants, only: &
          cicePuny
@@ -1690,21 +1819,18 @@ contains
 
           do iCategory = 1, nBergCategories
 
-             rightSideU = 0.0_RKIND
-             rightSideV = 0.0_RKIND
-
-             rightSideU = bergCoefAtmU(iCategory,iVertex) + &
-                          bergCoefOcnU(iCategory,iVertex) + &
-                          bergCoefIceU(iCategory,iVertex) + &
-                          bergCoefCorU(iCategory,iVertex) + &
-                          bergCoefTltU(iCategory,iVertex)
-             rightSideV = bergCoefAtmV(iCategory,iVertex) + &
-                          bergCoefOcnV(iCategory,iVertex) + &
-                          bergCoefIceV(iCategory,iVertex) + &
-                          bergCoefCorV(iCategory,iVertex) + &
-                          bergCoefTltV(iCategory,iVertex)
-
              if (bergVelocityMask(iCategory,iVertex) == 1 .and. oneBergMassVertex(iCategory,iVertex) > cicePuny) then
+
+                rightSideU = bergCoefAtmU(iCategory,iVertex) + &
+                             bergCoefOcnU(iCategory,iVertex) + &
+                             bergCoefIceU(iCategory,iVertex) + &
+                             bergCoefCorU(iCategory,iVertex) + &
+                             bergCoefTltU(iCategory,iVertex)
+                rightSideV = bergCoefAtmV(iCategory,iVertex) + &
+                             bergCoefOcnV(iCategory,iVertex) + &
+                             bergCoefIceV(iCategory,iVertex) + &
+                             bergCoefCorV(iCategory,iVertex) + &
+                             bergCoefTltV(iCategory,iVertex)
 
                 uBergVelocity(iCategory,iVertex) = uBergVelocityInitial(iCategory,iVertex) + &
                                                    rightSideU*bergDynamicsTimeStep/oneBergMassVertex(iCategory,iVertex)
@@ -1714,10 +1840,12 @@ contains
 
                 ! write to log if iceberg velocities get too large, indicating instability (consider changing to abort)
                 if (abs(uBergVelocity(iCategory,iVertex))>1.0e2_RKIND) &
-                call mpas_log_write(" Berg velocity large, uBergVelocity $r ", realArgs=(/uBergVelocity(iCategory,iVertex)/))
+                   call mpas_log_write(" Berg velocity large, uBergVelocity $r ", realArgs=(/uBergVelocity(iCategory,iVertex)/), &
+                        messageType=MPAS_LOG_ERR)
 
                 if (abs(vBergVelocity(iCategory,iVertex))>1.0e2_RKIND) &
-                call mpas_log_write(" Berg velocity large, vBergVelocity $r ", realArgs=(/vBergVelocity(iCategory,iVertex)/))
+                   call mpas_log_write(" Berg velocity large, vBergVelocity $r ", realArgs=(/vBergVelocity(iCategory,iVertex)/), &
+                        messageType=MPAS_LOG_ERR)
 
              elseif (bergVelocityMask(iCategory,iVertex) == 2) then
 
@@ -1741,7 +1869,7 @@ contains
        block => block % next
     enddo
 
-  end subroutine solve_berg_velocity_FE!}}}
+  end subroutine solve_berg_velocity_forward_euler!}}}
 
 !-----------------------------------------------------------------------
 

@@ -114,9 +114,6 @@ contains
        ! set berg size dimensions
        call init_berg_size(block)
 
-       ! set berg fluxes
-       call init_berg_fluxes(block)
-
        block => block % next
     enddo
 
@@ -220,6 +217,9 @@ contains
     real(kind=RKIND), dimension(:), pointer :: &
          bergMassCell
 
+    real(kind=RKIND), pointer :: &
+         config_berg_initial_mass
+
     integer :: &
          iCell, &
          iCategory
@@ -234,11 +234,13 @@ contains
     call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory,1)
     call MPAS_pool_get_array(tracers_aggregate, "bergMassCell", bergMassCell)
 
+    call MPAS_pool_get_config(block % configs, "config_berg_initial_mass", config_berg_initial_mass)
+
     do iCell = 1, nCellsSolve
 
        do iCategory = 1, nBergCategories
 
-          bergMassCategory(iCategory,iCell) = 1.0e2_RKIND
+          bergMassCategory(iCategory,iCell) = config_berg_initial_mass
 
        enddo
 
@@ -341,70 +343,6 @@ contains
     enddo
 
   end subroutine init_berg_size
-
-!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-!
-!  init_berg_fluxes
-!
-!> \brief   Initialize icebergs fluxes
-!> \author  Darin Comeau, LANL
-!> \date    6 June 2017
-!> \details This routine is intended to initialize freshwater and latent
-!> heat fluxes due to icebergs.
-!
-!-----------------------------------------------------------------------
-
-  subroutine init_berg_fluxes(block)
-
-    type(block_type), intent(inout) :: &
-         block
-
-    type(MPAS_pool_type), pointer :: &
-         mesh, &
-         berg_fluxes
-
-    integer, pointer :: &
-         nCellsSolve, &
-         nBergCategories
-
-    real(kind=RKIND), dimension(:,:), pointer :: &
-         bergFreshwaterFluxCategory, &
-         bergLatentHeatFluxCategory
-
-    real(kind=RKIND), dimension(:), pointer :: &
-         bergFreshwaterFluxCell, &
-         bergLatentHeatFluxCell
-
-    integer :: &
-         iCell, &
-         iCategory
-
-    call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
-    call MPAS_pool_get_subpool(block % structs, "berg_fluxes", berg_fluxes)
-
-    call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
-    call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
-
-    call MPAS_pool_get_array(berg_fluxes, "bergFreshwaterFluxCategory", bergFreshwaterFluxCategory)
-    call MPAS_pool_get_array(berg_fluxes, "bergLatentHeatFluxCategory", bergLatentHeatFluxCategory)
-    call MPAS_pool_get_array(berg_fluxes, "bergFreshwaterFluxCell", bergFreshwaterFluxCell)
-    call MPAS_pool_get_array(berg_fluxes, "bergLatentHeatFluxCell", bergLatentHeatFluxCell)
-
-    do iCell = 1, nCellsSolve
-
-       bergFreshwaterFluxCell(iCell) = 0.0_RKIND
-       bergLatentHeatFluxCell(iCell) = 0.0_RKIND
-
-       do iCategory = 1, nBergCategories
-
-          bergLatentHeatFluxCategory(iCategory,iCell) = 0.0_RKIND
-          bergLatentHeatFluxCategory(iCategory,iCell) = 0.0_RKIND
-
-       enddo
-
-    enddo
-
-  end subroutine init_berg_fluxes
 
 !-----------------------------------------------------------------------
 
