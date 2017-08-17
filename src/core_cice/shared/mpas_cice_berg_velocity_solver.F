@@ -281,11 +281,6 @@ contains
     call init_berg_subcycle_variables(domain)
     call mpas_timer_stop("init subcycle var")
 
-    ! aggregate categories for area and volume into total mass
-    call mpas_timer_start("agg berg mass and area")
-    call aggregate_berg_mass(domain)
-    call mpas_timer_stop("agg berg mass and area")
-
     ! calculate velocity calculation masks
     call mpas_timer_start("calc berg masks")
     call berg_calculation_masks(domain)
@@ -325,32 +320,7 @@ contains
          uBergVelocity, &
          vBergVelocity, &
          uBergVelocityInitial, &
-         vBergVelocityInitial, &
-         bergDraftVertex, &
-         bergMassVertex, &
-         oneBergMassVertex, &
-         oneBergAreaVertex, &
-         bergAirContactAreaVertex, &
-         bergOcnContactAreaVertex, &
-         bergIceContactAreaVertex, &
-         bergCoefAtmU, &
-         bergCoefAtmV, &
-         bergCoefOcnU, &
-         bergCoefOcnV, &
-         bergCoefIceU, &
-         bergCoefIceV, &
-         bergCoefCorU, &
-         bergCoefCorV, &
-         bergCoefTltU, &
-         bergCoefTltV
-
-    integer, dimension(:,:), pointer :: &
-         bergVelocityMask
-
-    real(kind=RKIND), dimension(:), pointer :: &
-         uAirVelocityVertex, &
-         vAirVelocityVertex, &
-         airDensityVertex
+         vBergVelocityInitial
 
     integer, pointer :: &
          nVerticesSolve, &
@@ -372,24 +342,6 @@ contains
        call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocity)
        call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocityInitial", uBergVelocityInitial)
        call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocityInitial", vBergVelocityInitial)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergVelocityMask", bergVelocityMask)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergDraftVertex", bergDraftVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergMassVertex", bergMassVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "oneBergMassVertex", oneBergMassVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "oneBergAreaVertex", oneBergAreaVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergAirContactAreaVertex", bergAirContactAreaVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergOcnContactAreaVertex", bergOcnContactAreaVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergIceContactAreaVertex", bergIceContactAreaVertex)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefAtmU", bergCoefAtmU)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefAtmV", bergCoefAtmV)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefOcnU", bergCoefOcnU)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefOcnV", bergCoefOcnV)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefIceU", bergCoefIceU)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefIceV", bergCoefIceV)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefCorU", bergCoefCorU)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefCorV", bergCoefCorV)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefTltU", bergCoefTltU)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefTltV", bergCoefTltV)
 
        do iVertex = 1, nVerticesSolve
 
@@ -406,72 +358,6 @@ contains
     enddo
 
   end subroutine init_berg_subcycle_variables!}}}
-
-!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-!
-!  aggregate_berg_mass
-!
-!> \brief   Aggregate berg masses
-!> \author  Darin Comeau, LANL
-!> \date    June 28, 2017
-!> \details This subroutine is intended to update iceberg masses for the
-!> velocity solver.
-!
-!-----------------------------------------------------------------------
-
-  subroutine aggregate_berg_mass(domain)!{{{
-
-    type(domain_type), intent(inout) :: &
-         domain
-
-    type(block_type), pointer :: &
-         block
-
-    type(MPAS_pool_type), pointer :: &
-         tracersPool, &
-         tracersAggregatePool
-
-    real(kind=RKIND), dimension(:,:), pointer :: &
-         bergMassCategory
-
-    real(kind=RKIND), dimension(:), pointer :: &
-         bergMassCell
-
-    integer, pointer :: &
-         nCellsSolve, &
-         nBergCategories
-
-    integer :: &
-         iCell, &
-         iCategory
-
-    block => domain % blocklist
-    do while (associated(block))
-
-       call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
-
-       call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
-       call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracersAggregatePool)
-
-       call MPAS_pool_get_array(tracersPool, "bergMassCategory", bergMassCategory, 1)
-
-       call MPAS_pool_get_array(tracersAggregatePool, "bergMassCell", bergMassCell)
-
-       do iCell = 1, nCellsSolve
-
-          bergMassCell(iCell) = sum(bergMassCategory(:,iCell))
-
-       enddo ! iCell
-
-       block => block % next
-    enddo
-
-    ! halo exchange berg mass
-    call mpas_timer_start("berg mass halo")
-    call MPAS_dmpar_field_halo_exch(domain, 'bergMassCell')
-    call mpas_timer_stop("berg mass halo")
-
-  end subroutine aggregate_berg_mass!}}}
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -1195,7 +1081,7 @@ contains
        call MPAS_pool_get_array(atmosCouplingPool, "vAirVelocity", vAirVelocity)
        call MPAS_pool_get_array(atmosCouplingPool, "airDensity", airDensity)
 
-       ! interpolate ait velocities from cells to vertices
+       ! interpolate air velocities from cells to vertices
        call cice_interpolate_cell_to_vertex(&
           meshPool, &
           uAirVelocityVertex, &
