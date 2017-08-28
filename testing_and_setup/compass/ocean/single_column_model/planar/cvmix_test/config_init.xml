@@ -17,8 +17,8 @@
 		<option name="config_write_cull_cell_mask">.false.</option>
 
 		<option name="config_use_activeTracers_surface_bulk_forcing">.true.</option>
-		<option name="config_use_activeTracers_surface_restoring">.true.</option>
-		<option name="config_use_activeTracers_interior_restoring">.true.</option>
+		<option name="config_use_activeTracers_surface_restoring">.false.</option>
+		<option name="config_use_activeTracers_interior_restoring">.false.</option>
 		<option name="config_use_bulk_wind_stress">.true.</option>
 		<option name="config_use_bulk_thickness_flux">.true.</option>
 		<option name="config_cvmix_WSwSBF_vert_levels">100</option>
@@ -30,9 +30,9 @@
 		<option name="config_cvmix_WSwSBF_surface_salinity_piston_velocity">4E-6</option>
 		<option name="config_cvmix_WSwSBF_sensible_heat_flux">-25.0</option>
 		<option name="config_cvmix_WSwSBF_latent_heat_flux">-50.0</option>
-		<option name="config_cvmix_WSwSBF_shortwave_heat_flux">200.0</option>
+		<option name="config_cvmix_WSwSBF_shortwave_heat_flux">0.0</option>
 		<option name="config_cvmix_WSwSBF_rain_flux">0.0</option>
-		<option name="config_cvmix_WSwSBF_evaporation_flux">6.5E-4</option>
+		<option name="config_cvmix_WSwSBF_evaporation_flux">0.0</option>
 		<option name="config_cvmix_WSwSBF_interior_temperature_restoring_rate">1.0e-6</option>
 		<option name="config_cvmix_WSwSBF_interior_salinity_restoring_rate">1.0e-6</option>
 		<option name="config_cvmix_WSwSBF_temperature_gradient">0.01</option>
@@ -43,7 +43,7 @@
 		<option name="config_cvmix_WSwSBF_coriolis_parameter">1E-4</option>
 		<option name="config_cvmix_WSwSBF_temperature_gradient_mixed_layer">0.0</option>
 		<option name="config_cvmix_WSwSBF_salinity_gradient_mixed_layer">0.0</option>
-		<option name="config_cvmix_WSwSBF_mixed_layer_depth_temperature">25.0</option>
+		<option name="config_cvmix_WSwSBF_mixed_layer_depth_temperature">0.0</option>
 		<option name="config_cvmix_WSwSBF_mixed_layer_depth_salinity">0.0</option>
 		<option name="config_cvmix_WSwSBF_mixed_layer_temperature_change">0.0</option>
 		<option name="config_cvmix_WSwSBF_mixed_layer_salinity_change">1.0</option>
