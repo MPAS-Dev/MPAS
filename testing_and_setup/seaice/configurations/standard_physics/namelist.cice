@@ -30,7 +30,6 @@
     config_nCategories = 5
     config_nIceLayers = 7
     config_nSnowLayers = 1
-    config_nBergCategories = 10
 /
 &initialize
     config_initial_condition_type = 'cice_default'
@@ -43,7 +42,6 @@
     config_initial_uvelocity = 0.0
     config_initial_vvelocity = 0.0
     config_calculate_coriolis = true
-    config_berg_initial_condition_type = 'test_everywhere'
 /
 &use_sections
     config_use_velocity_solver = true
@@ -315,6 +313,18 @@
 /
 &bergs
     config_use_bergs = false
+    config_berg_initial_condition = 'no_bergs'
+    config_berg_initial_mass = 0.0
+    config_berg_initial_uvelocity_geo = 0.0
+    config_berg_initial_vvelocity_geo = 0.0
+    config_use_berg_velocity_solver = false
+    config_berg_dynamics_subcycle_number = 15
+    config_berg_ice_concentration_threshold = 0.9
+    config_berg_ice_min_concentration_threshold = 0.15
+    config_berg_ice_strength_threshold = 1000.0
+    config_berg_velocity_solver_type = 'forward_euler'
+    config_berg_horizontal_shape = 'tabular_1:1.5'
+    config_berg_density = 850.0
 /
 &AM_highFrequencyOutput
     config_AM_highFrequencyOutput_enable = false
