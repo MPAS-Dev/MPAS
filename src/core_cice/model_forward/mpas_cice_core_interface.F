@@ -114,6 +114,9 @@ module cice_core_interface
       ! icebergs
       call setup_packages_bergs(configPool, packagePool, ierr)
 
+      ! testing system test
+      call setup_packages_testing_system_test(configPool, packagePool, ierr)
+
    end function cice_setup_packages!}}}
 
    !***********************************************************************
@@ -547,7 +550,7 @@ module cice_core_interface
      type (mpas_pool_type), intent(in) :: packagePool
      integer, intent(out) :: ierr
 
-     ! icebergs package
+          ! icebergs package
      logical, pointer :: &
           config_use_bergs
 
@@ -563,8 +566,47 @@ module cice_core_interface
      call MPAS_pool_get_config(configPool, "config_use_bergs", config_use_bergs)
      call MPAS_pool_get_package(packagePool, "pkgBergsActive", pkgBergsActive)
      pkgBergsActive = config_use_bergs
-  
+
    end subroutine setup_packages_bergs!}}}
+
+   !***********************************************************************
+   !
+   !  routine setup_packages_testing_system_test
+   !
+   !> \brief
+   !> \author  Adrian K. Turner
+   !> \date    9th Feburary 2015
+   !> \details
+   !>
+   !
+   !-----------------------------------------------------------------------
+
+   subroutine setup_packages_testing_system_test(configPool, packagePool, ierr)!{{{
+
+     type (mpas_pool_type), intent(in) :: configPool
+     type (mpas_pool_type), intent(in) :: packagePool
+     integer, intent(out) :: ierr
+
+     logical, pointer :: &
+          config_testing_system_test
+
+     logical, pointer :: &
+          pkgTestingSystemTestActive
+
+     !pkgTestingSystemTest
+
+     call MPAS_pool_get_config(configPool, "config_testing_system_test", config_testing_system_test)
+
+     call MPAS_pool_get_package(packagePool, "pkgTestingSystemTestActive", pkgTestingSystemTestActive)
+
+     ! see if we are testing the testing system
+     if (config_testing_system_test) then
+
+        pkgTestingSystemTestActive = .true.
+
+     endif
+
+   end subroutine setup_packages_testing_system_test!}}}
 
    !***********************************************************************
    !
@@ -609,7 +651,6 @@ module cice_core_interface
       end if
 
    end function cice_setup_decompositions!}}}
-
 
    !***********************************************************************
    !

@@ -12,6 +12,7 @@
     config_write_output_on_startup = false
     config_test_case_diag = false
     config_test_case_diag_type = 'none'
+    config_full_abort_write = true
 /
 &decomposition
     config_block_decomp_file_prefix = 'graphs/graph.info.part.'
@@ -65,6 +66,7 @@
     config_unit_test_type = ''
     config_unit_test_subtype = ''
     config_use_test_ice_shelf = false
+    config_testing_system_test = false
 /
 &velocity_solver
     config_dynamics_subcycle_number = 1

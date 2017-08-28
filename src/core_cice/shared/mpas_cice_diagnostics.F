@@ -27,7 +27,7 @@ module cice_diagnostics
        cice_initialize_time_diagnostics, &
        cice_set_time_diagnostics, &
        cice_check_state, &
-       cice_warning_message
+       cice_set_testing_system_test_arrays
 
 contains
 
@@ -396,53 +396,97 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  cice_warning_message
+!  cice_set_testing_system_test_arrays
 !
-!> \brief
+!> \brief Set up arrays for testing the testing system
 !> \author Adrian K. Turner, LANL
-!> \date 13th May 2016
+!> \date 11th May 2017
 !> \details
-!>
+!> This routine sets up the testing system test arrays that will cause
+!> failures in each test.
 !
 !-----------------------------------------------------------------------
 
-  subroutine cice_warning_message(domain, message)
+  subroutine cice_set_testing_system_test_arrays(domain)
 
     type(domain_type), intent(in) :: &
          domain
 
-    character(len=*), intent(in) :: &
-         message
-
-    integer :: &
-         errorUnit, &
-         iostat
-
-    character(len=strKIND) :: &
-         filename
+    type(block_type), pointer :: &
+         block
 
     type(MPAS_pool_type), pointer :: &
-         diagnosticsPool
+         testingSystemTestPool
 
-    character(len=strKIND), pointer :: &
-         xtime
+    real(kind=RKIND), dimension(:), pointer :: &
+         testArrayRegression, &
+         testArrayParallelism, &
+         testArrayRestartability
 
-    call mpas_new_unit(errorUnit)
-    write(filename,fmt='(a,i6.6,a)') "mpas_seaice_state_test_", domain % dminfo % my_proc_id, ".log"
-    open(errorUnit, file=trim(filename), position="append", iostat=iostat)
-    if (iostat /= 0) then
-       call mpas_log_write("cice_warning_message: Problem opening state check file $i", messageType=MPAS_LOG_CRIT, intArgs=(/iostat/))
+    logical, pointer :: &
+         config_testing_system_test, &
+         config_do_restart
+
+    integer, pointer :: &
+         nCellsSolve
+
+    integer :: &
+         iCell
+
+    ! random number variables
+    integer :: &
+         seedSize, &
+         clock, &
+         i
+
+    integer, dimension(:), allocatable :: &
+         seed
+
+    call MPAS_pool_get_config(domain % configs, "config_testing_system_test", config_testing_system_test)
+    call MPAS_pool_get_config(domain % configs, "config_do_restart", config_do_restart)
+
+    if (config_testing_system_test) then
+
+       block => domain % blocklist
+       do while (associated(block))
+
+          call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
+
+          call MPAS_pool_get_subpool(block % structs, "testing_system_test", testingSystemTestPool)
+
+          ! regression
+          call random_seed(size=seedSize)
+          allocate(seed(seedSize))
+
+          call system_clock(count=clock)
+
+          seed = clock + 37 * (/ (i - 1, i = 1, seedSize) /)
+          call random_seed(PUT=seed)
+
+          deallocate(seed)
+
+          call MPAS_pool_get_array(testingSystemTestPool, "testArrayRegression", testArrayRegression)
+
+          do iCell = 1, nCellsSolve
+             call random_number(testArrayRegression(iCell))
+          enddo ! iCell
+
+          ! parallelism
+          call MPAS_pool_get_array(testingSystemTestPool, "testArrayParallelism", testArrayParallelism)
+          testArrayParallelism = real(domain % dminfo % my_proc_id, RKIND)
+
+          ! restartability
+          call MPAS_pool_get_array(testingSystemTestPool, "testArrayRestartability", testArrayRestartability)
+          if (config_do_restart) then
+             testArrayRestartability = 1.0_RKIND
+          endif
+
+          block => block % next
+       enddo
+
     endif
 
-    call MPAS_pool_get_subpool(domain % blocklist % structs, "diagnostics", diagnosticsPool)
-    call MPAS_pool_get_array(diagnosticsPool, "xtime", xtime)
-
-    write(errorUnit,fmt='(a,a,a,a)') "Time=", trim(xtime), ", ", trim(message)
-
-    close(errorUnit)
-    call mpas_release_unit(errorUnit)
-
-  end subroutine cice_warning_message
+  end subroutine cice_set_testing_system_test_arrays
 
 !-----------------------------------------------------------------------
 
