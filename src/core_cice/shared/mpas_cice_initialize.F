@@ -120,7 +120,6 @@ contains
     call cice_reset_coupler_fluxes(domain)
 
     ! initialize icebergs
-    call mpas_log_write(" Initialize icebergs...")
     call cice_bergs_init(domain)    
 
   end subroutine cice_init!}}}

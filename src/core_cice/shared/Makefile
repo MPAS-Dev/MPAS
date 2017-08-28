@@ -13,6 +13,7 @@ OBJS = 	mpas_cice_time_integration.o \
 	mpas_cice_velocity_solver_pwl.o \
 	mpas_cice_velocity_solver_variational_shared.o \
 	mpas_cice_velocity_solver_constitutive_relation.o \
+	mpas_cice_berg_velocity_solver.o \
 	mpas_cice_forcing.o \
 	mpas_cice_initialize.o \
 	mpas_cice_bergs_initialize.o \
@@ -75,9 +76,11 @@ mpas_cice_advection.o: mpas_cice_advection_upwind.o mpas_cice_advection_incremen
 
 mpas_cice_unit_test.o: mpas_cice_constants.o mpas_cice_velocity_solver_unit_tests.o
 
-mpas_cice_time_integration.o: mpas_cice_constants.o mpas_cice_velocity_solver.o mpas_cice_forcing.o mpas_cice_unit_test.o mpas_cice_advection.o mpas_cice_diagnostics.o mpas_cice_column.o mpas_cice_history.o
+mpas_cice_time_integration.o: mpas_cice_constants.o mpas_cice_velocity_solver.o mpas_cice_berg_velocity_solver.o mpas_cice_forcing.o mpas_cice_unit_test.o mpas_cice_advection.o mpas_cice_diagnostics.o mpas_cice_column.o mpas_cice_history.o
 
-mpas_cice_bergs_initialize.o: 
+mpas_cice_bergs_initialize.o: mpas_cice_berg_velocity_solver.o
+
+mpas_cice_berg_velocity_solver.o:
 
 mpas_cice_initialize.o: mpas_cice_constants.o mpas_cice_mesh.o mpas_cice_velocity_solver.o mpas_cice_testing.o mpas_cice_debug.o mpas_cice_forcing.o mpas_cice_advection.o mpas_cice_column.o mpas_cice_forcing.o mpas_cice_bergs_initialize.o
 

@@ -56,6 +56,9 @@ contains
     use cice_velocity_solver, only: &
          cice_run_velocity_solver
 
+    use cice_berg_velocity_solver, only: &
+         cice_run_berg_velocity_solver
+
     use cice_advection, only: &
          cice_run_advection
 
@@ -88,7 +91,8 @@ contains
 
     logical, pointer :: &
          config_perform_unit_test, &
-         config_use_advection
+         config_use_advection, &
+         config_use_bergs
 
     integer, pointer :: &
          config_dynamics_subcycle_number
@@ -117,6 +121,7 @@ contains
 
     call MPAS_pool_get_config(configs, "config_use_advection", config_use_advection)
     call MPAS_pool_get_config(configs, "config_perform_unit_test", config_perform_unit_test)
+    call MPAS_pool_get_config(configs, "config_use_bergs", config_use_bergs)
 
     if (config_perform_unit_test) then
        call cice_perform_unit_test(domain)
@@ -141,6 +146,13 @@ contains
        call mpas_timer_start("Velocity solver")
        call cice_run_velocity_solver(domain, clock)
        call mpas_timer_stop("Velocity solver")
+
+       ! berg velocity solve
+       if (config_use_bergs) then
+          call mpas_timer_start("Berg velocity solver")
+          call cice_run_berg_velocity_solver(domain, clock)
+          call mpas_timer_stop("Berg velocity solver")
+       endif
 
        ! advection
        call mpas_timer_start("Advection")

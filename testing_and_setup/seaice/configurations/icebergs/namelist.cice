@@ -313,7 +313,18 @@
 /
 &bergs
     config_use_bergs = true
-    config_berg_initial_condition = 'no_bergs'
+    config_berg_initial_condition = 'bergs_everywhere'
+    config_berg_initial_mass = 100.0
+    config_berg_initial_uvelocity_geo = 0.0
+    config_berg_initial_vvelocity_geo = 0.0
+    config_use_berg_velocity_solver = true
+    config_berg_dynamics_subcycle_number = 15
+    config_berg_ice_concentration_threshold = 0.9
+    config_berg_ice_min_concentration_threshold = 0.15
+    config_berg_ice_strength_threshold = 1000.0
+    config_berg_velocity_solver_type = 'forward_euler'
+    config_berg_horizontal_shape = 'tabular_1:1.5'
+    config_berg_density = 850.0
 /
 &AM_highFrequencyOutput
     config_AM_highFrequencyOutput_enable = false
