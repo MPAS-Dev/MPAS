@@ -825,7 +825,7 @@ module atm_core
       use atm_time_integration
 #ifdef DO_PHYSICS
       use mpas_atmphys_control
-      use mpas_atmphys_driver
+      use mpas_atmphys_driver, only : physics_driver_before_dyn, physics_driver_after_dyn
       use mpas_atmphys_manager
       use mpas_atmphys_update
 #endif
@@ -852,16 +852,32 @@ module atm_core
 
       call mpas_get_time(curr_time=currTime, dateTimeString=timeStamp, ierr=ierr)         
 
-
+      !
+      ! This is a call to all of the slow, column-oriented physics, except for resolved
+      ! cloud microphysical processes. The microphysics is handled after the dynamics so 
+      ! that any supersaturation caused by various dynamical processes (advection, etc) 
+      ! may be removed before the end of each time step.
+      !
 #ifdef DO_PHYSICS
       !proceed with physics if moist_physics is set to true:
       if(moist_physics) then
          call physics_timetracker(domain,dt,clock,itimestep,xtime_s)
-         call physics_driver(domain,itimestep,xtime_s)
+         call physics_driver_before_dyn(domain,itimestep,xtime_s)
       endif
 #endif
 
       call atm_timestep(domain, dt, timeStamp, itimestep)
+
+      !
+      ! This part is the microphysics, which needs to happen after the dynamics
+      ! time stepping.
+      !
+#ifdef DO_PHYSICS
+      !proceed with physics if moist_physics is set to true:
+      if(moist_physics) then
+         call physics_driver_after_dyn(domain,itimestep,xtime_s)
+      endif
+#endif
 
    end subroutine atm_do_timestep
    
