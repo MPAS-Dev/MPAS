@@ -1250,8 +1250,6 @@ module atm_time_integration
       ! of the 'exner' exchange with other exchanges.
       !
 
-      call summarize_timestep(domain)
-
    end subroutine atm_srk3
 
 

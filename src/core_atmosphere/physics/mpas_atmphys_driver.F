@@ -73,7 +73,7 @@
 ! * added a second subroutine so now all of the physics is called from this driver module; the original
 !   routine has an added suffix _before_dyn, and the new routine is named similarly: _after_dyn processing; the 
 !   cloud microphysics processing is handled in the _after_dyn routine.
-!   Dave Gill (gill@ucar.edu) / 2017-09-xx.
+!   Dave Gill (gill@ucar.edu) / 2017-09-14.
 
 
  contains

@@ -879,6 +879,12 @@ module atm_core
       endif
 #endif
 
+      !
+      ! This is the summary from the physics before the dynamics solver, 
+      ! the accumulated processing of the dynamics, and the final physics
+      ! call after the dynamics completes.
+      call summarize_timestep(domain)
+
    end subroutine atm_do_timestep
    
    
