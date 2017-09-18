@@ -60,6 +60,9 @@ contains
     use cice_berg_velocity_solver, only: &
          cice_run_berg_velocity_solver
 
+    use cice_berg_decay, only: &
+         cice_run_berg_decay
+
     use cice_advection, only: &
          cice_run_advection
 
@@ -173,6 +176,11 @@ contains
        if (ierr > 0) return
 
     enddo ! iDynamicsSubcycle
+
+    ! berg velocity solve
+    call mpas_timer_start("Berg decay")
+    call cice_run_berg_decay(domain, clock)
+    call mpas_timer_stop("Berg decay")
 
     ! shortwave
     call mpas_timer_start("Column post-dynamics")
