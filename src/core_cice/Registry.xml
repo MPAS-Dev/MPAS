@@ -567,9 +567,13 @@
 		<nml_option name="config_berg_ice_concentration_threshold"		type="real"		default_value="0.9"/>
 		<nml_option name="config_berg_ice_min_concentration_threshold"		type="real"		default_value="0.15"/>
 		<nml_option name="config_berg_ice_strength_threshold"		type="real"		default_value="1000.0"/>
+		<nml_option name="config_berg_temperature"		type="real"		default_value="-4.0"/>
 		<nml_option name="config_berg_velocity_solver_type"	type="character"	default_value="forward_euler"/>
+		<nml_option name="config_use_berg_decay"			type="logical"		default_value="false"/>
 		<nml_option name="config_berg_horizontal_shape"	type="character"	default_value="tabular_1:1.5"	possible_values="'tabular_1:1.5' or 'cylindrical'"/>
-		<nml_option name="config_berg_density" type="real" default_value="850.0"/>
+		<nml_option name="config_berg_density" type="real" default_value="850.0"	units="kg/m^3"/>
+		<nml_option name="config_specific_heat_fresh_ice" type="real" default_value="2106.0"	units="J/kg/K"/>
+		<nml_option name="config_berg_allow_rollover"			type="logical"		default_value="false"/>
 	</nml_record>
 
 	<streams>
@@ -2590,12 +2594,21 @@
 		<var name="bergCoefTltV"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergCoefTltV"/>
 	</var_struct>
 
+	<!-- iceberg decay -->
+	<var_struct name="berg_decay" time_levs="1" packages="pkgBergs">
+		<var name="bergDecayMask"			type="integer"	dimensions="nBergCategories nCells Time"		name_in_code="bergDecayMask"/>
+		<var name="bergBasalMeltRate"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergBasalMeltRate"	units="m/s"/>
+		<var name="bergLateralMeltRate"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergLateralMeltRate"	units="m/s"/>
+		<var name="bergWaveErosionRate"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergWaveErosionRate"	units="m/s"/>
+		<var name="bergMeltMass"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergMeltMass"	units="kg"/>
+	</var_struct>
+
 	<!-- fluxes from icebergs -->
 	<var_struct name="berg_fluxes" time_levs="1" packages="pkgBergs">
-		<var name="bergFreshwaterFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergFreshwaterFluxCategory"/>
-		<var name="bergLatentHeatFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergLatentHeatFluxCategory"/>
-		<var name="bergFreshwaterFluxCell"	type="real"	dimensions="nCells Time"				name_in_code="bergFreshwaterFluxCell"/>
-		<var name="bergLatentHeatFluxCell"	type="real"	dimensions="nCells Time"				name_in_code="bergLatentHeatFluxCell"/>
+		<var name="bergFreshwaterFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergFreshwaterFluxCategory"	units="kg/m^2/s"/>
+		<var name="bergLatentHeatFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergLatentHeatFluxCategory"	units="J/m^2/s"/>
+		<var name="bergFreshwaterFluxCell"	type="real"	dimensions="nCells Time"				name_in_code="bergFreshwaterFluxCell"	units="kg/m^2/s"/>
+		<var name="bergLatentHeatFluxCell"	type="real"	dimensions="nCells Time"				name_in_code="bergLatentHeatFluxCell"	units="J/m^2/s"/>
 	</var_struct>
 
 #include "analysis_members/Registry_cice_analysis_members.xml"

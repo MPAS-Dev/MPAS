@@ -10,6 +10,7 @@
 !>  m * du/dt = F_a + F_o + F_i + F_c + F_t,
 !> where m is iceberg mass, u is iceberg velocity, and the forcing terms
 !> are atmosphere, ocean, sea ice, Coriolis, and sea surface tilt.
+!> See Hunke & Comeau 2011 JGR:Oceans for details.
 !
 !-----------------------------------------------------------------------
 
@@ -69,6 +70,7 @@ contains
          config_dt
 
     integer, pointer :: &
+         config_dynamics_subcycle_number, &
          config_berg_dynamics_subcycle_number
 
     ! set timesteps and initialize velocities
@@ -76,12 +78,15 @@ contains
     do while (associated(block))
 
        call MPAS_pool_get_config(block % configs, "config_dt", config_dt)
+       call MPAS_pool_get_config(block % configs, "config_dynamics_subcycle_number", config_dynamics_subcycle_number)
        call MPAS_pool_get_config(block % configs, "config_berg_dynamics_subcycle_number", config_berg_dynamics_subcycle_number)
 
        call MPAS_pool_get_subpool(block % structs, "berg_velocity_solver", bergVelocitySolverPool)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergDynamicsTimeStep", bergDynamicsTimeStep)
 
-       bergDynamicsTimeStep = config_dt / real(config_berg_dynamics_subcycle_number,RKIND)
+       ! berg velocity solver is inside sea ice dynamics loop in cice_time_integration
+       bergDynamicsTimeStep = config_dt / (real(config_berg_dynamics_subcycle_number,RKIND) * &
+                                           real(config_dynamics_subcycle_number,RKIND))
 
        call init_berg_velocity(block)
 
@@ -501,6 +506,9 @@ contains
          nBergCategories, &
          vertexDegree
 
+    call MPAS_pool_get_config(domain % configs, "config_berg_ice_concentration_threshold", config_berg_ice_concentration_threshold)
+    call MPAS_pool_get_config(domain % configs, "config_berg_ice_strength_threshold", config_berg_ice_strength_threshold)
+
     block => domain % blocklist
     do while (associated(block))
 
@@ -527,9 +535,6 @@ contains
        call MPAS_pool_get_array(tracersAggregatePool, "iceAreaCell", iceAreaCell)
        call MPAS_pool_get_array(meshPool, "cellsOnVertex", cellsOnVertex)
        call MPAS_pool_get_array(meshPool, "areaCell", areaCell)
-
-    call MPAS_pool_get_config(domain % configs, "config_berg_ice_concentration_threshold", config_berg_ice_concentration_threshold)
-    call MPAS_pool_get_config(domain % configs, "config_berg_ice_strength_threshold", config_berg_ice_strength_threshold)
 
        do iVertex = 1, nVerticesSolve
 
