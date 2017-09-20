@@ -67,12 +67,22 @@ contains
 
     if (config_use_berg_decay) then
 
+       ! reset iceberg decay variables
        call init_berg_decay(domain)
+
+       ! get mask for iceberg decay calculations
        call berg_decay_calculation_mask(domain)
+
+       ! wrapper for calculating each of three iceberg decay terms
        call calculate_berg_decay_terms(domain)
+
+       ! apply iceberg decay terms
        call berg_calculate_melt(domain)
+
+       ! convert lost iceberg mass to freshwater and latent heat fluxes
        call berg_melt_fluxes(domain)
 
+       ! determine if iceberg is stable, and rollover if needed
        if (config_berg_allow_rollover) then
           call mpas_timer_start("Berg rollover check")
           call berg_rollover_check(domain)
@@ -251,8 +261,7 @@ contains
 
              bergDecayMask(iCategory,iCell) = 0
 
-             if (interiorCell(iCell) == 1 .and. &
-                landIceMask(iCell) == 0 .and. &
+             if (landIceMask(iCell) == 0 .and. &
                 bergMassCategory(iCategory,iCell) > bergMassMinimum) then
 
                 ! this cell has sufficient ice
@@ -408,8 +417,8 @@ contains
 
     real(kind=RKIND), parameter :: &
          basalMeltCoef = 0.58_RKIND, &
-         basalMeltExp1 = 0.8_RKIND, &
-         basalMeltExp2 = 0.2_RKIND
+         basalMeltExponent1 = 0.8_RKIND, &
+         basalMeltExponent2 = 0.2_RKIND
 
     call MPAS_pool_get_config(domain % configs, "config_berg_temperature", bergTemperature)
 
@@ -431,8 +440,8 @@ contains
 
        call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocity", uBergVelocity)
        call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocity)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocity", uBergVelocityCell)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocityCell)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocityCell", uBergVelocityCell)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocityCell", vBergVelocityCell)
 
        call MPAS_pool_get_array(tracersPool, "bergLength", bergLength, 1)
 
@@ -469,12 +478,12 @@ contains
                                        vBergVelocityCell(iCategory,iCell), &
                                        relSpeed)
 
-               bergBasalMeltRate(iCategory,iCell) = basalMeltCoef*relSpeed**basalMeltExp1 &
+               bergBasalMeltRate(iCategory,iCell) = basalMeltCoef*relSpeed**basalMeltExponent1 &
                                                   * (seaSurfaceTemperature(iCell) - bergTemperature) &
-                                                  / (bergLength(iCategory,iCell)**basalMeltExp2)
+                                                  / (bergLength(iCategory,iCell)**basalMeltExponent2)
 
                ! convert from m/day to m/sec
-               bergBasalMeltRate(iCategory,iCell) = bergBasalMeltRate(iCategory,iCell)/ciceSecondsPerDay
+               bergBasalMeltRate(iCategory,iCell) = bergBasalMeltRate(iCategory,iCell)/real(ciceSecondsPerDay,RKIND)
 
                ! melt term must be positive
                bergBasalMeltRate(iCategory,iCell) = max(bergBasalMeltRate(iCategory,iCell), 0.0_RKIND)
@@ -484,10 +493,6 @@ contains
           enddo
 
        enddo
-
-       !dcnote - gives velocity errors if dont reset
-       uBergVelocityCell(:,:) = 0.0_RKIND
-       vBergVelocityCell(:,:) = 0.0_RKIND
 
        block => block % next
     end do
@@ -570,7 +575,7 @@ contains
                                                       lateralMeltCoef2*seaSurfaceTemperature(iCell)**2
 
                ! convert from m/day to m/sec
-               bergLateralMeltRate(iCategory,iCell) = bergLateralMeltRate(iCategory,iCell)/ciceSecondsPerDay
+               bergLateralMeltRate(iCategory,iCell) = bergLateralMeltRate(iCategory,iCell)/real(ciceSecondsPerDay,RKIND)
 
                ! melt term must be positive
                bergLateralMeltRate(iCategory,iCell) = max(bergLateralMeltRate(iCategory,iCell), 0.0_RKIND)
@@ -696,7 +701,7 @@ contains
                                                     *(seaSurfaceTemperature(iCell) + 2.0_RKIND)
 
                ! convert from m/day to m/sec
-               bergWaveErosionRate(iCategory,iCell) = bergWaveErosionRate(iCategory,iCell)/ciceSecondsPerDay
+               bergWaveErosionRate(iCategory,iCell) = bergWaveErosionRate(iCategory,iCell)/real(ciceSecondsPerDay,RKIND)
 
                ! melt term must be positive
                bergWaveErosionRate(iCategory,iCell) = max(bergWaveErosionRate(iCategory,iCell), 0.0_RKIND)
@@ -764,9 +769,9 @@ contains
          iCategory
 
     real(kind=RKIND) :: &
-         delLength, &
-         delHeight, &
-         delMass
+         dBergLength, &
+         dBergHeight, &
+         dBergMass
 
     block => domain % blocklist
     do while (associated(block))
@@ -795,20 +800,25 @@ contains
 
             if (bergDecayMask(iCategory,iCell) == 1) then
 
-               delLength = config_dt*1.25_RKIND*(bergLateralMeltRate(iCategory,iCell) + bergWaveErosionRate(iCategory,iCell))
-               delHeight = config_dt*bergBasalMeltRate(iCategory,iCell)
+               ! calculate change in dimensions
+               dBergLength = config_dt*1.25_RKIND*(bergLateralMeltRate(iCategory,iCell) + bergWaveErosionRate(iCategory,iCell))
+               dBergHeight = config_dt*bergBasalMeltRate(iCategory,iCell)
 
-               ! must be positive (should be unnecessary)
-               delLength = max(delLength, 0.0_RKIND)
-               delHeight = max(delHeight, 0.0_RKIND)
+               ! terms must be positive
+               if (dBergLength < 0.0_RKIND) call mpas_log_write(&
+                                                 "berg_decay: negative berg length $r:", realArgs=(/dBergLength/), &
+                                                 messageType=MPAS_LOG_CRIT)
+               if (dBergHeight < 0.0_RKIND) call mpas_log_write(&
+                                                 "berg_decay: negative berg height $r:", realArgs=(/dBergHeight/), &
+                                                 messageType=MPAS_LOG_CRIT)
 
                ! fraction of mass lost
-               delMass = (delLength**2*delHeight) / (bergLength(iCategory,iCell)**2*bergHeight(iCategory,iCell))
+               dBergMass = (dBergLength**2*dBergHeight) / (bergLength(iCategory,iCell)**2*bergHeight(iCategory,iCell))
 
-               bergLength(iCategory,iCell) = bergLength(iCategory,iCell) - delLength
-               bergHeight(iCategory,iCell) = bergHeight(iCategory,iCell) - delHeight
+               bergLength(iCategory,iCell) = bergLength(iCategory,iCell) - dBergLength
+               bergHeight(iCategory,iCell) = bergHeight(iCategory,iCell) - dBergHeight
   
-               bergMeltMass(iCategory,iCell) = delMass*bergMassCategory(iCategory,iCell)
+               bergMeltMass(iCategory,iCell) = dBergMass*bergMassCategory(iCategory,iCell)
                bergMassCategory(iCategory,iCell) = bergMassCategory(iCategory,iCell) - bergMeltMass(iCategory,iCell)
 
             endif
@@ -907,12 +917,12 @@ contains
             if (bergDecayMask(iCategory,iCell) == 1) then
 
                ! units kg/m^2/s
-               bergFreshwaterFluxCategory(iCategory,iCell) = bergMeltMass(iCategory,iCell) / (areacell(iCell)*config_dt)
+               bergFreshwaterFluxCategory(iCategory,iCell) = bergMeltMass(iCategory,iCell) / (areaCell(iCell)*config_dt)
 
                ! units J/m^2/s
                bergLatentHeatFluxCategory(iCategory,iCell) = bergMeltMass(iCategory,iCell) &
                                                            * (ciceLatentHeatMelting - specificHeatFreshIce*(bergTemperature+273.0)) &
-                                                           / (areacell(iCell)*config_dt)
+                                                           / (areaCell(iCell)*config_dt)
 
                bergFreshwaterFluxCell(iCell) = bergFreshwaterFluxCell(iCell) + bergFreshwaterFluxCategory(iCategory,iCell)
                bergLatentHeatFluxCell(iCell) = bergLatentHeatFluxCell(iCell) + bergLatentHeatFluxCategory(iCategory,iCell)
