@@ -558,7 +558,7 @@
 	<!-- icebergs -->
 	<nml_record name="bergs" in_defaults="true">
 		<nml_option name="config_use_bergs"			type="logical"		default_value="false"/>
-		<nml_option name="config_berg_initial_condition"	type="character"	default_value="no_bergs"	possible_values="'no_bergs' or 'bergs_everywhere'"/>
+		<nml_option name="config_berg_initial_condition"	type="character"	default_value="no_bergs"	possible_values="'no_bergs' or 'bergs_everywhere' or 'bergs_coastal_uniform'"/>
 		<nml_option name="config_berg_initial_mass"		type="real"		default_value="100.0"/>
 		<nml_option name="config_berg_initial_uvelocity_geo"		type="real"		default_value="0.0"/>
 		<nml_option name="config_berg_initial_vvelocity_geo"		type="real"		default_value="0.0"/>
@@ -574,6 +574,9 @@
 		<nml_option name="config_berg_density" type="real" default_value="850.0"	units="kg/m^3"/>
 		<nml_option name="config_specific_heat_fresh_ice" type="real" default_value="2106.0"	units="J/kg/K"/>
 		<nml_option name="config_berg_allow_rollover"			type="logical"		default_value="false"/>
+		<nml_option name="config_berg_annual_antarctic_calving_rate" type="real" default_value="1350.0e12"	units="kg/yr"/>
+		<nml_option name="config_berg_annual_antarctic_calving_frequency" type="real" default_value="12.0"	units="1/yr"/>
+		<nml_option name="config_berg_antarctic_mask_latitude_maximum" type="real" default_value="-60.0"	units="degrees latitude"/>
 	</nml_record>
 
 	<streams>
@@ -2551,6 +2554,9 @@
 		<var name="bergCalvingDistribution"		type="real"	dimensions="nBergCategories"	name_in_code="bergCalvingDistribution"/>
 		<var name="bergCalvingLength"			type="real"	dimensions="nBergCategories"		name_in_code="bergCalvingLength"/>
 		<var name="bergCalvingHeight"			type="real"	dimensions="nBergCategories"		name_in_code="bergCalvingHeight"/>
+		<var name="bergCalvingMask"			type="integer"	dimensions="nCells"		name_in_code="bergCalvingMask"/>
+		<var name="nBergCalvingCells"			type="integer"	dimensions="ONE"		name_in_code="nBergCalvingCells"/>
+		<var name="nBergCalvingCellsTotal"			type="integer"	dimensions="ONE"		name_in_code="nBergCalvingCellsTotal"/>
 	</var_struct>
 
 	<var_struct name="berg_state" time_levs="1" packages="pkgBergs">

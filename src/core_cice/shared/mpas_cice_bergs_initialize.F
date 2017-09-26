@@ -91,6 +91,8 @@ contains
 
     call MPAS_pool_get_config(domain % configs, "config_berg_initial_condition", config_berg_initial_condition)
 
+    if (trim(config_berg_initial_condition) == "bergs_coastal_uniform") call init_berg_coastal_mask(domain)
+
     block => domain % blocklist
     do while(associated(block))
 
@@ -102,6 +104,10 @@ contains
        elseif (trim(config_berg_initial_condition) == "bergs_everywhere") then
 
           call init_berg_state_bergs_everywhere(block)
+
+       elseif (trim(config_berg_initial_condition) == "bergs_coastal_uniform") then
+
+          call init_berg_state_bergs_coastal_uniform(block)
 
        else
 
@@ -122,6 +128,216 @@ contains
     call MPAS_dmpar_field_halo_exch(domain, 'bergMassCell')
 
    end subroutine init_berg_state
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  init_berg_coastal_mask
+!
+!> \brief   Initialize iceberg coastal mask
+!> \author  Darin Comeau, LANL
+!> \date    25 Sept 2017
+!> \details This routine is intended to initialize the iceberg coastal
+!> mask for spatially uniform calving.
+!
+!-----------------------------------------------------------------------
+
+  subroutine init_berg_coastal_mask(domain)
+
+    type(domain_type), intent(inout) :: &
+         domain
+
+    type(block_type), pointer :: &
+         block
+
+    type(MPAS_pool_type), pointer :: &
+         mesh, &
+         boundary, &
+         berg_calving, &
+         ocean_coupling
+
+    integer, pointer :: &
+         nCellsSolve
+
+    integer, pointer :: &
+         nBergCalvingCells, &
+         nBergCalvingCellsTotal
+
+!     integer, dimension(:), pointer :: &
+!          nBergCalvingCells, &
+!          nBergCalvingCellsTotal
+
+    real(kind=RKIND), pointer :: &
+         bergMaskLatMax
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         latCell
+
+    integer, dimension(:), pointer :: &
+         interiorCell, &
+         bergCalvingMask, &
+         landIceMask
+
+    type (dm_info), pointer :: dminfo
+
+    integer :: &
+         iCell, &
+         iCategory
+
+    call MPAS_pool_get_config(domain % configs, "config_berg_antarctic_mask_latitude_maximum", bergMaskLatMax)
+
+    block => domain % blocklist
+    do while(associated(block))
+
+       call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
+       call MPAS_pool_get_subpool(block % structs, "boundary", boundary)
+       call MPAS_pool_get_subpool(block % structs, "berg_calving", berg_calving)
+       call MPAS_pool_get_subpool(block % structs, "ocean_coupling", ocean_coupling)
+
+       call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
+
+       call MPAS_pool_get_array(mesh, "latCell", latCell)
+       call MPAS_pool_get_array(boundary, "interiorCell", interiorCell)
+       call MPAS_pool_get_array(berg_calving, "bergCalvingMask", bergCalvingMask)
+       call MPAS_pool_get_array(berg_calving, "nBergCalvingCells", nBergCalvingCells)
+       call MPAS_pool_get_array(berg_calving, "nBergCalvingCellsTotal", nBergCalvingCellsTotal)
+       call MPAS_pool_get_array(ocean_coupling, "landIceMask", landIceMask)
+
+! only allow if neighboring a land ice cell
+!        do iCell = 1, nCellsSolve
+
+!           if (interiorCell(iCell) == 0 .and. &
+!              (landIceMask(iCell) == 0 .and. &
+!              latCell(iCell) < bergMaskLatMax) then
+
+!              ! see if neighboring a land ice cell
+!              do iCellonCell = 1, nEdgesonCell(iCell)
+
+!                 iCellNeighbor = cellsOnCells(iCellonCell,iCell)
+
+!                 if (landIceMask(iCellNeighbor) == 1) bergCalvingMask(iCell) = 1
+
+!              enddo
+
+!           endif
+
+!           ! counter for calving cells
+!           if (bergCalvingMask(iCell) == 1) nBergCalvingCells = nBergCalvingCells + 1
+
+!        enddo
+
+! count all coastal cells
+       do iCell = 1, nCellsSolve
+
+          if (interiorCell(iCell) == 0 .and. &
+             landIceMask(iCell) == 0 .and. &
+             latCell(iCell) < bergMaskLatMax) then
+
+             bergCalvingMask(iCell) = 1
+             nBergCalvingCells = nBergCalvingCells + 1
+
+          endif
+
+       enddo
+
+       nBergCalvingCellsTotal = nBergCalvingCells ! for now until do global sum
+
+       block => block % next
+    enddo
+
+    ! sum up calving cells over all blocks
+    call mpas_dmpar_sum_int(domain % dminfo, nBergCalvingCells, nBergCalvingCellsTotal)
+    call mpas_log_write('nBergCalvingCellsTotal $i', intArgs=(/nBergCalvingCellsTotal/))
+
+
+  end subroutine init_berg_coastal_mask
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  init_berg_state_bergs_coastal_uniform
+!
+!> \brief   Initialize with icebergs along coastal cells
+!> \author  Darin Comeau, LANL
+!> \date    25 Sept 2017
+!> \details This routine is intended to initialize the iceberg mass
+!> variables uniformly distributed around the coast.
+!
+!-----------------------------------------------------------------------
+
+  subroutine init_berg_state_bergs_coastal_uniform(block)
+
+    type(block_type), intent(inout) :: &
+         block
+
+    type(MPAS_pool_type), pointer :: &
+         mesh, &
+         tracers, &
+         tracers_aggregate, &
+         berg_calving
+
+    integer, pointer :: &
+         nCellsSolve, &
+         nBergCategories
+
+    integer, dimension(:), pointer :: &
+         bergCalvingMask
+
+    real(kind=RKIND), dimension(:,:), pointer :: &
+         bergMassCategory
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         bergMassCell
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         bergCalvingDistribution
+
+    integer, pointer :: &
+         nBergCalvingCellsTotal
+
+    real(kind=RKIND), pointer :: &
+         annualAntarcticCalvingRate, &
+         annualAntarcticCalvingFrequency
+
+    integer :: &
+         iCell, &
+         iCategory
+
+    call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
+    call MPAS_pool_get_subpool(block % structs, "tracers", tracers)
+    call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracers_aggregate)
+    call MPAS_pool_get_subpool(block % structs, "berg_calving", berg_calving)
+
+    call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
+
+    call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory,1)
+    call MPAS_pool_get_array(tracers_aggregate, "bergMassCell", bergMassCell)
+    call MPAS_pool_get_array(berg_calving, "bergCalvingMask", bergCalvingMask)
+    call MPAS_pool_get_array(berg_calving, "nBergCalvingCellsTotal", nBergCalvingCellsTotal)
+    call MPAS_pool_get_array(berg_calving, "bergCalvingDistribution", bergCalvingDistribution)
+
+    call MPAS_pool_get_config(block % configs, "config_berg_annual_antarctic_calving_rate", annualAntarcticCalvingRate)
+    call MPAS_pool_get_config(block % configs, "config_berg_annual_antarctic_calving_frequency", annualAntarcticCalvingFrequency)
+
+    do iCell = 1, nCellsSolve
+
+       if (bergCalvingMask(iCell) == 1) then
+
+          do iCategory = 1, nBergCategories
+
+             bergMassCategory(iCategory,iCell) = bergCalvingDistribution(iCategory)*annualAntarcticCalvingRate &
+                                               / (annualAntarcticCalvingFrequency*nBergCalvingCellsTotal)
+
+          enddo
+
+       endif
+
+       ! integrated quantities
+       bergMassCell(iCell) = sum(bergMassCategory(:,iCell))
+
+    enddo
+
+
+  end subroutine init_berg_state_bergs_coastal_uniform
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
