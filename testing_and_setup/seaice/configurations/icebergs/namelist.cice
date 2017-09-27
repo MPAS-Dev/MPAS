@@ -313,8 +313,13 @@
 /
 &bergs
     config_use_bergs = true
-    config_berg_initial_condition = 'bergs_coastal_uniform'
-    config_berg_initial_mass = 100.0
+    config_berg_initial_condition = 'coastal_uniform'
+    config_berg_calving_mask_latitude_minimum = -90.0
+    config_berg_calving_mask_latitude_maximum = -60.0
+    config_berg_calving_mask_longitude_minimum = 0.0
+    config_berg_calving_mask_longitude_maximum = 360.0
+    config_berg_annual_calving_rate = 1350.0e12
+    config_berg_annual_calving_frequency = 12.0
     config_berg_initial_uvelocity_geo = 0.0
     config_berg_initial_vvelocity_geo = 0.0
     config_use_berg_velocity_solver = true
@@ -329,9 +334,6 @@
     config_berg_density = 850.0
     config_specific_heat_fresh_ice = 2106.0
     config_berg_allow_rollover = true
-    config_berg_annual_antarctic_calving_rate = 1350.0e12
-    config_berg_annual_antarctic_calving_frequency = 12.0
-    config_berg_antarctic_mask_latitude_maximum = -60.0
 /
 &AM_highFrequencyOutput
     config_AM_highFrequencyOutput_enable = false

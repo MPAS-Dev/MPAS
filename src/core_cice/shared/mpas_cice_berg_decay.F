@@ -57,6 +57,9 @@ contains
     type(MPAS_Clock_type), intent(in) :: &
          clock !< Input:
 
+    type(block_type), pointer :: &
+         block
+
     logical, pointer :: &
          config_use_berg_decay, &
          config_berg_allow_rollover
@@ -67,27 +70,36 @@ contains
 
     if (config_use_berg_decay) then
 
-       ! reset iceberg decay variables
-       call init_berg_decay(domain)
+       block => domain % blocklist
+       do while (associated(block))
 
-       ! get mask for iceberg decay calculations
-       call berg_decay_calculation_mask(domain)
+          ! reset iceberg decay variables
+          call init_berg_decay(block)
 
-       ! wrapper for calculating each of three iceberg decay terms
-       call calculate_berg_decay_terms(domain)
+          ! get mask for iceberg decay calculations
+          call berg_decay_calculation_mask(block)
 
-       ! apply iceberg decay terms
-       call berg_calculate_melt(domain)
+          ! wrapper for calculating each of three iceberg decay terms
+          call calculate_berg_decay_terms(block)
 
-       ! convert lost iceberg mass to freshwater and latent heat fluxes
-       call berg_melt_fluxes(domain)
+          ! apply iceberg decay terms
+          call berg_calculate_melt(block)
 
-       ! determine if iceberg is stable, and rollover if needed
-       if (config_berg_allow_rollover) then
-          call mpas_timer_start("Berg rollover check")
-          call berg_rollover_check(domain)
-          call mpas_timer_stop("Berg rollover check")
-       endif
+          ! convert lost iceberg mass to freshwater and latent heat fluxes
+          call berg_melt_fluxes(block)
+
+          ! determine if iceberg is stable, and rollover if needed
+          if (config_berg_allow_rollover) then
+             call mpas_timer_start("Berg rollover check")
+             call berg_rollover_check(block)
+             call mpas_timer_stop("Berg rollover check")
+          endif
+
+          ! update iceberg area state variable
+          call berg_update_area_after_decay(block)
+
+          block => block % next
+       enddo
 
     endif ! config_use_berg_decay
 
@@ -109,12 +121,9 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine init_berg_decay(domain)
+  subroutine init_berg_decay(block)
 
-    type(domain_type), intent(inout) :: &
-         domain
-
-    type(block_type), pointer :: &
+    type(block_type), intent(inout) :: &
          block
 
     type(MPAS_pool_type), pointer :: &
@@ -143,46 +152,40 @@ contains
          iCategory
 
     ! reset berg fluxes from previous timestep
-    block => domain % blocklist
-    do while (associated(block))
+    call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_fluxes", bergFluxesPool)
 
-       call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
-       call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
-       call MPAS_pool_get_subpool(block % structs, "berg_fluxes", bergFluxesPool)
+    call MPAS_pool_get_dimension(meshPool, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(meshPool, "nBergCategories", nBergCategories)
 
-       call MPAS_pool_get_dimension(meshPool, "nCellsSolve", nCellsSolve)
-       call MPAS_pool_get_dimension(meshPool, "nBergCategories", nBergCategories)
+    call MPAS_pool_get_array(bergDecayPool, "bergBasalMeltRate", bergBasalMeltRate)
+    call MPAS_pool_get_array(bergDecayPool, "bergLateralMeltRate", bergLateralMeltRate)
+    call MPAS_pool_get_array(bergDecayPool, "bergWaveErosionRate", bergwaveErosionRate)
+    call MPAS_pool_get_array(bergDecayPool, "bergMeltMass", bergMeltMass)
 
-       call MPAS_pool_get_array(bergDecayPool, "bergBasalMeltRate", bergBasalMeltRate)
-       call MPAS_pool_get_array(bergDecayPool, "bergLateralMeltRate", bergLateralMeltRate)
-       call MPAS_pool_get_array(bergDecayPool, "bergWaveErosionRate", bergwaveErosionRate)
-       call MPAS_pool_get_array(bergDecayPool, "bergMeltMass", bergMeltMass)
+    call MPAS_pool_get_array(bergFluxesPool, "bergFreshwaterFluxCategory", bergFreshwaterFluxCategory)
+    call MPAS_pool_get_array(bergFluxesPool, "bergLatentHeatFluxCategory", bergLatentHeatFluxCategory)
+    call MPAS_pool_get_array(bergFluxesPool, "bergFreshwaterFluxCell", bergFreshwaterFluxCell)
+    call MPAS_pool_get_array(bergFluxesPool, "bergLatentHeatFluxCell", bergLatentHeatFluxCell)
 
-       call MPAS_pool_get_array(bergFluxesPool, "bergFreshwaterFluxCategory", bergFreshwaterFluxCategory)
-       call MPAS_pool_get_array(bergFluxesPool, "bergLatentHeatFluxCategory", bergLatentHeatFluxCategory)
-       call MPAS_pool_get_array(bergFluxesPool, "bergFreshwaterFluxCell", bergFreshwaterFluxCell)
-       call MPAS_pool_get_array(bergFluxesPool, "bergLatentHeatFluxCell", bergLatentHeatFluxCell)
+    do iCell = 1, nCellsSolve
 
-       do iCell = 1, nCellsSolve
+       do iCategory = 1, nBergCategories
 
-         do iCategory = 1, nBergCategories
+          bergBasalMeltRate(iCategory,iCell) = 0.0_RKIND
+          bergLateralMeltRate(iCategory,iCell) = 0.0_RKIND
+          bergWaveErosionRate(iCategory,iCell) = 0.0_RKIND
+          bergMeltMass(iCategory,iCell) = 0.0_RKIND
 
-            bergBasalMeltRate(iCategory,iCell) = 0.0_RKIND
-            bergLateralMeltRate(iCategory,iCell) = 0.0_RKIND
-            bergWaveErosionRate(iCategory,iCell) = 0.0_RKIND
-            bergMeltMass(iCategory,iCell) = 0.0_RKIND
-
-            bergFreshwaterFluxCategory(iCategory, iCell) = 0.0_RKIND
-            bergLatentHeatFluxCategory(iCategory, iCell) = 0.0_RKIND
-
-         enddo
-
-         bergFreshwaterFluxCell(iCell) = 0.0_RKIND
-         bergLatentHeatFluxCell(iCell) = 0.0_RKIND
+          bergFreshwaterFluxCategory(iCategory, iCell) = 0.0_RKIND
+          bergLatentHeatFluxCategory(iCategory, iCell) = 0.0_RKIND
 
        enddo
 
-       block => block % next
+       bergFreshwaterFluxCell(iCell) = 0.0_RKIND
+       bergLatentHeatFluxCell(iCell) = 0.0_RKIND
+
     enddo
 
   end subroutine init_berg_decay
@@ -202,12 +205,9 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_decay_calculation_mask(domain)!{{{
+  subroutine berg_decay_calculation_mask(block)!{{{
 
-    type(domain_type), intent(inout) :: &
-         domain
-
-    type(block_type), pointer :: &
+    type(block_type), intent(inout)  :: &
          block
 
     type(MPAS_pool_type), pointer :: &
@@ -238,43 +238,37 @@ contains
          iCategory, &
          iCell
 
-    block => domain % blocklist
-    do while (associated(block))
+    call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
+    call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
+    call MPAS_pool_get_subpool(block % structs, "boundary", boundaryPool)
+    call MPAS_pool_get_subpool(block % structs, "ocean_coupling", oceanCouplingPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
 
-       call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
-       call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
-       call MPAS_pool_get_subpool(block % structs, "boundary", boundaryPool)
-       call MPAS_pool_get_subpool(block % structs, "ocean_coupling", oceanCouplingPool)
-       call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
+    call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
-       call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
-       call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
+    call MPAS_pool_get_array(tracersPool, "bergMassCategory", bergMassCategory, 1)
+    call MPAS_pool_get_array(boundaryPool, "interiorCell", interiorCell)
+    call MPAS_pool_get_array(oceanCouplingPool, "landIceMask", landIceMask)
+    call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
 
-       call MPAS_pool_get_array(tracersPool, "bergMassCategory", bergMassCategory, 1)
-       call MPAS_pool_get_array(boundaryPool, "interiorCell", interiorCell)
-       call MPAS_pool_get_array(oceanCouplingPool, "landIceMask", landIceMask)
-       call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
+    do iCell = 1, nCellsSolve
 
-       do iCell = 1, nCellsSolve
+       do iCategory = 1, nBergCategories
 
-          do iCategory = 1, nBergCategories
+          bergDecayMask(iCategory,iCell) = 0
 
-             bergDecayMask(iCategory,iCell) = 0
+          if (landIceMask(iCell) == 0 .and. &
+             bergMassCategory(iCategory,iCell) > bergMassMinimum) then
 
-             if (landIceMask(iCell) == 0 .and. &
-                bergMassCategory(iCategory,iCell) > bergMassMinimum) then
+             ! this cell has sufficient ice
+             bergDecayMask(iCategory,iCell) = 1
 
-                ! this cell has sufficient ice
-                bergDecayMask(iCategory,iCell) = 1
+          endif
 
-             endif
+       enddo
 
-          enddo
-
-       enddo ! iCell
-
-       block => block % next
-    enddo
+    enddo ! iCell
 
   end subroutine berg_decay_calculation_mask!}}}
 
@@ -295,24 +289,24 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine calculate_berg_decay_terms(domain)
+  subroutine calculate_berg_decay_terms(block)
 
-    type(domain_type), intent(inout) :: &
-         domain
+    type(block_type), intent(inout) :: &
+         block
 
     ! calculate basal melting
     call mpas_timer_start("berg basal melting")
-    call berg_basal_melting(domain)
+    call berg_basal_melting(block)
     call mpas_timer_stop("berg basal melting")
 
     ! calculate lateral melting
     call mpas_timer_start("berg lateral melting")
-    call berg_lateral_melting(domain)
+    call berg_lateral_melting(block)
     call mpas_timer_stop("berg lateral melting")
 
     ! calculate decay due to wave erosion
     call mpas_timer_start("berg wave erosion")
-    call berg_wave_erosion(domain)
+    call berg_wave_erosion(block)
     call mpas_timer_stop("berg wave erosion")
 
   end subroutine calculate_berg_decay_terms!}}}
@@ -361,7 +355,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_basal_melting(domain)
+  subroutine berg_basal_melting(block)
 
     use cice_constants, only: &
          ciceSecondsPerDay
@@ -369,10 +363,7 @@ contains
     use cice_mesh, only: &
          cice_interpolate_vertex_to_cell
 
-    type(domain_type), intent(inout) :: &
-         domain
-
-    type(block_type), pointer :: &
+    type(block_type), intent(inout) :: &
          block
 
     type(MPAS_pool_type), pointer :: &
@@ -420,82 +411,76 @@ contains
          basalMeltExponent1 = 0.8_RKIND, &
          basalMeltExponent2 = 0.2_RKIND
 
-    call MPAS_pool_get_config(domain % configs, "config_berg_temperature", bergTemperature)
+    call MPAS_pool_get_config(block % configs, "config_berg_temperature", bergTemperature)
 
-    block => domain % blocklist
-    do while (associated(block))
+    call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
-       call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
-       call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
+    call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
+    call MPAS_pool_get_subpool(block % structs, "boundary", boundaryPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_velocity_solver", bergVelocitySolverPool)
+    call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
+    call MPAS_pool_get_subpool(block % structs, "ocean_coupling", oceanCouplingPool)
 
-       call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
-       call MPAS_pool_get_subpool(block % structs, "boundary", boundaryPool)
-       call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
-       call MPAS_pool_get_subpool(block % structs, "berg_velocity_solver", bergVelocitySolverPool)
-       call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
-       call MPAS_pool_get_subpool(block % structs, "ocean_coupling", oceanCouplingPool)
+    call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
+    call MPAS_pool_get_array(bergDecayPool, "bergBasalMeltRate", bergBasalMeltRate)
 
-       call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
-       call MPAS_pool_get_array(bergDecayPool, "bergBasalMeltRate", bergBasalMeltRate)
+    call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocity", uBergVelocity)
+    call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocity)
+    call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocityCell", uBergVelocityCell)
+    call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocityCell", vBergVelocityCell)
 
-       call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocity", uBergVelocity)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocity)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocityCell", uBergVelocityCell)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocityCell", vBergVelocityCell)
+    call MPAS_pool_get_array(tracersPool, "bergLength", bergLength, 1)
 
-       call MPAS_pool_get_array(tracersPool, "bergLength", bergLength, 1)
+    call MPAS_pool_get_array(oceanCouplingPool, "uOceanVelocity", uOceanVelocity)
+    call MPAS_pool_get_array(oceanCouplingPool, "vOceanVelocity", vOceanVelocity)
+    call MPAS_pool_get_array(oceanCouplingPool, "seaSurfaceTemperature", seaSurfaceTemperature)
 
-       call MPAS_pool_get_array(oceanCouplingPool, "uOceanVelocity", uOceanVelocity)
-       call MPAS_pool_get_array(oceanCouplingPool, "vOceanVelocity", vOceanVelocity)
-       call MPAS_pool_get_array(oceanCouplingPool, "seaSurfaceTemperature", seaSurfaceTemperature)
+    ! interpolate berg velocities to cell centers
+    do iCategory = 1, nBergCategories
 
-       ! interpolate berg velocities to cell centers
+       call cice_interpolate_vertex_to_cell(&
+            meshPool, &
+            boundaryPool, &
+            uBergVelocityCell(iCategory,:), &
+            uBergVelocity(iCategory,:))
+
+       call cice_interpolate_vertex_to_cell(&
+            meshPool, &
+            boundaryPool, &
+            vBergVelocityCell(iCategory,:), &
+            vBergVelocity(iCategory,:))
+
+    enddo
+
+    do iCell = 1, nCellsSolve
+
        do iCategory = 1, nBergCategories
 
-          call cice_interpolate_vertex_to_cell(&
-               meshPool, &
-               boundaryPool, &
-               uBergVelocityCell(iCategory,:), &
-               uBergVelocity(iCategory,:))
+          if (bergDecayMask(iCategory,iCell) == 1) then
 
-          call cice_interpolate_vertex_to_cell(&
-               meshPool, &
-               boundaryPool, &
-               vBergVelocityCell(iCategory,:), &
-               vBergVelocity(iCategory,:))
+             call get_relative_speed(uOceanVelocity(iCell), &
+                                     vOceanVelocity(iCell), &
+                                     uBergVelocityCell(iCategory,iCell), &
+                                     vBergVelocityCell(iCategory,iCell), &
+                                     relSpeed)
 
-       enddo
+             bergBasalMeltRate(iCategory,iCell) = basalMeltCoef*relSpeed**basalMeltExponent1 &
+                                                * (seaSurfaceTemperature(iCell) - bergTemperature) &
+                                                / (bergLength(iCategory,iCell)**basalMeltExponent2)
 
-       do iCell = 1, nCellsSolve
+             ! convert from m/day to m/sec
+             bergBasalMeltRate(iCategory,iCell) = bergBasalMeltRate(iCategory,iCell)/real(ciceSecondsPerDay,RKIND)
 
-          do iCategory = 1, nBergCategories
+             ! melt term must be positive
+             bergBasalMeltRate(iCategory,iCell) = max(bergBasalMeltRate(iCategory,iCell), 0.0_RKIND)
 
-            if (bergDecayMask(iCategory,iCell) == 1) then
-
-               call get_relative_speed(uOceanVelocity(iCell), &
-                                       vOceanVelocity(iCell), &
-                                       uBergVelocityCell(iCategory,iCell), &
-                                       vBergVelocityCell(iCategory,iCell), &
-                                       relSpeed)
-
-               bergBasalMeltRate(iCategory,iCell) = basalMeltCoef*relSpeed**basalMeltExponent1 &
-                                                  * (seaSurfaceTemperature(iCell) - bergTemperature) &
-                                                  / (bergLength(iCategory,iCell)**basalMeltExponent2)
-
-               ! convert from m/day to m/sec
-               bergBasalMeltRate(iCategory,iCell) = bergBasalMeltRate(iCategory,iCell)/real(ciceSecondsPerDay,RKIND)
-
-               ! melt term must be positive
-               bergBasalMeltRate(iCategory,iCell) = max(bergBasalMeltRate(iCategory,iCell), 0.0_RKIND)
-
-            endif
-
-          enddo
+          endif
 
        enddo
 
-       block => block % next
-    end do
+    enddo
 
   end subroutine berg_basal_melting
 
@@ -511,15 +496,12 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_lateral_melting(domain)
+  subroutine berg_lateral_melting(block)
 
     use cice_constants, only: &
          ciceSecondsPerDay
 
-    type(domain_type), intent(inout) :: &
-         domain
-
-    type(block_type), pointer :: &
+    type(block_type), intent(inout) :: &
          block
 
     type(MPAS_pool_type), pointer :: &
@@ -551,43 +533,37 @@ contains
          lateralMeltCoef1 = 0.00762_RKIND, &
          lateralMeltCoef2 = 0.00129_RKIND
 
-    block => domain % blocklist
-    do while (associated(block))
-
-       call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
-       call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
+    call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
       
-       call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
-       call MPAS_pool_get_subpool(block % structs, "ocean_coupling", oceanCouplingPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
+    call MPAS_pool_get_subpool(block % structs, "ocean_coupling", oceanCouplingPool)
 
-       call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
-       call MPAS_pool_get_array(bergDecayPool, "bergLateralMeltRate", bergLateralMeltRate)
+    call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
+    call MPAS_pool_get_array(bergDecayPool, "bergLateralMeltRate", bergLateralMeltRate)
      
-       call MPAS_pool_get_array(oceanCouplingPool, "seaSurfaceTemperature", seaSurfaceTemperature)
+    call MPAS_pool_get_array(oceanCouplingPool, "seaSurfaceTemperature", seaSurfaceTemperature)
 
-       do iCell = 1, nCellsSolve
+    do iCell = 1, nCellsSolve
 
-          do iCategory = 1, nBergCategories
+       do iCategory = 1, nBergCategories
 
-            if (bergDecayMask(iCategory,iCell) == 1) then
+          if (bergDecayMask(iCategory,iCell) == 1) then
 
-               bergLateralMeltRate(iCategory,iCell) = lateralMeltCoef1*seaSurfaceTemperature(iCell) + &
-                                                      lateralMeltCoef2*seaSurfaceTemperature(iCell)**2
+             bergLateralMeltRate(iCategory,iCell) = lateralMeltCoef1*seaSurfaceTemperature(iCell) + &
+                                                    lateralMeltCoef2*seaSurfaceTemperature(iCell)**2
 
-               ! convert from m/day to m/sec
-               bergLateralMeltRate(iCategory,iCell) = bergLateralMeltRate(iCategory,iCell)/real(ciceSecondsPerDay,RKIND)
+             ! convert from m/day to m/sec
+             bergLateralMeltRate(iCategory,iCell) = bergLateralMeltRate(iCategory,iCell)/real(ciceSecondsPerDay,RKIND)
 
-               ! melt term must be positive
-               bergLateralMeltRate(iCategory,iCell) = max(bergLateralMeltRate(iCategory,iCell), 0.0_RKIND)
+             ! melt term must be positive
+             bergLateralMeltRate(iCategory,iCell) = max(bergLateralMeltRate(iCategory,iCell), 0.0_RKIND)
 
-            endif
-
-          enddo
+          endif
 
        enddo
 
-       block => block % next
-    end do
+    enddo
 
   end subroutine berg_lateral_melting
 
@@ -603,16 +579,13 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_wave_erosion(domain)
+  subroutine berg_wave_erosion(block)
 
     use cice_constants, only: &
          ciceSecondsPerDay, &
          pii
 
-    type(domain_type), intent(inout) :: &
-         domain
-
-    type(block_type), pointer :: &
+    type(block_type), intent(inout) :: &
          block
 
     type(MPAS_pool_type), pointer :: &
@@ -655,65 +628,59 @@ contains
          waveCoef2 = 3.0_RKIND/2.0_RKIND, &
          waveCoef3 = 1.0_RKIND/10.0_RKIND
 
-    block => domain % blocklist
-    do while (associated(block))
+    call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
-       call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
-       call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
+    call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
+    call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracersAggregatePool)
+    call MPAS_pool_get_subpool(block % structs, "ocean_coupling", oceanCouplingPool)
+    call MPAS_pool_get_subpool(block % structs, "atmos_coupling", atmosCouplingPool)
 
-       call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
-       call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
-       call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracersAggregatePool)
-       call MPAS_pool_get_subpool(block % structs, "ocean_coupling", oceanCouplingPool)
-       call MPAS_pool_get_subpool(block % structs, "atmos_coupling", atmosCouplingPool)
+    call MPAS_pool_get_array(meshPool, "areaCell", areaCell)
 
-       call MPAS_pool_get_array(meshPool, "areaCell", areaCell)
+    call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
+    call MPAS_pool_get_array(bergDecayPool, "bergWaveErosionRate", bergWaveErosionRate)
 
-       call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
-       call MPAS_pool_get_array(bergDecayPool, "bergWaveErosionRate", bergWaveErosionRate)
+    call MPAS_pool_get_array(tracersAggregatePool, "iceAreaCell", iceAreaCell)
 
-       call MPAS_pool_get_array(tracersAggregatePool, "iceAreaCell", iceAreaCell)
+    call MPAS_pool_get_array(oceanCouplingPool, "seaSurfaceTemperature", seaSurfaceTemperature)
+    call MPAS_pool_get_array(oceanCouplingPool, "uOceanVelocity", uOceanVelocity)
+    call MPAS_pool_get_array(oceanCouplingPool, "vOceanVelocity", vOceanVelocity)
 
-       call MPAS_pool_get_array(oceanCouplingPool, "seaSurfaceTemperature", seaSurfaceTemperature)
-       call MPAS_pool_get_array(oceanCouplingPool, "uOceanVelocity", uOceanVelocity)
-       call MPAS_pool_get_array(oceanCouplingPool, "vOceanVelocity", vOceanVelocity)
+    call MPAS_pool_get_array(atmosCouplingPool, "uAirVelocity", uAirVelocity)
+    call MPAS_pool_get_array(atmosCouplingPool, "vAirVelocity", vAirVelocity)
 
-       call MPAS_pool_get_array(atmosCouplingPool, "uAirVelocity", uAirVelocity)
-       call MPAS_pool_get_array(atmosCouplingPool, "vAirVelocity", vAirVelocity)
+    do iCell = 1, nCellsSolve
 
-       do iCell = 1, nCellsSolve
+       do iCategory = 1, nBergCategories
 
-          do iCategory = 1, nBergCategories
+          if (bergDecayMask(iCategory,iCell) == 1) then
 
-            if (bergDecayMask(iCategory,iCell) == 1) then
+             call get_relative_speed(uAirVelocity(iCell), &
+                                     vAirVelocity(iCell), &
+                                     uOceanVelocity(iCell), &
+                                     vOceanVelocity(iCell), &
+                                     relSpeed)
 
-               call get_relative_speed(uAirVelocity(iCell), &
-                                       vAirVelocity(iCell), &
-                                       uOceanVelocity(iCell), &
-                                       vOceanVelocity(iCell), &
-                                       relSpeed)
+             seaState = waveCoef2*sqrt(relSpeed) + waveCoef3*relSpeed
+             iceFraction = iceAreaCell(iCell)/areaCell(iCell)
 
-               seaState = waveCoef2*sqrt(relSpeed) + waveCoef3*relSpeed
-               iceFraction = iceAreaCell(iCell)/areaCell(iCell)
+             bergWaveErosionRate(iCategory,iCell) = waveCoef1*seaState &
+                                                  *(1.0_RKIND + cos(iceFraction**3*pii)) &
+                                                  *(seaSurfaceTemperature(iCell) + 2.0_RKIND)
 
-               bergWaveErosionRate(iCategory,iCell) = waveCoef1*seaState &
-                                                    *(1.0_RKIND + cos(iceFraction**3*pii)) &
-                                                    *(seaSurfaceTemperature(iCell) + 2.0_RKIND)
+             ! convert from m/day to m/sec
+             bergWaveErosionRate(iCategory,iCell) = bergWaveErosionRate(iCategory,iCell)/real(ciceSecondsPerDay,RKIND)
 
-               ! convert from m/day to m/sec
-               bergWaveErosionRate(iCategory,iCell) = bergWaveErosionRate(iCategory,iCell)/real(ciceSecondsPerDay,RKIND)
+             ! melt term must be positive
+             bergWaveErosionRate(iCategory,iCell) = max(bergWaveErosionRate(iCategory,iCell), 0.0_RKIND)
 
-               ! melt term must be positive
-               bergWaveErosionRate(iCategory,iCell) = max(bergWaveErosionRate(iCategory,iCell), 0.0_RKIND)
-
-            endif
-
-          enddo
+          endif
 
        enddo
 
-       block => block % next
-    end do
+    enddo
 
   end subroutine berg_wave_erosion
 
@@ -733,12 +700,9 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_calculate_melt(domain)
+  subroutine berg_calculate_melt(block)
 
-    type(domain_type), intent(inout) :: &
-         domain
-
-    type(block_type), pointer :: &
+    type(block_type), intent(inout) :: &
          block
 
     type(MPAS_pool_type), pointer :: &
@@ -773,63 +737,56 @@ contains
          dBergHeight, &
          dBergMass
 
-    block => domain % blocklist
-    do while (associated(block))
+    call MPAS_pool_get_config(block % configs, "config_dt", config_dt)
 
-       call MPAS_pool_get_config(block % configs, "config_dt", config_dt)
+    call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
-       call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
-       call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
+    call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
+    call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
 
-       call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
-       call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
+    call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
+    call MPAS_pool_get_array(bergDecayPool, "bergBasalMeltRate", bergBasalMeltRate)
+    call MPAS_pool_get_array(bergDecayPool, "bergLateralMeltRate", bergLateralMeltRate)
+    call MPAS_pool_get_array(bergDecayPool, "bergWaveErosionRate", bergWaveErosionRate)
+    call MPAS_pool_get_array(bergDecayPool, "bergMeltMass", bergMeltMass)
 
-       call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
-       call MPAS_pool_get_array(bergDecayPool, "bergBasalMeltRate", bergBasalMeltRate)
-       call MPAS_pool_get_array(bergDecayPool, "bergLateralMeltRate", bergLateralMeltRate)
-       call MPAS_pool_get_array(bergDecayPool, "bergWaveErosionRate", bergWaveErosionRate)
-       call MPAS_pool_get_array(bergDecayPool, "bergMeltMass", bergMeltMass)
+    call MPAS_pool_get_array(tracersPool, "bergLength", bergLength, 1)
+    call MPAS_pool_get_array(tracersPool, "bergHeight", bergHeight, 1)
+    call MPAS_pool_get_array(tracersPool, "bergMassCategory", bergMassCategory, 1)
 
-       call MPAS_pool_get_array(tracersPool, "bergLength", bergLength, 1)
-       call MPAS_pool_get_array(tracersPool, "bergHeight", bergHeight, 1)
-       call MPAS_pool_get_array(tracersPool, "bergMassCategory", bergMassCategory, 1)
+    do iCell = 1, nCellsSolve
 
-       do iCell = 1, nCellsSolve
+       do iCategory = 1, nBergCategories
 
-          do iCategory = 1, nBergCategories
+          if (bergDecayMask(iCategory,iCell) == 1) then
 
-            if (bergDecayMask(iCategory,iCell) == 1) then
+             ! calculate change in dimensions
+             dBergLength = config_dt*1.25_RKIND*(bergLateralMeltRate(iCategory,iCell) + bergWaveErosionRate(iCategory,iCell))
+             dBergHeight = config_dt*bergBasalMeltRate(iCategory,iCell)
 
-               ! calculate change in dimensions
-               dBergLength = config_dt*1.25_RKIND*(bergLateralMeltRate(iCategory,iCell) + bergWaveErosionRate(iCategory,iCell))
-               dBergHeight = config_dt*bergBasalMeltRate(iCategory,iCell)
+             ! terms must be positive
+             if (dBergLength < 0.0_RKIND) call mpas_log_write(&
+                                               "berg_decay: negative berg length $r:", realArgs=(/dBergLength/), &
+                                               messageType=MPAS_LOG_CRIT)
+             if (dBergHeight < 0.0_RKIND) call mpas_log_write(&
+                                               "berg_decay: negative berg height $r:", realArgs=(/dBergHeight/), &
+                                               messageType=MPAS_LOG_CRIT)
 
-               ! terms must be positive
-               if (dBergLength < 0.0_RKIND) call mpas_log_write(&
-                                                 "berg_decay: negative berg length $r:", realArgs=(/dBergLength/), &
-                                                 messageType=MPAS_LOG_CRIT)
-               if (dBergHeight < 0.0_RKIND) call mpas_log_write(&
-                                                 "berg_decay: negative berg height $r:", realArgs=(/dBergHeight/), &
-                                                 messageType=MPAS_LOG_CRIT)
+             ! fraction of mass lost
+             dBergMass = (dBergLength**2*dBergHeight) / (bergLength(iCategory,iCell)**2*bergHeight(iCategory,iCell))
 
-               ! fraction of mass lost
-               dBergMass = (dBergLength**2*dBergHeight) / (bergLength(iCategory,iCell)**2*bergHeight(iCategory,iCell))
-
-               bergLength(iCategory,iCell) = bergLength(iCategory,iCell) - dBergLength
-               bergHeight(iCategory,iCell) = bergHeight(iCategory,iCell) - dBergHeight
+             bergLength(iCategory,iCell) = bergLength(iCategory,iCell) - dBergLength
+             bergHeight(iCategory,iCell) = bergHeight(iCategory,iCell) - dBergHeight
   
-               bergMeltMass(iCategory,iCell) = dBergMass*bergMassCategory(iCategory,iCell)
-               bergMassCategory(iCategory,iCell) = bergMassCategory(iCategory,iCell) - bergMeltMass(iCategory,iCell)
+             bergMeltMass(iCategory,iCell) = dBergMass*bergMassCategory(iCategory,iCell)
+             bergMassCategory(iCategory,iCell) = bergMassCategory(iCategory,iCell) - bergMeltMass(iCategory,iCell)
 
-            endif
-
-          enddo
+          endif
 
        enddo
 
-
-       block => block % next
-    end do
+    enddo
 
   end subroutine berg_calculate_melt
 
@@ -844,15 +801,12 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_melt_fluxes(domain)
+  subroutine berg_melt_fluxes(block)
 
     use cice_constants, only: &
          ciceLatentHeatMelting
 
-    type(domain_type), intent(inout) :: &
-         domain
-
-    type(block_type), pointer :: &
+    type(block_type), intent(inout) :: &
          block
 
     type(MPAS_pool_type), pointer :: &
@@ -886,55 +840,49 @@ contains
          iCell, &
          iCategory
 
-    block => domain % blocklist
-    do while (associated(block))
+    call MPAS_pool_get_config(block % configs, "config_dt", config_dt)
+    call MPAS_pool_get_config(block % configs, "config_berg_temperature", bergTemperature)
+    call MPAS_pool_get_config(block % configs, "config_specific_heat_fresh_ice", specificHeatFreshIce)
 
-       call MPAS_pool_get_config(block % configs, "config_dt", config_dt)
-       call MPAS_pool_get_config(block % configs, "config_berg_temperature", bergTemperature)
-       call MPAS_pool_get_config(block % configs, "config_specific_heat_fresh_ice", specificHeatFreshIce)
+    call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
-       call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
-       call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
+    call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_fluxes", bergFluxesPool)
 
-       call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
-       call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
-       call MPAS_pool_get_subpool(block % structs, "berg_fluxes", bergFluxesPool)
+    call MPAS_pool_get_array(meshPool, "areaCell", areaCell)
 
-       call MPAS_pool_get_array(meshPool, "areaCell", areaCell)
+    call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
+    call MPAS_pool_get_array(bergDecayPool, "bergMeltMass", bergMeltMass)
 
-       call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
-       call MPAS_pool_get_array(bergDecayPool, "bergMeltMass", bergMeltMass)
+    call MPAS_pool_get_array(bergFluxesPool, "bergFreshwaterFluxCategory", bergFreshwaterFluxCategory)
+    call MPAS_pool_get_array(bergFluxesPool, "bergLatentHeatFluxCategory", bergLatentHeatFluxCategory)
+    call MPAS_pool_get_array(bergFluxesPool, "bergFreshwaterFluxCell", bergFreshwaterFluxCell)
+    call MPAS_pool_get_array(bergFluxesPool, "bergLatentHeatFluxCell", bergLatentHeatFluxCell)
 
-       call MPAS_pool_get_array(bergFluxesPool, "bergFreshwaterFluxCategory", bergFreshwaterFluxCategory)
-       call MPAS_pool_get_array(bergFluxesPool, "bergLatentHeatFluxCategory", bergLatentHeatFluxCategory)
-       call MPAS_pool_get_array(bergFluxesPool, "bergFreshwaterFluxCell", bergFreshwaterFluxCell)
-       call MPAS_pool_get_array(bergFluxesPool, "bergLatentHeatFluxCell", bergLatentHeatFluxCell)
+    do iCell = 1, nCellsSolve
 
-       do iCell = 1, nCellsSolve
+       do iCategory = 1, nBergCategories
 
-          do iCategory = 1, nBergCategories
+          if (bergDecayMask(iCategory,iCell) == 1) then
 
-            if (bergDecayMask(iCategory,iCell) == 1) then
+             ! units kg/m^2/s
+             bergFreshwaterFluxCategory(iCategory,iCell) = bergMeltMass(iCategory,iCell) / (areaCell(iCell)*config_dt)
 
-               ! units kg/m^2/s
-               bergFreshwaterFluxCategory(iCategory,iCell) = bergMeltMass(iCategory,iCell) / (areaCell(iCell)*config_dt)
+             ! units J/m^2/s
+             bergLatentHeatFluxCategory(iCategory,iCell) = bergMeltMass(iCategory,iCell) &
+                                                         * (ciceLatentHeatMelting - specificHeatFreshIce*(bergTemperature+273.0)) &
+                                                         / (areaCell(iCell)*config_dt)
 
-               ! units J/m^2/s
-               bergLatentHeatFluxCategory(iCategory,iCell) = bergMeltMass(iCategory,iCell) &
-                                                           * (ciceLatentHeatMelting - specificHeatFreshIce*(bergTemperature+273.0)) &
-                                                           / (areaCell(iCell)*config_dt)
+             bergFreshwaterFluxCell(iCell) = bergFreshwaterFluxCell(iCell) + bergFreshwaterFluxCategory(iCategory,iCell)
+             bergLatentHeatFluxCell(iCell) = bergLatentHeatFluxCell(iCell) + bergLatentHeatFluxCategory(iCategory,iCell)
 
-               bergFreshwaterFluxCell(iCell) = bergFreshwaterFluxCell(iCell) + bergFreshwaterFluxCategory(iCategory,iCell)
-               bergLatentHeatFluxCell(iCell) = bergLatentHeatFluxCell(iCell) + bergLatentHeatFluxCategory(iCategory,iCell)
-
-            endif
-
-          enddo
+          endif
 
        enddo
 
-       block => block % next
-    end do
+    enddo
 
   end subroutine berg_melt_fluxes
 
@@ -985,12 +933,9 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_rollover_check(domain)
+  subroutine berg_rollover_check(block)
 
-    type(domain_type), intent(inout) :: &
-         domain
-
-    type(block_type), pointer :: &
+    type(block_type), intent(inout) :: &
          block
 
     type(MPAS_pool_type), pointer :: &
@@ -1019,51 +964,139 @@ contains
          bergLengthOld, &
          bergHeightOld
 
-    block => domain % blocklist
-    do while (associated(block))
+    call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
-       call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
-       call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
+    call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
+    call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
 
-       call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
-       call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
+    call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
 
-       call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
+    call MPAS_pool_get_array(tracersPool, "bergLength", bergLength, 1)
+    call MPAS_pool_get_array(tracersPool, "bergHeight", bergHeight, 1)
 
-       call MPAS_pool_get_array(tracersPool, "bergLength", bergLength, 1)
-       call MPAS_pool_get_array(tracersPool, "bergHeight", bergHeight, 1)
+    do iCell = 1, nCellsSolve
 
-       do iCell = 1, nCellsSolve
+       do iCategory = 1, nBergCategories
 
-          do iCategory = 1, nBergCategories
+          if (bergDecayMask(iCategory,iCell) == 1) then
 
-            if (bergDecayMask(iCategory,iCell) == 1) then
+             call berg_stability_check(bergLength(iCategory,iCell), &
+                                       bergHeight(iCategory,iCell), &
+                                       bergStabilityCheck)
 
-               call berg_stability_check(bergLength(iCategory,iCell), &
-                                         bergHeight(iCategory,iCell), &
-                                         bergStabilityCheck)
+             if (bergStabilityCheck == 1) then
 
-               if (bergStabilityCheck == 1) then
+                bergLengthOld = bergLength(iCategory,iCell)
+                bergHeightOld = bergHeight(iCategory,iCell)
 
-                  bergLengthOld = bergLength(iCategory,iCell)
-                  bergHeightOld = bergHeight(iCategory,iCell)
+                ! switch height and width in such a way as to conserve volume
+                bergHeight(iCategory,iCell) = (2.0_RKIND/3.0_RKIND)*bergLengthOld
+                bergLength(iCategory,iCell) = sqrt((3.0_RKIND/2.0_RKIND)*bergLengthOld*bergHeightOld)
 
-                  ! switch height and width in such a way as to conserve volume
-                  bergHeight(iCategory,iCell) = (2.0_RKIND/3.0_RKIND)*bergLengthOld
-                  bergLength(iCategory,iCell) = sqrt((3.0_RKIND/2.0_RKIND)*bergLengthOld*bergHeightOld)
+             endif
 
-               endif
-
-            endif
-
-          enddo
+          endif
 
        enddo
 
-       block => block % next
-    end do
+    enddo
 
   end subroutine berg_rollover_check
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  berg_update_area_after_decay
+!
+!> \brief   Update berg area after decay
+!> \author  Darin Comeau, LANL
+!> \date    September 26, 2017
+!> \details This subroutine updates the iceberg area state variable
+!> after the iceberg mass state variable has changed due to decay.
+!
+!-----------------------------------------------------------------------
+
+  subroutine berg_update_area_after_decay(block)!{{{
+
+    use cice_berg_state, only: berg_area_update
+
+    type(block_type), intent(inout) :: &
+         block
+
+    type(MPAS_pool_type), pointer :: &
+         mesh, &
+         tracers, &
+         tracers_aggregate, &
+         bergDecayPool
+
+    integer, pointer :: &
+         nCellsSolve, &
+         nBergCategories
+
+    real(kind=RKIND), dimension(:,:), pointer :: &
+         bergMassCategory, &
+         bergAreaCategory, &
+         bergHeight
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         bergAreaCell, &
+         areaCell
+
+    integer, dimension(:,:), pointer :: &
+         bergDecayMask
+
+    real(kind=RKIND), pointer :: &
+         bergDensity
+
+    integer :: &
+         iCell, &
+         iCategory
+
+    logical :: &
+         updateBergArea
+
+    call MPAS_pool_get_config(block % configs, "config_berg_density", bergDensity)
+
+    call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
+    call MPAS_pool_get_subpool(block % structs, "tracers", tracers)
+    call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracers_aggregate)
+    call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
+
+    call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
+
+    call MPAS_pool_get_array(mesh, "areaCell", areaCell)
+    call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory,1)
+    call MPAS_pool_get_array(tracers, "bergAreaCategory", bergAreaCategory,1)
+    call MPAS_pool_get_array(tracers, "bergHeight", bergHeight,1)
+    call MPAS_pool_get_array(tracers_aggregate, "bergAreaCell", bergAreaCell)
+    call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
+
+    do iCell = 1, nCellsSolve
+
+       updateBergArea = .false.
+
+       do iCategory = 1, nBergCategories
+
+          if (bergDecayMask(iCategory,iCell) == 1) updateBergArea = .true.
+
+       enddo
+
+       ! update iceberg area if any category changed due to decay
+       if (updateBergArea) then
+          call berg_area_update(nBergCategories, &
+                                bergMassCategory(:,iCell), &
+                                bergHeight(:,iCell), &
+                                bergDensity, &
+                                areaCell(iCell), &
+                                bergAreaCategory(:,iCell), &
+                               bergAreaCell(iCell))
+
+       endif
+
+    enddo
+
+  end subroutine berg_update_area_after_decay!}}}
 
 !-----------------------------------------------------------------------
 
