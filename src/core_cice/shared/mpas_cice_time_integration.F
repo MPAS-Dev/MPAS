@@ -63,6 +63,9 @@ contains
     use cice_berg_decay, only: &
          cice_run_berg_decay
 
+    use cice_berg_state, only: &
+         cice_berg_calving_event_check
+
     use cice_advection, only: &
          cice_run_advection
 
@@ -177,10 +180,15 @@ contains
 
     enddo ! iDynamicsSubcycle
 
-    ! berg velocity solve
+    ! berg decay solve
     call mpas_timer_start("Berg decay")
     call cice_run_berg_decay(domain, clock)
     call mpas_timer_stop("Berg decay")
+
+    ! berg calving check
+    call mpas_timer_start("Berg calving")
+    call cice_berg_calving_event_check(domain, itimestep)
+    call mpas_timer_stop("Berg calving")
 
     ! shortwave
     call mpas_timer_start("Column post-dynamics")

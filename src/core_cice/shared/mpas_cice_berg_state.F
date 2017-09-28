@@ -27,6 +27,7 @@ module cice_berg_state
    save
 
    public :: &
+      cice_berg_calving_event_check, &
       berg_calving_event, &
       berg_dimensions_update, &
       berg_area_update
@@ -35,14 +36,65 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  berg_calving_event
+!  cice_berg_calving_event_check
 !
 !> \brief   Initialize icebergs size dimensions
 !> \author  Darin Comeau, LANL
+!> \date    27 Sept 2017
+!> \details This routine is to check if a calving event should occur.
+!
+!-----------------------------------------------------------------------
+
+  subroutine cice_berg_calving_event_check(domain, itimestep)
+
+    use cice_constants, only: &
+         ciceSecondsPerYear
+
+    type(domain_type), intent(inout) :: &
+         domain !< Input/Output:
+
+    integer, intent(in) :: &
+         itimestep !< Input:
+
+    type(block_type), pointer :: &
+         block
+
+    real(kind=RKIND), pointer :: &
+         dt, &
+         annualCalvingFrequency
+
+    integer :: &
+         calvingFlag
+
+    call MPAS_pool_get_config(domain % configs, "config_dt", dt)
+    call MPAS_pool_get_config(domain % configs, "config_berg_annual_calving_frequency", annualCalvingFrequency)
+
+    calvingFlag = NINT(ciceSecondsPerYear/(dt*annualCalvingFrequency))
+
+    if (mod(itimestep,calvingFlag)==0) then
+
+       call mpas_log_write("berg calving event")
+
+       block => domain % blocklist
+       do while (associated(block))
+
+          call berg_calving_event(block)
+
+          block => block % next
+       enddo
+
+    endif
+
+  end subroutine cice_berg_calving_event_check
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  berg_calving_event
+!
+!> \brief   Iceberg calving event
+!> \author  Darin Comeau, LANL
 !> \date    26 Sept 2017
 !> \details This routine is intended to add iceberg mass through calving.
-!> Note this will be moved out of this module, as will be called outside 
-!> of initialization.
 !
 !-----------------------------------------------------------------------
 
