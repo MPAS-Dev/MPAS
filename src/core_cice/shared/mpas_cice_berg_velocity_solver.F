@@ -29,8 +29,8 @@ module cice_berg_velocity_solver
   save
 
   public :: &
-       cice_init_berg_velocity_solver, &
-       cice_run_berg_velocity_solver
+       init_berg_velocity_solver, &
+       run_berg_velocity_solver
 
   ! berg velocity solver constants
   real(kind=RKIND), parameter, private :: &
@@ -44,7 +44,7 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  cice_init_berg_velocity_solver
+!  init_berg_velocity_solver
 !
 !> \brief   Initialize berg velocity solver
 !> \author  Darin Comeau, LANL
@@ -54,7 +54,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine cice_init_berg_velocity_solver(domain)
+  subroutine init_berg_velocity_solver(domain)
 
     type(domain_type), intent(inout) :: &
          domain
@@ -93,7 +93,7 @@ contains
        block => block % next
     enddo
 
-  end subroutine cice_init_berg_velocity_solver
+  end subroutine init_berg_velocity_solver
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -220,7 +220,7 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  cice_run_berg_velocity_solver
+!  run_berg_velocity_solver
 !
 !> \brief   Calculate iceberg velocities by solving momentum equation
 !> \author  Darin Comeau, LANL
@@ -230,7 +230,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine cice_run_berg_velocity_solver(domain, clock)!{{{
+  subroutine run_berg_velocity_solver(domain, clock)!{{{
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -258,7 +258,7 @@ contains
 
     endif ! config_use_berg_velocity_solver
 
-  end subroutine cice_run_berg_velocity_solver!}}}
+  end subroutine run_berg_velocity_solver!}}}
 
 !-----------------------------------------------------------------------
 ! Pre sub-cycle
@@ -437,9 +437,9 @@ contains
     call berg_velocity_calculation_mask(domain)
 
     ! halo exchange velocity mask
-    call mpas_timer_start("velocity mask halo")
+    call mpas_timer_start("berg velocity mask halo")
     call MPAS_dmpar_field_halo_exch(domain, 'bergVelocityMask')
-    call mpas_timer_stop("velocity mask halo")
+    call mpas_timer_stop("berg velocity mask halo")
 
   end subroutine berg_calculation_masks
 

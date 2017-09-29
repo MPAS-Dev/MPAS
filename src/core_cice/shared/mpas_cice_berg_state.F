@@ -27,7 +27,7 @@ module cice_berg_state
    save
 
    public :: &
-      cice_berg_calving_event_check, &
+      berg_calving_event_check, &
       berg_calving_event, &
       berg_dimensions_update, &
       berg_area_update
@@ -36,7 +36,7 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  cice_berg_calving_event_check
+!  berg_calving_event_check
 !
 !> \brief   Initialize icebergs size dimensions
 !> \author  Darin Comeau, LANL
@@ -45,7 +45,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine cice_berg_calving_event_check(domain, itimestep)
+  subroutine berg_calving_event_check(domain, itimestep)
 
     use cice_constants, only: &
          ciceSecondsPerYear
@@ -85,7 +85,7 @@ contains
 
     endif
 
-  end subroutine cice_berg_calving_event_check
+  end subroutine berg_calving_event_check
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !

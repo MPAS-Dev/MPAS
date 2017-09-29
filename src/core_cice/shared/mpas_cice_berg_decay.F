@@ -26,7 +26,7 @@ module cice_berg_decay
   save
 
   public :: &
-       cice_run_berg_decay
+       run_berg_decay
 
   ! berg decay solver constants
   real(kind=RKIND), parameter, private :: &
@@ -40,7 +40,7 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  cice_run_berg_decay
+!  run_berg_decay
 !
 !> \brief   Calculate iceberg decay
 !> \author  Darin Comeau, LANL
@@ -49,7 +49,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine cice_run_berg_decay(domain, clock)!{{{
+  subroutine run_berg_decay(domain, clock)!{{{
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -103,7 +103,7 @@ contains
 
     endif ! config_use_berg_decay
 
-  end subroutine cice_run_berg_decay!}}}
+  end subroutine run_berg_decay!}}}
 
 !-----------------------------------------------------------------------
 ! Initialization

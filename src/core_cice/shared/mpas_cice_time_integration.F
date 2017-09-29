@@ -57,14 +57,9 @@ contains
     use cice_velocity_solver, only: &
          cice_run_velocity_solver
 
-    use cice_berg_velocity_solver, only: &
-         cice_run_berg_velocity_solver
-
-    use cice_berg_decay, only: &
-         cice_run_berg_decay
-
-    use cice_berg_state, only: &
-         cice_berg_calving_event_check
+    use cice_bergs, only: &
+         cice_run_berg_dynamics, &
+         cice_run_berg_postdynamics
 
     use cice_advection, only: &
          cice_run_advection
@@ -158,11 +153,11 @@ contains
        call cice_run_velocity_solver(domain, clock)
        call mpas_timer_stop("Velocity solver")
 
-       ! berg velocity solve
+       ! berg dynamics
        if (config_use_bergs) then
-          call mpas_timer_start("Berg velocity solver")
-          call cice_run_berg_velocity_solver(domain, clock)
-          call mpas_timer_stop("Berg velocity solver")
+          call mpas_timer_start("Berg dynamics")
+          call cice_run_berg_dynamics(domain, clock)
+          call mpas_timer_stop("Berg dynamics")
        endif
 
        ! advection
@@ -180,15 +175,12 @@ contains
 
     enddo ! iDynamicsSubcycle
 
-    ! berg decay solve
-    call mpas_timer_start("Berg decay")
-    call cice_run_berg_decay(domain, clock)
-    call mpas_timer_stop("Berg decay")
-
-    ! berg calving check
-    call mpas_timer_start("Berg calving")
-    call cice_berg_calving_event_check(domain, itimestep)
-    call mpas_timer_stop("Berg calving")
+    ! berg decay and calving check
+    if (config_use_bergs) then
+       call mpas_timer_start("Berg post-dynamics")
+       call cice_run_berg_postdynamics(domain, clock, itimestep)
+       call mpas_timer_stop("Berg post-dynamics")
+    endif
 
     ! shortwave
     call mpas_timer_start("Column post-dynamics")
