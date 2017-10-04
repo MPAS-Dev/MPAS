@@ -313,12 +313,14 @@
 /
 &bergs
     config_use_bergs = true
-    config_berg_initial_condition = 'coastal_uniform'
+    config_berg_initial_condition = 'none'
+    config_berg_calving_flux_type = 'obs_Rignot2013'
     config_berg_calving_mask_latitude_minimum = -90.0
     config_berg_calving_mask_latitude_maximum = -60.0
     config_berg_calving_mask_longitude_minimum = 0.0
     config_berg_calving_mask_longitude_maximum = 360.0
-    config_berg_annual_calving_rate = 1350.0e12
+    config_berg_annual_calving_rate = 1265.0e12
+    config_berg_calving_type = 'continuous'
     config_berg_annual_calving_frequency = 12.0
     config_berg_initial_uvelocity_geo = 0.0
     config_berg_initial_vvelocity_geo = 0.0

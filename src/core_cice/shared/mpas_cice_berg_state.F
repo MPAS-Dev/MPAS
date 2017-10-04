@@ -27,8 +27,8 @@ module cice_berg_state
    save
 
    public :: &
-      berg_calving_event_check, &
-      berg_calving_event, &
+      berg_accumulate_calving_mass, &
+      berg_release_calving_mass, &
       berg_dimensions_update, &
       berg_area_update
 
@@ -36,28 +36,121 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  berg_calving_event_check
+!  berg_accumulate_calving_mass
 !
-!> \brief   Initialize icebergs size dimensions
+!> \brief   Accumulate calving mass
 !> \author  Darin Comeau, LANL
-!> \date    27 Sept 2017
-!> \details This routine is to check if a calving event should occur.
+!> \date    3 Oct 2017
+!> \details This routine is intended to accumulate iceberg calving mass
+!> from calving fluxes over a single timestep and add them to a stored
+!> calving mass variable.
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_calving_event_check(domain, itimestep)
+  subroutine berg_accumulate_calving_mass(domain)
+
+    type(domain_type), intent(inout) :: &
+         domain
+
+    type(block_type), pointer :: &
+         block
+
+    type(MPAS_pool_type), pointer :: &
+         mesh, &
+         berg_calving
+
+    integer, pointer :: &
+         nCellsSolve, &
+         nBergCategories
+
+    integer, dimension(:,:), pointer :: &
+         bergCalvingMask
+
+    real(kind=RKIND), dimension(:,:), pointer :: &
+         bergCalvingMass
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         bergCalvingDistribution
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         areaCell, &
+         bergCalvingFlux
+
+    real(kind=RKIND), pointer :: &
+         config_dt, &
+         bergDensity
+
+    integer :: &
+         iCell, &
+         iCategory
+
+    block => domain % blocklist
+    do while (associated(block))
+
+       call MPAS_pool_get_config(block % configs, "config_dt", config_dt)
+       call MPAS_pool_get_config(block % configs, "config_berg_density", bergDensity)
+
+       call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
+       call MPAS_pool_get_subpool(block % structs, "berg_calving", berg_calving)
+
+       call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
+       call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
+
+       call MPAS_pool_get_array(mesh, "areaCell", areaCell)
+       call MPAS_pool_get_array(berg_calving, "bergCalvingMask", bergCalvingMask)
+       call MPAS_pool_get_array(berg_calving, "bergCalvingMass", bergCalvingMass)
+       call MPAS_pool_get_array(berg_calving, "bergCalvingFlux", bergCalvingFlux)
+       call MPAS_pool_get_array(berg_calving, "bergCalvingDistribution", bergCalvingDistribution)
+
+       do iCell = 1, nCellsSolve
+
+          do iCategory = 1, nBergCategories
+
+             if (bergCalvingMask(iCategory,iCell) == 1) then
+
+                bergCalvingMass(iCategory,iCell) = bergCalvingMass(iCategory,iCell) + &
+                                                   bergCalvingDistribution(iCategory) * &
+                                                   bergCalvingFlux(iCell)*areaCell(iCell)*config_dt
+
+             endif
+
+          enddo
+
+       enddo
+
+       block => block % next
+    enddo
+
+  end subroutine berg_accumulate_calving_mass
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  berg_release_calving_mass
+!
+!> \brief   Release calving fluxes
+!> \author  Darin Comeau, LANL
+!> \date    3 Oct 2017
+!> \details This routine is intended to release iceberg calving masses
+!> accumulated from calving fluxes.
+!
+!-----------------------------------------------------------------------
+
+  subroutine berg_release_calving_mass(domain, itimestep)
 
     use cice_constants, only: &
          ciceSecondsPerYear
 
     type(domain_type), intent(inout) :: &
-         domain !< Input/Output:
+         domain
 
     integer, intent(in) :: &
-         itimestep !< Input:
+         itimestep
 
     type(block_type), pointer :: &
          block
+
+    character(len=strKIND), pointer :: &
+         config_berg_calving_type
 
     real(kind=RKIND), pointer :: &
          dt, &
@@ -66,26 +159,53 @@ contains
     integer :: &
          calvingFlag
 
-    call MPAS_pool_get_config(domain % configs, "config_dt", dt)
-    call MPAS_pool_get_config(domain % configs, "config_berg_annual_calving_frequency", annualCalvingFrequency)
+    call MPAS_pool_get_config(domain % configs, "config_berg_calving_type", config_berg_calving_type)
 
-    calvingFlag = NINT(ciceSecondsPerYear/(dt*annualCalvingFrequency))
-
-    if (mod(itimestep,calvingFlag)==0) then
-
-       call mpas_log_write("berg calving event")
+    if (trim(config_berg_calving_type) == "continuous") then
 
        block => domain % blocklist
        do while (associated(block))
 
           call berg_calving_event(block)
 
-          block => block % next
+       block => block % next
+       enddo
+
+    elseif (trim(config_berg_calving_type) == "episodic") then
+
+       call MPAS_pool_get_config(domain % configs, "config_dt", dt)
+       call MPAS_pool_get_config(domain % configs, "config_berg_annual_calving_frequency", annualCalvingFrequency)
+
+       calvingFlag = NINT(ciceSecondsPerYear/(dt*annualCalvingFrequency))
+
+       if (mod(itimestep,calvingFlag)==0) then
+
+          call mpas_log_write("episodic berg calving event")
+
+          block => domain % blocklist
+          do while (associated(block))
+
+             call berg_calving_event(block)
+
+             block => block % next
+          enddo
+
+       endif
+
+    elseif (trim(config_berg_calving_type) == "mass_threshold") then
+
+       block => domain % blocklist
+       do while (associated(block))
+
+          call berg_calving_mass_threshold_check(block)
+          call berg_calving_event(block)
+
+       block => block % next
        enddo
 
     endif
 
-  end subroutine berg_calving_event_check
+  end subroutine berg_release_calving_mass
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -94,7 +214,8 @@ contains
 !> \brief   Iceberg calving event
 !> \author  Darin Comeau, LANL
 !> \date    26 Sept 2017
-!> \details This routine is intended to add iceberg mass through calving.
+!> \details This routine is intended to add iceberg mass through calving,
+!> and reset the variable bergCalvingMass to 0.
 !
 !-----------------------------------------------------------------------
 
@@ -120,6 +241,9 @@ contains
          bergHeight, &
          bergCalvingMass
 
+    integer, dimension(:,:), pointer :: &
+         bergCalvingMask
+
     real(kind=RKIND), dimension(:), pointer :: &
          bergMassCell, &
          bergAreaCell, &
@@ -128,9 +252,6 @@ contains
     real(kind=RKIND), dimension(:), pointer :: &
          bergCalvingLength, &
          bergCalvingHeight
-
-    integer, dimension(:), pointer :: &
-         bergCalvingMask
 
     real(kind=RKIND), pointer :: &
          bergDensity
@@ -163,9 +284,9 @@ contains
 
     do iCell = 1, nCellsSolve
 
-       if (bergCalvingMask(iCell) == 1) then
+       do iCategory = 1, nBergCategories
 
-          do iCategory = 1, nBergCategories
+          if (bergCalvingMask(iCategory,iCell) == 1) then
 
              ! average dimensions with existing bergs
              call berg_dimensions_update(bergMassCategory(iCategory,iCell), &
@@ -181,12 +302,19 @@ contains
              bergMassCategory(iCategory,iCell) = bergMassCategory(iCategory,iCell) &
                                                + bergCalvingMass(iCategory,iCell)
 
-          enddo
+             ! reset calving mass
+             bergCalvingMass(iCategory,iCell) = 0.0_RKIND
 
-          ! integrated quantities
-          bergMassCell(iCell) = sum(bergMassCategory(:,iCell))
+          endif
 
-          ! update iceberg area
+       enddo
+
+       ! integrated quantities
+       bergMassCell(iCell) = sum(bergMassCategory(:,iCell))
+
+       ! update iceberg area if any new bergs calved
+       if (maxval(bergCalvingMask(:,iCell)) > 0) then
+
           call berg_area_update(nBergCategories, &
                                 bergMassCategory(:,iCell), &
                                 bergHeight(:,iCell), &
@@ -200,6 +328,73 @@ contains
     enddo
 
   end subroutine berg_calving_event
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  berg_calving_mass_threshold_check
+!
+!> \brief   Check calving mass threshold
+!> \author  Darin Comeau, LANL
+!> \date    3 Sept 2017
+!> \details This routine is to check if a calving mass exceeds the
+!> threshold of a single berg and therefore should be calved.
+!
+!-----------------------------------------------------------------------
+
+  subroutine berg_calving_mass_threshold_check(block)
+
+    type(block_type), intent(inout) :: &
+         block !< Input/Output:
+
+    type(MPAS_pool_type), pointer :: &
+         mesh, &
+         berg_calving
+
+    integer, pointer :: &
+         nCellsSolve, &
+         nBergCategories
+
+    integer, dimension(:,:), pointer :: &
+         bergCalvingMask
+
+    real(kind=RKIND), dimension(:,:), pointer :: &
+         bergCalvingMass
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         oneCalvedBergMass
+
+    integer :: &
+         iCell, &
+         iCategory
+
+    call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
+    call MPAS_pool_get_subpool(block % structs, "berg_calving", berg_calving)
+
+    call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
+    call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
+
+    call MPAS_pool_get_array(berg_calving, "bergCalvingMask", bergCalvingMask)
+    call MPAS_pool_get_array(berg_calving, "oneCalvedBergMass", oneCalvedBergMass)
+
+    do iCell = 1, nCellsSolve
+
+       do iCategory = 1, nBergCategories
+
+          if (bergCalvingMass(iCategory,iCell) > oneCalvedBergMass(iCategory)) then
+
+             bergCalvingMask(iCategory,iCell) = 1
+
+          else
+
+             bergCalvingMask(iCategory,iCell) = 0
+
+          endif
+
+       enddo
+
+    enddo
+
+  end subroutine berg_calving_mass_threshold_check
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -266,6 +461,8 @@ contains
        bergAreaCategory, &
        bergAreaCell)
 
+    use cice_constants, only: cicePuny
+
     integer, intent(in) :: &
          nBergCategories
 
@@ -288,8 +485,16 @@ contains
 
     do iCategory = 1, nBergCategories
 
-       bergAreaCategory(iCategory) = bergMassCategory(iCategory) / (bergHeight(iCategory)*bergDensity)
-       bergAreaCategory(iCategory) = bergAreaCategory(iCategory) / areaCell
+       if (bergHeight(iCategory) > cicePuny) then
+
+          bergAreaCategory(iCategory) = bergMassCategory(iCategory) / (bergHeight(iCategory)*bergDensity)
+          bergAreaCategory(iCategory) = bergAreaCategory(iCategory) / areaCell
+
+       else
+
+          bergAreaCategory(iCategory) = 0.0_RKIND
+
+       endif
 
     enddo
 

@@ -558,12 +558,14 @@
 	<!-- icebergs -->
 	<nml_record name="bergs" in_defaults="true">
 		<nml_option name="config_use_bergs"			type="logical"		default_value="false"/>
-		<nml_option name="config_berg_initial_condition"	type="character"	default_value="coastal_uniform"	possible_values="'coastal_uniform' or 'regional_uniform'"/>
+		<nml_option name="config_berg_initial_condition"	type="character"	default_value="none"	possible_values="'none'"/>
+		<nml_option name="config_berg_calving_flux_type"	type="character"	default_value="obs_Rignot2013"	possible_values="'obs_Rignot2013' or 'coastal_uniform' or 'regional_uniform'"/>
 		<nml_option name="config_berg_calving_mask_latitude_minimum" type="real" default_value="-90.0"	units="degrees latitude"/>
 		<nml_option name="config_berg_calving_mask_latitude_maximum" type="real" default_value="-60.0"	units="degrees latitude"/>
 		<nml_option name="config_berg_calving_mask_longitude_minimum" type="real" default_value="0.0"	units="degrees longitude"/>
 		<nml_option name="config_berg_calving_mask_longitude_maximum" type="real" default_value="360.0"	units="degrees longitude"/>
-		<nml_option name="config_berg_annual_calving_rate" type="real" default_value="1350.0e12"	units="kg/yr"/>
+		<nml_option name="config_berg_annual_calving_rate" type="real" default_value="1265.0e12"	units="kg/yr"/>
+		<nml_option name="config_berg_calving_type"	type="character"	default_value="continuous"	possible_values="'continuous' or 'episodic' 'mass_threshold' or 'none'"/>
 		<nml_option name="config_berg_annual_calving_frequency" type="real" default_value="12.0"	units="1/yr"/>
 		<nml_option name="config_berg_initial_uvelocity_geo"	type="real"		default_value="0.0"/>
 		<nml_option name="config_berg_initial_vvelocity_geo"	type="real"		default_value="0.0"/>
@@ -774,6 +776,15 @@
 			<var name="bergCalvingDistribution"/>
 			<var name="bergCalvingLength"/>
 			<var name="bergCalvingHeight"/>
+		</stream>
+
+		<stream name="bergCalvingFluxes"
+				type="input"
+				filename_template="berg_calving_fluxes.nc"
+				filename_interval="none"
+				input_interval="initial_only"
+				immutable="true">
+			<var name="calvingFluxObs"/>
 		</stream>
 
 		<!-- forcing streams -->
@@ -2556,10 +2567,13 @@
 		<var name="bergCalvingDistribution"		type="real"	dimensions="nBergCategories"	name_in_code="bergCalvingDistribution"/>
 		<var name="bergCalvingLength"			type="real"	dimensions="nBergCategories"		name_in_code="bergCalvingLength"/>
 		<var name="bergCalvingHeight"			type="real"	dimensions="nBergCategories"		name_in_code="bergCalvingHeight"/>
-		<var name="bergCalvingMask"			type="integer"	dimensions="nCells"		name_in_code="bergCalvingMask"/>
-		<var name="bergCalvingMass"			type="real"	dimensions="nBergCategories nCells"		name_in_code="bergCalvingMass"/>
+		<var name="oneCalvedBergMass"			type="real"	dimensions="nBergCategories"		name_in_code="oneCalvedBergMass"/>
 		<var name="nBergCalvingCells"			type="integer"	dimensions=""		name_in_code="nBergCalvingCells"/>
 		<var name="nBergCalvingCellsTotal"			type="integer"	dimensions=""		name_in_code="nBergCalvingCellsTotal"/>
+		<var name="calvingFluxObs"			type="real"	dimensions="nCells"		name_in_code="calvingFluxObs"/>
+		<var name="bergCalvingFlux"			type="real"	dimensions="nCells"		name_in_code="bergCalvingFlux"/>
+		<var name="bergCalvingMask"			type="integer"	dimensions="nBergCategories nCells"		name_in_code="bergCalvingMask"/>
+		<var name="bergCalvingMass"			type="real"	dimensions="nBergCategories nCells"		name_in_code="bergCalvingMass"/>
 	</var_struct>
 
 	<var_struct name="berg_state" time_levs="1" packages="pkgBergs">

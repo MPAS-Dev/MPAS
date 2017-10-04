@@ -22,13 +22,18 @@
                   filename_interval="none"
                   input_interval="initial_only" />
 
+<immutable_stream name="bergCalvingFluxes"
+                  type="input"
+                  filename_template="berg_calving_fluxes.nc"
+                  filename_interval="none"
+                  input_interval="initial_only" />
+
 <stream name="output"
         type="output"
-        filename_template="output/output.$Y.nc"
-        filename_interval="01-00-00_00:00:00"
+        filename_template="output/output.$Y-$M-$D.nc"
+        filename_interval="00-00-01_00:00:00"
         clobber_mode="replace_files"
-        output_interval="none" >
-
+        output_interval="00-00-01_00:00:00" >
 </stream>
 
 <immutable_stream name="LYqSixHourlyForcing"

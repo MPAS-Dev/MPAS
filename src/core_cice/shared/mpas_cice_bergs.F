@@ -48,7 +48,7 @@ contains
 
   subroutine cice_bergs_init(domain)
 
-    use cice_berg_initialize, only: init_berg_state
+    use cice_berg_initialize, only: init_berg_calving_fluxes
     use cice_berg_velocity_solver, only: init_berg_velocity_solver
 
     type(domain_type), intent(inout) :: &
@@ -63,7 +63,7 @@ contains
 
        call mpas_timer_start("Berg initialization")
 
-       call init_berg_state(domain)
+       call init_berg_calving_fluxes(domain)
 
        call init_berg_velocity_solver(domain)
 
@@ -119,7 +119,8 @@ contains
   subroutine cice_run_berg_postdynamics(domain, clock, itimestep)!{{{
 
     use cice_berg_decay, only: run_berg_decay
-    use cice_berg_state, only: berg_calving_event_check 
+    use cice_berg_state, only: berg_accumulate_calving_mass, &
+                               berg_release_calving_mass
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -135,9 +136,10 @@ contains
     call run_berg_decay(domain, clock)
     call mpas_timer_stop("Berg decay")
 
-    ! berg calving check
+    ! berg calving
     call mpas_timer_start("Berg calving")
-    call berg_calving_event_check(domain, itimestep)
+    call berg_accumulate_calving_mass(domain)
+    call berg_release_calving_mass(domain, itimestep)
     call mpas_timer_stop("Berg calving")
 
   end subroutine cice_run_berg_postdynamics!}}}  
