@@ -27,16 +27,20 @@ module cice_berg_state
    save
 
    public :: &
-      berg_accumulate_calving_mass, &
-      berg_release_calving_mass, &
-      berg_dimensions_update, &
-      berg_area_update
+      cice_berg_accumulate_calving_mass, &
+      cice_berg_release_calving_mass, &
+      cice_berg_dimensions_update, &
+      cice_berg_area_update
 
 contains
 
+!-----------------------------------------------------------------------
+! Calving subroutines
+!-----------------------------------------------------------------------
+
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  berg_accumulate_calving_mass
+!  cice_berg_accumulate_calving_mass
 !
 !> \brief   Accumulate calving mass
 !> \author  Darin Comeau, LANL
@@ -47,7 +51,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_accumulate_calving_mass(domain)
+  subroutine cice_berg_accumulate_calving_mass(domain)
 
     type(domain_type), intent(inout) :: &
          domain
@@ -108,6 +112,7 @@ contains
 
              if (bergCalvingMask(iCategory,iCell) == 1) then
 
+                ! add mass based on calving flux to each category's storage variable
                 bergCalvingMass(iCategory,iCell) = bergCalvingMass(iCategory,iCell) + &
                                                    bergCalvingDistribution(iCategory) * &
                                                    bergCalvingFlux(iCell)*areaCell(iCell)*config_dt
@@ -121,11 +126,11 @@ contains
        block => block % next
     enddo
 
-  end subroutine berg_accumulate_calving_mass
+  end subroutine cice_berg_accumulate_calving_mass
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  berg_release_calving_mass
+!  cice_berg_release_calving_mass
 !
 !> \brief   Release calving fluxes
 !> \author  Darin Comeau, LANL
@@ -135,7 +140,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_release_calving_mass(domain, itimestep)
+  subroutine cice_berg_release_calving_mass(domain, itimestep)
 
     use cice_constants, only: &
          ciceSecondsPerYear
@@ -157,7 +162,7 @@ contains
          annualCalvingFrequency
 
     integer :: &
-         calvingFlag
+         calvingFlag ! flag to indicate if calving is to be done
 
     call MPAS_pool_get_config(domain % configs, "config_berg_calving_type", config_berg_calving_type)
 
@@ -178,6 +183,7 @@ contains
 
        calvingFlag = NINT(ciceSecondsPerYear/(dt*annualCalvingFrequency))
 
+       ! check if calving even is to occur
        if (mod(itimestep,calvingFlag)==0) then
 
           call mpas_log_write("episodic berg calving event")
@@ -205,7 +211,7 @@ contains
 
     endif
 
-  end subroutine berg_release_calving_mass
+  end subroutine cice_berg_release_calving_mass
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -289,14 +295,14 @@ contains
           if (bergCalvingMask(iCategory,iCell) == 1) then
 
              ! average dimensions with existing bergs
-             call berg_dimensions_update(bergMassCategory(iCategory,iCell), &
-                                         bergCalvingMass(iCategory,iCell), &
-                                         bergLength(iCategory,iCell), &
-                                         bergCalvingLength(iCategory), &
-                                         bergHeight(iCategory,iCell), &
-                                         bergCalvingHeight(iCategory), &
-                                         bergLength(iCategory,iCell), &
-                                         bergHeight(iCategory,iCell))
+             call cice_berg_dimensions_update(bergMassCategory(iCategory,iCell), &
+                                              bergCalvingMass(iCategory,iCell), &
+                                              bergLength(iCategory,iCell), &
+                                              bergCalvingLength(iCategory), &
+                                              bergHeight(iCategory,iCell), &
+                                              bergCalvingHeight(iCategory), &
+                                              bergLength(iCategory,iCell), &
+                                              bergHeight(iCategory,iCell))
 
              ! add calving mass
              bergMassCategory(iCategory,iCell) = bergMassCategory(iCategory,iCell) &
@@ -315,13 +321,13 @@ contains
        ! update iceberg area if any new bergs calved
        if (maxval(bergCalvingMask(:,iCell)) > 0) then
 
-          call berg_area_update(nBergCategories, &
-                                bergMassCategory(:,iCell), &
-                                bergHeight(:,iCell), &
-                                bergDensity, &
-                                areaCell(iCell), &
-                                bergAreaCategory(:,iCell), &
-                                bergAreaCell(iCell))
+          call cice_berg_area_update(nBergCategories, &
+                                     bergMassCategory(:,iCell), &
+                                     bergHeight(:,iCell), &
+                                     bergDensity, &
+                                     areaCell(iCell), &
+                                     bergAreaCategory(:,iCell), &
+                                     bergAreaCell(iCell))
 
        endif
 
@@ -396,9 +402,13 @@ contains
 
   end subroutine berg_calving_mass_threshold_check
 
+!-----------------------------------------------------------------------
+! Iceberg state variable updates
+!-----------------------------------------------------------------------
+
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  berg_dimensions_update
+!  cice_berg_dimensions_update
 !
 !> \brief   Update iceberg dimensions
 !> \author  Darin Comeau, LANL
@@ -408,7 +418,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_dimensions_update(&
+  subroutine cice_berg_dimensions_update(&
        bergMass1, &
        bergMass2, &
        bergLength1, &
@@ -435,14 +445,15 @@ contains
 
     weight = bergMass1 / (bergMass1 + bergMass2)
 
+    ! update dimensions as weighted sum of existing two dimensions
     newBergLength = weight*bergLength1 + (1.0_RKIND-weight)*bergLength2
     newBergHeight = weight*bergHeight1 + (1.0_RKIND-weight)*bergHeight2
 
-  end subroutine berg_dimensions_update 
+  end subroutine cice_berg_dimensions_update
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  berg_area_update
+!  cice_berg_area_update
 !
 !> \brief   Update iceberg area
 !> \author  Darin Comeau, LANL
@@ -452,7 +463,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_area_update(&
+  subroutine cice_berg_area_update(&
        nBergCategories, &
        bergMassCategory, &
        bergHeight, &
@@ -487,6 +498,7 @@ contains
 
        if (bergHeight(iCategory) > cicePuny) then
 
+          ! calculate fractional berg area
           bergAreaCategory(iCategory) = bergMassCategory(iCategory) / (bergHeight(iCategory)*bergDensity)
           bergAreaCategory(iCategory) = bergAreaCategory(iCategory) / areaCell
 
@@ -500,6 +512,7 @@ contains
 
     bergAreaCell = sum(bergAreaCategory(:))
 
+    ! check that berg area does not exceed cell area
     if (bergAreaCell > 1.0_RKIND) then
        call mpas_log_write(&
             "berg area greater than one: $r ", realArgs=(/bergAreaCell/), &
@@ -507,7 +520,7 @@ contains
 
     endif
 
-  end subroutine berg_area_update
+  end subroutine cice_berg_area_update
 
 !-----------------------------------------------------------------------
 

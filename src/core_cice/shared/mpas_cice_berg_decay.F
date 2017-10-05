@@ -26,7 +26,7 @@ module cice_berg_decay
   save
 
   public :: &
-       run_berg_decay
+       cice_run_berg_decay
 
   ! berg decay solver constants
   real(kind=RKIND), parameter, private :: &
@@ -40,7 +40,7 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  run_berg_decay
+!  cice_run_berg_decay
 !
 !> \brief   Calculate iceberg decay
 !> \author  Darin Comeau, LANL
@@ -49,7 +49,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine run_berg_decay(domain, clock)!{{{
+  subroutine cice_run_berg_decay(domain, clock)!{{{
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -103,7 +103,7 @@ contains
 
     endif ! config_use_berg_decay
 
-  end subroutine run_berg_decay!}}}
+  end subroutine cice_run_berg_decay!}}}
 
 !-----------------------------------------------------------------------
 ! Initialization
@@ -1018,7 +1018,7 @@ contains
 
   subroutine berg_update_area_after_decay(block)!{{{
 
-    use cice_berg_state, only: berg_area_update
+    use cice_berg_state, only: cice_berg_area_update
 
     type(block_type), intent(inout) :: &
          block
@@ -1084,13 +1084,13 @@ contains
 
        ! update iceberg area if any category changed due to decay
        if (updateBergArea) then
-          call berg_area_update(nBergCategories, &
-                                bergMassCategory(:,iCell), &
-                                bergHeight(:,iCell), &
-                                bergDensity, &
-                                areaCell(iCell), &
-                                bergAreaCategory(:,iCell), &
-                               bergAreaCell(iCell))
+          call cice_berg_area_update(nBergCategories, &
+                                     bergMassCategory(:,iCell), &
+                                     bergHeight(:,iCell), &
+                                     bergDensity, &
+                                     areaCell(iCell), &
+                                     bergAreaCategory(:,iCell), &
+                                     bergAreaCell(iCell))
 
        endif
 

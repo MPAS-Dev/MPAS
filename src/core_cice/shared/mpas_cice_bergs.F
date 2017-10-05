@@ -48,8 +48,8 @@ contains
 
   subroutine cice_bergs_init(domain)
 
-    use cice_berg_initialize, only: init_berg_calving_fluxes
-    use cice_berg_velocity_solver, only: init_berg_velocity_solver
+    use cice_berg_initialize, only: cice_init_berg_calving_fluxes
+    use cice_berg_velocity_solver, only: cice_init_berg_velocity_solver
 
     type(domain_type), intent(inout) :: &
          domain
@@ -63,9 +63,9 @@ contains
 
        call mpas_timer_start("Berg initialization")
 
-       call init_berg_calving_fluxes(domain)
+       call cice_init_berg_calving_fluxes(domain)
 
-       call init_berg_velocity_solver(domain)
+       call cice_init_berg_velocity_solver(domain)
 
        call mpas_timer_stop("Berg initialization")
 
@@ -87,7 +87,7 @@ contains
 
   subroutine cice_run_berg_dynamics(domain, clock)!{{{
 
-    use cice_berg_velocity_solver, only: run_berg_velocity_solver
+    use cice_berg_velocity_solver, only: cice_run_berg_velocity_solver
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -97,7 +97,7 @@ contains
 
     ! berg velocity solver
     call mpas_timer_start("Berg velocity solver")
-    call run_berg_velocity_solver(domain, clock)
+    call cice_run_berg_velocity_solver(domain, clock)
     call mpas_timer_stop("Berg velocity solver")
 
     ! advection (to add)
@@ -118,9 +118,9 @@ contains
 
   subroutine cice_run_berg_postdynamics(domain, clock, itimestep)!{{{
 
-    use cice_berg_decay, only: run_berg_decay
-    use cice_berg_state, only: berg_accumulate_calving_mass, &
-                               berg_release_calving_mass
+    use cice_berg_decay, only: cice_run_berg_decay
+    use cice_berg_state, only: cice_berg_accumulate_calving_mass, &
+                               cice_berg_release_calving_mass
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -133,13 +133,13 @@ contains
 
     ! berg decay solver
     call mpas_timer_start("Berg decay")
-    call run_berg_decay(domain, clock)
+    call cice_run_berg_decay(domain, clock)
     call mpas_timer_stop("Berg decay")
 
     ! berg calving
     call mpas_timer_start("Berg calving")
-    call berg_accumulate_calving_mass(domain)
-    call berg_release_calving_mass(domain, itimestep)
+    call cice_berg_accumulate_calving_mass(domain)
+    call cice_berg_release_calving_mass(domain, itimestep)
     call mpas_timer_stop("Berg calving")
 
   end subroutine cice_run_berg_postdynamics!}}}  

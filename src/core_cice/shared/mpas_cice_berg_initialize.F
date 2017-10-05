@@ -27,13 +27,17 @@ module cice_berg_initialize
    save
 
    public :: &
-      init_berg_calving_fluxes
+      cice_init_berg_calving_fluxes
 
 contains
 
+!-----------------------------------------------------------------------
+! Set up calving fluxes
+!-----------------------------------------------------------------------
+
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  init_berg_calving_fluxes
+!  cice_init_berg_calving_fluxes
 !
 !> \brief   Initialize iceberg calving fluxes
 !> \author  Darin Comeau, LANL
@@ -44,7 +48,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine init_berg_calving_fluxes(domain)
+  subroutine cice_init_berg_calving_fluxes(domain)
 
     type(domain_type), intent(inout) :: &
          domain
@@ -97,7 +101,7 @@ contains
        block => block % next
     enddo
 
-   end subroutine init_berg_calving_fluxes
+   end subroutine cice_init_berg_calving_fluxes
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -168,6 +172,7 @@ contains
     call MPAS_pool_get_config(domain % configs, "config_berg_calving_mask_longitude_minimum", bergMaskLonMin)
     call MPAS_pool_get_config(domain % configs, "config_berg_calving_mask_longitude_maximum", bergMaskLonMax)
 
+    ! convert longitudes to 0 - 360 indexing
     if (bergMaskLonMin < 0.0_RKIND) bergMaskLonMin = bergMaskLonMin + 360.0_RKIND
     if (bergMaskLonMax < 0.0_RKIND) bergMaskLonMax = bergMaskLonMax + 360.0_RKIND
 
@@ -193,7 +198,7 @@ contains
 
           do iCell = 1, nCellsSolve
 
-             ! coastal cells only
+             ! include coastal cells only
              if (interiorCell(iCell) == 0 .and. &
                 landIceMask(iCell) == 0 .and. &
                 latCell(iCell)*ciceRadiansToDegrees >= bergMaskLatMin .and. &
@@ -301,6 +306,7 @@ contains
 
        if (maxval(bergCalvingMask(:,iCell)) > 0) then
 
+          ! distribute calving flux evenly among all calving cells
           bergCalvingFlux(iCell) = annualCalvingRate / nBergCalvingCellsTotal ! kg/yr
           bergCalvingFlux(iCell) = bergCalvingFlux(iCell) / (areaCell(iCell)*ciceSecondsPerYear) ! kg/m^2/s
 
@@ -422,6 +428,7 @@ contains
 
     do iCategory = 1, nBergCategories
 
+       ! calculate mass of a single berg in each category from the calving distribution
        oneCalvedBergMass(iCategory) = bergWidthFactor*bergCalvingLength(iCategory)**2 &
                                     * bergCalvingHeight(iCategory)*bergDensity
 
