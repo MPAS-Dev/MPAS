@@ -61,8 +61,8 @@ contains
          block
 
     logical, pointer :: &
-         config_use_berg_decay, &
-         config_berg_allow_rollover
+         config_use_berg_decay, & ! flag to turn on / off berg decay parameterization
+         config_berg_allow_rollover ! flag to turn on / off berg rollover due to instability
 
     ! determine if decay is switched on
     call MPAS_pool_get_config(domain % configs, "config_use_berg_decay", config_use_berg_decay)
@@ -132,16 +132,16 @@ contains
          bergFluxesPool
 
     real(kind=RKIND), dimension (:,:), pointer :: &
-         bergBasalMeltRate, &
-         bergLateralMeltRate, &
-         bergWaveErosionRate, &
-         bergMeltMass, &
-         bergFreshwaterFluxCategory, &
-         bergLatentHeatFluxCategory
+         bergBasalMeltRate, &   ! berg decay rate due to basal melting (m/s)
+         bergLateralMeltRate, & ! berg decay rate due to lateral melting (m/s)
+         bergWaveErosionRate, & ! berg decay rate due to wave erosion (m/s)
+         bergMeltMass, &        ! berg mass lost to decay in one timestep (kg)
+         bergFreshwaterFluxCategory, & ! freshwater flux due to berg decay (kg/m^2/s)
+         bergLatentHeatFluxCategory    ! latent heat flux due to berg decay (J/m^2/s)
 
     real(kind=RKIND), dimension (:), pointer :: &
-         bergFreshwaterFluxCell, &
-         bergLatentHeatFluxCell
+         bergFreshwaterFluxCell, & ! aggregate freshwater flux (kg/m^2/s)
+         bergLatentHeatFluxCell    ! aggregate latent heat flux (J/m^2/s)
 
     integer, pointer :: &
          nCellsSolve, &
@@ -151,7 +151,6 @@ contains
          iCell, &
          iCategory
 
-    ! reset berg fluxes from previous timestep
     call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
     call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
     call MPAS_pool_get_subpool(block % structs, "berg_fluxes", bergFluxesPool)
@@ -173,6 +172,7 @@ contains
 
        do iCategory = 1, nBergCategories
 
+          ! reset berg decay rates & fluxes from previous timestep
           bergBasalMeltRate(iCategory,iCell) = 0.0_RKIND
           bergLateralMeltRate(iCategory,iCell) = 0.0_RKIND
           bergWaveErosionRate(iCategory,iCell) = 0.0_RKIND
@@ -201,7 +201,7 @@ contains
 !> \brief   Create mask for berg decay calculation
 !> \author  Darin Comeau, LANL
 !> \date    September 5, 2017
-!> \details This subroutine creates a mask for calculating iceberg decay
+!> \details This subroutine creates a mask for calculating iceberg decay.
 !
 !-----------------------------------------------------------------------
 
@@ -218,13 +218,13 @@ contains
          bergDecayPool
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergMassCategory
+         bergMassCategory ! berg state variable
 
     integer, dimension(:,:), pointer :: &
-         bergDecayMask
+         bergDecayMask ! mask = 1 indicates berg decay to occur, = 0 elsewhere
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergMassCell
+         bergMassCell ! aggregate berg state variable
 
     integer, dimension(:), pointer :: &
          interiorCell, &
@@ -261,7 +261,7 @@ contains
           if (landIceMask(iCell) == 0 .and. &
              bergMassCategory(iCategory,iCell) > bergMassMinimum) then
 
-             ! this cell has sufficient ice
+             ! this cell has sufficient bergs for decay
              bergDecayMask(iCategory,iCell) = 1
 
           endif
@@ -375,16 +375,16 @@ contains
          oceanCouplingPool
 
     integer, dimension(:,:), pointer :: &
-         bergDecayMask
+         bergDecayMask ! mask = 1 indicates berg decay to occur, = 0 elsewhere
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergBasalMeltRate, &
-         bergLength, &
-         uBergVelocityCell, &
+         bergBasalMeltRate, & ! decay rate due to basal melting (m/s)
+         bergLength, &        ! berg length dimension (m)
+         uBergVelocityCell, & ! berg velocity interpolated to cell centers
          vBergVelocityCell
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         uBergVelocity, &
+         uBergVelocity, & ! berg velocity at vertices
          vBergVelocity
 
     real(kind=RKIND), dimension(:), pointer :: &
@@ -397,7 +397,7 @@ contains
          nBergCategories
 
     real, pointer :: &
-         bergTemperature
+         bergTemperature ! berg temperature, assumed constant
 
     integer :: &
          iCell, &
@@ -407,7 +407,7 @@ contains
          relSpeed
 
     real(kind=RKIND), parameter :: &
-         basalMeltCoef = 0.58_RKIND, &
+         basalMeltCoef = 0.58_RKIND, & ! empirical coefficients in decay parameterization
          basalMeltExponent1 = 0.8_RKIND, &
          basalMeltExponent2 = 0.2_RKIND
 
@@ -460,12 +460,14 @@ contains
 
           if (bergDecayMask(iCategory,iCell) == 1) then
 
+             ! get relative speed between ocean and bergs
              call get_relative_speed(uOceanVelocity(iCell), &
                                      vOceanVelocity(iCell), &
                                      uBergVelocityCell(iCategory,iCell), &
                                      vBergVelocityCell(iCategory,iCell), &
                                      relSpeed)
 
+             ! calculate berg decay (m/day)
              bergBasalMeltRate(iCategory,iCell) = basalMeltCoef*relSpeed**basalMeltExponent1 &
                                                 * (seaSurfaceTemperature(iCell) - bergTemperature) &
                                                 / (bergLength(iCategory,iCell)**basalMeltExponent2)
@@ -510,10 +512,10 @@ contains
          oceanCouplingPool
 
     integer, dimension(:,:), pointer :: &
-         bergDecayMask
+         bergDecayMask ! mask = 1 indicates berg decay to occur, = 0 elsewhere
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergLateralMeltRate
+         bergLateralMeltRate ! decay rate due to lateral melting (m/s)
 
     real(kind=RKIND), dimension(:), pointer :: &
          seaSurfaceTemperature
@@ -530,8 +532,8 @@ contains
          relSpeed
 
     real(kind=RKIND), parameter :: &
-         lateralMeltCoef1 = 0.00762_RKIND, &
-         lateralMeltCoef2 = 0.00129_RKIND
+         lateralMeltCoef1 = 0.00762_RKIND, & ! empirical coefficients in expression
+         lateralMeltCoef2 = 0.00129_RKIND    ! for lateral melting
 
     call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
     call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
@@ -550,6 +552,7 @@ contains
 
           if (bergDecayMask(iCategory,iCell) == 1) then
 
+             ! calculate decay rate due to lateral melting (m/day)
              bergLateralMeltRate(iCategory,iCell) = lateralMeltCoef1*seaSurfaceTemperature(iCell) + &
                                                     lateralMeltCoef2*seaSurfaceTemperature(iCell)**2
 
@@ -596,14 +599,13 @@ contains
          atmosCouplingPool
 
     integer, dimension(:,:), pointer :: &
-         bergDecayMask
+         bergDecayMask ! mask = 1 indicates berg decay to occur, = 0 elsewhere
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergWaveErosionRate
+         bergWaveErosionRate ! decay rate due to wave erosion (m/s)
 
     real(kind=RKIND), dimension(:), pointer :: &
          iceAreaCell, &
-         areaCell, &
          seaSurfaceTemperature, &
          uOceanVelocity, &
          vOceanVelocity, &
@@ -620,12 +622,11 @@ contains
 
     real(kind=RKIND) :: &
          relSpeed, &
-         seaState, &
-         iceFraction
+         seaState ! estimate sea state, fit to Beaufort scale
 
     real(kind=RKIND), parameter :: &
-         waveCoef1 = 1.0_RKIND/12.0_RKIND, &
-         waveCoef2 = 3.0_RKIND/2.0_RKIND, &
+         waveCoef1 = 1.0_RKIND/12.0_RKIND, & ! empirical coefficients in expression
+         waveCoef2 = 3.0_RKIND/2.0_RKIND, &  ! for decay due to wave erosion
          waveCoef3 = 1.0_RKIND/10.0_RKIND
 
     call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
@@ -636,8 +637,6 @@ contains
     call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracersAggregatePool)
     call MPAS_pool_get_subpool(block % structs, "ocean_coupling", oceanCouplingPool)
     call MPAS_pool_get_subpool(block % structs, "atmos_coupling", atmosCouplingPool)
-
-    call MPAS_pool_get_array(meshPool, "areaCell", areaCell)
 
     call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
     call MPAS_pool_get_array(bergDecayPool, "bergWaveErosionRate", bergWaveErosionRate)
@@ -657,17 +656,19 @@ contains
 
           if (bergDecayMask(iCategory,iCell) == 1) then
 
+             ! get relative speed of air and bergs
              call get_relative_speed(uAirVelocity(iCell), &
                                      vAirVelocity(iCell), &
                                      uOceanVelocity(iCell), &
                                      vOceanVelocity(iCell), &
                                      relSpeed)
 
+             ! estimate sea state fit to Beaufort scale
              seaState = waveCoef2*sqrt(relSpeed) + waveCoef3*relSpeed
-             iceFraction = iceAreaCell(iCell)/areaCell(iCell)
 
+             ! calculate wave erosion rate (m/day)
              bergWaveErosionRate(iCategory,iCell) = waveCoef1*seaState &
-                                                  *(1.0_RKIND + cos(iceFraction**3*pii)) &
+                                                  *(1.0_RKIND + cos(iceAreaCell(iCell)**3*pii)) &
                                                   *(seaSurfaceTemperature(iCell) + 2.0_RKIND)
 
              ! convert from m/day to m/sec
@@ -710,16 +711,16 @@ contains
          tracersPool
 
     integer, dimension(:,:), pointer :: &
-         bergDecayMask
+         bergDecayMask ! mask = 1 indicates berg decay to occur, = 0 elsewhere
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergBasalMeltRate, &
-         bergLateralMeltRate, &
-         bergWaveErosionRate, &
-         bergMeltMass, &
-         bergLength, &
-         bergHeight, &
-         bergMassCategory
+         bergBasalMeltRate, &   ! decay due to basal melting (m/s)
+         bergLateralMeltRate, & ! decay due to lateral melting (m/s)
+         bergWaveErosionRate, & ! decay due to wave erosion (m/s)
+         bergMeltMass, &        ! berg mass lost to decay in one timestep (kg)
+         bergLength, &    ! berg category length dimension
+         bergHeight, &    ! berg category height dimension
+         bergMassCategory ! berg mass state variable
 
     integer, pointer :: &
          nCellsSolve, &
@@ -733,9 +734,9 @@ contains
          iCategory
 
     real(kind=RKIND) :: &
-         dBergLength, &
-         dBergHeight, &
-         dBergMass
+         dBergLength, & ! change in berg length due to decay (m)
+         dBergHeight, & ! change in berg height due to decay (m)
+         dBergMass      ! fraction of berg mass lost
 
     call MPAS_pool_get_config(block % configs, "config_dt", config_dt)
 
@@ -776,10 +777,14 @@ contains
              ! fraction of mass lost
              dBergMass = (dBergLength**2*dBergHeight) / (bergLength(iCategory,iCell)**2*bergHeight(iCategory,iCell))
 
+             ! update berg dimensions
              bergLength(iCategory,iCell) = bergLength(iCategory,iCell) - dBergLength
              bergHeight(iCategory,iCell) = bergHeight(iCategory,iCell) - dBergHeight
   
+             ! calculate berg mass lost (kg)
              bergMeltMass(iCategory,iCell) = dBergMass*bergMassCategory(iCategory,iCell)
+
+             ! update berg mass state variable
              bergMassCategory(iCategory,iCell) = bergMassCategory(iCategory,iCell) - bergMeltMass(iCategory,iCell)
 
           endif
@@ -798,6 +803,7 @@ contains
 !> \author  Darin Comeau, LANL
 !> \date    Sep 14, 2017
 !> \details Convert berg melt to freshwater and latent heat fluxes
+!> intended for the ocean.
 !
 !-----------------------------------------------------------------------
 
@@ -815,21 +821,21 @@ contains
          bergFluxesPool
 
     integer, dimension(:,:), pointer :: &
-         bergDecayMask
+         bergDecayMask ! mask = 1 indicates berg decay to occur, = 0 elsewhere
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergMeltMass, &
-         bergFreshwaterFluxCategory, &
-         bergLatentHeatFluxCategory
+         bergMeltMass, & ! berg mass lost to decay in one timestep (kg)
+         bergFreshwaterFluxCategory, & ! freshwater flux due to berg decay (kg/m^2/s)
+         bergLatentHeatFluxCategory    ! latent heat flux due to berg decay (J/m^2/s)
 
     real(kind=RKIND), dimension(:), pointer :: &
          areaCell, &
-         bergFreshwaterFluxCell, &
-         bergLatentHeatFluxCell
+         bergFreshwaterFluxCell, & ! aggregate freshwater flux (kg/m^2/s)
+         bergLatentHeatFluxCell    ! aggregate latent heat flux (J/m^2/s)
 
     real(kind=RKIND), pointer :: &
          config_dt, &
-         bergTemperature, &
+         bergTemperature, &        ! berg temperature, assumed constant
          specificHeatFreshIce
 
     integer, pointer :: &
@@ -867,14 +873,15 @@ contains
 
           if (bergDecayMask(iCategory,iCell) == 1) then
 
-             ! units kg/m^2/s
+             ! calculate freshwater flux (kg/m^2/s)
              bergFreshwaterFluxCategory(iCategory,iCell) = bergMeltMass(iCategory,iCell) / (areaCell(iCell)*config_dt)
 
-             ! units J/m^2/s
+             ! calculate latent heat flux (J/m^2/s)
              bergLatentHeatFluxCategory(iCategory,iCell) = bergMeltMass(iCategory,iCell) &
                                                          * (ciceLatentHeatMelting - specificHeatFreshIce*(bergTemperature+273.0)) &
                                                          / (areaCell(iCell)*config_dt)
 
+             ! aggregate quantities
              bergFreshwaterFluxCell(iCell) = bergFreshwaterFluxCell(iCell) + bergFreshwaterFluxCategory(iCategory,iCell)
              bergLatentHeatFluxCell(iCell) = bergLatentHeatFluxCell(iCell) + bergLatentHeatFluxCategory(iCategory,iCell)
 
@@ -908,14 +915,15 @@ contains
          bergHeight
 
     integer, intent(out) :: &
-         bergStabilityCheck
+         bergStabilityCheck ! 1 indicates rollover should occur
 
     real(kind=RKIND), parameter :: &
-         rolloverCoef1 = 0.92_RKIND, &
-         rolloverCoef2 = 58.32_RKIND
+         rolloverCoef1 = 0.92_RKIND, & ! empirical coefficients in the
+         rolloverCoef2 = 58.32_RKIND   ! Weeks-Mellor stability criterion
 
     bergStabilityCheck = 0
 
+    ! check Weeks-Mellor stability criterion
     if (bergLength < sqrt(rolloverCoef1*bergHeight**2 + rolloverCoef2*bergHeight)) &
        bergStabilityCheck = 1
 
@@ -943,11 +951,11 @@ contains
          tracersPool
 
     integer, dimension(:,:), pointer :: &
-         bergDecayMask
+         bergDecayMask ! mask = 1 indicates berg decay to occur, = 0 elsewhere
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergLength, &
-         bergHeight
+         bergLength, & ! berg category length
+         bergHeight    ! berg category height
 
     integer, pointer :: &
          nCellsSolve, &
@@ -958,11 +966,11 @@ contains
          iCategory
 
     integer :: &
-         bergStabilityCheck
+         bergStabilityCheck ! 1 indicates berg is unstable and rollover should occur
 
     real(kind=RKIND) :: &
-         bergLengthOld, &
-         bergHeightOld
+         bergLengthOld, & ! placeholders during rollover when length and height
+         bergHeightOld    ! are switched
 
     call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
     call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
@@ -981,10 +989,12 @@ contains
 
           if (bergDecayMask(iCategory,iCell) == 1) then
 
+             ! check if berg is unstable
              call berg_stability_check(bergLength(iCategory,iCell), &
                                        bergHeight(iCategory,iCell), &
                                        bergStabilityCheck)
 
+            ! berg is unstable, needs to rollover
              if (bergStabilityCheck == 1) then
 
                 bergLengthOld = bergLength(iCategory,iCell)
@@ -1034,26 +1044,26 @@ contains
          nBergCategories
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergMassCategory, &
-         bergAreaCategory, &
-         bergHeight
+         bergMassCategory, & ! berg mass state variable
+         bergAreaCategory, & ! berg area state variable
+         bergHeight          ! berg category height
 
     real(kind=RKIND), dimension(:), pointer :: &
-         bergAreaCell, &
+         bergAreaCell, &     ! aggregate berg area
          areaCell
 
     integer, dimension(:,:), pointer :: &
-         bergDecayMask
+         bergDecayMask ! mask = 1 indicates berg decay occured, = 0 elsewhere
 
     real(kind=RKIND), pointer :: &
-         bergDensity
+         bergDensity   ! berg density (kg/m^3)
 
     integer :: &
          iCell, &
          iCategory
 
     logical :: &
-         updateBergArea
+         updateBergArea ! flag to keep track of when bergArea variables need updating
 
     call MPAS_pool_get_config(block % configs, "config_berg_density", bergDensity)
 
@@ -1078,6 +1088,7 @@ contains
 
        do iCategory = 1, nBergCategories
 
+          ! if decay occured, berg area state variables need to be updated
           if (bergDecayMask(iCategory,iCell) == 1) updateBergArea = .true.
 
        enddo

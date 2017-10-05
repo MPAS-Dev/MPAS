@@ -52,10 +52,10 @@ contains
     use cice_berg_velocity_solver, only: cice_init_berg_velocity_solver
 
     type(domain_type), intent(inout) :: &
-         domain
+         domain !< Input/Output:
 
     logical, pointer :: &
-         config_use_bergs
+         config_use_bergs ! flag to turn on / off iceberg model
 
     call MPAS_pool_get_config(domain % configs, "config_use_bergs", config_use_bergs)
 
@@ -63,8 +63,10 @@ contains
 
        call mpas_timer_start("Berg initialization")
 
+       ! initialize calving fluxes
        call cice_init_berg_calving_fluxes(domain)
 
+       ! initialize velocity solver
        call cice_init_berg_velocity_solver(domain)
 
        call mpas_timer_stop("Berg initialization")

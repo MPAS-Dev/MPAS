@@ -68,21 +68,21 @@ contains
          nBergCategories
 
     integer, dimension(:,:), pointer :: &
-         bergCalvingMask
+         bergCalvingMask ! mask = 1 indicates calving cell, = 0 elsewhere
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergCalvingMass
+         bergCalvingMass ! storage variable to collect mass from calving fluxes (kg)
 
     real(kind=RKIND), dimension(:), pointer :: &
-         bergCalvingDistribution
+         bergCalvingDistribution ! berg category calving distribution (dimensionless)
 
     real(kind=RKIND), dimension(:), pointer :: &
          areaCell, &
-         bergCalvingFlux
+         bergCalvingFlux ! calving flux (kg/m^2/s)
 
     real(kind=RKIND), pointer :: &
          config_dt, &
-         bergDensity
+         bergDensity ! berg density (kg/m^3)
 
     integer :: &
          iCell, &
@@ -155,17 +155,18 @@ contains
          block
 
     character(len=strKIND), pointer :: &
-         config_berg_calving_type
+         config_berg_calving_type ! indicates how calving mass is released to model
 
     real(kind=RKIND), pointer :: &
          dt, &
-         annualCalvingFrequency
+         annualCalvingFrequency ! number of calving events per year
 
     integer :: &
          calvingFlag ! flag to indicate if calving is to be done
 
     call MPAS_pool_get_config(domain % configs, "config_berg_calving_type", config_berg_calving_type)
 
+    ! for continuous calving, release every time step
     if (trim(config_berg_calving_type) == "continuous") then
 
        block => domain % blocklist
@@ -176,6 +177,7 @@ contains
        block => block % next
        enddo
 
+    ! for episodic calving, check if this timestep is a calving event
     elseif (trim(config_berg_calving_type) == "episodic") then
 
        call MPAS_pool_get_config(domain % configs, "config_dt", dt)
@@ -198,6 +200,7 @@ contains
 
        endif
 
+    ! for calving based on mass threshold, check if calving mass exceeds a single berg's mass
     elseif (trim(config_berg_calving_type) == "mass_threshold") then
 
        block => domain % blocklist
@@ -241,26 +244,26 @@ contains
          nBergCategories
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergMassCategory, &
-         bergAreaCategory, &
-         bergLength, &
-         bergHeight, &
-         bergCalvingMass
+         bergMassCategory, & ! berg mass state variable (kg)
+         bergAreaCategory, & ! berg area state variable (dimensionless)
+         bergLength, &       ! berg category length (m)
+         bergHeight, &       ! berg category height (m)
+         bergCalvingMass     ! storage variable for calving mass (kg)
 
     integer, dimension(:,:), pointer :: &
-         bergCalvingMask
+         bergCalvingMask ! mask = 1 indicates calving cell, = 0 elsewhere
 
     real(kind=RKIND), dimension(:), pointer :: &
-         bergMassCell, &
-         bergAreaCell, &
+         bergMassCell, & ! aggregate berg mass state variable (kg)
+         bergAreaCell, & ! aggregate berg area state variable (dimensionless)
          areaCell
 
     real(kind=RKIND), dimension(:), pointer :: &
-         bergCalvingLength, &
-         bergCalvingHeight
+         bergCalvingLength, & ! category length of berg when it calves (m)
+         bergCalvingHeight    ! category height of berg when it calves (m)
 
     real(kind=RKIND), pointer :: &
-         bergDensity
+         bergDensity ! berg density (kg/m^3)
 
     integer :: &
          iCell, &
@@ -292,6 +295,7 @@ contains
 
        do iCategory = 1, nBergCategories
 
+          ! calving occurs
           if (bergCalvingMask(iCategory,iCell) == 1) then
 
              ! average dimensions with existing bergs
@@ -361,13 +365,13 @@ contains
          nBergCategories
 
     integer, dimension(:,:), pointer :: &
-         bergCalvingMask
+         bergCalvingMask ! mask = 1 indicates calving cell, = 0 elsewhere
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergCalvingMass
+         bergCalvingMass ! storage variable for calving mass (kg)
 
     real(kind=RKIND), dimension(:), pointer :: &
-         oneCalvedBergMass
+         oneCalvedBergMass ! mass of one newly calved berg (kg)
 
     integer :: &
          iCell, &
@@ -386,6 +390,7 @@ contains
 
        do iCategory = 1, nBergCategories
 
+          ! check if mass in storage variable exceeds that of a single berg
           if (bergCalvingMass(iCategory,iCell) > oneCalvedBergMass(iCategory)) then
 
              bergCalvingMask(iCategory,iCell) = 1
@@ -478,18 +483,18 @@ contains
          nBergCategories
 
     real(kind=RKIND), dimension(:), intent(in) :: &
-         bergMassCategory, &
-         bergHeight
+         bergMassCategory, & ! berg mass state variable (kg)
+         bergHeight          ! berg category height (m)
 
     real(kind=RKIND), intent(in) :: &
-         bergDensity, &
+         bergDensity, & ! berg density (kg/m^3)
          areaCell
 
     real(kind=RKIND), dimension(:), intent(out) :: &
-         bergAreaCategory
+         bergAreaCategory ! berg area state variable (dimensionless)
 
     real(kind=RKIND), intent(out) :: &
-         bergAreaCell
+         bergAreaCell ! aggregate berg area (dimensionless)
 
     integer :: &
          iCategory
@@ -510,6 +515,7 @@ contains
 
     enddo
 
+    ! integrate quantity
     bergAreaCell = sum(bergAreaCategory(:))
 
     ! check that berg area does not exceed cell area

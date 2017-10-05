@@ -57,8 +57,8 @@ contains
          block
 
     character(len=strKIND), pointer :: &
-         config_berg_calving_flux_type, &
-         config_berg_calving_type
+         config_berg_calving_flux_type, & ! indicates how calving fluxes will be set
+         config_berg_calving_type         ! indicates how calved mass will be released to model
 
     call MPAS_pool_get_config(domain % configs, "config_berg_calving_flux_type", config_berg_calving_flux_type)
     call MPAS_pool_get_config(domain % configs, "config_berg_calving_type", config_berg_calving_type)
@@ -137,13 +137,13 @@ contains
          nCellsSolve
 
     integer, pointer :: &
-         nBergCalvingCells, &
-         nBergCalvingCellsTotal
+         nBergCalvingCells, &   ! number of calving cells on this processor
+         nBergCalvingCellsTotal ! number of calving cells on all processors
 
     real(kind=RKIND), pointer :: &
-         bergMaskLatMin, &
+         bergMaskLatMin, & ! latitude range used to define calving cells
          bergMaskLatMax, &
-         bergMaskLonMin, &
+         bergMaskLonMin, & ! longitude range used to define calving cells
          bergMaskLonMax
 
     real(kind=RKIND), dimension(:), pointer :: &
@@ -155,12 +155,12 @@ contains
          landIceMask
 
     integer, dimension(:,:), pointer :: &
-         bergCalvingMask
+         bergCalvingMask ! mask = 1 indicates a calving cell, = 0 elsewhere
 
     type (dm_info), pointer :: dminfo
 
     character(len=strKIND), pointer :: &
-         config_berg_calving_flux_type
+         config_berg_calving_flux_type ! indicates how calved mass will be released to model
 
     integer :: &
          iCell, &
@@ -198,7 +198,7 @@ contains
 
           do iCell = 1, nCellsSolve
 
-             ! include coastal cells only
+             ! identify coastal cells only in designated range
              if (interiorCell(iCell) == 0 .and. &
                 landIceMask(iCell) == 0 .and. &
                 latCell(iCell)*ciceRadiansToDegrees >= bergMaskLatMin .and. &
@@ -217,7 +217,7 @@ contains
 
           do iCell = 1, nCellsSolve
 
-             ! include interior cells
+             ! identify coastal and interior cells in designated range
              if (landIceMask(iCell) == 0 .and. &
                 latCell(iCell)*ciceRadiansToDegrees >= bergMaskLatMin .and. &
                 latCell(iCell)*ciceRadiansToDegrees <= bergMaskLatMax .and. &
@@ -275,17 +275,17 @@ contains
          nCellsSolve
 
     integer, dimension(:,:), pointer :: &
-         bergCalvingMask
+         bergCalvingMask ! mask = 1 indicates a calving cell, = 0 elsewhere
 
     real(kind=RKIND), dimension(:), pointer :: &
          areaCell, &
-         bergCalvingFlux
+         bergCalvingFlux ! calving flux forcing (kg/m^2/s)
 
     integer, pointer :: &
-         nBergCalvingCellsTotal
+         nBergCalvingCellsTotal ! total number of cells that receive calving flux forcing
 
     real(kind=RKIND), pointer :: &
-         annualCalvingRate
+         annualCalvingRate ! total annual calving rate (kg/yr) to be divided among calving cells
 
     integer :: &
          iCell
@@ -341,11 +341,11 @@ contains
          nCellsSolve
 
     integer, dimension(:,:), pointer :: &
-         bergCalvingMask
+         bergCalvingMask ! mask = 1 indicates a calving cell, = 0 elsewhere
 
     real(kind=RKIND), dimension(:), pointer :: &
-         bergCalvingFlux, &
-         calvingFluxObs
+         bergCalvingFlux, & ! ! calving flux forcing (kg/m^2/s)
+         calvingFluxObs ! ! calving flux forcing read in from file (kg/m^2/s)
 
     integer :: &
          iCell
@@ -361,6 +361,7 @@ contains
 
     do iCell = 1, nCellsSolve
 
+       ! if input calving flux is positive, indicate as a calving cell
        if (calvingFluxObs(iCell) > 0.0_RKIND) then
 
          bergCalvingMask(:,iCell) = 1
@@ -397,15 +398,15 @@ contains
          berg_calving
 
     integer, pointer :: &
-         nBergCategories
+         nBergCategories ! number of berg categories
 
     real(kind=RKIND), dimension(:), pointer :: &
-         bergCalvingLength, &
-         bergCalvingHeight, &
-         oneCalvedBergMass
+         bergCalvingLength, & ! berg category's length from calving distribution
+         bergCalvingHeight, & ! berg category's height from calving distribution
+         oneCalvedBergMass ! mass of one categoruy's berg from calving distribution
 
     real(kind=RKIND), pointer :: &
-         bergDensity
+         bergDensity ! berg density (kg/m^3)
 
     integer :: &
          iCell, &
