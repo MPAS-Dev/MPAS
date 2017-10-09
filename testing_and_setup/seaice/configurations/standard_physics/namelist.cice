@@ -315,11 +315,18 @@
 /
 &bergs
     config_use_bergs = false
-    config_berg_initial_condition = 'no_bergs'
-    config_berg_initial_mass = 0.0
+    config_berg_initial_condition = 'none'
+    config_berg_calving_flux_type = 'obs_Rignot2013'
+    config_berg_calving_mask_latitude_minimum = -90.0
+    config_berg_calving_mask_latitude_maximum = -60.0
+    config_berg_calving_mask_longitude_minimum = 0.0
+    config_berg_calving_mask_longitude_maximum = 360.0
+    config_berg_annual_calving_rate = 0.0e12
+    config_berg_calving_type = 'none'
+    config_berg_annual_calving_frequency = 0.0
     config_berg_initial_uvelocity_geo = 0.0
     config_berg_initial_vvelocity_geo = 0.0
-    config_use_berg_velocity_solver = false
+    config_use_berg_velocity_solver = true
     config_berg_dynamics_subcycle_number = 30
     config_berg_ice_concentration_threshold = 0.9
     config_berg_ice_min_concentration_threshold = 0.15

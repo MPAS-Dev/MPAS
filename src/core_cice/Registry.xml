@@ -558,14 +558,21 @@
 	<!-- icebergs -->
 	<nml_record name="bergs" in_defaults="true">
 		<nml_option name="config_use_bergs"			type="logical"		default_value="false"/>
-		<nml_option name="config_berg_initial_condition"	type="character"	default_value="no_bergs"	possible_values="'no_bergs' or 'bergs_everywhere'"/>
-		<nml_option name="config_berg_initial_mass"		type="real"		default_value="100.0"/>
-		<nml_option name="config_berg_initial_uvelocity_geo"		type="real"		default_value="0.0"/>
-		<nml_option name="config_berg_initial_vvelocity_geo"		type="real"		default_value="0.0"/>
-		<nml_option name="config_use_berg_velocity_solver"			type="logical"		default_value="false"/>
-		<nml_option name="config_berg_dynamics_subcycle_number"	type="integer"		default_value="15"		possible_values="any positive integer"/>
-		<nml_option name="config_berg_ice_concentration_threshold"		type="real"		default_value="0.9"/>
-		<nml_option name="config_berg_ice_min_concentration_threshold"		type="real"		default_value="0.15"/>
+		<nml_option name="config_berg_initial_condition"	type="character"	default_value="none"	possible_values="'none'"/>
+		<nml_option name="config_berg_calving_flux_type"	type="character"	default_value="obs_Rignot2013"	possible_values="'obs_Rignot2013' or 'coastal_uniform' or 'regional_uniform'"/>
+		<nml_option name="config_berg_calving_mask_latitude_minimum" type="real" default_value="-90.0"	units="degrees latitude"/>
+		<nml_option name="config_berg_calving_mask_latitude_maximum" type="real" default_value="-60.0"	units="degrees latitude"/>
+		<nml_option name="config_berg_calving_mask_longitude_minimum" type="real" default_value="0.0"	units="degrees longitude"/>
+		<nml_option name="config_berg_calving_mask_longitude_maximum" type="real" default_value="360.0"	units="degrees longitude"/>
+		<nml_option name="config_berg_annual_calving_rate" type="real" default_value="1265.0e12"	units="kg/yr"/>
+		<nml_option name="config_berg_calving_type"	type="character"	default_value="continuous"	possible_values="'continuous' or 'episodic' 'mass_threshold' or 'none'"/>
+		<nml_option name="config_berg_annual_calving_frequency" type="real" default_value="12.0"	units="1/yr"/>
+		<nml_option name="config_berg_initial_uvelocity_geo"	type="real"		default_value="0.0"/>
+		<nml_option name="config_berg_initial_vvelocity_geo"	type="real"		default_value="0.0"/>
+		<nml_option name="config_use_berg_velocity_solver"	type="logical"		default_value="false"/>
+		<nml_option name="config_berg_dynamics_subcycle_number"		type="integer"		default_value="15"		possible_values="any positive integer"/>
+		<nml_option name="config_berg_ice_concentration_threshold"	type="real"		default_value="0.9"/>
+		<nml_option name="config_berg_ice_min_concentration_threshold"	type="real"		default_value="0.15"/>
 		<nml_option name="config_berg_ice_strength_threshold"		type="real"		default_value="1000.0"/>
 		<nml_option name="config_berg_temperature"		type="real"		default_value="-4.0"/>
 		<nml_option name="config_berg_velocity_solver_type"	type="character"	default_value="forward_euler"/>
@@ -769,6 +776,15 @@
 			<var name="bergCalvingDistribution"/>
 			<var name="bergCalvingLength"/>
 			<var name="bergCalvingHeight"/>
+		</stream>
+
+		<stream name="bergCalvingFluxes"
+				type="input"
+				filename_template="berg_calving_fluxes.nc"
+				filename_interval="none"
+				input_interval="initial_only"
+				immutable="true">
+			<var name="calvingFluxObs"/>
 		</stream>
 
 		<!-- forcing streams -->
@@ -1118,10 +1134,10 @@
 		<var name="verticalAerosolsSnow"		type="real"	dimensions="nzAerosolsSnowLayers nCategories nCells Time"	name_in_code="verticalAerosolsSnow"		packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsIce"		type="real"	dimensions="nzAerosolsIceLayers nCategories nCells Time"	name_in_code="verticalAerosolsIce"		packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinity"			type="real"	dimensions="nBioLayers nCategories nCells Time"		name_in_code="verticalSalinity"		packages="pkgTracerZSalinity"/>
-		<var name="bergMassCategory"		type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergMassCategory"		packages="pkgBergs"/>
-		<var name="bergAreaCategory"		type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergAreaCategory"		packages="pkgBergs"/>
-		<var name="bergLength"			type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergLength"		packages="pkgBergs"/>
-		<var name="bergHeight"			type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergHeight"		packages="pkgBergs"/>
+		<var name="bergMassCategory"		type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergMassCategory"		units="kg"	packages="pkgBergs"/>
+		<var name="bergAreaCategory"		type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergAreaCategory"		units="1"	packages="pkgBergs"/>
+		<var name="bergLength"			type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergLength"		units="m"	packages="pkgBergs"/>
+		<var name="bergHeight"			type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergHeight"		units="m"	packages="pkgBergs"/>
 	</var_struct>
 	<var_struct name="tracers_aggregate" time_levs="1">
 		<var name="iceAreaCell"			type="real"	dimensions="nCells Time"			name_in_code="iceAreaCell"/>
@@ -1203,8 +1219,8 @@
 		<var name="verticalAerosolsIceCell"		type="real"	dimensions="nzAerosolsIceLayers nCells Time"	name_in_code="verticalAerosolsIceCell"		packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsConcCell"		type="real"	dimensions="nzAerosolsLayers nCells Time"	name_in_code="verticalAerosolsConcCell"	packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinityCell"		type="real"	dimensions="nBioLayers nCells Time"		name_in_code="verticalSalinityCell"		packages="pkgTracerZSalinity"/>
-		<var name="bergMassCell"			type="real"	dimensions="nCells Time"				name_in_code="bergMassCell"				packages="pkgBergs"/>
-		<var name="bergAreaCell"			type="real"	dimensions="nCells Time"				name_in_code="bergAreaCell"				packages="pkgBergs"/>
+		<var name="bergMassCell"			type="real"	dimensions="nCells Time"				name_in_code="bergMassCell"				units="kg"	packages="pkgBergs"/>
+		<var name="bergAreaCell"			type="real"	dimensions="nCells Time"				name_in_code="bergAreaCell"				units="1"	packages="pkgBergs"/>
 	</var_struct>
 	<var_struct name="icestate" time_levs="1">
 		<var name="iceAreaCellInitial"			type="real"	dimensions="nCells Time"		name_in_code="iceAreaCellInitial"/>
@@ -2551,6 +2567,13 @@
 		<var name="bergCalvingDistribution"		type="real"	dimensions="nBergCategories"	name_in_code="bergCalvingDistribution"/>
 		<var name="bergCalvingLength"			type="real"	dimensions="nBergCategories"		name_in_code="bergCalvingLength"/>
 		<var name="bergCalvingHeight"			type="real"	dimensions="nBergCategories"		name_in_code="bergCalvingHeight"/>
+		<var name="oneCalvedBergMass"			type="real"	dimensions="nBergCategories"		name_in_code="oneCalvedBergMass"/>
+		<var name="nBergCalvingCells"			type="integer"	dimensions=""		name_in_code="nBergCalvingCells"/>
+		<var name="nBergCalvingCellsTotal"			type="integer"	dimensions=""		name_in_code="nBergCalvingCellsTotal"/>
+		<var name="calvingFluxObs"			type="real"	dimensions="nCells"		name_in_code="calvingFluxObs"/>
+		<var name="bergCalvingFlux"			type="real"	dimensions="nCells"		name_in_code="bergCalvingFlux"/>
+		<var name="bergCalvingMask"			type="integer"	dimensions="nBergCategories nCells"		name_in_code="bergCalvingMask"/>
+		<var name="bergCalvingMass"			type="real"	dimensions="nBergCategories nCells"		name_in_code="bergCalvingMass"/>
 	</var_struct>
 
 	<var_struct name="berg_state" time_levs="1" packages="pkgBergs">

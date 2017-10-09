@@ -57,7 +57,7 @@ contains
          cice_init_column_physics_package_parameters, &
          cice_init_column_physics_package_variables
     use cice_forcing, only: cice_forcing_init, cice_reset_coupler_fluxes
-    use cice_bergs_initialize, only: cice_bergs_init    
+    use cice_bergs, only: cice_bergs_init
     use cice_diagnostics, only: &
          cice_set_testing_system_test_arrays
 
@@ -125,6 +125,7 @@ contains
     call cice_reset_coupler_fluxes(domain)
 
     ! initialize icebergs
+    call mpas_log_write(" Initialize icebergs...")
     call cice_bergs_init(domain)    
 
   end subroutine cice_init!}}}

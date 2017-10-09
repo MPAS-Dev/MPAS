@@ -22,6 +22,12 @@
                   filename_interval="none"
                   input_interval="initial_only" />
 
+<immutable_stream name="bergCalvingFluxes"
+                  type="input"
+                  filename_template="berg_calving_fluxes.nc"
+                  filename_interval="none"
+                  input_interval="initial_only" />
+
 <stream name="output"
         type="output"
         filename_template="output/output.$Y.nc"
