@@ -50,15 +50,15 @@ module mpas_moabmesh
         iMOAB_CreateVertices, iMOAB_WriteMesh, iMOAB_CreateElements, &
         iMOAB_ResolveSharedEntities, iMOAB_DetermineGhostEntities
 
-    integer :: ierr, num_verts_in_cells
+    integer :: ierr, num_verts_in_cells, ext_comp_id
 
     ierr = iMOAB_InitializeFortran()
     call errorout(ierr, 'fail to initialize iMOAB')
     write(stderrUnit,*) 'initialize MOAB '
     c_comm = domain % dminfo % comm
     appname = 'MPAS_MESH'//CHAR(0)
-
-    ierr = iMOAB_RegisterFortranApplication(appname, c_comm, pid)
+    ext_comp_id = 17  ! some number less than 33
+    ierr = iMOAB_RegisterFortranApplication(appname, c_comm, ext_comp_id, pid)
     call errorout(ierr, 'fail to register MPAS_MOAB mesh')
     proc_id = domain % dminfo % my_proc_id
     write(stderrUnit,*) 'MOAB MPAS app pid: ', pid, ' task:', proc_id
