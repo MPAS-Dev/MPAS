@@ -3,7 +3,7 @@
 module mpas_moabmesh
 !  use, intrinsic :: ISO_C_BINDING
 
-  use mpas_io_units
+  use mpas_log     
   use mpas_derived_types, only: dm_info, domain_type
   use mpas_field_routines
   use mpas_sort
@@ -54,20 +54,20 @@ module mpas_moabmesh
 
     ierr = iMOAB_InitializeFortran()
     call errorout(ierr, 'fail to initialize iMOAB')
-    write(stderrUnit,*) 'initialize MOAB '
+    call mpas_log_write('initialize MOAB ',      MPAS_LOG_WARN)
     c_comm = domain % dminfo % comm
     appname = 'MPAS_MESH'//CHAR(0)
     ext_comp_id = 17  ! some number less than 33
     ierr = iMOAB_RegisterFortranApplication(appname, c_comm, ext_comp_id, pid)
     call errorout(ierr, 'fail to register MPAS_MOAB mesh')
     proc_id = domain % dminfo % my_proc_id
-    write(stderrUnit,*) 'MOAB MPAS app pid: ', pid, ' task:', proc_id
+    call mpas_log_write('MOAB MPAS app pid:  $i  task  $i ', intArgs=(/pid, proc_id/) )
 
     nLocalCells=verticesOnCell%dimSizes(2)
     maxv = verticesOnCell%dimSizes(1)
-    write(stderrUnit,*) ' vertsOnCell: ', maxv, nLocalCells
-    write(stderrUnit,*) ' nEdgesOnCell: ', nEdgesOnCell%dimSizes(1)
-    write(stderrUnit,*) ' xVertex: ', xVertex%dimSizes(1)
+    call mpas_log_write(' vertsOnCell:  $i  $i ', intArgs=(/maxv, nLocalCells/) )
+    call mpas_log_write(' nEdgesOnCell: $i ', intArgs=(/nEdgesOnCell%dimSizes(1)/) )
+    call mpas_log_write(' xVertex: $i ', intArgs=(/xVertex%dimSizes(1)/) )
 
     num_verts_in_cells = nLocalCells * maxv
     allocate(all_connects(num_verts_in_cells))
@@ -101,9 +101,9 @@ module mpas_moabmesh
         all_connects(nv) = currentval
       endif
     enddo
-    write (stderrUnit,*) ' number of vertices:', nv
-    write (stderrUnit,100) (all_connects(j1), j1=1,nv)
-100 format(10I6)
+    call mpas_log_write(' number of vertices:: $i ', intArgs=(/nv/) )
+!     write (stderrUnit,100) (all_connects(j1), j1=1,nv)
+! 100 format(10I6)
     ! num local vertices = nv; moabnv will be the global ids, that will be used for resolve sharing
     allocate(moabvh(nv))
     !do i1=1,nv

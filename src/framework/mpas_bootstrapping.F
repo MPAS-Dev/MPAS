@@ -17,8 +17,6 @@ module mpas_bootstrapping
    use mpas_timekeeping
    use mpas_io_streams
    use mpas_log
-   use mpas_io_units
-   use mpas_abort, only : mpas_dmpar_global_abort
 #ifdef USE_MOAB
    use mpas_moabmesh
 #endif
