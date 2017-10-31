@@ -211,10 +211,7 @@ contains
          block
 
     type(MPAS_pool_type), pointer :: &
-         meshPool, &
-         tracersPool, &
-         boundaryPool, &
-         oceanCouplingPool, &
+         bergStatePool, &
          bergDecayPool
 
     real(kind=RKIND), dimension(:,:), pointer :: &
@@ -222,13 +219,6 @@ contains
 
     integer, dimension(:,:), pointer :: &
          bergDecayMask ! mask = 1 indicates berg decay to occur, = 0 elsewhere
-
-    real(kind=RKIND), dimension(:,:), pointer :: &
-         bergMassCell ! aggregate berg state variable
-
-    integer, dimension(:), pointer :: &
-         interiorCell, &
-         landIceMask
 
     integer, pointer :: &
          nCellsSolve, &
@@ -238,18 +228,13 @@ contains
          iCategory, &
          iCell
 
-    call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
-    call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
-    call MPAS_pool_get_subpool(block % structs, "boundary", boundaryPool)
-    call MPAS_pool_get_subpool(block % structs, "ocean_coupling", oceanCouplingPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_state", bergStatePool)
     call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
 
     call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
     call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
-    call MPAS_pool_get_array(tracersPool, "bergMassCategory", bergMassCategory, 1)
-    call MPAS_pool_get_array(boundaryPool, "interiorCell", interiorCell)
-    call MPAS_pool_get_array(oceanCouplingPool, "landIceMask", landIceMask)
+    call MPAS_pool_get_array(bergStatePool, "bergMassCategory", bergMassCategory)
     call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
 
     do iCell = 1, nCellsSolve
@@ -258,8 +243,7 @@ contains
 
           bergDecayMask(iCategory,iCell) = 0
 
-          if (landIceMask(iCell) == 0 .and. &
-             bergMassCategory(iCategory,iCell) > bergMassMinimum) then
+          if (bergMassCategory(iCategory,iCell) > bergMassMinimum) then
 
              ! this cell has sufficient bergs for decay
              bergDecayMask(iCategory,iCell) = 1
@@ -371,7 +355,7 @@ contains
          boundaryPool, &
          bergDecayPool, &
          bergVelocitySolverPool, &
-         tracersPool, &
+         bergTracersPool, &
          oceanCouplingPool
 
     integer, dimension(:,:), pointer :: &
@@ -379,9 +363,11 @@ contains
 
     real(kind=RKIND), dimension(:,:), pointer :: &
          bergBasalMeltRate, & ! decay rate due to basal melting (m/s)
-         bergLength, &        ! berg length dimension (m)
          uBergVelocityCell, & ! berg velocity interpolated to cell centers
          vBergVelocityCell
+
+    real(kind=RKIND), dimension(:,:,:), pointer :: &
+         bergLength           ! berg length dimension (m)
 
     real(kind=RKIND), dimension(:,:), pointer :: &
          uBergVelocity, & ! berg velocity at vertices
@@ -420,7 +406,7 @@ contains
     call MPAS_pool_get_subpool(block % structs, "boundary", boundaryPool)
     call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
     call MPAS_pool_get_subpool(block % structs, "berg_velocity_solver", bergVelocitySolverPool)
-    call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_tracers", bergTracersPool)
     call MPAS_pool_get_subpool(block % structs, "ocean_coupling", oceanCouplingPool)
 
     call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
@@ -431,7 +417,7 @@ contains
     call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocityCell", uBergVelocityCell)
     call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocityCell", vBergVelocityCell)
 
-    call MPAS_pool_get_array(tracersPool, "bergLength", bergLength, 1)
+    call MPAS_pool_get_array(bergTracersPool, "bergLength", bergLength, 1)
 
     call MPAS_pool_get_array(oceanCouplingPool, "uOceanVelocity", uOceanVelocity)
     call MPAS_pool_get_array(oceanCouplingPool, "vOceanVelocity", vOceanVelocity)
@@ -470,7 +456,7 @@ contains
              ! calculate berg decay (m/day)
              bergBasalMeltRate(iCategory,iCell) = basalMeltCoef*relSpeed**basalMeltExponent1 &
                                                 * (seaSurfaceTemperature(iCell) - bergTemperature) &
-                                                / (bergLength(iCategory,iCell)**basalMeltExponent2)
+                                                / (bergLength(1,iCategory,iCell)**basalMeltExponent2)
 
              ! convert from m/day to m/sec
              bergBasalMeltRate(iCategory,iCell) = bergBasalMeltRate(iCategory,iCell)/real(ciceSecondsPerDay,RKIND)
@@ -708,19 +694,22 @@ contains
 
     type(MPAS_pool_type), pointer :: &
          bergDecayPool, &
-         tracersPool
+         bergStatePool, &
+         bergTracersPool
 
     integer, dimension(:,:), pointer :: &
          bergDecayMask ! mask = 1 indicates berg decay to occur, = 0 elsewhere
 
     real(kind=RKIND), dimension(:,:), pointer :: &
+         bergMassCategory, &    ! berg mass state variable
          bergBasalMeltRate, &   ! decay due to basal melting (m/s)
          bergLateralMeltRate, & ! decay due to lateral melting (m/s)
          bergWaveErosionRate, & ! decay due to wave erosion (m/s)
-         bergMeltMass, &        ! berg mass lost to decay in one timestep (kg)
-         bergLength, &    ! berg category length dimension
-         bergHeight, &    ! berg category height dimension
-         bergMassCategory ! berg mass state variable
+         bergMeltMass           ! berg mass lost to decay in one timestep (kg)
+
+    real(kind=RKIND), dimension(:,:,:), pointer :: &
+         bergLength, &       ! berg category length dimension
+         bergHeight          ! berg category height dimension
 
     integer, pointer :: &
          nCellsSolve, &
@@ -744,17 +733,17 @@ contains
     call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
     call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
-    call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_state", bergStatePool)
+    call MPAS_pool_get_subpool(block % structs, "berg_tracers", bergTracersPool)
 
     call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
     call MPAS_pool_get_array(bergDecayPool, "bergBasalMeltRate", bergBasalMeltRate)
     call MPAS_pool_get_array(bergDecayPool, "bergLateralMeltRate", bergLateralMeltRate)
     call MPAS_pool_get_array(bergDecayPool, "bergWaveErosionRate", bergWaveErosionRate)
     call MPAS_pool_get_array(bergDecayPool, "bergMeltMass", bergMeltMass)
-
-    call MPAS_pool_get_array(tracersPool, "bergLength", bergLength, 1)
-    call MPAS_pool_get_array(tracersPool, "bergHeight", bergHeight, 1)
-    call MPAS_pool_get_array(tracersPool, "bergMassCategory", bergMassCategory, 1)
+    call MPAS_pool_get_array(bergStatePool, "bergMassCategory", bergMassCategory)
+    call MPAS_pool_get_array(bergTracersPool, "bergLength", bergLength, 1)
+    call MPAS_pool_get_array(bergTracersPool, "bergHeight", bergHeight, 1)
 
     do iCell = 1, nCellsSolve
 
@@ -775,11 +764,11 @@ contains
                                                messageType=MPAS_LOG_CRIT)
 
              ! fraction of mass lost
-             dBergMass = (dBergLength**2*dBergHeight) / (bergLength(iCategory,iCell)**2*bergHeight(iCategory,iCell))
+             dBergMass = (dBergLength**2*dBergHeight) / (bergLength(1,iCategory,iCell)**2*bergHeight(1,iCategory,iCell))
 
              ! update berg dimensions
-             bergLength(iCategory,iCell) = bergLength(iCategory,iCell) - dBergLength
-             bergHeight(iCategory,iCell) = bergHeight(iCategory,iCell) - dBergHeight
+             bergLength(1,iCategory,iCell) = bergLength(1,iCategory,iCell) - dBergLength
+             bergHeight(1,iCategory,iCell) = bergHeight(1,iCategory,iCell) - dBergHeight
   
              ! calculate berg mass lost (kg)
              bergMeltMass(iCategory,iCell) = dBergMass*bergMassCategory(iCategory,iCell)
@@ -878,7 +867,7 @@ contains
 
              ! calculate latent heat flux (J/m^2/s)
              bergLatentHeatFluxCategory(iCategory,iCell) = bergMeltMass(iCategory,iCell) &
-                                                         * (ciceLatentHeatMelting - specificHeatFreshIce*(bergTemperature+273.0)) &
+                                                         * (ciceLatentHeatMelting - specificHeatFreshIce*bergTemperature) &
                                                          / (areaCell(iCell)*config_dt)
 
              ! aggregate quantities
@@ -948,12 +937,12 @@ contains
 
     type(MPAS_pool_type), pointer :: &
          bergDecayPool, &
-         tracersPool
+         bergTracersPool
 
     integer, dimension(:,:), pointer :: &
          bergDecayMask ! mask = 1 indicates berg decay to occur, = 0 elsewhere
 
-    real(kind=RKIND), dimension(:,:), pointer :: &
+    real(kind=RKIND), dimension(:,:,:), pointer :: &
          bergLength, & ! berg category length
          bergHeight    ! berg category height
 
@@ -976,12 +965,12 @@ contains
     call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
     call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
-    call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_tracers", bergTracersPool)
 
     call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
 
-    call MPAS_pool_get_array(tracersPool, "bergLength", bergLength, 1)
-    call MPAS_pool_get_array(tracersPool, "bergHeight", bergHeight, 1)
+    call MPAS_pool_get_array(bergTracersPool, "bergLength", bergLength, 1)
+    call MPAS_pool_get_array(bergTracersPool, "bergHeight", bergHeight, 1)
 
     do iCell = 1, nCellsSolve
 
@@ -990,19 +979,19 @@ contains
           if (bergDecayMask(iCategory,iCell) == 1) then
 
              ! check if berg is unstable
-             call berg_stability_check(bergLength(iCategory,iCell), &
-                                       bergHeight(iCategory,iCell), &
+             call berg_stability_check(bergLength(1,iCategory,iCell), &
+                                       bergHeight(1,iCategory,iCell), &
                                        bergStabilityCheck)
 
             ! berg is unstable, needs to rollover
              if (bergStabilityCheck == 1) then
 
-                bergLengthOld = bergLength(iCategory,iCell)
-                bergHeightOld = bergHeight(iCategory,iCell)
+                bergLengthOld = bergLength(1,iCategory,iCell)
+                bergHeightOld = bergHeight(1,iCategory,iCell)
 
                 ! switch height and width in such a way as to conserve volume
-                bergHeight(iCategory,iCell) = (2.0_RKIND/3.0_RKIND)*bergLengthOld
-                bergLength(iCategory,iCell) = sqrt((3.0_RKIND/2.0_RKIND)*bergLengthOld*bergHeightOld)
+                bergHeight(1,iCategory,iCell) = (2.0_RKIND/3.0_RKIND)*bergLengthOld
+                bergLength(1,iCategory,iCell) = sqrt((3.0_RKIND/2.0_RKIND)*bergLengthOld*bergHeightOld)
 
              endif
 
@@ -1035,8 +1024,9 @@ contains
 
     type(MPAS_pool_type), pointer :: &
          mesh, &
-         tracers, &
-         tracers_aggregate, &
+         bergTracersPool, &
+         bergTracersAggregatePool, &
+         bergStatePool, &
          bergDecayPool
 
     integer, pointer :: &
@@ -1044,7 +1034,9 @@ contains
          nBergCategories
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergMassCategory, & ! berg mass state variable
+         bergMassCategory    ! berg mass state variable
+
+    real(kind=RKIND), dimension(:,:,:), pointer :: &
          bergAreaCategory, & ! berg area state variable
          bergHeight          ! berg category height
 
@@ -1068,18 +1060,19 @@ contains
     call MPAS_pool_get_config(block % configs, "config_berg_density", bergDensity)
 
     call MPAS_pool_get_subpool(block % structs, "mesh", mesh)
-    call MPAS_pool_get_subpool(block % structs, "tracers", tracers)
-    call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracers_aggregate)
+    call MPAS_pool_get_subpool(block % structs, "berg_tracers", bergTracersPool)
+    call MPAS_pool_get_subpool(block % structs, "berg_tracers_aggregate", bergTracersAggregatePool)
+    call MPAS_pool_get_subpool(block % structs, "berg_state", bergStatePool)
     call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
 
     call MPAS_pool_get_dimension(mesh, "nCellsSolve", nCellsSolve)
     call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
 
     call MPAS_pool_get_array(mesh, "areaCell", areaCell)
-    call MPAS_pool_get_array(tracers, "bergMassCategory", bergMassCategory,1)
-    call MPAS_pool_get_array(tracers, "bergAreaCategory", bergAreaCategory,1)
-    call MPAS_pool_get_array(tracers, "bergHeight", bergHeight,1)
-    call MPAS_pool_get_array(tracers_aggregate, "bergAreaCell", bergAreaCell)
+    call MPAS_pool_get_array(bergStatePool, "bergMassCategory", bergMassCategory)
+    call MPAS_pool_get_array(bergTracersPool, "bergAreaCategory", bergAreaCategory,1)
+    call MPAS_pool_get_array(bergTracersPool, "bergHeight", bergHeight,1)
+    call MPAS_pool_get_array(bergTracersAggregatePool, "bergAreaCell", bergAreaCell)
     call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
 
     do iCell = 1, nCellsSolve
@@ -1097,10 +1090,10 @@ contains
        if (updateBergArea) then
           call cice_berg_area_update(nBergCategories, &
                                      bergMassCategory(:,iCell), &
-                                     bergHeight(:,iCell), &
+                                     bergHeight(1,:,iCell), &
                                      bergDensity, &
                                      areaCell(iCell), &
-                                     bergAreaCategory(:,iCell), &
+                                     bergAreaCategory(1,:,iCell), &
                                      bergAreaCell(iCell))
 
        endif

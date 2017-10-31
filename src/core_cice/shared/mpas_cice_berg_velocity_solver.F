@@ -391,7 +391,7 @@ contains
 
     type(MPAS_pool_type), pointer :: &
          meshPool, &
-         tracersPool, &
+         bergStatePool, &
          bergVelocitySolverPool
 
     real(kind=RKIND), dimension(:,:), pointer :: &
@@ -416,10 +416,10 @@ contains
        call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
        call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
-       call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
+       call MPAS_pool_get_subpool(block % structs, "berg_state", bergStatePool)
        call MPAS_pool_get_subpool(block % structs, "berg_velocity_solver", bergVelocitySolverPool)
 
-       call MPAS_pool_get_array(tracersPool, "bergMassCategory", bergMassCategory, 1)
+       call MPAS_pool_get_array(bergStatePool, "bergMassCategory", bergMassCategory)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergMassVertex", bergMassVertex)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergVelocityMask", bergVelocityMask)
 
@@ -615,15 +615,19 @@ contains
 
     type(MPAS_pool_type), pointer :: &
          meshPool, &
-         tracersPool, &
          tracersAggregatePool, &
          bergStatePool, &
+         bergTracersPool, &
          bergVelocityPool
 
     real(kind=RKIND), dimension(:,:), pointer :: &
-         bergMassCategory, & ! berg mass state variable (kg)
+         bergMassCategory    ! berg mass state variable (kg)
+
+    real(kind=RKIND), dimension(:,:,:), pointer :: &
          bergLength, &       ! berg category length (m)
-         bergHeight, &       ! berg category height (m)
+         bergHeight          ! berg category height (m)
+
+    real(kind=RKIND), dimension(:,:), pointer :: &
          bergDraft, &        ! berg category draft (m)
          oneBergArea, &      ! horizontal area of one berg (m^2)
          oneBergMass, &      ! mass of one berg (kg)
@@ -640,7 +644,6 @@ contains
          bergIceContactAreaVertex
 
     real(kind=RKIND), dimension(:), pointer :: &
-         bergMassCell, & ! aggregate berg mass state variable
          iceAreaCell, &
          iceVolumeCell, &
          snowVolumeCell
@@ -684,29 +687,28 @@ contains
        call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
        call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
-       call MPAS_pool_get_subpool(block % structs, "tracers", tracersPool)
        call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracersAggregatePool)
        call MPAS_pool_get_subpool(block % structs, "berg_state", bergStatePool)
+       call MPAS_pool_get_subpool(block % structs, "berg_tracers", bergTracersPool)
        call MPAS_pool_get_subpool(block % structs, "berg_velocity_solver", bergVelocityPool)
 
        call MPAS_pool_get_array(tracersAggregatePool, "iceAreaCell", iceAreaCell)
        call MPAS_pool_get_array(tracersAggregatePool, "iceVolumeCell", iceVolumeCell)
        call MPAS_pool_get_array(tracersAggregatePool, "snowVolumeCell", snowVolumeCell)
 
-       call MPAS_pool_get_array(tracersPool, "bergMassCategory", bergMassCategory,1)
-       call MPAS_pool_get_array(tracersPool, "bergLength", bergLength,1)
-       call MPAS_pool_get_array(tracersPool, "bergHeight", bergHeight,1)
+       call MPAS_pool_get_array(bergStatePool, "bergMassCategory", bergMassCategory)
+       call MPAS_pool_get_array(bergTracersPool, "bergLength", bergLength,1)
+       call MPAS_pool_get_array(bergTracersPool, "bergHeight", bergHeight,1)
 
-       call MPAS_pool_get_array(bergStatePool, "bergDraft", bergDraft)
-       call MPAS_pool_get_array(bergStatePool, "oneBergArea", oneBergArea)
-       call MPAS_pool_get_array(bergStatePool, "oneBergMass", oneBergMass)
-       call MPAS_pool_get_array(bergStatePool, "bergAirContactArea", bergAirContactArea)
-       call MPAS_pool_get_array(bergStatePool, "bergOcnContactArea", bergOcnContactArea)
-       call MPAS_pool_get_array(bergStatePool, "bergIceContactArea", bergIceContactArea)
-
+       call MPAS_pool_get_array(bergVelocityPool, "bergDraft", bergDraft)
+       call MPAS_pool_get_array(bergVelocityPool, "oneBergArea", oneBergArea)
+       call MPAS_pool_get_array(bergVelocityPool, "oneBergMass", oneBergMass)
        call MPAS_pool_get_array(bergVelocityPool, "bergDraftVertex", bergDraftVertex)
        call MPAS_pool_get_array(bergVelocityPool, "oneBergAreaVertex", oneBergAreaVertex)
        call MPAS_pool_get_array(bergVelocityPool, "oneBergMassVertex", oneBergMassVertex)
+       call MPAS_pool_get_array(bergVelocityPool, "bergAirContactArea", bergAirContactArea)
+       call MPAS_pool_get_array(bergVelocityPool, "bergOcnContactArea", bergOcnContactArea)
+       call MPAS_pool_get_array(bergVelocityPool, "bergIceContactArea", bergIceContactArea)
        call MPAS_pool_get_array(bergVelocityPool, "bergAirContactAreaVertex", bergAirContactAreaVertex)
        call MPAS_pool_get_array(bergVelocityPool, "bergOcnContactAreaVertex", bergOcnContactAreaVertex)
        call MPAS_pool_get_array(bergVelocityPool, "bergIceContactAreaVertex", bergIceContactAreaVertex)
@@ -732,32 +734,32 @@ contains
              seaIceDraft = (ciceDensitySnow*seaIceSnow + ciceDensityIce*seaIceThick)/ciceDensitySeaWater
 
              ! calculate berg draft
-             bergDraft(iCategory,iCell) = (ciceDensitySnow*bergSnow + bergDensity*bergHeight(iCategory,iCell))/ciceDensitySeaWater
+             bergDraft(iCategory,iCell) = (ciceDensitySnow*bergSnow + bergDensity*bergHeight(1,iCategory,iCell))/ciceDensitySeaWater
 
              ! vertical (m) areas in contact with each field
              bergOcnContactHeight = bergDraft(iCategory,iCell) - seaIceDraft
              bergIceContactHeight = seaIceDraft
-             bergAirContactHeight = bergHeight(iCategory,iCell) - bergOcnContactHeight - bergIceContactHeight
+             bergAirContactHeight = bergHeight(1,iCategory,iCell) - bergOcnContactHeight - bergIceContactHeight
 
              ! horizontal area of one iceberg (assumes horizontal aspect ratio of 1:1.5)
-             oneBergArea(iCategory,iCell) = bergWidthFactor*bergLength(iCategory,iCell)**2
+             oneBergArea(iCategory,iCell) = bergWidthFactor*bergLength(1,iCategory,iCell)**2
 
              ! mass of one iceberg
-             oneBergMass(iCategory,iCell) = oneBergArea(iCategory,iCell)*bergHeight(iCategory,iCell)*bergDensity
+             oneBergMass(iCategory,iCell) = oneBergArea(iCategory,iCell)*bergHeight(1,iCategory,iCell)*bergDensity
 
              ! calculate berg contact areas
              if (trim(config_berg_horizontal_shape) == "tabular_1:1.5") then
 
-                bergAirContactArea(iCategory,iCell) = bergAvgLengthWidthFactor*bergLength(iCategory,iCell)*bergAirContactHeight
-                bergOcnContactArea(iCategory,iCell) = bergAvgLengthWidthFactor*bergLength(iCategory,iCell)*bergOcnContactHeight
-                bergIceContactArea(iCategory,iCell) = bergAvgLengthWidthFactor*bergLength(iCategory,iCell)*bergIceContactHeight
+                bergAirContactArea(iCategory,iCell) = bergAvgLengthWidthFactor*bergLength(1,iCategory,iCell)*bergAirContactHeight
+                bergOcnContactArea(iCategory,iCell) = bergAvgLengthWidthFactor*bergLength(1,iCategory,iCell)*bergOcnContactHeight
+                bergIceContactArea(iCategory,iCell) = bergAvgLengthWidthFactor*bergLength(1,iCategory,iCell)*bergIceContactHeight
 
              elseif (trim(config_berg_horizontal_shape) == "cylindrical") then
 
-                oneBergArea(iCategory,iCell) = pii*(tabularToCylindricalConvFactor*bergLength(iCategory,iCell))**2
-                bergAirContactArea(iCategory,iCell) = tabularToCylindricalConvFactor*bergLength(iCategory,iCell)*bergAirContactHeight
-                bergOcnContactArea(iCategory,iCell) = tabularToCylindricalConvFactor*bergLength(iCategory,iCell)*bergOcnContactHeight
-                bergIceContactArea(iCategory,iCell) = tabularToCylindricalConvFactor*bergLength(iCategory,iCell)*bergIceContactHeight
+                oneBergArea(iCategory,iCell) = pii*(tabularToCylindricalConvFactor*bergLength(1,iCategory,iCell))**2
+                bergAirContactArea(iCategory,iCell) = tabularToCylindricalConvFactor*bergLength(1,iCategory,iCell)*bergAirContactHeight
+                bergOcnContactArea(iCategory,iCell) = tabularToCylindricalConvFactor*bergLength(1,iCategory,iCell)*bergOcnContactHeight
+                bergIceContactArea(iCategory,iCell) = tabularToCylindricalConvFactor*bergLength(1,iCategory,iCell)*bergIceContactHeight
 
              else
 

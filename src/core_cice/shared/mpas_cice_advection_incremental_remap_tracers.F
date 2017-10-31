@@ -17,6 +17,7 @@
 !>  required by the CICE incremental remapping scheme.
 !
 !-----------------------------------------------------------------------
+
 module cice_advection_incremental_remap_tracers
 
    use mpas_derived_types
@@ -143,9 +144,10 @@ module cice_advection_incremental_remap_tracers
    end type tracer_type
 
    type(tracer_type), pointer, public :: tracersHead ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead ! the linked list, but this always points to the first element
 
-   logical, parameter :: verboseTracers = .false.
-!   logical, parameter :: verboseTracers = .true.
+!    logical, parameter :: verboseTracers = .false.
+   logical, parameter :: verboseTracers = .true.
 
 contains
 
@@ -202,11 +204,25 @@ contains
     logical, pointer :: &
          config_use_level_meltponds
 
+    logical, pointer :: &
+         config_use_bergs ! flag for iceberg model
+
     type (mpas_pool_type), pointer :: configPool
 
     type(tracer_type), pointer :: thisTracer  ! diagnostic only
 
+    logical :: &
+         bergTracers   ! build linked list for berg tracers
+
+    bergTracers = .false. ! icebergs off by default
+
     nullify(tracersHead)
+
+    call MPAS_pool_get_config(domain % configs, "config_use_bergs", config_use_bergs)
+    if (config_use_bergs) bergTracers = .true.
+
+    if (bergTracers) nullify(bergTracersHead)
+
     nullify(thisTracer)
 
     ! add all the tracers to the linked list
@@ -217,8 +233,16 @@ contains
     ! Note: The ice and snow volume are not tracers (since volume = area*thickness, where thickness is the tracer),
     !       but they are converted to thickness before being transported.
 
-    ! First the tracers that are always included:
+    ! berg tracers
+    if (bergTracers) then
 
+       call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergAreaCategory', 'None')
+       call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergHeight', 'bergAreaCategory')
+       call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergLength', 'bergAreaCategory')
+
+    endif
+
+    ! First the tracers that are always included:
     call add_tracer_to_tracer_linked_list(tracersHead, 'iceAreaCategory',      'None')
     call add_tracer_to_tracer_linked_list(tracersHead, 'iceVolumeCategory',    'iceAreaCategory')
     call add_tracer_to_tracer_linked_list(tracersHead, 'snowVolumeCategory',   'iceAreaCategory')
@@ -477,6 +501,23 @@ contains
        enddo
     endif
 
+    if (verboseTracers .and. bergTracers) then
+       thisTracer => bergTracersHead
+       call mpas_log_write(' ')
+       call mpas_log_write('Tracers in initial list:')
+       call mpas_log_write(' ')
+       do while (associated(thisTracer))
+          call mpas_log_write('Tracer: '//trim(thisTracer % tracerName))
+          if (associated(thisTracer % nextInitial)) then
+             call mpas_log_write('next: '//trim(thisTracer % nextInitial % tracerName))
+          endif
+          call mpas_log_write(' ')
+          thisTracer => thisTracer % nextInitial
+       enddo
+    endif
+
+!     if (trim(tracerVar) == 'ice') then
+
     ! set the connectivity in the list
     call create_tracers_connectivity(tracersHead)
 
@@ -490,6 +531,24 @@ contains
     ! The resulting list will have the Type 1 tracers first, followed by Type 2 and then Type 3
     ! IR requires this order so as to compute parent properties before they are needed by child tracers
     call set_tracer_order(tracersHead)
+
+    if (bergTracers) then
+
+!    set the connectivity in the list
+    call create_tracers_connectivity(bergTracersHead)
+
+    ! calculate the number of parents for each tracer
+    call set_parent_numbers(bergTracersHead)
+
+    ! remove inactive tracers from the list
+!     call remove_inactive_tracers(domain, bergTracersHead, bergTracers)
+
+    ! set the ordered list
+    ! The resulting list will have the Type 1 tracers first, followed by Type 2 and then Type 3
+    ! IR requires this order so as to compute parent properties before they are needed by child tracers
+    call set_tracer_order(bergTracersHead)
+
+    endif ! bergTracers
 
     !WHL - debug
     if (verboseTracers) then
@@ -509,6 +568,26 @@ contains
           thisTracer => thisTracer % next
        enddo
        if (associated(tracersHead)) call mpas_log_write('tracersHead:'//trim(tracersHead % tracerName))
+    endif
+
+    !DC - debug
+    if (verboseTracers .and. bergTracers) then
+       thisTracer => bergTracersHead
+       call mpas_log_write(' ')
+       call mpas_log_write('Tracers in ordered list:')
+       call mpas_log_write(' ')
+       do while (associated(thisTracer))
+          call mpas_log_write('Tracer: '//trim(thisTracer % tracerName))
+          call mpas_log_write('Parent: '//trim(thisTracer % parentName))
+          call mpas_log_write('hasChild: $l', logicArgs=(/thisTracer % hasChild/))
+          call mpas_log_write('nParents: $i', intArgs=(/thisTracer % nParents/))
+          if (associated(thisTracer % next)) then
+             call mpas_log_write('next: '//trim(thisTracer % next % tracerName))
+          endif
+          call mpas_log_write(' ')
+          thisTracer => thisTracer % next
+       enddo
+       if (associated(bergTracersHead)) call mpas_log_write('bergTracersHead:'//trim(bergTracersHead % tracerName))
     endif
 
   end subroutine cice_add_tracers_to_linked_list
@@ -718,13 +797,16 @@ contains
 !>  This routine removes inactive tracers from the linked list.
 !-----------------------------------------------------------------------
 
-  subroutine remove_inactive_tracers(domain, tracersHead)
+  subroutine remove_inactive_tracers(domain, tracersHead, bergTracersIn)
 
     type(domain_type), intent(in) :: domain
 
     type(tracer_type), pointer, intent(inout) :: &
          tracersHead ! this pointer should always point to the first element
                      ! if the first element is inactive, it will be moved to the first active element
+
+    logical, intent(in), optional :: &
+         bergTracersIn   !< Input: indicates variable for which to build tracers
 
     type(tracer_type), pointer :: &
          tracer, &
@@ -737,7 +819,19 @@ contains
 
     logical :: first ! initially true; set to false after the first active tracer is found
 
-    call MPAS_pool_get_subpool(domain % blocklist % structs, 'tracers', tracerPool)
+    logical :: bergTracers ! initially true; set to false after the first active tracer is found
+
+    if (present(bergTracersIn)) then
+       bergTracers = bergTracersIn
+    else
+       bergTracers = .false.  ! sea ice by default
+    endif
+
+    if (.not. bergTracers) &
+       call MPAS_pool_get_subpool(domain % blocklist % structs, 'tracers', tracerPool)
+
+    if (bergTracers) &
+       call MPAS_pool_get_subpool(domain % blocklist % structs, 'berg_tracers', tracerPool)
 
     ! loop over the tracers in the linked list, and identify the active tracers
     tracer => tracersHead
@@ -921,7 +1015,10 @@ contains
 !>  the appropriate pools.
 !-----------------------------------------------------------------------
 
-  subroutine cice_set_tracer_array_pointers(tracersHead, block, timeLevelIn)
+  subroutine cice_set_tracer_array_pointers(tracersHead, &
+                                            block, &
+                                            timeLevelIn, &
+                                            advectBergsIn)
 
     type(tracer_type), pointer, intent(in) :: &
          tracersHead ! do not alter this pointer - it should always point to the first element
@@ -929,6 +1026,9 @@ contains
     type(block_type), intent(inout) :: block
 
     integer, intent(in), optional :: timeLevelIn
+
+    logical, intent(in), optional :: &
+         advectBergsIn   !< Input: indicates which variable to advect
 
     type(tracer_type), pointer :: &
          thisTracer
@@ -957,11 +1057,25 @@ contains
 
     integer :: timeLevel
 
+    logical :: &
+         advectIce, & ! flag to indicate IR is for sea ice
+         advectBergs  ! flag to indicate IR is for bergs
+
     if (present(timeLevelIn)) then
        timeLevel = timeLevelIn
     else
        timeLevel = 1
     endif
+
+    advectIce = .true.      ! sea ice advection by default
+    if (present(advectBergsIn)) then
+       advectBergs = advectBergsIn
+       if (advectBergs) advectIce = .false.
+    else
+       advectBergs = .false.  ! berg advection off by default
+    endif
+
+if (advectIce) then
 
     call MPAS_pool_get_subpool(block % structs, 'tracers', tracerPool)
     call MPAS_pool_get_subpool(block % structs, 'tracer_masks', tracerMaskPool)
@@ -972,6 +1086,20 @@ contains
     call MPAS_pool_get_subpool(block % structs, 'tracer_reconstruction', tracerReconstructionPool)
     call MPAS_pool_get_subpool(block % structs, 'tracer_conservation', tracerConservationPool)
     call MPAS_pool_get_subpool(block % structs, 'tracer_monotonicity', tracerMonotonicityPool)
+
+elseif (advectBergs) then
+
+    call MPAS_pool_get_subpool(block % structs, 'berg_tracers', tracerPool)
+    call MPAS_pool_get_subpool(block % structs, 'berg_tracer_masks', tracerMaskPool)
+    call MPAS_pool_get_subpool(block % structs, 'berg_tracer_edge_fluxes', tracerEdgeFluxPool)
+    call MPAS_pool_get_subpool(block % structs, 'berg_tracer_products', tracerProductPool)
+    call MPAS_pool_get_subpool(block % structs, 'berg_tracer_triangles', tracerTrianglePool)
+    call MPAS_pool_get_subpool(block % structs, 'berg_tracer_barycenter', tracerBarycenterPool)
+    call MPAS_pool_get_subpool(block % structs, 'berg_tracer_reconstruction', tracerReconstructionPool)
+    call MPAS_pool_get_subpool(block % structs, 'berg_tracer_conservation', tracerConservationPool)
+    call MPAS_pool_get_subpool(block % structs, 'berg_tracer_monotonicity', tracerMonotonicityPool)
+
+endif ! advectIce
 
     ! loop over the tracers in the linked list
 

@@ -29,6 +29,7 @@ module cice_advection_incremental_remap
    use cice_advection_incremental_remap_tracers, only: &
         tracer_type, &
         tracersHead, &
+        bergTracersHead, &
         cice_add_tracers_to_linked_list, &
         cice_set_tracer_array_pointers, &
         cice_update_tracer_halo
@@ -138,16 +139,16 @@ module cice_advection_incremental_remap
 
    ! verbose options; set to true for extensive diagnostic output
    ! WHL: I often debug with verboseInit/Run/Construct/Geometry/Fluxes/Global set to true.
-!   logical, parameter :: verboseInit = .true.
-!   logical, parameter :: verboseRun = .true.
+  logical, parameter :: verboseInit = .true.
+  logical, parameter :: verboseRun = .true.
 !   logical, parameter :: verboseConstruct = .true.
-!   logical, parameter :: verboseGeometry = .true.
+  logical, parameter :: verboseGeometry = .true.
 !   logical, parameter :: verboseFluxes = .true.
-!   logical, parameter :: verboseGlobal = .true.
-   logical, parameter :: verboseInit = .false.
-   logical, parameter :: verboseRun = .false.
+  ! logical, parameter :: verboseGlobal = .true.
+!    logical, parameter :: verboseInit = .false.
+!    logical, parameter :: verboseRun = .false.
    logical, parameter :: verboseConstruct = .false.
-   logical, parameter :: verboseGeometry = .false.
+!    logical, parameter :: verboseGeometry = .false.
    logical, parameter :: verboseFluxes = .false.
    logical, parameter :: verboseGlobal = .false.
    logical, parameter :: verboseGeomAvg = .false.
@@ -2343,7 +2344,8 @@ contains
        ierr,        &
        timeLevelIn, &
        updateHaloInitIn,  &
-       updateHaloFinalIn)
+       updateHaloFinalIn, &
+       advectBergsIn)
 
     use mpas_dmpar
 
@@ -2363,6 +2365,9 @@ contains
          updateHaloInitIn,   & !< Input: if true, do initial halo updates for velocity, mass and tracer fields
          updateHaloFinalIn     !< Input: if true, do final halo updates for mass and tracer fields
 
+    logical, intent(in), optional :: &
+         advectBergsIn   !< Input: indicates which variable to advect
+
     ! Local variables
 
     integer :: timeLevel    ! time level of input fields (1 or 2)
@@ -2375,6 +2380,10 @@ contains
     type (mpas_pool_type), pointer :: incrementalRemapPool
     type (mpas_pool_type), pointer :: tracerPool
 
+    type (mpas_pool_type), pointer :: bergVelocitySolverPool
+    type (mpas_pool_type), pointer :: bergIncrementalRemapPool
+    type (mpas_pool_type), pointer :: bergTracerPool
+
     type(block_type), pointer :: block
 
     type (dm_info), pointer :: dminfo
@@ -2384,6 +2393,9 @@ contains
     real(kind=RKIND), dimension(:,:), pointer ::  &
          workCategoryCell        ! work array with dimension(nCategories,nCells)
 
+    real(kind=RKIND), dimension(:,:), pointer ::  &
+         bergWorkCategoryCell    ! work array with dimension(nBergCategories,nCells)
+
     logical, pointer :: &
          configConservationCheck, & ! namelist configuration whether perform conservation check
          configMonotonicityCheck    ! namelist configuration whether perform monotonicity check
@@ -2391,6 +2403,13 @@ contains
     ! dynamics time step
     real(kind=RKIND), pointer :: &
          dynamicsTimeStep
+
+    real(kind=RKIND), pointer :: &
+         bergDynamicsTimeStep
+
+    logical :: &
+         advectIce, & ! flag to indicate IR is for sea ice
+         advectBergs  ! flag to indicate IR is for bergs
 
     ! assign pointers
     dminfo => domain % dminfo
@@ -2416,6 +2435,14 @@ contains
        updateHaloFinal = .false.  ! another module can take care of halo updates later
     endif
 
+    advectIce = .true.      ! sea ice advection by default
+    if (present(advectBergsIn)) then
+       advectBergs = advectBergsIn
+       if (advectBergs) advectIce = .false.
+    else
+       advectBergs = .false.  ! berg advection off by default
+    endif
+
     if (verboseRun) then
        call mpas_log_write(' ')
        call mpas_log_write('In cice_incremental remap: timeLevel = $i', intArgs=(/timeLevel/))
@@ -2433,16 +2460,34 @@ contains
        if (verboseRun) call mpas_log_write('Doing initial halo updates for velocity, mass and tracers')
 
        call mpas_timer_start("incr remap init halo")
-       ! velocity
 
+if (advectIce) then
+
+       ! velocity
        call MPAS_dmpar_field_halo_exch(domain, 'uVelocity')
        call MPAS_dmpar_field_halo_exch(domain, 'vVelocity')
 
        ! mass and tracers
        call cice_update_tracer_halo(tracersHead, domain, timeLevel)
+
+endif ! advectIce
+
+if (advectBergs) then
+
+       ! velocity
+       call MPAS_dmpar_field_halo_exch(domain, 'uBergVelocity')
+       call MPAS_dmpar_field_halo_exch(domain, 'vBergVelocity')
+
+       ! mass and tracers
+       call cice_update_tracer_halo(bergTracersHead, domain, timeLevel)
+
+endif ! advectBergs
+
        call mpas_timer_stop("incr remap init halo")
 
     endif  ! halo update
+
+if (advectIce) then ! volume/thickness conversion only needed for ice
 
     ! Convert the ice and snow volume to thickness.
     ! The IR code assumes that all tracers except the first (fractional ice area,
@@ -2501,7 +2546,32 @@ contains
 
     enddo  ! associated(block)
 
+endif ! advectIce
+
+if (advectBergs) then
+
+    ! dcnote - is this necessary if not converting volume to thickness?
+    block => domain % blocklist
+
+    do while (associated(block))
+
+       ! get tracer pool and work array
+       call mpas_pool_get_subpool(block % structs, 'berg_tracers', bergTracerPool)
+       call mpas_pool_get_subpool(block % structs, 'berg_incremental_remap', bergIncrementalRemapPool)
+!        call mpas_pool_get_array(bergIncrementalRemapPool, 'bergWorkCategoryCell', bergWorkCategoryCell)
+
+       ! set pointers to tracer arrays
+       call cice_set_tracer_array_pointers(bergTracersHead, block, timeLevel, advectBergsIn = advectBergs)
+
+       block => block % next
+
+    enddo  ! associated(block)
+
+endif ! advectBergs
+
     ! Call the main IR algorithm for each block
+
+if (advectIce) then
 
     block => domain % blocklist
 
@@ -2529,6 +2599,39 @@ contains
     call mpas_timer_stop("incr remap blocks")
     if (ierr > 0) return
 
+endif ! advectIce
+
+if (advectBergs) then
+
+    block => domain % blocklist
+
+    call mpas_timer_start("berg incr remap blocks")
+    do while (associated(block))
+
+       if (verboseRun) call mpas_log_write('Call berg incremental_remap_block: block = $i', intArgs=(/block % localBlockID/))
+
+       ! get dynamics time step
+       call MPAS_pool_get_subpool(block % structs, "berg_velocity_solver", bergVelocitySolverPool)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergDynamicsTimeStep", bergDynamicsTimeStep)
+if (advectBergs) call mpas_log_write('Point outside remap block, ierr = $i', intArgs=(/ierr/))
+       ! do IR for this block
+       call incremental_remap_block(&
+            domain, &
+            block, &
+            bergDynamicsTimeStep, &
+            bergTracersHead, &
+            ierr, &
+            advectBergsIn = advectBergs)
+       if (ierr > 0) exit
+
+       block  => block % next
+
+    enddo  ! associated(block)
+    call mpas_timer_stop("berg incr remap blocks")
+    if (ierr > 0) return
+
+endif ! advectBergs
+
     ! Optional check for conservation of mass and mass*tracer
     ! Note: This check must be done outside the block loop because it requires global sums
 
@@ -2538,7 +2641,10 @@ contains
        if (verboseRun) call mpas_log_write('Check conservation')
 
        call mpas_timer_start("incr remap tracer cons check")
+if (advectIce) &
        call check_tracer_conservation(dminfo, tracersHead, ierr)
+if (advectBergs) &
+       call check_tracer_conservation(dminfo, bergTracersHead, ierr)
        call mpas_timer_stop("incr remap tracer cons check")
        if (ierr > 0) return
 
@@ -2554,11 +2660,17 @@ contains
        if (verboseRun) call mpas_log_write('Check monotonicity')
 
        call mpas_timer_start("incr remap tracer mono check")
+if (advectIce) &
        call check_tracer_monotonicity(domain, tracersHead, ierr)
+!dcnote - requires sending berg flag in
+! if (advectBergs) &
+!        call check_tracer_monotonicity(domain, bergTracersHead, ierr)
        call mpas_timer_stop("incr remap tracer mono check")
        if (ierr > 0) return
 
     endif
+
+if (advectIce) then
 
     ! Convert the ice and snow thickness back to volume.
     ! Note: This conversion must be done after the monotonicity check, which assumes
@@ -2610,15 +2722,45 @@ contains
 
     enddo  ! associated(block)
 
+endif ! advectIce
+
+if (advectBergs) then
+
+    ! loop over blocks
+    block => domain % blocklist
+
+    do while (associated(block))
+
+       ! get tracer pool and work array
+       call mpas_pool_get_subpool(block % structs, 'berg_tracers', bergTracerPool)
+       call mpas_pool_get_subpool(block % structs, 'berg_incremental_remap', bergIncrementalRemapPool)
+!        call mpas_pool_get_array(incrementalRemapPool, 'bergWorkCategoryCell', workCategoryCell)
+
+       ! set pointers to tracer arrays
+       call cice_set_tracer_array_pointers(bergTracersHead, block, timeLevel, advectBergsIn = advectBergs)
+
+       block  => block % next
+
+    enddo  ! associated(block)
+
+endif ! advectBergs
+
     ! final halo updates
 
     if (updateHaloFinal) then
 
        if (verboseRun) call mpas_log_write('Doing final halo updates for mass and tracers')
 
-       ! mass and tracers
        call mpas_timer_start("incr remap final halo")
+
+       ! mass and tracers
+
+if (advectIce) &
        call cice_update_tracer_halo(tracersHead, domain, timeLevel)
+
+if (advectBergs) &
+       call cice_update_tracer_halo(bergTracersHead, domain, timeLevel)
+
        call mpas_timer_stop("incr remap final halo")
 
     endif  ! halo update
@@ -2704,7 +2846,8 @@ contains
        dt,          &
        tracersHead, &
        ierr,        &
-       timeLevelIn)
+       timeLevelIn, &
+       advectBergsIn)
 
     ! in/out arguments
     type(domain_type), intent(in) :: &
@@ -2724,6 +2867,9 @@ contains
                       ! The pointer stays attached to the first tracer, but all tracers are updated
 
     integer, intent(in), optional :: timeLevelIn
+
+    logical, intent(in), optional :: &
+         advectBergsIn   !< Input: indicates which variable to advect
 
     ! local arguments
 
@@ -2832,7 +2978,7 @@ contains
 
     integer :: timeLevel
 
-    logical, parameter :: zapSmallMass = .true.  ! if true, remove mass values (i.e., fractional ice area in CICE)
+    logical, parameter :: zapSmallMass = .false.  ! if true, remove mass values (i.e., fractional ice area in CICE)
                                                  ! Note: The default threshold is 10^(-22), or eps11^2
                                                  !TODO - Turn off if this is handled elsewhere (e.g., in column package)
 
@@ -2845,6 +2991,40 @@ contains
          configMonotonicityCheck, & ! namelist configuration whether perform monotonicity check
          configRecoverTracerMeansCheck       ! namelist configuration whether perform recover tracer means check
 
+    ! icebergs
+    type (mpas_pool_type), pointer :: bergTracerPool
+    type (mpas_pool_type), pointer :: bergVelocitySolverPool
+    type (mpas_pool_type), pointer :: bergIncrementalRemapPool
+
+    real(kind=RKIND), dimension(:,:), pointer :: &
+         uBergVelocity,   &     ! velocity components at vertices
+         vBergVelocity
+
+    integer, dimension(:), pointer ::  &
+         bergMaskEdge,             & ! mask array with dimension(nEdges)
+                                 ! = 1 where departure area is nonzero, else = 0
+         bergMaskCell                ! mask array with dimension(nCells)
+                                 ! = 1 where bergs are present, else = 0
+
+    integer, dimension(:,:), pointer ::  &
+         bergMaskCategoryCell        ! mask array with dimension(nBergCategories,nCells)
+
+    real(kind=RKIND), dimension(:,:), pointer ::  &
+         bergWorkCategoryCell        ! work array with dimension(nBergCategories,nCells)
+
+    logical :: &
+         advectIce, & ! flag to indicate IR is for sea ice
+         advectBergs  ! flag to indicate IR is for bergs
+
+    advectIce = .true.      ! sea ice advection by default
+    if (present(advectBergsIn)) then
+       advectBergs = advectBergsIn
+       if (advectBergs) advectIce = .false.
+    else
+       advectBergs = .false.  ! berg advection off by default
+    endif
+    advectBergs = .false.     ! dc debug
+
     if (present(timeLevelIn)) then
        timeLevel = timeLevelIn
     else
@@ -2853,8 +3033,6 @@ contains
 
     ! get pools
     call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-    call mpas_pool_get_subpool(block % structs, 'velocity_solver', velocityPool)
-    call mpas_pool_get_subpool(block % structs, 'tracers', tracerPool)
     call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
 
     ! get config options
@@ -2862,12 +3040,36 @@ contains
     call mpas_pool_get_config(configPool, 'config_rotate_cartesian_grid', config_rotate_cartesian_grid)
     call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
 
+if (advectIce) then
+
+    ! get pools
+    call mpas_pool_get_subpool(block % structs, 'velocity_solver', velocityPool)
+    call mpas_pool_get_subpool(block % structs, 'tracers', tracerPool)
+
     ! get velocity
     call mpas_pool_get_array(velocityPool, 'uVelocity', uVelocity)
     call mpas_pool_get_array(velocityPool, 'vVelocity', vVelocity)
 
     ! set pointers to tracer arrays
     call cice_set_tracer_array_pointers(tracersHead, block, timeLevel)
+
+endif ! advectIce
+
+if (advectBergs) then
+call mpas_log_write('Point A, ierr = $i', intArgs=(/ierr/))
+    ! get pools
+    call mpas_pool_get_subpool(block % structs, 'berg_velocity_solver', bergVelocitySolverPool)
+    call mpas_pool_get_subpool(block % structs, 'berg_tracers', bergTracerPool)
+    call mpas_pool_get_subpool(block % structs, 'berg_incremental_remap', bergIncrementalRemapPool)
+
+    ! get velocity
+    call mpas_pool_get_array(bergVelocitySolverPool, 'uBergVelocity', uBergVelocity)
+    call mpas_pool_get_array(bergVelocitySolverPool, 'vBergVelocity', vBergVelocity)
+
+    ! set pointers to tracer arrays
+    call cice_set_tracer_array_pointers(bergTracersHead, block, timeLevel, advectBergsIn = advectBergs)
+
+endif ! advectBergs
 
     ! get mesh dimensions
     call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
@@ -2915,21 +3117,54 @@ contains
     call mpas_pool_get_array(incrementalRemapPool, 'triangleArea', triangleArea)
     call mpas_pool_get_array(incrementalRemapPool, 'transGlobalToCell',   transGlobalToCell)
     call mpas_pool_get_array(incrementalRemapPool, 'minLengthEdgesOnVertex', minLengthEdgesOnVertex)
+
+if (advectIce) then
+
     call mpas_pool_get_array(incrementalRemapPool, 'maskEdge', maskEdge)
     call mpas_pool_get_array(incrementalRemapPool, 'maskCell', maskCell)
     call mpas_pool_get_array(incrementalRemapPool, 'maskCategoryCell', maskCategoryCell)
-    call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
+!    call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
+
+endif ! advectIce
+
+if (advectBergs) then
+call mpas_log_write('Point B, ierr = $i', intArgs=(/ierr/))
+    call mpas_pool_get_array(bergIncrementalRemapPool, 'bergMaskEdge', bergMaskEdge)
+    call mpas_pool_get_array(bergIncrementalRemapPool, 'bergMaskCell', bergMaskCell)
+    call mpas_pool_get_array(bergIncrementalRemapPool, 'bergMaskCategoryCell', bergMaskCategoryCell)
+!    call mpas_pool_get_array(bergIncrementalRemapPool, 'bergWorkCategoryCell', bergWorkCategoryCell)
+
+endif ! advectBergs
 
     ! Optional initial diagnostics: Write a list of cells with ice
     ! If verboseGlobal = true, then this info is also written at the end of each time step.
 
-    if (first_call) then
+    if (first_call .and. advectIce) then
        first_call = .false.
        thisTracer => tracersHead  ! point to the mass-like field, iceAreaCategory
        if (verboseGlobal .and. trim(thisTracer % tracerName) == 'iceAreaCategory') then
           call mpas_log_write(' ')
           call mpas_log_write('Cells with initial ice:')
           call mpas_log_write('iCell (local), iCell(global), ice area, xCell, yCell, zCell:')
+          if (thisTracer % ndims == 2) then  ! the pointer to iceAreaCategory should always be 2D, but check just in case
+             do iCell = 1, nCellsSolve
+                if (thisTracer % array2D(iCatTest,iCell) > 0.0_RKIND) then
+                   call mpas_log_write("$i $i $r $r $r $r", &
+                        intArgs=(/iCell, indexToCellID(iCell)/), &
+                        realArgs=(/thisTracer % array2D(iCatTest,iCell), xCell(iCell), yCell(iCell), zCell(iCell)/))
+                endif
+             enddo
+          endif  ! ndims
+       endif   ! verbose and iceAreaCategory
+    endif   ! first_call
+
+    if (first_call .and. advectBergs) then
+       first_call = .false.
+       thisTracer => bergTracersHead  ! point to the mass-like field, iceAreaCategory
+       if (verboseGlobal .and. trim(thisTracer % tracerName) == 'bergAreaCategory') then
+          call mpas_log_write(' ')
+          call mpas_log_write('Cells with initial bergs:')
+          call mpas_log_write('iCell (local), iCell(global), berg area, xCell, yCell, zCell:')
           if (thisTracer % ndims == 2) then  ! the pointer to iceAreaCategory should always be 2D, but check just in case
              do iCell = 1, nCellsSolve
                 if (thisTracer % array2D(iCatTest,iCell) > 0.0_RKIND) then
@@ -2964,30 +3199,60 @@ contains
        if (verboseRun) call mpas_log_write('Compute local mins and maxes')
 
        call mpas_timer_start("incr remap masks")
+
+if (advectIce) &
        call make_masks(&
             nCells,      &
             maskCell,    &
             tracersHead, &
             threshold_in = 0.0_RKIND)
+
+if (advectBergs) &
+       call make_masks(&
+            nCells,      &
+            bergMaskCell,    &
+            bergTracersHead, &
+            threshold_in = 0.0_RKIND)
+
        call mpas_timer_stop("incr remap masks")
 
        call mpas_timer_start("incr remap monotonicity check")
+
+if (advectIce) &
        call tracer_local_min_max(&
             tracersHead,   &
             nCells,        &
             nCellsSolve,   &
             nEdgesOnCell,  &
             cellsOnCell)
+
+! if (advectBergs) &
+!        call tracer_local_min_max(&
+!             bergTracersHead,   &
+!             nCells,        &
+!             nCellsSolve,   &
+!             nEdgesOnCell,  &
+!             cellsOnCell)
+
        call mpas_timer_stop("incr remap monotonicity check")
 
-    endif
+    endif ! montonicity check
 
     call mpas_timer_start("incr remap masks")
+
+if (advectIce) &
     call make_masks(&
          nCells,      &
          maskCell,    &
          tracersHead, &
          threshold_in = eps11)
+
+if (advectBergs) &
+    call make_masks(&
+         nCells,      &
+         bergMaskCell,    &
+         bergTracersHead)
+
     call mpas_timer_stop("incr remap masks")
 
     !-------------------------------------------------------------------
@@ -2997,6 +3262,8 @@ contains
     if (verboseRun) call mpas_log_write('Construct fields')
 
     call mpas_timer_start("incr remap construct fields")
+
+if (advectIce) &
     call construct_linear_tracer_fields(&
          nCells,                        &
          maxEdges,                      &
@@ -3016,6 +3283,28 @@ contains
          indexToCellID,                 &
          indexToEdgeID,                 &
          block)
+
+if (advectBergs) &
+    call construct_linear_tracer_fields(&
+         nCells,                        &
+         maxEdges,                      &
+         nEdgesOnCell,                  &
+         edgesOnCell,                   &
+         cellsOnCell,                   &
+         cellsOnEdge,                   &
+         xVertexOnCell, yVertexOnCell,  &
+         dcEdge,                        &
+         on_a_sphere,                   &
+         config_rotate_cartesian_grid,  &
+         transGlobalToCell,             &
+         coeffsReconstruct,             &
+         bergMaskCell,                  &
+         geomAvgCell,                   &
+         bergTracersHead,               &
+         indexToCellID,                 &
+         indexToEdgeID,                 &
+         block)
+
     call mpas_timer_stop("incr remap construct fields")
 
     !-------------------------------------------------------------------
@@ -3023,13 +3312,23 @@ contains
     ! Both the velocity components and the departure points are given in local east/north coordinates at vertices.
     !-------------------------------------------------------------------
 
-    if (verboseRun) then
+    if (verboseRun .and. advectIce) then
        call mpas_log_write('Find departure points')
        call mpas_log_write('Max (uvel, vvel) = $r $r', realArgs=(/maxval(uVelocity), maxval(vVelocity)/))
        call mpas_log_write('Max (uvel, vvel)*dt = $r $r', realArgs=(/maxval(uVelocity)*dt, maxval(vVelocity)*dt/))
     endif
 
+    if (verboseRun .and. advectBergs) then
+       call mpas_log_write('Find departure points')
+       call mpas_log_write('Max (uvel, vvel) = $r $r', realArgs=(/maxval(uBergVelocity), maxval(vBergVelocity)/))
+       call mpas_log_write('Max (uvel, vvel)*dt = $r $r', realArgs=(/maxval(uBergVelocity)*dt, maxval(vBergVelocity)*dt/))
+    endif
+
+! dc - start of nBergCategories loop?
+
     call mpas_timer_start("incr remap departure points")
+
+if (advectIce) &
     call find_departure_points(&
          domain,                              &
          nVertices,                           &
@@ -3039,6 +3338,19 @@ contains
          indexToVertexID,                     &
          departurePoint,                      &
          on_a_sphere)
+
+if (advectBergs) &
+    call find_departure_points(&
+         domain,                              &
+         nVertices,                           &
+         dt,                                  &
+         uBergVelocity(1,:),                  &
+         vBergVelocity(1,:),                  &
+         minLengthEdgesOnVertex,              &
+         indexToVertexID,                     &
+         departurePoint,                      &
+         on_a_sphere)
+
     call mpas_timer_stop("incr remap departure points")
 
     !-------------------------------------------------------------------
@@ -3051,6 +3363,8 @@ contains
     if (verboseRun) call mpas_log_write('Locate departure triangles')
 
     call mpas_timer_start("incr remap departure triangles")
+
+if (advectIce) &
     call find_departure_triangles(&
          nEdges,                                    &
          nCells,                                    &
@@ -3078,6 +3392,36 @@ contains
          indexToEdgeID,                             &
          indexToVertexID,                           &
          block)
+
+if (advectBergs) &
+    call find_departure_triangles(&
+         nEdges,                                    &
+         nCells,                                    &
+         maxEdges,                                  &
+         nTriPerEdgeRemap,                          &
+         nEdgesOnCell,                              &
+         xVertexOnEdge,    yVertexOnEdge,           &
+         xVertexOnCell,    yVertexOnCell,           &
+         verticesOnCell,                            &
+         verticesOnEdge,                            &
+         edgesOnCell,                               &
+         cellsOnEdge,                               &
+         remapEdge,                                 &
+         cellsOnEdgeRemap,                          &
+         edgesOnEdgeRemap,                          &
+         vertexDegree,                              &
+         departurePoint,                            &
+         bergMaskEdge,                              &
+         xTriangle,        yTriangle,               &
+         iCellTriangle,                             &
+         triangleArea,                              &
+         on_a_sphere,                               &
+         transGlobalToCell,                         &
+         indexToCellID,                             &
+         indexToEdgeID,                             &
+         indexToVertexID,                           &
+         block)
+
     call mpas_timer_stop("incr remap departure triangles")
 
     if (verboseGeometry .and. etestOnProc .and. block % localBlockID == etestBlockID) then
@@ -3100,11 +3444,21 @@ contains
     !-------------------------------------------------------------------
 
     call mpas_timer_start("incr remap quadrature points")
+
+if (advectIce) &
     call get_triangle_quadrature_points (&
          nEdges,             &
          nTriPerEdgeRemap,   &
          maskEdge,          &
          xTriangle, yTriangle)
+
+if (advectBergs) &
+    call get_triangle_quadrature_points (&
+         nEdges,             &
+         nTriPerEdgeRemap,   &
+         bergMaskEdge,       &
+         xTriangle, yTriangle)
+
     call mpas_timer_stop("incr remap quadrature points")
 
     if (verboseGeometry .and. etestOnProc .and. block % localBlockID == etestBlockID) then
@@ -3126,6 +3480,8 @@ contains
     !-------------------------------------------------------------------
 
     call mpas_timer_start("incr remap integrate fluxes")
+
+if (advectIce) &
     call integrate_fluxes_over_triangles(&
          tracersHead,          &
          nCells,               &
@@ -3139,11 +3495,32 @@ contains
          indexToEdgeID,        &
          block,                &
          ierr)
+
+if (advectBergs) &
+    call integrate_fluxes_over_triangles(&
+         bergTracersHead,      &
+         nCells,               &
+         nEdges,               &
+         bergMaskEdge,         &
+         xTriangle, yTriangle, &
+         triangleArea,         &
+         cellsOnEdge,          &
+         iCellTriangle,        &
+         indexToCellID,        &
+         indexToEdgeID,        &
+         block,                &
+         ierr)
+
     call mpas_timer_stop("incr remap integrate fluxes")
+
+if (advectIce .or. advectBergs) then
     if (ierr > 0) then
        call cice_critical_error_write_block(domain, block)
+       call mpas_log_write('Problem here A') ! dcnote debug
+       call mpas_log_write('error $i', intArgs=(/ierr/))
        return
     endif
+endif
 
     if (verboseFluxes .and. etestOnProc .and. block % localBlockID == etestBlockID) then
        iEdge = etest
@@ -3182,9 +3559,17 @@ contains
     !-------------------------------------------------------------------
 
     call mpas_timer_start("incr remap mass-tracer products")
+
+if (advectIce) &
     call compute_mass_tracer_products(&
          nCells,           &
          tracersHead)
+
+if (advectBergs) &
+    call compute_mass_tracer_products(&
+         nCells,           &
+         bergTracersHead)
+
     call mpas_timer_stop("incr remap mass-tracer products")
 
     !-------------------------------------------------------------------
@@ -3202,6 +3587,8 @@ contains
        endif
 
        call mpas_timer_start("incr remap recover tracer means")
+
+if (advectIce) &
        call recover_tracer_means(&
             nCells,                        &
             maxEdges,                      &
@@ -3211,9 +3598,21 @@ contains
             dcEdge,                        &
             dvEdge, &
             tracersHead)
+
+if (advectBergs) &
+       call recover_tracer_means(&
+            nCells,                        &
+            maxEdges,                      &
+            nEdgesOnCell,                  &
+            xVertexOnCell, yVertexOnCell,  &
+            edgesOnCell,                   &
+            dcEdge,                        &
+            dvEdge, &
+            bergTracersHead)
+
        call mpas_timer_stop("incr remap recover tracer means")
 
-    endif
+    endif ! recover tracer means
 
     !-------------------------------------------------------------------
     ! Compute initial sums of mass*tracer over the locally owned cells
@@ -3224,20 +3623,32 @@ contains
 
        ! compute initial sums of mass*tracer
        call mpas_timer_start("incr remap conservation check")
+
+if (advectIce) &
        call sum_tracers(&
             tracersHead, &
             nCellsSolve, &
             areaCell,    &
             init=.true.)
+
+if (advectBergs) &
+       call sum_tracers(&
+            bergTracersHead, &
+            nCellsSolve, &
+            areaCell,    &
+            init=.true.)
+
        call mpas_timer_stop("incr remap conservation check")
 
-    endif
+    endif ! conservation check
 
     !-------------------------------------------------------------------
     ! Compute the new values of mass and tracers in each locally owned cell
     !-------------------------------------------------------------------
 
     call mpas_timer_start("incr remap update tracers")
+
+if (advectIce) &
     call update_mass_and_tracers(&
          nCellsSolve,      &
          nEdgesOnCell,     &
@@ -3249,11 +3660,30 @@ contains
          indexToEdgeID,    &
          block, &
          ierr)
+
+if (advectBergs) &
+    call update_mass_and_tracers(&
+         nCellsSolve,      &
+         nEdgesOnCell,     &
+         edgesOnCell,      &
+         cellsOnEdge,      &
+         areaCell,         &
+         bergTracersHead,  &
+         indexToCellID,    &
+         indexToEdgeID,    &
+         block, &
+         ierr)
+
     call mpas_timer_stop("incr remap update tracers")
+
+if (advectIce .or. advectBergs) then
     if (ierr > 0) then
        call cice_critical_error_write_block(domain, block)
+       call mpas_log_write('Problem here B')
+       call mpas_log_write('error $i', intArgs=(/ierr/))
        return
     endif
+endif
 
     !-------------------------------------------------------------------
     ! Compute final sums of mass*tracer over the locally owned cells
@@ -3265,20 +3695,35 @@ contains
        ! compute new mass*tracer products
        call mpas_timer_start("incr remap conservation check")
 
+if (advectIce) &
        call compute_mass_tracer_products(&
             nCells,        &
             tracersHead)
 
+if (advectBergs) &
+       call compute_mass_tracer_products(&
+            nCells,        &
+            bergTracersHead)
+
        ! compute final sums of mass*tracer
+
+if (advectIce) &
        call sum_tracers(&
             tracersHead, &
             nCellsSolve, &
             areaCell,    &
             init=.false.)
 
+if (advectBergs) &
+       call sum_tracers(&
+            bergTracersHead, &
+            nCellsSolve, &
+            areaCell,    &
+            init=.false.)
+
        call mpas_timer_stop("incr remap conservation check")
 
-    endif
+    endif ! conservation check
 
     ! Optionally, zero out the ice area and tracers in cells with very small ice areas
     ! TODO - Turn off this call if not needed (for example, if very small areas are zapped
@@ -3288,12 +3733,19 @@ contains
 
        if (verboseRun) call mpas_log_write('Zap small mass')
 
+if (advectIce) &
        call zap_small_mass(&
             tracersHead,   &
             nCellsSolve,   &
             maskCategoryCell)
 
-    endif
+if (advectBergs) &
+       call zap_small_mass(&
+            bergTracersHead,   &
+            nCellsSolve,   &
+            bergMaskCategoryCell)
+
+    endif ! zap small mass
 
     ! clean up
     deallocate(geomAvgCell)
@@ -3334,6 +3786,8 @@ contains
 
     ! Optional diagnostics: Write a list of cells with ice
 
+if (advectIce) then
+
     thisTracer => tracersHead  ! point to the mass-like field, iceAreaCategory
     if (verboseGlobal .and. trim(thisTracer % tracerName) == 'iceAreaCategory') then
        call mpas_log_write(' ')
@@ -3349,6 +3803,30 @@ contains
           enddo
        endif  ! ndims
     endif   ! verbose and iceAreaCategory
+
+endif ! advectIce
+
+    ! Optional diagnostics: Write a list of cells with bergs
+
+if (advectBergs) then
+
+    thisTracer => bergTracersHead  ! point to the mass-like field, iceAreaCategory
+    if (verboseGlobal .and. trim(thisTracer % tracerName) == 'bergAreaCategory') then
+       call mpas_log_write(' ')
+       call mpas_log_write('Cells with bergs:')
+       call mpas_log_write('iCell (local), iCell(global), berg area, xCell, yCell, zCell:')
+       if (thisTracer % ndims == 2) then  ! the pointer to iceAreaCategory should always be 2D, but check just in case
+          do iCell = 1, nCellsSolve
+             if (thisTracer % array2D(iCatTest,iCell) > 0.0_RKIND) then
+                call mpas_log_write("$i $i $f $f $f $f", &
+                     intArgs=(/iCell, indexToCellID(iCell)/), &
+                     realArgs=(/thisTracer % array2D(iCatTest,iCell), xCell(iCell), yCell(iCell), zCell(iCell)/))
+             endif
+          enddo
+       endif  ! ndims
+    endif   ! verbose and iceAreaCategory
+
+endif ! advectBergs
 
   end subroutine incremental_remap_block
 
@@ -6832,7 +7310,9 @@ contains
           enddo          ! nEdges
 
           ! Check for negative reconstructed ice area
-          if (trim(thisTracer % tracerName) == 'iceAreaCategory') then
+          ! if (trim(thisTracer % tracerName) == 'iceAreaCategory') then
+          if ((trim(thisTracer % tracerName) == 'iceAreaCategory') .or. &
+              (trim(thisTracer % tracerName) == 'bergAreaCategory')) then
              do iEdge = 1, nEdges
                 do iTri = 1, nTriPerEdgeRemap
                    if (triangleArea(iTri,iEdge) /= 0.0_RKIND) then
@@ -6927,7 +7407,8 @@ contains
           enddo          ! nEdges
 
           ! Check for negative reconstructed ice area
-          if (trim(thisTracer % tracerName) == 'iceAreaCategory') then
+          if ((trim(thisTracer % tracerName) == 'iceAreaCategory') .or. &
+              (trim(thisTracer % tracerName) == 'bergAreaCategory')) then
              do iEdge = 1, nEdges
                 do iTri = 1, nTriPerEdgeRemap
                    if (triangleArea(iTri,iEdge) /= 0.0_RKIND) then
@@ -8177,7 +8658,8 @@ contains
 
              if (verboseRun .and. iCat == 1) then
                 if (trim(thisTracer % tracerName) == 'iceAreaCategory' .or. &
-                    trim(thisTracer % tracerName) == 'iceVolumeCategory') then
+                    trim(thisTracer % tracerName) == 'iceVolumeCategory' .or. &
+                    trim(thisTracer % tracerName) == 'bergAreaCategory') then
                    call mpas_log_write(' ')
                    call mpas_log_write('Tracer conservation, init global sum, final global sum: '//&
                         trim(thisTracer % tracerName)//' $r $r', &
