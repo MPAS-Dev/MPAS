@@ -28,7 +28,6 @@ module cice_advection_incremental_remap
 
    use cice_advection_incremental_remap_tracers, only: &
         tracer_type, &
-        iceTracersHead, &
         cice_add_ice_tracers_to_linked_list, &
         cice_set_tracer_array_pointers, &
         cice_update_tracer_halo
@@ -173,6 +172,9 @@ contains
 
     use mpas_rbf_interpolation, only: mpas_rbf_interp_initialize
     use mpas_vector_reconstruction, only: mpas_init_reconstruct
+
+    use cice_advection_incremental_remap_tracers, only: &
+         iceTracersHead
 
     type (domain_type), intent(inout) :: &
          domain !< Input/Output:
