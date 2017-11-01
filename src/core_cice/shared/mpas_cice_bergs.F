@@ -90,6 +90,7 @@ contains
   subroutine cice_run_berg_dynamics(domain, clock)!{{{
 
     use cice_berg_velocity_solver, only: cice_run_berg_velocity_solver
+    use cice_advection_incremental_remap, only: cice_run_advection_incremental_remap
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -97,12 +98,24 @@ contains
     type(MPAS_Clock_type), intent(in) :: &
          clock !< Input:
 
+    ! local variables
+    integer :: &
+         ierr  ! error code
+
+    logical :: &
+         advectBergs ! indicates to use advection for icebergs
+
+    advectBergs = .true. ! iceberg advection by incremental remapping is on
+
     ! berg velocity solver
     call mpas_timer_start("Berg velocity solver")
     call cice_run_berg_velocity_solver(domain, clock)
     call mpas_timer_stop("Berg velocity solver")
 
-    ! advection (to add)
+    ! advection by incremental remapping
+    call mpas_timer_start("Berg velocity solver")
+    call cice_run_advection_incremental_remap(domain, clock, ierr, advectBergsIn = advectBergs)
+    call mpas_timer_stop("Berg velocity solver")
 
   end subroutine cice_run_berg_dynamics!}}}
 
