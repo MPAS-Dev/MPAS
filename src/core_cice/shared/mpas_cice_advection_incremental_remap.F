@@ -2440,7 +2440,7 @@ contains
 
        call mpas_timer_start("incr remap init halo")
        ! velocity
-
+!dcnote - generalize
        call MPAS_dmpar_field_halo_exch(domain, 'uVelocity')
        call MPAS_dmpar_field_halo_exch(domain, 'vVelocity')
 
@@ -2468,7 +2468,7 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Convert volume to thickness')
-
+!dcnote - generalize
        ! get tracer pool and work array
        call mpas_pool_get_subpool(block % structs, 'tracers', tracerPool)
        call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
@@ -2515,7 +2515,7 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Call incremental_remap_block: block = $i', intArgs=(/block % localBlockID/))
-
+!dcnote - generalize
        ! get dynamics time step
        call MPAS_pool_get_subpool(block % structs, "velocity_solver", velocitySolverPool)
        call MPAS_pool_get_array(velocitySolverPool, "dynamicsTimeStep", dynamicsTimeStep)
@@ -2577,7 +2577,7 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Convert thickness to volume')
-
+!dcnote - generalize
        ! get tracer pool and work array
        call mpas_pool_get_subpool(block % structs, 'tracers', tracerPool)
        call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
@@ -2856,7 +2856,7 @@ contains
     else
        timeLevel = 1
     endif
-
+!dcnote - generalize
     ! get pools
     call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
     call mpas_pool_get_subpool(block % structs, 'velocity_solver', velocityPool)
@@ -2867,7 +2867,7 @@ contains
     configPool => block % configs
     call mpas_pool_get_config(configPool, 'config_rotate_cartesian_grid', config_rotate_cartesian_grid)
     call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
-
+!dcnote - generalize
     ! get velocity
     call mpas_pool_get_array(velocityPool, 'uVelocity', uVelocity)
     call mpas_pool_get_array(velocityPool, 'vVelocity', vVelocity)
@@ -3383,7 +3383,7 @@ contains
     integer, intent(out), dimension(:) :: &
          maskCell     ! = 1 for cells with initial nonzero mass, else = 0
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead  !< Input/output: pointer to first element of linked list of tracers
                       ! The 'arrayMask' variable of the tracer derived type is set here
 
@@ -3604,7 +3604,7 @@ contains
     type(geometric_avg_cell_type), pointer :: &
          geomAvgCell        !< Input: derived type holding geometric averages
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead        !< Input/output: pointer to first element of linked list of tracers
                             ! unlimited gradients on input; limited gradients on output
 
@@ -6656,7 +6656,7 @@ contains
        block,                &
        ierr)
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead      !< Input/output: pointer to first element of linked list of tracers
                           !                This subroutine outputs thisTracer % edgeFlux2d/3d
 
@@ -7014,7 +7014,7 @@ contains
     integer, intent(in) :: &
          nCells            !< Input: number of cells to be updated
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead       !< Input/output: pointer to first element of linked list of tracers
                            ! old values on input; new values on output
 
@@ -7175,7 +7175,7 @@ contains
     real(kind=RKIND), dimension(:), intent(in) :: &
          areaCell          !< Input: cell area
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead       !< Input/output: pointer to first element of linked list of tracers
                            ! old tracer values on input; new values on output
 
@@ -7583,7 +7583,7 @@ contains
          dcEdge,        &  !< Input: distance between the 2 cell centers on each side of an edge
          dvEdge            !< Input: distance between the 2 vertices of an edge
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead       !< Input/output: pointer to first element of linked list of tracers
                            ! The pointer stays attached to the first tracer, but all tracers are updated
     ! local variables
@@ -8018,7 +8018,7 @@ contains
        areaCell,      &
        init)
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead  !< Input/output: pointer to first element of linked list of tracers
                       ! The pointer stays attached to the first tracer, but all tracer sums are updated
 
@@ -8289,7 +8289,7 @@ contains
        nEdgesOnCell,  &
        cellsOnCell)
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead   !< Input/output: pointer to first element of linked list of tracers
                        ! The pointer stays attached to the first tracer, but all tracer sums are updated
 
@@ -8435,7 +8435,7 @@ contains
     type (domain_type), intent(inout) :: &
          domain        !< Input: domain info
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead   !< Input/output: pointer to first element of linked list of tracers
                        ! The pointer stays attached to the first tracer, but all tracer sums are updated
 
@@ -8783,7 +8783,7 @@ contains
        nCellsSolve,   &
        maskCategoryCell)
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead     !< Input/output: pointer to first element of linked list of tracers
                          ! The pointer stays attached to the first tracer
 
