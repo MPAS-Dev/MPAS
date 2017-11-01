@@ -28,8 +28,8 @@ module cice_advection_incremental_remap
 
    use cice_advection_incremental_remap_tracers, only: &
         tracer_type, &
-        tracersHead, &
-        cice_add_tracers_to_linked_list, &
+        iceTracersHead, &
+        cice_add_ice_tracers_to_linked_list, &
         cice_set_tracer_array_pointers, &
         cice_update_tracer_halo
 
@@ -282,7 +282,7 @@ contains
     endif
 
     ! construct a linked list of tracers
-    call cice_add_tracers_to_linked_list(domain)
+    call cice_add_ice_tracers_to_linked_list(domain, iceTracersHead)
 
     ! assign pointers
     block => domain % blocklist
@@ -2339,6 +2339,7 @@ contains
 
   subroutine cice_run_advection_incremental_remap(&
        domain,      &
+       tracersHead, &
        clock,       &
        ierr,        &
        timeLevelIn, &
@@ -2349,6 +2350,9 @@ contains
 
     type (domain_type), intent(inout) :: &
          domain    !< Input/Output: domain info
+
+    type (tracer_type), intent(inout), pointer :: &
+         tracersHead !< Input/Output: linked list of tracers
 
     type (MPAS_Clock_type), intent(in) :: &
          clock     !< Input: clock
@@ -2719,7 +2723,7 @@ contains
     integer, intent(inout) :: &
          ierr         !< Input/Output: error code
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead  !< Input/output: pointer to first element of linked list of tracers
                       ! The pointer stays attached to the first tracer, but all tracers are updated
 
@@ -8138,7 +8142,7 @@ contains
 
     type (dm_info), intent(in) :: dminfo   !< Input: domain info
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead    !< Input/output: pointer to first element of linked list of tracers
                         ! The pointer stays attached to the first tracer, but tracer sums are updated
 

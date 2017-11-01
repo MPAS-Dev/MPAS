@@ -95,6 +95,9 @@ contains
     use cice_advection_incremental_remap, only: &
          cice_run_advection_incremental_remap
 
+    use cice_advection_incremental_remap_tracers, only: &
+         iceTracersHead
+
     type (domain_type), intent(inout) :: &
          domain !< Input/Output:
 
@@ -127,7 +130,7 @@ contains
           !           (Later, change volume to thickness throughout code?)
 
           call mpas_timer_start("advection incr remap")
-          call cice_run_advection_incremental_remap(domain, clock, ierr)
+          call cice_run_advection_incremental_remap(domain, iceTracersHead, clock, ierr)
           call mpas_timer_stop("advection incr remap")
 
           !TODO WHL - Convert ice/snow thickness to volume here
