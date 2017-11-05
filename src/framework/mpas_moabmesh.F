@@ -52,9 +52,6 @@ module mpas_moabmesh
 
     integer :: ierr, num_verts_in_cells, ext_comp_id
 
-    ierr = iMOAB_InitializeFortran()
-    call errorout(ierr, 'fail to initialize iMOAB')
-    call mpas_log_write('initialize MOAB ',      MPAS_LOG_WARN)
     c_comm = domain % dminfo % comm
     appname = 'MPAS_MESH'//CHAR(0)
     ext_comp_id = 17  ! some number less than 33
