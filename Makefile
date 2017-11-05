@@ -450,10 +450,10 @@ ifneq "$(NETCDF)" ""
 	LIBS += $(NCLIB)
 endif
 
-ifneq "$(MOAB)" ""
-	CPPINCLUDES +=  -DUSE_MOAB -I$(MOAB)/include
-	FCINCLUDES += -DUSE_MOAB -I$(MOAB)/include
-	include $(MOAB)/lib/moab.make
+ifneq "$(MOAB_PATH)" ""
+	CPPINCLUDES +=  -DHAVE_MOAB -I$(MOAB_PATH)/include
+	FCINCLUDES += -DHAVE_MOAB -I$(MOAB_PATH)/include
+	include $(MOAB_PATH)/lib/moab.make
 	LIBS +=  ${MOAB_LIBS_LINK} -lstdc++
 endif
 
@@ -546,7 +546,7 @@ else # USE_PIO2 IF
 	PIO_MESSAGE="Using the PIO 1.x library."
 endif # USE_PIO2 IF
 
-ifneq "$(MOAB)" ""
+ifneq "$(MOAB_PATH)" ""
 	MOAB_MESSAGE="Using MOAB library"
 else # 
 	MOAB_MESSAGE="Not using MOAB library"

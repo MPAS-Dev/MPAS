@@ -17,7 +17,7 @@ module mpas_bootstrapping
    use mpas_timekeeping
    use mpas_io_streams
    use mpas_log
-#ifdef USE_MOAB
+#ifdef HAVE_MOAB
    use mpas_moabmesh
 #endif
 
@@ -273,7 +273,7 @@ module mpas_bootstrapping
       call mpas_block_creator_build_edge_halos(nHalos, indexToCellID_Block, nEdgesOnCell_Block, nCellsSolveField, &
                                                verticesOnCell_Block, indexToVertexID_Block, cellsOnVertex_Block, &
                                                nVerticesSolveField)
-#ifdef USE_MOAB
+#ifdef HAVE_MOAB
       call create_mpas_moabmesh(domain, nEdgesOnCell_Block, verticesOnCell_Block, xVertexField, yVertexField, zVertexField)
 #endif
       ! now need to deallocate xVertexField, etc; it is not ours
