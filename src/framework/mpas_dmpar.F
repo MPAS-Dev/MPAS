@@ -7276,6 +7276,7 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
 
       integer :: iHalo, iTimeLevel
       integer :: threadNum
+      integer :: commListPosition
 
       if ( present(iErr) ) then
          iErr = MPAS_DMPAR_NOERR
@@ -7448,6 +7449,15 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
             allocate(commListPtr % rbuffer(commListPtr % nList))
             commListPtr % bufferOffset = 0
 
+            commListPtr => commListPtr % next
+         end do
+
+         ! populate cardinal position of items in list for % commListPosition
+         commListPtr => exchangeGroup % sendList
+         commListPosition = 1
+         do while ( associated(commListPtr) )
+            commListPtr % commListPosition = commListPosition
+            commListPosition = commListPosition + 1
             commListPtr => commListPtr % next
          end do
 
