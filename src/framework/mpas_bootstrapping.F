@@ -276,10 +276,7 @@ module mpas_bootstrapping
 #ifdef HAVE_MOAB
       call create_mpas_moabmesh(domain, nEdgesOnCell_Block, verticesOnCell_Block, xVertexField, yVertexField, zVertexField)
 #endif
-      ! now need to deallocate xVertexField, etc; it is not ours
-!      mpas_deallocate_field(xVertexField)
-!      mpas_deallocate_field(yVertexField)
-!      mpas_deallocate_field(zVertexField)
+ 
       !
       ! Before we can allocate blocks, we need the attributes on_a_sphere and sphere_radius so
       !    they can be propagated as configs to subpools
@@ -423,6 +420,12 @@ module mpas_bootstrapping
       call mpas_deallocate_field(nCellsSolveField)
       call mpas_deallocate_field(nVerticesSolveField)
       call mpas_deallocate_field(nEdgesSolveField)
+#ifdef HAVE_MOAB
+      call mpas_deallocate_field(xVertexField)
+      call mpas_deallocate_field(yVertexField)
+      call mpas_deallocate_field(zVertexField)
+#endif
+
 
       deallocate(local_cell_list)
       deallocate(block_id)
@@ -804,6 +807,7 @@ module mpas_bootstrapping
      call mpas_dmpar_init_multihalo_exchange_list(indexToVertexID % copyList, nHalos+1)
      nullify(indexToVertexID % next)
 
+#ifdef HAVE_MOAB
 !    added for local
      call mpas_io_inq_dim(inputHandle, 'nVertices', nVertices, ierr)
 ! this is not read in parallel
@@ -833,7 +837,7 @@ module mpas_bootstrapping
      zVertex % dimSizes(1) = nVertices
      zVertex % block => readingBlock
      nullify(zVertex % next)
-
+#endif  
 
 
      ! Global indices of cells adjacent to each vertex
