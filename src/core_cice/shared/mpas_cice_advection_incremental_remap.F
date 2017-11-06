@@ -8481,7 +8481,7 @@ contains
     ! get pools
 
     call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
-    call mpas_pool_get_subpool(domain % blocklist % structs, 'tracer_monotonicity', tracerMonotonicityPool)
+    call mpas_pool_get_subpool(domain % blocklist % structs, trim(tracersHead % fieldName) // '_tracer_monotonicity', tracerMonotonicityPool)
 
     ! get grid quantities
 

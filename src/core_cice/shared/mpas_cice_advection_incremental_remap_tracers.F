@@ -973,15 +973,19 @@ contains
        timeLevel = 1
     endif
 !dcnote - generalize
-    call MPAS_pool_get_subpool(block % structs, 'tracers', tracerPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_masks', tracerMaskPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_edge_fluxes', tracerEdgeFluxPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_products', tracerProductPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_triangles', tracerTrianglePool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_barycenter', tracerBarycenterPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_reconstruction', tracerReconstructionPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_conservation', tracerConservationPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_monotonicity', tracerMonotonicityPool)
+    if (trim(tracersHead % fieldName) == 'ice') then
+       call MPAS_pool_get_subpool(block % structs, 'tracers', tracerPool)
+    else
+       call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracers', tracerPool)
+    endif
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_masks', tracerMaskPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_edge_fluxes', tracerEdgeFluxPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_products', tracerProductPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_triangles', tracerTrianglePool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_barycenter', tracerBarycenterPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_reconstruction', tracerReconstructionPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_conservation', tracerConservationPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_monotonicity', tracerMonotonicityPool)
 
     ! loop over the tracers in the linked list
 
