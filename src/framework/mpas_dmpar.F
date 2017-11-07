@@ -7452,15 +7452,14 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
             commListPtr => commListPtr % next
          end do
 
-         ! populate cardinal position of items in list for % commListPosition
+         ! count items in commList
          commListPtr => exchangeGroup % sendList
          commListPosition = 0
          do while ( associated(commListPtr) )
            commListPosition = commListPosition + 1
-           commListPtr % commListPosition = commListPosition
            commListPtr => commListPtr % next
          end do
-         ! populate total list length to each link
+         ! populate total list length to each item
          commListPtr => exchangeGroup % sendList
          do while ( associated(commListPtr) )
            commListPtr % commListSize = commListPosition      
@@ -8263,6 +8262,7 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
          iErr = MPAS_DMPAR_NOERR
       end if
 
+      commListPtr => exchangeGroup % sendList
       commListSize = commListPtr % commListSize
       !$omp do private(commListPtr, listPosition, bufferOffset, nAdded, fieldCursor, exchListPtr, iExch, iBuffer) 
       do listItem = 1, commListSize
@@ -8326,6 +8326,7 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
          iErr = MPAS_DMPAR_NOERR
       end if
 
+      commListPtr => exchangeGroup % sendList
       commListSize = commListPtr % commListSize
       !$omp do private(commListPtr, listPosition, bufferOffset, nAdded, fieldCursor, exchListPtr, iExch, j, iBuffer) 
       do listItem = 1, commListSize
@@ -8391,6 +8392,7 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
          iErr = MPAS_DMPAR_NOERR
       end if
 
+      commListPtr => exchangeGroup % sendList
       commListSize = commListPtr % commListSize
       !$omp do private(commListPtr, listPosition, bufferOffset, nAdded, fieldCursor, exchListPtr, iExch, j, k, iBuffer) 
       do listItem = 1, commListSize
@@ -8457,6 +8459,7 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
          iErr = MPAS_DMPAR_NOERR
       end if
 
+      commListPtr => exchangeGroup % sendList
       commListSize = commListPtr % commListSize
       !$omp do private(commListPtr, listPosition, bufferOffset, nAdded, fieldCursor, exchListPtr, iExch, iBuffer) 
       do listItem = 1, commListSize
@@ -8520,6 +8523,7 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
          iErr = MPAS_DMPAR_NOERR
       end if
 
+      commListPtr => exchangeGroup % sendList
       commListSize = commListPtr % commListSize
       !$omp do private(commListPtr, listPosition, bufferOffset, nAdded, fieldCursor, exchListPtr, iExch, j, iBuffer) 
       do listItem = 1, commListSize
@@ -8585,6 +8589,7 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
          iErr = MPAS_DMPAR_NOERR
       end if
 
+      commListPtr => exchangeGroup % sendList
       commListSize = commListPtr % commListSize
       !$omp do private(commListPtr, listPosition, bufferOffset, nAdded, fieldCursor, exchListPtr, iExch, j, k, iBuffer) 
       do listItem = 1, commListSize
@@ -8652,6 +8657,7 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
          iErr = MPAS_DMPAR_NOERR
       end if
 
+      commListPtr => exchangeGroup % sendList
       commListSize = commListPtr % commListSize
       !$omp do private(commListPtr, listPosition, bufferOffset, nAdded, fieldCursor, exchListPtr, iExch, j, k, l, iBuffer) 
       do listItem = 1, commListSize
@@ -8721,6 +8727,7 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
          iErr = MPAS_DMPAR_NOERR
       end if
 
+      commListPtr => exchangeGroup % sendList
       commListSize = commListPtr % commListSize
       !$omp do private(commListPtr, listPosition, bufferOffset, nAdded, fieldCursor, exchListPtr, iExch, j, k, l, m, iBuffer) 
       do listItem = 1, commListSize
