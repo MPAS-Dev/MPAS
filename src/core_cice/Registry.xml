@@ -1235,7 +1235,7 @@
 		<var name="totalMassCell"			type="real"	dimensions="nCells Time"		name_in_code="totalMassCell"/>
 		<var name="totalMassVertex"			type="real"	dimensions="nVertices Time"		name_in_code="totalMassVertex"/>
 	</var_struct>
-	<var_struct name="ice_tracer_tendencies" time_levs="1">
+	<var_struct name="tracer_tendencies" time_levs="1">
 		<var name="iceAreaCategoryTend"		type="real"	dimensions="ONE nCategories nCells"		name_in_code="iceAreaCategoryTend"/>
 		<var name="iceVolumeCategoryTend"		type="real"	dimensions="ONE nCategories nCells"		name_in_code="iceVolumeCategoryTend"/>
 		<var name="snowVolumeCategoryTend"		type="real"	dimensions="ONE nCategories nCells"		name_in_code="snowVolumeCategoryTend"/>
@@ -1244,7 +1244,7 @@
 		<var name="iceSalinityTend"			type="real"	dimensions="nIceLayers nCategories nCells"	name_in_code="iceSalinityTend"/>
 		<var name="snowEnthalpyTend"			type="real"	dimensions="nSnowLayers nCategories nCells"	name_in_code="snowEnthalpyTend"/>
 	</var_struct>
-	<var_struct name="ice_tracer_masks" time_levs="1">
+	<var_struct name="tracer_masks" time_levs="1">
 		<var name="iceAreaCategoryMask"		type="integer"	dimensions="ONE nCategories nCells"			name_in_code="iceAreaCategoryMask"/>
 		<var name="iceVolumeCategoryMask"		type="integer"	dimensions="ONE nCategories nCells"			name_in_code="iceVolumeCategoryMask"/>
 		<var name="snowVolumeCategoryMask"		type="integer"	dimensions="ONE nCategories nCells"			name_in_code="snowVolumeCategoryMask"/>
@@ -1312,7 +1312,7 @@
 		<var name="verticalSalinityMask"		type="integer"	dimensions="nBioLayers nCategories nCells"		name_in_code="verticalSalinityMask"		packages="pkgTracerZSalinity"/>
 	</var_struct>
 <!--dcnote - generalize to ice_ -->
-	<var_struct name="ice_tracer_edge_fluxes" time_levs="1">
+	<var_struct name="tracer_edge_fluxes" time_levs="1">
 		<var name="iceAreaCategoryEdgeFlux"			type="real"	dimensions="ONE nCategories nEdges"			name_in_code="iceAreaCategoryEdgeFlux"/>
 		<var name="iceVolumeCategoryEdgeFlux"			type="real"	dimensions="ONE nCategories nEdges"			name_in_code="iceVolumeCategoryEdgeFlux"/>
 		<var name="snowVolumeCategoryEdgeFlux"			type="real"	dimensions="ONE nCategories nEdges"			name_in_code="snowVolumeCategoryEdgeFlux"/>
@@ -1380,7 +1380,7 @@
 		<var name="verticalSalinityEdgeFlux"			type="real"	dimensions="nBioLayers nCategories nEdges"		name_in_code="verticalSalinityEdgeFlux"		packages="pkgTracerZSalinity"/>
 	</var_struct>
 <!--dcnote - generalize to ice_ -->
-	<var_struct name="ice_tracer_products" time_levs="1">
+	<var_struct name="tracer_products" time_levs="1">
 		<var name="iceAreaCategoryProduct"		type="real"	dimensions="ONE nCategories nCells"			name_in_code="iceAreaCategoryProduct"/>
 		<var name="iceVolumeCategoryProduct"		type="real"	dimensions="ONE nCategories nCells"			name_in_code="iceVolumeCategoryProduct"/>
 		<var name="snowVolumeCategoryProduct"		type="real"	dimensions="ONE nCategories nCells"			name_in_code="snowVolumeCategoryProduct"/>
@@ -1448,7 +1448,7 @@
 		<var name="verticalSalinityProduct"		type="real"	dimensions="nBioLayers nCategories nCells"		name_in_code="verticalSalinityProduct"			packages="pkgTracerZSalinity"/>
 	</var_struct>
 <!--dcnote - generalize to ice_ -->
-	<var_struct name="ice_tracer_triangles" time_levs="1">
+	<var_struct name="tracer_triangles" time_levs="1">
 		<var name="iceAreaCategoryTriangle"			type="real"	dimensions="ONE nCategories nQuadPoints nTriPerEdgeRemap nEdges"			name_in_code="iceAreaCategoryTriangle"/>
 		<var name="iceVolumeCategoryTriangle"			type="real"	dimensions="ONE nCategories nQuadPoints nTriPerEdgeRemap nEdges"			name_in_code="iceVolumeCategoryTriangle"/>
 		<var name="snowVolumeCategoryTriangle"			type="real"	dimensions="ONE nCategories nQuadPoints nTriPerEdgeRemap nEdges"			name_in_code="snowVolumeCategoryTriangle"/>
@@ -1516,7 +1516,7 @@
 		<var name="verticalSalinityTriangle"			type="real"	dimensions="nBioLayers nCategories nQuadPoints nTriPerEdgeRemap nEdges"		name_in_code="verticalSalinityTriangle"		packages="pkgTracerZSalinity"/>
 	</var_struct>
 <!--dcnote - generalize to ice_ -->
-	<var_struct name="ice_tracer_barycenter" time_levs="1">
+	<var_struct name="tracer_barycenter" time_levs="1">
 		<var name="iceAreaCategoryBarycenterx"			type="real"	dimensions="ONE nCategories nCells"			name_in_code="iceAreaCategoryBarycenterx"/>
 		<var name="iceAreaCategoryBarycentery"			type="real"	dimensions="ONE nCategories nCells"			name_in_code="iceAreaCategoryBarycentery"/>
 		<var name="iceVolumeCategoryBarycenterx"		type="real"	dimensions="ONE nCategories nCells"			name_in_code="iceVolumeCategoryBarycenterx"/>
@@ -1649,7 +1649,7 @@
 		<var name="verticalSalinityBarycentery"		type="real"	dimensions="nBioLayers nCategories nCells"		name_in_code="verticalSalinityBarycentery"		packages="pkgTracerZSalinity"/>
 	</var_struct>
 <!--dcnote - generalize to ice_ -->
-	<var_struct name="ice_tracer_reconstruction" time_levs="1">
+	<var_struct name="tracer_reconstruction" time_levs="1">
 		<var name="iceAreaCategoryCenter"		type="real"	dimensions="ONE nCategories nCells"			name_in_code="iceAreaCategoryCenter"/>
 		<var name="iceAreaCategoryGradx"		type="real"	dimensions="ONE nCategories nCells"			name_in_code="iceAreaCategoryGradx"/>
 		<var name="iceAreaCategoryGrady"		type="real"	dimensions="ONE nCategories nCells"			name_in_code="iceAreaCategoryGrady"/>
@@ -1846,7 +1846,7 @@
 		<var name="verticalSalinityGradx"		type="real"	dimensions="nBioLayers nCategories nCells"		name_in_code="verticalSalinityGradx"			packages="pkgTracerZSalinity"/>
 		<var name="verticalSalinityGrady"		type="real"	dimensions="nBioLayers nCategories nCells"		name_in_code="verticalSalinityGrady"			packages="pkgTracerZSalinity"/>
 	</var_struct>
-	<var_struct name="ice_tracer_conservation" time_levs="2">
+	<var_struct name="tracer_conservation" time_levs="2">
 		<var name="iceAreaCategoryCons"		type="real"	dimensions="ONE nCategories"				name_in_code="iceAreaCategoryCons"/>
 		<var name="iceVolumeCategoryCons"		type="real"	dimensions="ONE nCategories"				name_in_code="iceVolumeCategoryCons"/>
 		<var name="snowVolumeCategoryCons"		type="real"	dimensions="ONE nCategories"				name_in_code="snowVolumeCategoryCons"/>
@@ -1913,7 +1913,7 @@
 		<var name="verticalAerosolsIceCons"		type="real"	dimensions="nzAerosolsIceLayers nCategories"		name_in_code="verticalAerosolsIceCons"		packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinityCons"		type="real"	dimensions="nBioLayers nCategories"			name_in_code="verticalSalinityCons"		packages="pkgTracerZSalinity"/>
 	</var_struct>
-	<var_struct name="ice_tracer_monotonicity" time_levs="1">
+	<var_struct name="tracer_monotonicity" time_levs="1">
 		<var name="iceAreaCategoryLocalMin"			type="real"	dimensions="ONE nCategories nCells"			name_in_code="iceAreaCategoryLocalMin"/>
 		<var name="iceAreaCategoryLocalMax"			type="real"	dimensions="ONE nCategories nCells"			name_in_code="iceAreaCategoryLocalMax"/>
 		<var name="iceVolumeCategoryLocalMin"			type="real"	dimensions="ONE nCategories nCells"			name_in_code="iceVolumeCategoryLocalMin"/>
@@ -2635,7 +2635,7 @@
 		<var name="bergFreshwaterFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergFreshwaterFluxCategory"	units="kg/m^2/s"/>
 		<var name="bergLatentHeatFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergLatentHeatFluxCategory"	units="J/m^2/s"/>
 		<var name="bergFreshwaterFluxCell"	type="real"	dimensions="nCells Time"				name_in_code="bergFreshwaterFluxCell"	units="kg/m^2/s"/>
-		<var name="bergLatentHeatFluxCell"	type="real"	dimensions="nCells Time"				name_in_code="bergLatentHeatFluxCell"	units="J/m^2/s"/>
+		<var name="bergLatentHeatFluxCell"	type="real"	dimensions="nCells Time"				name_in_code="bergLatentHeatFluxCell"	units="J m^{-2} s^{-1}"/>
 	</var_struct>
 
 #include "analysis_members/Registry_cice_analysis_members.xml"

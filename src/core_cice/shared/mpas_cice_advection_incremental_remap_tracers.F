@@ -37,7 +37,7 @@ module cice_advection_incremental_remap_tracers
 
       character(len=strKIND) :: tracerName
       character(len=strKIND) :: parentName
-      character(len=strKIND) :: fieldName
+      character(len=strKIND) :: prefixName
 
       integer :: ndims     ! number of dimensions in the tracer array
                            ! (nCategories, nCells) for 2D
@@ -214,8 +214,6 @@ contains
     nullify(iceTracersHead)
     nullify(thisTracer)
 
-    ! iceTracersHead % fieldName = trim('ice')
-
     ! add all the tracers to the linked list
     ! Note: These can be added in any order. They are reordered later to the order required for IR.
     ! Note: The fractional ice area (iceAreaCategory) is actually a mass-like field rather than a tracer.
@@ -226,13 +224,13 @@ contains
 
     ! First the tracers that are always included:
 
-    call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceAreaCategory',      'None',              'ice')
-    call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceVolumeCategory',    'iceAreaCategory',   'ice')
-    call add_tracer_to_tracer_linked_list(iceTracersHead, 'snowVolumeCategory',   'iceAreaCategory',   'ice')
-    call add_tracer_to_tracer_linked_list(iceTracersHead, 'surfaceTemperature',   'iceAreaCategory',   'ice')
-    call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceEnthalpy',          'iceVolumeCategory', 'ice')
-    call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceSalinity',          'iceVolumeCategory', 'ice')
-    call add_tracer_to_tracer_linked_list(iceTracersHead, 'snowEnthalpy',         'snowVolumeCategory','ice')
+    call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceAreaCategory',      'None',              '')
+    call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceVolumeCategory',    'iceAreaCategory',   '')
+    call add_tracer_to_tracer_linked_list(iceTracersHead, 'snowVolumeCategory',   'iceAreaCategory',   '')
+    call add_tracer_to_tracer_linked_list(iceTracersHead, 'surfaceTemperature',   'iceAreaCategory',   '')
+    call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceEnthalpy',          'iceVolumeCategory', '')
+    call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceSalinity',          'iceVolumeCategory', '')
+    call add_tracer_to_tracer_linked_list(iceTracersHead, 'snowEnthalpy',         'snowVolumeCategory','')
 
     ! Next the tracers that might be included, depending on column package options:
 
@@ -303,171 +301,171 @@ contains
     call MPAS_pool_get_config(configPool, "config_use_level_meltponds", config_use_level_meltponds)
 
     if (pkgColumnTracerIceAgeActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceAge',               'iceVolumeCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceAge',               'iceVolumeCategory', '')
     endif
 
     if (pkgColumnTracerFirstYearIceActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'firstYearIceArea',     'iceAreaCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'firstYearIceArea',     'iceAreaCategory', '')
     endif
 
     if (pkgColumnTracerLevelIceActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'levelIceArea',         'iceAreaCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'levelIceVolume',       'iceVolumeCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'levelIceArea',         'iceAreaCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'levelIceVolume',       'iceVolumeCategory', '')
     endif
 
     if (pkgColumnTracerPondsActive) then
        if (config_use_level_meltponds) then
-          call add_tracer_to_tracer_linked_list(iceTracersHead, 'pondArea',             'levelIceArea', 'ice')
+          call add_tracer_to_tracer_linked_list(iceTracersHead, 'pondArea',             'levelIceArea', '')
        else
-          call add_tracer_to_tracer_linked_list(iceTracersHead, 'pondArea',             'iceAreaCategory', 'ice')
+          call add_tracer_to_tracer_linked_list(iceTracersHead, 'pondArea',             'iceAreaCategory', '')
        endif
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'pondDepth',            'pondArea', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'pondDepth',            'pondArea', '')
     endif
 
     if (pkgColumnTracerLidThicknessActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'pondLidThickness',     'pondArea', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'pondLidThickness',     'pondArea', '')
     endif
 
     if (pkgColumnTracerAerosolsActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'snowScatteringAerosol','snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'snowBodyAerosol',      'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceScatteringAerosol', 'iceVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceBodyAerosol',       'iceVolumeCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'snowScatteringAerosol','snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'snowBodyAerosol',      'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceScatteringAerosol', 'iceVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'iceBodyAerosol',       'iceVolumeCategory', '')
     endif
 
     ! brine height tracer
     if (pkgTracerBrineActive) &
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'brineFraction',               'iceVolumeCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'brineFraction',               'iceVolumeCategory', '')
 
     ! skeletal layer biogeochemistry
     if (pkgTracerSkeletalAlgaeActive) &
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalAlgaeConc',           'iceAreaCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalAlgaeConc',           'iceAreaCategory', '')
 
     ! nitrate
     if (pkgTracerSkeletalNitrateActive) &
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalNitrateConc',         'iceAreaCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalNitrateConc',         'iceAreaCategory', '')
 
     ! carbon (DOC and DIC)
     if (pkgTracerSkeletalCarbonActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDOCConc',             'iceAreaCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDICConc',             'iceAreaCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDOCConc',             'iceAreaCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDICConc',             'iceAreaCategory', '')
     endif
 
     ! DON (proteins...)
     if (pkgTracerSkeletalDONActive) &
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDONConc',             'iceAreaCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDONConc',             'iceAreaCategory', '')
 
     ! ammonium
     if (pkgTracerSkeletalAmmoniumActive) &
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalAmmoniumConc',        'iceAreaCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalAmmoniumConc',        'iceAreaCategory', '')
 
     ! silicate
     if (pkgTracerSkeletalSilicateActive) &
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalSilicateConc',        'iceAreaCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalSilicateConc',        'iceAreaCategory', '')
 
     ! DMS and products
     if (pkgTracerSkeletalDMSActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDMSConc',             'iceAreaCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDMSPpConc',           'iceAreaCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDMSPdConc',           'iceAreaCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDMSConc',             'iceAreaCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDMSPpConc',           'iceAreaCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDMSPdConc',           'iceAreaCategory', '')
     endif
 
     ! nonreactive mobile tracer
     if (pkgTracerSkeletalNonreactiveActive) &
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalNonreactiveConc',     'iceAreaCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalNonreactiveConc',     'iceAreaCategory', '')
 
     ! humic material
     if (pkgTracerSkeletalHumicsActive) &
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalHumicsConc',          'iceAreaCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalHumicsConc',          'iceAreaCategory', '')
 
     ! iron
     if (pkgTracerSkeletalIronActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalParticulateIronConc', 'iceAreaCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDissolvedIronConc',   'iceAreaCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalParticulateIronConc', 'iceAreaCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'skeletalDissolvedIronConc',   'iceAreaCategory', '')
     endif
 
     ! vertical biogeochemistry
     ! fraction of tracer in the mobile phase
     if (pkgTracerMobileFractionActive) &
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'mobileFraction',              'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'mobileFraction',              'brineFraction', '')
 
     ! algal nitrogen
     if (pkgTracerVerticalAlgaeActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAlgaeSnow',           'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAlgaeIce',            'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAlgaeSnow',           'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAlgaeIce',            'brineFraction', '')
     endif
 
     ! nitrate
     if (pkgTracerVerticalNitrateActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalNitrateSnow',         'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalNitrateIce',          'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalNitrateSnow',         'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalNitrateIce',          'brineFraction', '')
     endif
 
     ! carbon
     if (pkgTracerVerticalCarbonActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDOCSnow',             'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDICSnow',             'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDOCIce',              'brineFraction', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDICIce',              'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDOCSnow',             'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDICSnow',             'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDOCIce',              'brineFraction', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDICIce',              'brineFraction', '')
     endif
 
     ! DON (proteins...)
     if (pkgTracerVerticalDONActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDONSnow',             'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDONIce',              'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDONSnow',             'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDONIce',              'brineFraction', '')
     endif
 
     ! ammonium
     if (pkgTracerVerticalAmmoniumActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAmmoniumSnow',        'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAmmoniumIce',         'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAmmoniumSnow',        'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAmmoniumIce',         'brineFraction', '')
     endif
 
     ! silicate
     if (pkgTracerVerticalSilicateActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalSilicateSnow',        'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalSilicateIce',         'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalSilicateSnow',        'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalSilicateIce',         'brineFraction', '')
     endif
 
     ! DMS and related products
     if (pkgTracerVerticalDMSActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSSnow',             'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSPpSnow',           'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSPdSnow',           'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSIce',              'brineFraction', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSPpIce',            'brineFraction', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSPdIce',            'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSSnow',             'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSPpSnow',           'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSPdSnow',           'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSIce',              'brineFraction', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSPpIce',            'brineFraction', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDMSPdIce',            'brineFraction', '')
     endif
 
     ! nonreactive mobile tracer
     if (pkgTracerVerticalNonreactiveActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalNonreactiveSnow',     'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalNonreactiveIce',      'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalNonreactiveSnow',     'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalNonreactiveIce',      'brineFraction', '')
     endif
 
     ! humic material
     if (pkgTracerVerticalHumicsActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalHumicsSnow',          'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalHumicsIce',           'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalHumicsSnow',          'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalHumicsIce',           'brineFraction', '')
     endif
 
     ! iron
     if (pkgTracerVerticalIronActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalParticulateIronSnow', 'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDissolvedIronSnow',   'snowVolumeCategory', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalParticulateIronIce',  'brineFraction', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDissolvedIronIce',    'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalParticulateIronSnow', 'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDissolvedIronSnow',   'snowVolumeCategory', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalParticulateIronIce',  'brineFraction', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalDissolvedIronIce',    'brineFraction', '')
     endif
 
     ! vertical aerosols
     if (pkgTracerZAerosolsActive) then
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAerosolsIce','brineFraction', 'ice')
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAerosolsSnow','snowVolumeCategory', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAerosolsIce','brineFraction', '')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalAerosolsSnow','snowVolumeCategory', '')
     endif
 
     ! vertical salinity
     if (pkgTracerZSalinityActive) &
-       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalSalinity',            'brineFraction', 'ice')
+       call add_tracer_to_tracer_linked_list(iceTracersHead, 'verticalSalinity',            'brineFraction', '')
 
     if (verboseTracers) then
        thisTracer => iceTracersHead
@@ -534,7 +532,7 @@ contains
   subroutine add_tracer_to_tracer_linked_list(tracersHead, &
                                               tracerName,  &
                                               parentName, &
-                                              fieldName)
+                                              prefixName)
 
     type(tracer_type), intent(inout), pointer :: &
          tracersHead ! pointer to first element of linked list
@@ -542,7 +540,7 @@ contains
     character(len=*), intent(in) :: &
          tracerName, &
          parentName, &
-         fieldName
+         prefixName
 
     type(tracer_type), pointer :: &
          newTracer
@@ -577,7 +575,7 @@ contains
     ! newTracer is the new linked list element ready to have stuff done to it!
     newTracer % tracerName = trim(tracerName)
     newTracer % parentName = trim(parentName)
-    newTracer % fieldName = trim(fieldName)
+    newTracer % prefixName = trim(prefixName)
 
     ! initialize hasChild and nParents; these are modified below
     newTracer % hasChild = .false.
@@ -704,8 +702,8 @@ contains
     ! loop over the tracers in the linked list
     tracer => tracersHead
     do while (associated(tracer))
-!dcnote - generalize
-       call MPAS_pool_get_subpool(domain % blocklist % structs, 'tracers', tracerPool)
+
+       call MPAS_pool_get_subpool(domain % blocklist % structs, trim(tracer % prefixName) // 'tracers', tracerPool)
 
        call MPAS_pool_get_field_info(tracerPool, trim(tracer % tracerName), fieldInfo)
 
@@ -746,7 +744,9 @@ contains
     type(MPAS_pool_field_info_type) :: fieldInfo
 
     logical :: first ! initially true; set to false after the first active tracer is found
-!dcnote - generalize
+
+    call MPAS_pool_get_subpool(domain % blocklist % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
+
     call MPAS_pool_get_subpool(domain % blocklist % structs, 'tracers', tracerPool)
 
     ! loop over the tracers in the linked list, and identify the active tracers
@@ -972,20 +972,16 @@ contains
     else
        timeLevel = 1
     endif
-!dcnote - generalize
-    if (trim(tracersHead % fieldName) == 'ice') then
-       call MPAS_pool_get_subpool(block % structs, 'tracers', tracerPool)
-    else
-       call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracers', tracerPool)
-    endif
-    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_masks', tracerMaskPool)
-    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_edge_fluxes', tracerEdgeFluxPool)
-    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_products', tracerProductPool)
-    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_triangles', tracerTrianglePool)
-    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_barycenter', tracerBarycenterPool)
-    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_reconstruction', tracerReconstructionPool)
-    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_conservation', tracerConservationPool)
-    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % fieldName) // '_tracer_monotonicity', tracerMonotonicityPool)
+
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_masks', tracerMaskPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_edge_fluxes', tracerEdgeFluxPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_products', tracerProductPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_triangles', tracerTrianglePool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_barycenter', tracerBarycenterPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_reconstruction', tracerReconstructionPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_conservation', tracerConservationPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_monotonicity', tracerMonotonicityPool)
 
     ! loop over the tracers in the linked list
 

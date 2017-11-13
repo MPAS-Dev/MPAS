@@ -2389,6 +2389,8 @@ contains
 
     real(kind=RKIND), dimension(:,:), pointer ::  &
          workCategoryCell        ! work array with dimension(nCategories,nCells)
+    ! real(kind=RKIND), dimension(:,:) :: &
+    !      workCategoryCell        ! work array with dimension(nCategories,nCells)
 
     logical, pointer :: &
          configConservationCheck, & ! namelist configuration whether perform conservation check
@@ -2468,9 +2470,9 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Convert volume to thickness')
-!dcnote - generalize
+!dcnote - generalize workCategoryCell has dimensions nCategories, nCells
        ! get tracer pool and work array
-       call mpas_pool_get_subpool(block % structs, 'tracers', tracerPool)
+       call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
        call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
        call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
 
@@ -2515,9 +2517,9 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Call incremental_remap_block: block = $i', intArgs=(/block % localBlockID/))
-!dcnote - generalize
+!dcnote - dynamicsTimeStep will need to be adjusted
        ! get dynamics time step
-       call MPAS_pool_get_subpool(block % structs, "velocity_solver", velocitySolverPool)
+       call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // "velocity_solver", velocitySolverPool)
        call MPAS_pool_get_array(velocitySolverPool, "dynamicsTimeStep", dynamicsTimeStep)
 
        ! do IR for this block
@@ -2577,9 +2579,9 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Convert thickness to volume')
-!dcnote - generalize
+!dcnote - generalize workCategoryCell dimensions
        ! get tracer pool and work array
-       call mpas_pool_get_subpool(block % structs, 'tracers', tracerPool)
+       call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
        call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
        call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
 
@@ -2856,11 +2858,11 @@ contains
     else
        timeLevel = 1
     endif
-!dcnote - generalize
+
     ! get pools
     call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-    call mpas_pool_get_subpool(block % structs, 'velocity_solver', velocityPool)
-    call mpas_pool_get_subpool(block % structs, 'tracers', tracerPool)
+    call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'velocity_solver', velocityPool)
+    call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
     call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
 
     ! get config options
@@ -3034,7 +3036,7 @@ contains
        call mpas_log_write('Max (uvel, vvel) = $r $r', realArgs=(/maxval(uVelocity), maxval(vVelocity)/))
        call mpas_log_write('Max (uvel, vvel)*dt = $r $r', realArgs=(/maxval(uVelocity)*dt, maxval(vVelocity)*dt/))
     endif
-
+!dcnote generalize - need to call over categories
     call mpas_timer_start("incr remap departure points")
     call find_departure_points(&
          domain,                              &
@@ -8481,7 +8483,7 @@ contains
     ! get pools
 
     call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
-    call mpas_pool_get_subpool(domain % blocklist % structs, trim(tracersHead % fieldName) // '_tracer_monotonicity', tracerMonotonicityPool)
+    call mpas_pool_get_subpool(domain % blocklist % structs, trim(tracersHead % prefixName) // 'tracer_monotonicity', tracerMonotonicityPool)
 
     ! get grid quantities
 
