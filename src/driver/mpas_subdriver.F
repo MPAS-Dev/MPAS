@@ -35,6 +35,10 @@ module mpas_subdriver
    use test_core_interface
 #endif
 
+#ifdef HAVE_MOAB
+   use mpas_moabmesh
+#endif
+
    type (core_type), pointer :: corelist => null()
    type (dm_info), pointer :: dminfo
    type (domain_type), pointer :: domain_ptr
@@ -346,6 +350,10 @@ module mpas_subdriver
       if ( ierr /= 0 ) then
          call mpas_log_write('Core init failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
       end if
+
+#ifdef HAVE_MOAB
+      call mpas_moab_instance(domain_ptr)
+#endif
 
       call mpas_timer_stop('initialize')
 

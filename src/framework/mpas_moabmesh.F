@@ -7,6 +7,9 @@ module mpas_moabmesh
   use mpas_derived_types, only: dm_info, domain_type
   use mpas_field_routines
   use mpas_sort
+  use mpas_stream_manager
+  use mpas_pool_routines
+  !use mpas_vector_operations
 
   implicit none
 #include "moab/MOABConfig.h"
@@ -22,35 +25,37 @@ module mpas_moabmesh
   end if
   return
   end subroutine
+  
+  subroutine mpas_moab_instance(domain)
+    
+    type (domain_type), intent(inout) :: domain
 
-  subroutine create_mpas_moabmesh(domain, nEdgesOnCell, verticesOnCell, &
-     xVertex, yVertex, zVertex )
+    type (block_type), pointer :: block
+    type (mpas_pool_type), pointer :: meshPool
+    integer, pointer :: nCells, nVertices, maxEdges
+    integer  :: nVert, iCell, iVertex, nblocks
+    real (kind=RKIND), dimension(:), allocatable :: xv,yv,zv
+    integer, dimension(:,:), pointer :: verticesOnCell
+    integer, dimension(:), pointer :: nEdgesOnCell
+    integer, dimension(:), pointer :: indexToVertexID, indexToCellID
+    real(kind=RKIND), dimension(:), pointer :: xVertex, yVertex, zVertex
+    real (kind=RKIND), dimension(:), pointer :: xCell, yCell, zCell
+    logical, pointer :: on_a_sphere, is_periodic
+    real(kind=RKIND), pointer :: x_period, y_period
+    integer, pointer :: nCellsSolve, nEdgesSolve, nVerticesSolve
+    
+   
 
-    type (field2DInteger), pointer :: verticesOnCell
-    type (field1DInteger), pointer :: nEdgesOnCell
-    type (field1dReal), pointer :: xVertex, yVertex, zVertex
-    type (domain_type), pointer :: domain
-    integer :: c_comm, pid, i1, j1, ic, lastvertex
-    character*12 appname
-
-    integer :: num_verts_cells  !   total number of vertices in the cells
-    integer  ,allocatable , target :: all_connects(:)
-    integer  ,allocatable , target :: moabvh(:)
-    integer nv, currentval
-    ! RKIND must be double
-    real(kind=RKIND), allocatable, target :: moab_vert_coords(:)
-    integer dimcoord, dimen, nLocalCells, maxv, nedg, mbtype, block_ID, proc_id
-
-    character*100 outfile, wopts, localmeshfile, lnum
-    integer num_layers, dimgh, bridge !  for ghosting
-
-
-! do we really need this?
-    integer , external :: iMOAB_InitializeFortran, iMOAB_RegisterFortranApplication, &
+    integer , external :: iMOAB_RegisterFortranApplication, &
         iMOAB_CreateVertices, iMOAB_WriteMesh, iMOAB_CreateElements, &
         iMOAB_ResolveSharedEntities, iMOAB_DetermineGhostEntities
-
+    integer :: c_comm, pid, i1, j1, ic, lastvertex
+    character*12 appname
     integer :: ierr, num_verts_in_cells, ext_comp_id
+    real(kind=RKIND), allocatable, target :: moab_vert_coords(:)
+    integer dimcoord, dimen, mbtype, block_ID, proc_id
+    integer  ,allocatable , target :: all_connects(:)
+    character*100 outfile, wopts, localmeshfile, lnum
 
     c_comm = domain % dminfo % comm
     appname = 'MPAS_MESH'//CHAR(0)
@@ -60,127 +65,108 @@ module mpas_moabmesh
     proc_id = domain % dminfo % my_proc_id
     call mpas_log_write('MOAB MPAS app pid:  $i  task  $i ', intArgs=(/pid, proc_id/) )
 
-    nLocalCells=verticesOnCell%dimSizes(2)
-    maxv = verticesOnCell%dimSizes(1)
-    call mpas_log_write(' vertsOnCell:  $i  $i ', intArgs=(/maxv, nLocalCells/) )
-    call mpas_log_write(' nEdgesOnCell: $i ', intArgs=(/nEdgesOnCell%dimSizes(1)/) )
-    call mpas_log_write(' xVertex: $i ', intArgs=(/xVertex%dimSizes(1)/) )
+!   blocks should be merged if there is more than one block per task
+    nblocks = 0
+    block => domain % blocklist
+    do while (associated(block)) !{{{
+       nblocks = nblocks + 1
+        ! allocate scratch memory 
+       call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+       call mpas_pool_get_array(meshPool, 'xVertex', xVertex)
+       call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
+       call mpas_pool_get_array(meshPool, 'zVertex', zVertex)
+       call mpas_pool_get_dimension(meshPool, 'nVertices', nVertices)
+       call mpas_pool_get_dimension(meshPool, 'maxEdges', maxEdges)
+       call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
+       call mpas_pool_get_config(meshPool, 'is_periodic', is_periodic)
+       call mpas_pool_get_config(meshPool, 'x_period', x_period)
+       call mpas_pool_get_config(meshPool, 'y_period', y_period)
+       call mpas_pool_get_array(meshPool, 'verticesOnCell', verticesOnCell)
+       call mpas_pool_get_array(meshPool, 'indexToVertexID', indexToVertexID)
+       call mpas_pool_get_array(meshPool, 'indexToCellID', indexToCellID)
+       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+       call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
+       call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
+       call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve)
+       call mpas_pool_get_dimension(meshPool, 'nVerticesSolve', nVerticesSolve)
+!       call mpas_pool_get_array(meshPool, 'xCell', xCell)
+!       call mpas_pool_get_array(meshPool, 'yCell', yCell)
+!       call mpas_pool_get_array(meshPool, 'zCell', zCell)
 
-    num_verts_in_cells = nLocalCells * maxv
-    allocate(all_connects(num_verts_in_cells))
-!    collect all vertices
-    j1 = 0
-    do ic=1, nLocalCells
-       do i1 = 1, nEdgesOnCell % array(ic)
-         j1 = j1 + 1
-         all_connects(j1) = verticesOnCell % array( i1, ic)
+#ifdef MPAS_DEBUG
+       call mpas_log_write(' number of vertices:: $i number of cells:: $i solve: v:$i c:$i', intArgs=(/nVertices, nCells, nVerticesSolve, nCellsSolve/) )
+       do iVertex=1,nVertices
+         call mpas_log_write('i: $i indexToVertexID:: $i ', intArgs=(/iVertex, indexToVertexID(iVertex)/) )
+       enddo 
+#endif
+        ! first create local vertices, nVerticesSolve
+        allocate(moab_vert_coords(3*nVertices))
+        do i1 =1, nVertices
+          moab_vert_coords(3*i1-2) = xVertex(i1)
+          moab_vert_coords(3*i1-1) = yVertex(i1)
+          moab_vert_coords(3*i1  ) = zVertex(i1)
+          ! call mpas_log_write('i:: $i coords:: $r $r $r $r', intArgs=(/i1/), realArgs=(/moab_vert_coords(3*i1-2),moab_vert_coords(3*i1-1), moab_vert_coords(3*i1)/) )
+        enddo
+        dimcoord = 3*nVertices
+        dimen = 3
+        ierr = iMOAB_CreateVertices(pid, dimcoord, dimen, moab_vert_coords)
+        call errorout(ierr, 'fail to create vertices')
+    ! fill now connectivity array, nCellsSolve; fist pad to max nc
+        num_verts_in_cells = nCellsSolve * maxEdges
+        allocate(all_connects(num_verts_in_cells))
+!    collect all vertices, and also pad 
+        j1 = 0
+        do ic=1, nCellsSolve
+          do i1 = 1, nEdgesOnCell(ic)
+            j1 = j1 + 1
+            all_connects(j1) = verticesOnCell( i1, ic)
+          enddo
+          lastvertex = verticesOnCell( nEdgesOnCell (ic), ic)
+          ! pad the rest with the last vertex
+          do i1 =   nEdgesOnCell (ic) + 1, maxEdges
+            j1 = j1 + 1
+            all_connects(j1) = lastvertex ! repeat the last vertex (pad)
+          enddo
+          ! call mpas_log_write('cell: $i  v:: $i $i $i $i $i $i', intArgs=(/ic, all_connects(j1-5), all_connects(j1-4), all_connects(j1-3), all_connects(j1-2), all_connects(j1-1), all_connects(j1)/) )
        enddo
-       lastvertex = verticesOnCell % array( nEdgesOnCell % array(ic), ic)
-       ! pad the rest with the last vertex
-       do i1 =  nEdgesOnCell % array(ic) + 1, maxv
-         j1 = j1 + 1
-         all_connects(j1) = lastvertex ! repeat the last vertex (pad)
-       enddo
-    enddo
 
-    call mpas_quicksort(num_verts_in_cells, all_connects)
-    ! now compress the duplicates, keep only one vertex; then do binary search
+       mbtype = 4 !  polygon
 
-    ! allocate(moabvh(num_verts_in_cells)) ! used to compress
+       block_ID = 100 + nblocks ! this will be for coarse mesh
 
-   !  allocate(moabconn(moab_dim_cquads))
-    nv=1
-    currentval = all_connects(1)
-    do i1=2,num_verts_in_cells
-      if (all_connects(i1) .ne. currentval ) then
-        nv=nv+1
-        currentval = all_connects(i1)
-        all_connects(nv) = currentval
-      endif
-    enddo
-    call mpas_log_write(' number of vertices:: $i ', intArgs=(/nv/) )
-!     write (stderrUnit,100) (all_connects(j1), j1=1,nv)
-! 100 format(10I6)
-    ! num local vertices = nv; moabnv will be the global ids, that will be used for resolve sharing
-    allocate(moabvh(nv))
-    !do i1=1,nv
-    moabvh(:) = all_connects(1:nv) ! copy the first
-    !enddo
-    ! first create local vertices, accumulate xv, yv, zv from xVertex, ...
-    allocate(moab_vert_coords(3*nv))
-    do i1 =1, nv
-      j1 = moabvh(i1)
-      moab_vert_coords(3*i1-2) = xVertex % array(j1)
-      moab_vert_coords(3*i1-1) = yVertex % array(j1)
-      moab_vert_coords(3*i1  ) = zVertex % array(j1)
-    enddo
-    dimcoord = 3*nv
-    dimen = 3
-    ierr = iMOAB_CreateVertices(pid, dimcoord, dimen, moab_vert_coords)
-    call errorout(ierr, 'fail to create vertices')
-    ! build now connectivity arrays using binary search
-    j1 = 0
-    do ic=1, nLocalCells
-       nedg = nEdgesOnCell % array(ic)
-       do i1 = 1, nedg
-         j1=j1+1
-         all_connects(j1) = mpas_binary_search(moabvh, 1, 1, nv, verticesOnCell % array( i1, ic) )
+       ierr = iMOAB_CreateElements( pid, nCellsSolve, mbtype, maxEdges, all_connects, block_ID );
+       call errorout(ierr, 'fail to create polygons')
+       ! get next block
+#ifdef MPAS_DEBUG
+       if (proc_id.lt. 5) then
+         write(lnum,"(I0.2)")proc_id
+         localmeshfile = 'owned_'//trim(lnum)// '.h5m' // CHAR(0)
+         wopts = CHAR(0)
+         ierr = iMOAB_WriteMesh(pid, localmeshfile, wopts)
+         call errorout(ierr, 'fail to write local mesh file')
+       endif
+#endif
+       ierr = iMOAB_ResolveSharedEntities( pid, nVertices, indexToVertexID );
+       call errorout(ierr, 'fail to resolve shared entities')
 
-       enddo
-       lastvertex = all_connects(j1)
-       ! pad the rest with the last vertex
-       do i1 = nedg + 1, maxv
-         j1 = j1 + 1
-         all_connects(j1) = lastvertex ! repeat the last vertex (pad)
-       enddo
-    enddo
-    mbtype = 4 !  polygon
+       deallocate (moab_vert_coords)
+       deallocate (all_connects)
+       block => block % next
 
-    block_ID = 100 ! this will be for coarse mesh
+    end do !}}}
+    
 
-    ierr = iMOAB_CreateElements( pid, nLocalCells, mbtype, maxv, all_connects, block_ID );
-    call errorout(ierr, 'fail to create polygons')
-
-    ierr = iMOAB_ResolveSharedEntities( pid, nv, moabvh );
-    call errorout(ierr, 'fail to resolve shared entities')
-
-! write in serial, on each task, before ghosting
-    if (proc_id.lt. 10) then
-        write(lnum,"(I0.2)")proc_id
-        localmeshfile = 'owned_'//trim(lnum)// '.h5m' // CHAR(0)
-        wopts = CHAR(0)
-        ierr = iMOAB_WriteMesh(pid, localmeshfile, wopts)
-        call errorout(ierr, 'fail to write local mesh file')
-      endif
-
-!     write out the mesh file to disk, in parallel
-      outfile = 'whole.h5m'//CHAR(0)
-      wopts   = 'PARALLEL=WRITE_PART'//CHAR(0)
-      ierr = iMOAB_WriteMesh(pid, outfile, wopts)
-      call errorout(ierr, 'fail to write the mesh file')
-
-      ! (iMOAB_AppID pid, int * ghost_dim, int *num_ghost_layers, int * bridge_dim )
-      dimgh = 2 ! will ghost polygons, topological dim 2
-      bridge = 0 ! use vertex as bridge
-      num_layers = 1 ! so far, one layer only
-      ierr = iMOAB_DetermineGhostEntities( pid, dimgh, num_layers, bridge)
-      call errorout(ierr, 'fail to determine ghosts')
-
-      ! write in serial, on each task
-      if (proc_id .lt. 10) then
-        write(lnum,"(I0.2)")proc_id
-        localmeshfile = 'localmesh_'//trim(lnum)// '.h5m' // CHAR(0)
-        wopts = CHAR(0)
-        ierr = iMOAB_WriteMesh(pid, localmeshfile, wopts)
-        call errorout(ierr, 'fail to write local mesh file')
-      endif
-
-    deallocate (moab_vert_coords)
-    deallocate (moabvh)
-    deallocate (all_connects)
-  end subroutine create_mpas_moabmesh
-  
-
+    if (nblocks .ne. 1) then
+      call errorout(1, 'more than one block per task')
+    endif 
+    !     write out the mesh file to disk, in parallel
+    outfile = 'whole.h5m'//CHAR(0)
+    wopts   = 'PARALLEL=WRITE_PART'//CHAR(0)
+    ierr = iMOAB_WriteMesh(pid, outfile, wopts)
+    call errorout(ierr, 'fail to write the mesh file')
+    
+    
+  end subroutine mpas_moab_instance
 end module mpas_moabmesh
 
 
