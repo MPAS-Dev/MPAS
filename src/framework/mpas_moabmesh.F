@@ -95,9 +95,6 @@ module mpas_moabmesh
 
 #ifdef MPAS_DEBUG
        call mpas_log_write(' number of vertices:: $i number of cells:: $i solve: v:$i c:$i', intArgs=(/nVertices, nCells, nVerticesSolve, nCellsSolve/) )
-       do iVertex=1,nVertices
-         call mpas_log_write('i: $i indexToVertexID:: $i ', intArgs=(/iVertex, indexToVertexID(iVertex)/) )
-       enddo 
 #endif
         ! first create local vertices, nVerticesSolve
         allocate(moab_vert_coords(3*nVertices))

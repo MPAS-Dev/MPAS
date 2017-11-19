@@ -18,6 +18,7 @@ module mpas_bootstrapping
    use mpas_io_streams
    use mpas_log
 
+
    integer :: readCellStart, readCellEnd, nReadCells
    integer :: readEdgeStart, readEdgeEnd, nReadEdges
    integer :: readVertexStart, readVertexEnd, nReadVertices
@@ -88,7 +89,6 @@ module mpas_bootstrapping
       integer :: nCells, nEdges, maxEdges, nVertices, vertexDegree
 
       integer :: ierr
-      integer :: i1, j1, nv1
       type (MPAS_IO_Handle_type) :: inputHandle
 
       character (len=StrKIND) :: c_on_a_sphere, c_is_periodic, c_parent_id, c_file_id, c_mesh_spec
@@ -270,7 +270,6 @@ module mpas_bootstrapping
                                                verticesOnCell_Block, indexToVertexID_Block, cellsOnVertex_Block, &
                                                nVerticesSolveField)
 
- 
       !
       ! Before we can allocate blocks, we need the attributes on_a_sphere and sphere_radius so
       !    they can be propagated as configs to subpools
@@ -775,7 +774,6 @@ module mpas_bootstrapping
      integer, intent(in) :: nHalos
 
      integer :: i, ierr
-     integer :: nVertices
      integer, dimension(:), pointer :: readIndices
 
      ! Global vertex indices
@@ -794,6 +792,7 @@ module mpas_bootstrapping
      call mpas_dmpar_init_multihalo_exchange_list(indexToVertexID % recvList, nHalos+1)
      call mpas_dmpar_init_multihalo_exchange_list(indexToVertexID % copyList, nHalos+1)
      nullify(indexToVertexID % next)
+
 
      ! Global indices of cells adjacent to each vertex
      !    used for determining which vertices are owned by a block, where
