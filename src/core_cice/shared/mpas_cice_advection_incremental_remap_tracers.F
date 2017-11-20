@@ -29,6 +29,7 @@ module cice_advection_incremental_remap_tracers
    save
 
    public :: cice_add_ice_tracers_to_linked_list, &
+             cice_add_berg_tracers_to_linked_list, &
              cice_set_tracer_array_pointers,  &
              cice_update_tracer_halo
 
@@ -145,6 +146,8 @@ module cice_advection_incremental_remap_tracers
 
    ! type(tracer_type), pointer, public :: tracersHead ! the linked list, but this always points to the first element
    type(tracer_type), pointer, public :: iceTracersHead ! the linked list, but this always points to the first element
+!dcnote - bergs
+   type(tracer_type), pointer, public :: bergTracersHead ! the linked list, but this always points to the first element
 
    logical, parameter :: verboseTracers = .false.
 !   logical, parameter :: verboseTracers = .true.
@@ -153,7 +156,7 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  routine cice_add_tracers_to_linked_list
+!  routine cice_add_ice_tracers_to_linked_list
 !
 !> \brief  construct a linked list of tracers
 !> \author Adrian Turner and William Lipscomb
@@ -520,6 +523,96 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
+!  routine cice_add_berg_tracers_to_linked_list
+!
+!> \brief  construct a linked list of tracers
+!> \author Adrian Turner and William Lipscomb
+!> \date   March 2015
+!> \details
+!>  This routine constructs a linked list of tracers, with iceAreaCategory
+!>  at the head of the list.
+!-----------------------------------------------------------------------
+
+  subroutine cice_add_berg_tracers_to_linked_list(domain, bergTracersHead)
+
+    type(domain_type), intent(in) :: &
+         domain   !< Input:
+
+    type(tracer_type), intent(out), pointer :: &
+         bergTracersHead
+
+    type(tracer_type), pointer :: thisTracer  ! diagnostic only
+
+    nullify(bergTracersHead)
+    nullify(thisTracer)
+
+    ! add all the tracers to the linked list
+    ! Note: These can be added in any order. They are reordered later to the order required for IR.
+    ! Note: The fractional iceberg area (bergAreaCategory) is actually a mass-like field rather than a tracer.
+    !       It is included here because it is the parent (or grandparent or great-grandparent) of all tracers
+    !        and is part of the tracer pool.
+
+    ! First the tracers that are always included:
+
+    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergAreaCategory', 'None', 'berg_')
+    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergHeight', 'bergAreaCategory', 'berg_')
+    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergLength', 'bergAreaCategory', 'berg_')
+
+    ! Next the tracers that might be included, depending on column package options:
+
+    if (verboseTracers) then
+       thisTracer => bergTracersHead
+       call mpas_log_write(' ')
+       call mpas_log_write('Tracers in initial list:')
+       call mpas_log_write(' ')
+       do while (associated(thisTracer))
+          call mpas_log_write('Tracer: '//trim(thisTracer % tracerName))
+          if (associated(thisTracer % nextInitial)) then
+             call mpas_log_write('next: '//trim(thisTracer % nextInitial % tracerName))
+          endif
+          call mpas_log_write(' ')
+          thisTracer => thisTracer % nextInitial
+       enddo
+    endif
+
+    ! set the connectivity in the list
+    call create_tracers_connectivity(bergTracersHead)
+
+    ! calculate the number of parents for each tracer
+    call set_parent_numbers(bergTracersHead)
+
+    ! remove inactive tracers from the list
+    call remove_inactive_tracers(domain, bergTracersHead)
+
+    ! set the ordered list
+    ! The resulting list will have the Type 1 tracers first, followed by Type 2 and then Type 3
+    ! IR requires this order so as to compute parent properties before they are needed by child tracers
+    call set_tracer_order(bergTracersHead)
+
+    !WHL - debug
+    if (verboseTracers) then
+       thisTracer => bergTracersHead
+       call mpas_log_write(' ')
+       call mpas_log_write('Tracers in ordered list:')
+       call mpas_log_write(' ')
+       do while (associated(thisTracer))
+          call mpas_log_write('Tracer: '//trim(thisTracer % tracerName))
+          call mpas_log_write('Parent: '//trim(thisTracer % parentName))
+          call mpas_log_write('hasChild: $l', logicArgs=(/thisTracer % hasChild/))
+          call mpas_log_write('nParents: $i', intArgs=(/thisTracer % nParents/))
+          if (associated(thisTracer % next)) then
+             call mpas_log_write('next: '//trim(thisTracer % next % tracerName))
+          endif
+          call mpas_log_write(' ')
+          thisTracer => thisTracer % next
+       enddo
+       if (associated(bergTracersHead)) call mpas_log_write('bergTracersHead:'//trim(bergTracersHead % tracerName))
+    endif
+
+  end subroutine cice_add_berg_tracers_to_linked_list
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
 !  routine add_tracer_to_tracer_linked_list
 !
 !> \brief  add a tracer to the linked list
@@ -746,8 +839,6 @@ contains
     logical :: first ! initially true; set to false after the first active tracer is found
 
     call MPAS_pool_get_subpool(domain % blocklist % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
-
-    call MPAS_pool_get_subpool(domain % blocklist % structs, 'tracers', tracerPool)
 
     ! loop over the tracers in the linked list, and identify the active tracers
     tracer => tracersHead

@@ -48,8 +48,10 @@ contains
 
   subroutine cice_bergs_init(domain)
 
-    use cice_berg_initialize, only: cice_init_berg_calving_fluxes
-    use cice_berg_velocity_solver, only: cice_init_berg_velocity_solver
+    use cice_berg_initialize, only: &
+         cice_init_berg_calving_fluxes
+    use cice_berg_velocity_solver, only: &
+         cice_init_berg_velocity_solver
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -89,7 +91,12 @@ contains
 
   subroutine cice_run_berg_dynamics(domain, clock)!{{{
 
-    use cice_berg_velocity_solver, only: cice_run_berg_velocity_solver
+    use cice_berg_velocity_solver, only: &
+         cice_run_berg_velocity_solver
+    use cice_advection_incremental_remap, only: &
+         cice_run_advection_incremental_remap
+    use cice_advection_incremental_remap_tracers, only: &
+         bergTracersHead
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -97,12 +104,24 @@ contains
     type(MPAS_Clock_type), intent(in) :: &
          clock !< Input:
 
+    ! local variables
+    integer :: &
+         ierr  ! error code
+
+    logical, pointer :: &
+         config_use_berg_advection ! flag for advection
+
     ! berg velocity solver
     call mpas_timer_start("Berg velocity solver")
     call cice_run_berg_velocity_solver(domain, clock)
     call mpas_timer_stop("Berg velocity solver")
 
-    ! advection (to add)
+    ! advection by incremental remapping
+    call mpas_timer_start("Berg advection")
+    call MPAS_pool_get_config(domain % configs, "config_use_berg_advection", config_use_berg_advection)
+    if (config_use_berg_advection) &
+       call cice_run_advection_incremental_remap(domain, bergTracersHead, clock, ierr)
+    call mpas_timer_stop("Berg advection")
 
   end subroutine cice_run_berg_dynamics!}}}
 
@@ -120,9 +139,11 @@ contains
 
   subroutine cice_run_berg_postdynamics(domain, clock, itimestep)!{{{
 
-    use cice_berg_decay, only: cice_run_berg_decay
-    use cice_berg_state, only: cice_berg_accumulate_calving_mass, &
-                               cice_berg_release_calving_mass
+    use cice_berg_decay, only: &
+         cice_run_berg_decay
+    use cice_berg_state, only: &
+         cice_berg_accumulate_calving_mass, &
+         cice_berg_release_calving_mass
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:

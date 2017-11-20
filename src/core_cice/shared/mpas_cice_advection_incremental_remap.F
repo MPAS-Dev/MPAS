@@ -29,6 +29,7 @@ module cice_advection_incremental_remap
    use cice_advection_incremental_remap_tracers, only: &
         tracer_type, &
         cice_add_ice_tracers_to_linked_list, &
+        cice_add_berg_tracers_to_linked_list, &
         cice_set_tracer_array_pointers, &
         cice_update_tracer_halo
 
@@ -174,7 +175,8 @@ contains
     use mpas_vector_reconstruction, only: mpas_init_reconstruct
 
     use cice_advection_incremental_remap_tracers, only: &
-         iceTracersHead
+         iceTracersHead, &
+         bergTracersHead
 
     type (domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -274,6 +276,9 @@ contains
     character(len=strKIND) :: &
          errorMessage ! error message for critical error
 
+    logical, pointer :: &
+         config_use_bergs ! flag for iceberg model
+
     ! check the number of halos against the vertex degree
     call check_halo_layer_number(domain)
 
@@ -283,8 +288,13 @@ contains
        call mpas_log_write('Add tracers to linked list')
     endif
 
-    ! construct a linked list of tracers
+    ! construct a linked list of tracers for sea ice
     call cice_add_ice_tracers_to_linked_list(domain, iceTracersHead)
+
+    ! construct a linked list of tracers for icebergs
+    call MPAS_pool_get_config(domain % configs, "config_use_bergs", config_use_bergs)
+    if (config_use_bergs) &
+       call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead)
 
     ! assign pointers
     block => domain % blocklist
