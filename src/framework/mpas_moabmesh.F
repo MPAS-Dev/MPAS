@@ -14,6 +14,8 @@ module mpas_moabmesh
   implicit none
 #include "moab/MOABConfig.h"
 
+  integer, public :: MPOID !   app id on moab side, for MPAS ocean
+
   contains
 
   SUBROUTINE errorout(ierr, message)
@@ -33,7 +35,7 @@ module mpas_moabmesh
     type (block_type), pointer :: block
     type (mpas_pool_type), pointer :: meshPool
     integer, pointer :: nCells, nVertices, maxEdges
-    integer  :: nVert, iCell, iVertex, nblocks
+    integer  :: pid, nblocks
     real (kind=RKIND), dimension(:), allocatable :: xv,yv,zv
     integer, dimension(:,:), pointer :: verticesOnCell
     integer, dimension(:), pointer :: nEdgesOnCell
@@ -49,7 +51,7 @@ module mpas_moabmesh
     integer , external :: iMOAB_RegisterFortranApplication, &
         iMOAB_CreateVertices, iMOAB_WriteMesh, iMOAB_CreateElements, &
         iMOAB_ResolveSharedEntities, iMOAB_DetermineGhostEntities
-    integer :: c_comm, pid, i1, j1, ic, lastvertex
+    integer :: c_comm, i1, j1, ic, lastvertex
     character*12 appname
     integer :: ierr, num_verts_in_cells, ext_comp_id
     real(kind=RKIND), allocatable, target :: moab_vert_coords(:)
@@ -59,8 +61,10 @@ module mpas_moabmesh
 
     c_comm = domain % dminfo % comm
     appname = 'MPAS_MESH'//CHAR(0)
-    ext_comp_id = 17  ! some number less than 33
+    MPOID = -1 ! initialized negative , so we know if this register passes
+    ext_comp_id = 17  ! some number less than 33 ! maybe this should be input
     ierr = iMOAB_RegisterFortranApplication(appname, c_comm, ext_comp_id, pid)
+    MPOID = pid ! this is exported, need for send to work
     call errorout(ierr, 'fail to register MPAS_MOAB mesh')
     proc_id = domain % dminfo % my_proc_id
     call mpas_log_write('MOAB MPAS app pid:  $i  task  $i ', intArgs=(/pid, proc_id/) )
