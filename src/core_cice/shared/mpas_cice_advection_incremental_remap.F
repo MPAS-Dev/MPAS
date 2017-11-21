@@ -177,6 +177,7 @@ contains
     use cice_advection_incremental_remap_tracers, only: &
          iceTracersHead, &
          bergTracersHead
+         ! bergTracersHead1
 
     type (domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -295,6 +296,9 @@ contains
     call MPAS_pool_get_config(domain % configs, "config_use_bergs", config_use_bergs)
     if (config_use_bergs) &
        call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead)
+!dcnote remove
+! call cice_add_berg_category_tracers_to_linked_list(domain, bergTracersHead1, 1)
+
 
     ! assign pointers
     block => domain % blocklist
@@ -2399,8 +2403,6 @@ contains
 
     real(kind=RKIND), dimension(:,:), pointer ::  &
          workCategoryCell        ! work array with dimension(nCategories,nCells)
-    ! real(kind=RKIND), dimension(:,:) :: &
-    !      workCategoryCell        ! work array with dimension(nCategories,nCells)
 
     logical, pointer :: &
          configConservationCheck, & ! namelist configuration whether perform conservation check
@@ -2453,8 +2455,10 @@ contains
        call mpas_timer_start("incr remap init halo")
        ! velocity
 !dcnote - generalize
-       call MPAS_dmpar_field_halo_exch(domain, 'uVelocity')
-       call MPAS_dmpar_field_halo_exch(domain, 'vVelocity')
+       ! call MPAS_dmpar_field_halo_exch(domain, 'uVelocity')
+       ! call MPAS_dmpar_field_halo_exch(domain, 'vVelocity')
+       call MPAS_dmpar_field_halo_exch(domain, 'u' // trim(tracersHead % argumentName) // 'Velocity')
+       call MPAS_dmpar_field_halo_exch(domain, 'v' // trim(tracersHead % argumentName) // 'Velocity')
 
        ! mass and tracers
        call cice_update_tracer_halo(tracersHead, domain, timeLevel)
@@ -2480,11 +2484,13 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Convert volume to thickness')
-!dcnote - generalize workCategoryCell has dimensions nCategories, nCells
+!dcnote - generalize
        ! get tracer pool and work array
        call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
-       call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
-       call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
+       call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'incremental_remap', incrementalRemapPool)
+!dcnote - workCategory
+       ! call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
+       call mpas_pool_get_array(incrementalRemapPool, 'work' // trim(tracersHead % argumentName) // 'CategoryCell', workCategoryCell)
 
        ! set pointers to tracer arrays
        call cice_set_tracer_array_pointers(tracersHead, block, timeLevel)
@@ -2530,7 +2536,8 @@ contains
 !dcnote - dynamicsTimeStep will need to be adjusted
        ! get dynamics time step
        call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // "velocity_solver", velocitySolverPool)
-       call MPAS_pool_get_array(velocitySolverPool, "dynamicsTimeStep", dynamicsTimeStep)
+       ! call MPAS_pool_get_array(velocitySolverPool, "dynamicsTimeStep", dynamicsTimeStep)
+       call MPAS_pool_get_array(velocitySolverPool, "dynamics" // trim(tracersHead % argumentName) // "TimeStep", dynamicsTimeStep)
 
        ! do IR for this block
        call incremental_remap_block(&
@@ -2589,11 +2596,13 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Convert thickness to volume')
-!dcnote - generalize workCategoryCell dimensions
+!dcnote - generalize workCategory Cell dimensions
        ! get tracer pool and work array
        call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
-       call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
-       call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
+       call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'incremental_remap', incrementalRemapPool)
+!dcnote - workCategory
+       ! call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
+       call mpas_pool_get_array(incrementalRemapPool, 'work' // trim(tracersHead % argumentName) // 'CategoryCell', workCategoryCell)
 
        ! set pointers to tracer arrays
        call cice_set_tracer_array_pointers(tracersHead, block, timeLevel)
@@ -2750,12 +2759,17 @@ contains
     type (mpas_pool_type), pointer :: meshPool
     type (mpas_pool_type), pointer :: velocityPool
     type (mpas_pool_type), pointer :: incrementalRemapPool
+!dcnote - prefixIncrementalRemapPool name can be improved, need to distinguish for
+! maskCategoryCell and workCategoryCell variables that have nCategories dependence
+    type (mpas_pool_type), pointer :: prefixIncrementalRemapPool
     type (mpas_pool_type), pointer :: configPool
 
     ! state variables
     real(kind=RKIND), dimension(:), pointer :: &
          uVelocity,   &     ! velocity components at vertices
          vVelocity
+
+!dcnote - add separate berg velocities for testing
 
     ! mesh quantities
     integer, pointer :: &
@@ -2871,7 +2885,9 @@ contains
 
     ! get pools
     call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+!dcnote - testing using sea ice velocities
     call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'velocity_solver', velocityPool)
+    ! call mpas_pool_get_subpool(block % structs, 'velocity_solver', velocityPool)
     call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
     call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
 
@@ -2881,8 +2897,10 @@ contains
     call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
 !dcnote - generalize
     ! get velocity
-    call mpas_pool_get_array(velocityPool, 'uVelocity', uVelocity)
-    call mpas_pool_get_array(velocityPool, 'vVelocity', vVelocity)
+    ! call mpas_pool_get_array(velocityPool, 'uVelocity', uVelocity)
+    ! call mpas_pool_get_array(velocityPool, 'vVelocity', vVelocity)
+    call mpas_pool_get_array(velocityPool, 'u' // trim(tracersHead % argumentName) // 'Velocity', uVelocity)
+    call mpas_pool_get_array(velocityPool, 'v' // trim(tracersHead % argumentName) // 'Velocity', vVelocity)
 
     ! set pointers to tracer arrays
     call cice_set_tracer_array_pointers(tracersHead, block, timeLevel)
@@ -2935,8 +2953,10 @@ contains
     call mpas_pool_get_array(incrementalRemapPool, 'minLengthEdgesOnVertex', minLengthEdgesOnVertex)
     call mpas_pool_get_array(incrementalRemapPool, 'maskEdge', maskEdge)
     call mpas_pool_get_array(incrementalRemapPool, 'maskCell', maskCell)
-    call mpas_pool_get_array(incrementalRemapPool, 'maskCategoryCell', maskCategoryCell)
-    call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
+!dcnote - generalize
+    call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'incremental_remap', prefixIncrementalRemapPool)
+    call mpas_pool_get_array(prefixIncrementalRemapPool, 'mask' // trim(tracersHead % argumentName) // 'CategoryCell', maskCategoryCell)
+    call mpas_pool_get_array(prefixIncrementalRemapPool, 'work' // trim(tracersHead % argumentName) // 'CategoryCell', workCategoryCell)
 
     ! Optional initial diagnostics: Write a list of cells with ice
     ! If verboseGlobal = true, then this info is also written at the end of each time step.
@@ -3143,6 +3163,7 @@ contains
     ! Integrate mass and tracer fluxes over each departure triangle.
     !-------------------------------------------------------------------
 
+!dcnote - argument to only apply to one category
     call mpas_timer_start("incr remap integrate fluxes")
     call integrate_fluxes_over_triangles(&
          tracersHead,          &
@@ -8790,6 +8811,7 @@ contains
 
 !-----------------------------------------------------------------------
 
+!dcnote - add nCategories to argument list, create maskCategoryCell here
   subroutine zap_small_mass(&
        tracersHead,   &
        nCellsSolve,   &

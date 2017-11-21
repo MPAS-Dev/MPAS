@@ -2567,8 +2567,8 @@
 
 	<!-- iceberg tracers -->
 	<var_struct name="berg_tracers" time_levs="2" packages="pkgBergs">
-		<var name="bergAreaCategory"	type="real"	dimensions="ONE nCategories nCells Time"		name_in_code="bergAreaCategory"		units="1"	packages="pkgBergs"/>
-		<var name="bergHeight"			type="real"	dimensions="ONE nCategories nCells Time"		name_in_code="bergHeight"			units="m"	packages="pkgBergs"/>
+		<var name="bergAreaCategory"	type="real"	dimensions="ONE nBergCategories nCells Time"		name_in_code="bergAreaCategory"		units="1"	packages="pkgBergs"/>
+		<var name="bergHeight"			type="real"	dimensions="ONE nBergCategories nCells Time"		name_in_code="bergHeight"			units="m"	packages="pkgBergs"/>
 		<var name="bergLength"			type="real"	dimensions="ONE nBergCategories nCells Time"	name_in_code="bergLength"			units="m"	packages="pkgBergs"/>
 	</var_struct>
 
@@ -2637,10 +2637,8 @@
 	</var_struct>
 
 	<var_struct name="berg_incremental_remap" time_levs="1" packages="pkgBergs">
-		<var name="bergMaskEdge"				type="integer"	dimensions="nEdges"					name_in_code="bergMaskEdge"		packages="pkgBergs"/>
-		<var name="bergMaskCell"				type="integer"	dimensions="nCells"					name_in_code="bergMaskCell"		packages="pkgBergs"/>
-		<var name="bergMaskCategoryCell"			type="integer"	dimensions="nBergCategories nCells"		name_in_code="bergMaskCategoryCell"	units="1"	packages="pkgBergs"/>
-		<var name="bergWorkCategoryCell"			type="real"	dimensions="nBergCategories nCells"			name_in_code="bergWorkCategoryCell"	units="1"	packages="pkgBergs"/>
+		<var name="maskBergCategoryCell"			type="integer"	dimensions="nBergCategories nCells"		name_in_code="maskBergCategoryCell"	units="1"	packages="pkgBergs"/>
+		<var name="workBergCategoryCell"			type="real"	dimensions="nBergCategories nCells"			name_in_code="workBergCategoryCell"	units="1"	packages="pkgBergs"/>
 	</var_struct>
 
 	<!-- iceberg state -->
@@ -2665,7 +2663,7 @@
 
 	<!-- iceberg velocity solver -->
 	<var_struct name="berg_velocity_solver" time_levs="1" packages="pkgBergs">
-		<var name="bergDynamicsTimeStep"		type="real"		dimensions=""								name_in_code="bergDynamicsTimeStep"			units="s"		packages="pkgBergs"/>
+		<var name="dynamicsBergTimeStep"		type="real"		dimensions=""								name_in_code="dynamicsBergTimeStep"			units="s"		packages="pkgBergs"/>
 		<var name="uBergVelocity"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="uBergVelocity"				units="m/s"		packages="pkgBergs"/>
 		<var name="vBergVelocity"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="vBergVelocity"				units="m/s"		packages="pkgBergs"/>
 		<var name="uBergVelocityCell"			type="real"		dimensions="nBergCategories nCells Time"	name_in_code="uBergVelocityCell"			units="m/s"		packages="pkgBergs"/>

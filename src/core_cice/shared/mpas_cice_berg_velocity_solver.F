@@ -66,7 +66,7 @@ contains
          bergVelocitySolverPool
 
     real(kind=RKIND), pointer :: &
-         bergDynamicsTimeStep, & ! timestep for berg dynamics
+         dynamicsBergTimeStep, & ! timestep for berg dynamics
          config_dt
 
     integer, pointer :: &
@@ -82,10 +82,10 @@ contains
        call MPAS_pool_get_config(block % configs, "config_berg_dynamics_subcycle_number", config_berg_dynamics_subcycle_number)
 
        call MPAS_pool_get_subpool(block % structs, "berg_velocity_solver", bergVelocitySolverPool)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergDynamicsTimeStep", bergDynamicsTimeStep)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "dynamicsBergTimeStep", dynamicsBergTimeStep)
 
        ! berg velocity solver is inside sea ice dynamics loop in cice_time_integration
-       bergDynamicsTimeStep = config_dt / (real(config_berg_dynamics_subcycle_number,RKIND) * &
+       dynamicsBergTimeStep = config_dt / (real(config_berg_dynamics_subcycle_number,RKIND) * &
                                            real(config_dynamics_subcycle_number,RKIND))
 
        call init_berg_velocity(block)
@@ -1672,7 +1672,7 @@ contains
          bergVelocityMask  ! mask = 1 indicates berg velocity should be calculated, = 0 elsewhere
 
     real(kind=RKIND), pointer :: &
-         bergDynamicsTimeStep ! time step for berg dynamics
+         dynamicsBergTimeStep ! time step for berg dynamics
 
     real(kind=RKIND), dimension(:), pointer :: &
          uVelocity, &
@@ -1715,7 +1715,7 @@ contains
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefCorV", bergCoefCorV)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefTltU", bergCoefTltU)
        call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefTltV", bergCoefTltV)
-       call MPAS_pool_get_array(bergVelocitySolverPool, "bergDynamicsTimeStep", bergDynamicsTimeStep)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "dynamicsBergTimeStep", dynamicsBergTimeStep)
 
        call MPAS_pool_get_array(velocitySolverPool, "uVelocity", uVelocity)
        call MPAS_pool_get_array(velocitySolverPool, "vVelocity", vVelocity)
@@ -1741,10 +1741,10 @@ contains
 
                 ! calculate velocities based on forward Euler
                 uBergVelocity(iCategory,iVertex) = uBergVelocityInitial(iCategory,iVertex) + &
-                                                   rightSideU*bergDynamicsTimeStep/oneBergMassVertex(iCategory,iVertex)
+                                                   rightSideU*dynamicsBergTimeStep/oneBergMassVertex(iCategory,iVertex)
 
                 vBergVelocity(iCategory,iVertex) = vBergVelocityInitial(iCategory,iVertex) + &
-                                                   rightSideV*bergDynamicsTimeStep/oneBergMassVertex(iCategory,iVertex)
+                                                   rightSideV*dynamicsBergTimeStep/oneBergMassVertex(iCategory,iVertex)
 
                 ! write to log if iceberg velocities get too large, indicating instability (consider changing to abort)
                 if (abs(uBergVelocity(iCategory,iVertex))>1.0e2_RKIND) &
