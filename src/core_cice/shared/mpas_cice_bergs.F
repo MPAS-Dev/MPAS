@@ -50,6 +50,7 @@ contains
 
     use cice_berg_initialize, only: &
          cice_init_berg_calving_fluxes
+
     use cice_berg_velocity_solver, only: &
          cice_init_berg_velocity_solver
 
@@ -93,8 +94,10 @@ contains
 
     use cice_berg_velocity_solver, only: &
          cice_run_berg_velocity_solver
+
     use cice_advection_incremental_remap, only: &
          cice_run_advection_incremental_remap
+
     use cice_advection_incremental_remap_tracers, only: &
          bergTracersHead
 
@@ -137,11 +140,13 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine cice_run_berg_postdynamics(domain, clock, itimestep)!{{{
+  subroutine cice_run_berg_postdynamics(domain, clock, itimestep)
 
     use cice_berg_decay, only: &
          cice_run_berg_decay
+
     use cice_berg_state, only: &
+         cice_berg_update_mass_from_area, &
          cice_berg_accumulate_calving_mass, &
          cice_berg_release_calving_mass
 
@@ -154,6 +159,11 @@ contains
     integer, intent(in) :: &
          itimestep !< Input:
 
+    ! berg mass state variable update
+    call mpas_timer_start("Berg update mass")
+    call cice_berg_update_mass_from_area(domain)
+    call mpas_timer_stop("Berg update mass")
+
     ! berg decay solver
     call mpas_timer_start("Berg decay")
     call cice_run_berg_decay(domain, clock)
@@ -165,7 +175,7 @@ contains
     call cice_berg_release_calving_mass(domain, itimestep)
     call mpas_timer_stop("Berg calving")
 
-  end subroutine cice_run_berg_postdynamics!}}}  
+  end subroutine cice_run_berg_postdynamics
 
 !-----------------------------------------------------------------------
 

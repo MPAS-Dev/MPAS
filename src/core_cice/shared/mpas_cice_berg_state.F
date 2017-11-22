@@ -30,7 +30,8 @@ module cice_berg_state
       cice_berg_accumulate_calving_mass, &
       cice_berg_release_calving_mass, &
       cice_berg_dimensions_update, &
-      cice_berg_area_update
+      cice_berg_area_update, &
+      cice_berg_update_mass_from_area
 
 contains
 
@@ -531,6 +532,103 @@ contains
     endif
 
   end subroutine cice_berg_area_update
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  cice_berg_update_mass_from_area
+!
+!> \brief   Update berg masses
+!> \author  Darin Comeau, LANL
+!> \date    22 Nov 2017
+!> \details This routine updates iceberg masses from updated areas after
+!> advection.
+!
+!-----------------------------------------------------------------------
+
+  subroutine cice_berg_update_mass_from_area(domain)
+
+    type(domain_type), intent(inout) :: &
+         domain !< Input/Output:
+
+    type(block_type), pointer :: &
+         block
+
+    type(MPAS_pool_type), pointer :: &
+         meshPool, &
+         bergTracersPool, &
+         bergStatePool
+
+    integer, pointer :: &
+         nCellsSolve, &
+         nBergCategories
+
+    real(kind=RKIND), dimension(:,:,:), pointer :: &
+         bergAreaCategory, & ! berg area by category (unitless)
+         bergHeight
+
+    real(kind=RKIND), dimension(:,:), pointer :: &
+         bergMassCategory ! berg mass by category (kg)
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         areaCell, &
+         bergMassCell ! aggregate berg mass (kg)
+
+    real(kind=RKIND), pointer :: &
+         bergDensity ! berg density (kg/m^3)
+
+    integer :: &
+         iCell, &
+         iCategory
+
+    ! halo exchange after advection
+    call mpas_timer_start("berg area halo")
+    call MPAS_dmpar_field_halo_exch(domain, 'bergAreaCategory')
+    call mpas_timer_stop("berg area halo")
+
+    block => domain % blocklist
+    do while (associated(block))
+
+       call MPAS_pool_get_config(block % configs, "config_berg_density", bergDensity)
+
+       call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
+       call MPAS_pool_get_subpool(block % structs, "berg_tracers", bergTracersPool)
+       call MPAS_pool_get_subpool(block % structs, "berg_state", bergStatePool)
+
+       call MPAS_pool_get_dimension(meshPool, "nCellsSolve", nCellsSolve)
+       call MPAS_pool_get_dimension(meshPool, "nBergCategories", nBergCategories)
+
+       call MPAS_pool_get_array(meshPool, "areaCell", areaCell)
+       call MPAS_pool_get_array(bergTracersPool, "bergAreaCategory", bergAreaCategory, 1)
+       call MPAS_pool_get_array(bergTracersPool, "bergHeight", bergHeight, 1)
+       call MPAS_pool_get_array(bergStatePool, "bergMassCategory", bergMassCategory)
+       call MPAS_pool_get_array(bergStatePool, "bergMassCell", bergMassCell)
+
+       bergMassCategory(:,:) = 0.0_RKIND
+       bergMassCell(:) = 0.0_RKIND
+
+       do iCell = 1, nCellsSolve
+
+          do iCategory = 1, nBergCategories
+
+             bergMassCategory(iCategory,iCell) = bergAreaCategory(1,iCategory,iCell) * areaCell(iCell) &
+                                               * bergHeight(1,iCategory,iCell) * bergDensity
+
+          enddo
+
+          bergMassCell(iCell) = sum(bergMassCategory(:,iCell))
+
+       enddo
+
+       block => block % next
+    enddo
+
+    ! !dcnote debug
+    ! call mpas_timer_start("berg mass halo")
+    ! call MPAS_dmpar_field_halo_exch(domain, 'bergMassCategory')
+    ! call MPAS_dmpar_field_halo_exch(domain, 'bergMassCell')
+    ! call mpas_timer_stop("berg mass halo")
+
+  end subroutine cice_berg_update_mass_from_area
 
 !-----------------------------------------------------------------------
 
