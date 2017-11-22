@@ -296,9 +296,6 @@ contains
     call MPAS_pool_get_config(domain % configs, "config_use_bergs", config_use_bergs)
     if (config_use_bergs) &
        call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead)
-!dcnote remove
-! call cice_add_berg_category_tracers_to_linked_list(domain, bergTracersHead1, 1)
-
 
     ! assign pointers
     block => domain % blocklist
@@ -2885,9 +2882,9 @@ contains
 
     ! get pools
     call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-!dcnote - testing using sea ice velocities
-    call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'velocity_solver', velocityPool)
-    ! call mpas_pool_get_subpool(block % structs, 'velocity_solver', velocityPool)
+! !dcnote - testing using sea ice velocities
+!     call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'velocity_solver', velocityPool)
+    call mpas_pool_get_subpool(block % structs, 'velocity_solver', velocityPool)
     call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
     call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
 
@@ -2897,10 +2894,10 @@ contains
     call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
 !dcnote - generalize
     ! get velocity
-    ! call mpas_pool_get_array(velocityPool, 'uVelocity', uVelocity)
-    ! call mpas_pool_get_array(velocityPool, 'vVelocity', vVelocity)
-    call mpas_pool_get_array(velocityPool, 'u' // trim(tracersHead % argumentName) // 'Velocity', uVelocity)
-    call mpas_pool_get_array(velocityPool, 'v' // trim(tracersHead % argumentName) // 'Velocity', vVelocity)
+    call mpas_pool_get_array(velocityPool, 'uVelocity', uVelocity)
+    call mpas_pool_get_array(velocityPool, 'vVelocity', vVelocity)
+    ! call mpas_pool_get_array(velocityPool, 'u' // trim(tracersHead % argumentName) // 'Velocity', uVelocity)
+    ! call mpas_pool_get_array(velocityPool, 'v' // trim(tracersHead % argumentName) // 'Velocity', vVelocity)
 
     ! set pointers to tracer arrays
     call cice_set_tracer_array_pointers(tracersHead, block, timeLevel)
@@ -9373,5 +9370,7 @@ contains
     enddo
 
   end subroutine thickness_to_volume
+
+!-----------------------------------------------------------------------
 
 end module cice_advection_incremental_remap

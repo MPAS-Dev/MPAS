@@ -616,65 +616,6 @@ contains
 
   end subroutine cice_add_berg_tracers_to_linked_list
 
-!dcnote - remove, failed attempt
-! !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-! !
-! !  routine cice_add_berg_tracers_to_linked_list
-! !
-! !> \brief  construct a linked list of tracers
-! !> \author Adrian Turner and William Lipscomb
-! !> \date   March 2015
-! !> \details
-! !>  This routine constructs a linked list of tracers, with iceAreaCategory
-! !>  at the head of the list.
-! !-----------------------------------------------------------------------
-
-!   subroutine cice_add_berg_category_tracers_to_linked_list(domain, bergTracersHead, bergTracersHeadCat, iCategory)
-
-!     type(domain_type), intent(in) :: &
-!          domain   !< Input:
-
-!     type(tracer_type), intent(in), pointer :: &
-!          bergTracersHead
-
-!     type(tracer_type), intent(out), pointer :: &
-!          bergTracersHeadCat
-
-!     integer, intent(in) :: &
-!          iCategory
-
-!     ! type(tracer_type), target :: thisTracer
-!     ! type(tracer_type), pointer :: thisTracerCat  ! diagnostic only
-
-!     ! nullify(bergTracersHeadCat)
-!     ! ! nullify(thisTracer)
-!     ! nullify(thisTracerCat)
-
-!     ! thisTracerCat => null()
-
-!     ! thisTracer = bergTracersHead
-!     ! ! thisTracerCat => thisTracer(1,iCategory,:)
-
-!     ! do while (thisTracer)
-
-!     !    thisTracerCat % array2D => thisTracer % array2D(iCategory, :)
-
-!     !    thisTracerCat % tracerName = trim(thisTracer % tracerName)
-!     !    thisTracerCat % parentName = trim(thisTracer % parentName)
-!     !    thisTracerCat % prefixName = trim(thisTracer % prefixName)
-!     !    thisTracerCat % argumentName = trim(thisTracer % argumentName)
-
-!     !    thisTracerCat % hasChild = thisTracer % hasChild
-!     !    thisTracerCat % nParents = thisTracer % nParents
-
-!     !    thisTracerCat => bergTracersHeadCat
-
-!     !    thisTracer = thisTracer % next
-
-!     ! enddo
-
-!   end subroutine cice_add_berg_category_tracers_to_linked_list
-
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
 !  routine add_tracer_to_tracer_linked_list
@@ -1319,6 +1260,6 @@ contains
 
   end subroutine cice_update_tracer_halo
 
-  !-----------------------------------------------
+!-----------------------------------------------------------------------
 
 end module cice_advection_incremental_remap_tracers

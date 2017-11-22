@@ -156,7 +156,7 @@ contains
        ! berg dynamics
        if (config_use_bergs) then
           call mpas_timer_start("Berg dynamics")
-          call cice_run_berg_dynamics(domain, clock)
+          call cice_run_berg_dynamics(domain, clock, ierr)
           call mpas_timer_stop("Berg dynamics")
        endif
 
