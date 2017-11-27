@@ -28,9 +28,11 @@ module cice_berg_decay
   public :: &
        cice_run_berg_decay
 
-  ! berg decay solver constants
+  ! berg decay mask thresholds
   real(kind=RKIND), parameter, private :: &
-       bergMassMinimum = 0.01_RKIND
+       bergMassMinimum = 0.01_RKIND, &
+       bergLengthMinimum = 0.01_RKIND, &
+       bergHeightMinimum = 0.01_RKIND
 
 contains
 
@@ -205,14 +207,19 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_decay_calculation_mask(block)!{{{
+  subroutine berg_decay_calculation_mask(block)
 
     type(block_type), intent(inout)  :: &
          block
 
     type(MPAS_pool_type), pointer :: &
+         bergTracersPool, &
          bergStatePool, &
          bergDecayPool
+
+    real(kind=RKIND), dimension(:,:,:), pointer :: &
+         bergLength, & ! berg state variable
+         bergHeight    ! berg state variable
 
     real(kind=RKIND), dimension(:,:), pointer :: &
          bergMassCategory ! berg state variable
@@ -228,12 +235,15 @@ contains
          iCategory, &
          iCell
 
+    call MPAS_pool_get_subpool(block % structs, "berg_tracers", bergTracersPool)
     call MPAS_pool_get_subpool(block % structs, "berg_state", bergStatePool)
     call MPAS_pool_get_subpool(block % structs, "berg_decay", bergDecayPool)
 
     call MPAS_pool_get_dimension(block % dimensions, "nCellsSolve", nCellsSolve)
     call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
 
+    call MPAS_pool_get_array(bergTracersPool, "bergLength", bergLength, 1)
+    call MPAS_pool_get_array(bergTracersPool, "bergHeight", bergHeight, 1)
     call MPAS_pool_get_array(bergStatePool, "bergMassCategory", bergMassCategory)
     call MPAS_pool_get_array(bergDecayPool, "bergDecayMask", bergDecayMask)
 
@@ -243,7 +253,9 @@ contains
 
           bergDecayMask(iCategory,iCell) = 0
 
-          if (bergMassCategory(iCategory,iCell) > bergMassMinimum) then
+          if (bergMassCategory(iCategory,iCell) > bergMassMinimum .and. &
+             bergLength(1,iCategory,iCell) > bergLengthMinimum .and. &
+             bergHeight(1,iCategory,iCell) > bergHeightMinimum) then
 
              ! this cell has sufficient bergs for decay
              bergDecayMask(iCategory,iCell) = 1
@@ -254,7 +266,7 @@ contains
 
     enddo ! iCell
 
-  end subroutine berg_decay_calculation_mask!}}}
+  end subroutine berg_decay_calculation_mask
 
 !-----------------------------------------------------------------------
 ! Calculate decay terms
