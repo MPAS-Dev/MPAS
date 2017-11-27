@@ -122,8 +122,8 @@ contains
     call mpas_timer_start("Berg advection")
     call MPAS_pool_get_config(domain % configs, "config_use_berg_advection", config_use_berg_advection)
     if (config_use_berg_advection) &
-       call cice_run_advection_incremental_remap(domain, bergTracersHead, clock, ierr)
-       if (ierr/=0) call mpas_log_write('Advection error: $i', MPAS_LOG_CRIT, intArgs=(/ierr/))
+       call cice_run_advection_incremental_remap(domain, bergTracersHead, clock, ierr, &
+                                                 updateHaloInitIn = .true., updateHaloFinalIn = .true.)
     call mpas_timer_stop("Berg advection")
 
   end subroutine cice_run_berg_dynamics!}}}
@@ -146,7 +146,7 @@ contains
          cice_run_berg_decay
 
     use cice_berg_state, only: &
-         cice_berg_update_mass_from_area, &
+         cice_berg_update_mass_and_area, &
          cice_berg_accumulate_calving_mass, &
          cice_berg_release_calving_mass
 
@@ -159,9 +159,9 @@ contains
     integer, intent(in) :: &
          itimestep !< Input:
 
-    ! berg mass state variable update
+    ! berg mass and area state variables update
     call mpas_timer_start("Berg update mass")
-    call cice_berg_update_mass_from_area(domain)
+    call cice_berg_update_mass_and_area(domain)
     call mpas_timer_stop("Berg update mass")
 
     ! berg decay solver

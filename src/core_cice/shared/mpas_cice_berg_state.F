@@ -31,7 +31,7 @@ module cice_berg_state
       cice_berg_release_calving_mass, &
       cice_berg_dimensions_update, &
       cice_berg_area_update, &
-      cice_berg_update_mass_from_area
+      cice_berg_update_mass_and_area
 
 contains
 
@@ -535,7 +535,7 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  cice_berg_update_mass_from_area
+!  cice_berg_update_mass_and_area
 !
 !> \brief   Update berg masses
 !> \author  Darin Comeau, LANL
@@ -545,7 +545,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine cice_berg_update_mass_from_area(domain)
+  subroutine cice_berg_update_mass_and_area(domain)
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -556,6 +556,7 @@ contains
     type(MPAS_pool_type), pointer :: &
          meshPool, &
          bergTracersPool, &
+         bergTracersAggregatePool, &
          bergStatePool
 
     integer, pointer :: &
@@ -571,6 +572,7 @@ contains
 
     real(kind=RKIND), dimension(:), pointer :: &
          areaCell, &
+         bergAreaCell, & ! aggregate berg area
          bergMassCell ! aggregate berg mass (kg)
 
     real(kind=RKIND), pointer :: &
@@ -580,10 +582,7 @@ contains
          iCell, &
          iCategory
 
-    ! halo exchange after advection
-    call mpas_timer_start("berg area halo")
-    call MPAS_dmpar_field_halo_exch(domain, 'bergAreaCategory')
-    call mpas_timer_stop("berg area halo")
+!dcnote - currently halo exchanges are done within IR
 
     block => domain % blocklist
     do while (associated(block))
@@ -592,6 +591,7 @@ contains
 
        call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
        call MPAS_pool_get_subpool(block % structs, "berg_tracers", bergTracersPool)
+       call MPAS_pool_get_subpool(block % structs, "berg_tracers_aggregate", bergTracersAggregatePool)
        call MPAS_pool_get_subpool(block % structs, "berg_state", bergStatePool)
 
        call MPAS_pool_get_dimension(meshPool, "nCellsSolve", nCellsSolve)
@@ -599,12 +599,14 @@ contains
 
        call MPAS_pool_get_array(meshPool, "areaCell", areaCell)
        call MPAS_pool_get_array(bergTracersPool, "bergAreaCategory", bergAreaCategory, 1)
+       call MPAS_pool_get_array(bergTracersAggregatePool, "bergAreaCell", bergAreaCell)
        call MPAS_pool_get_array(bergTracersPool, "bergHeight", bergHeight, 1)
        call MPAS_pool_get_array(bergStatePool, "bergMassCategory", bergMassCategory)
        call MPAS_pool_get_array(bergStatePool, "bergMassCell", bergMassCell)
 
        bergMassCategory(:,:) = 0.0_RKIND
        bergMassCell(:) = 0.0_RKIND
+       bergAreaCell(:) = 0.0_RKIND
 
        do iCell = 1, nCellsSolve
 
@@ -615,20 +617,16 @@ contains
 
           enddo
 
+          ! update both aggregate mass and area
           bergMassCell(iCell) = sum(bergMassCategory(:,iCell))
+          bergAreaCell(iCell) = sum(bergAreaCategory(1,:,iCell))
 
        enddo
 
        block => block % next
     enddo
 
-    ! !dcnote debug
-    ! call mpas_timer_start("berg mass halo")
-    ! call MPAS_dmpar_field_halo_exch(domain, 'bergMassCategory')
-    ! call MPAS_dmpar_field_halo_exch(domain, 'bergMassCell')
-    ! call mpas_timer_stop("berg mass halo")
-
-  end subroutine cice_berg_update_mass_from_area
+  end subroutine cice_berg_update_mass_and_area
 
 !-----------------------------------------------------------------------
 
