@@ -777,16 +777,28 @@ contains
 
              ! fraction of mass lost
              dBergMass = (dBergLength**2*dBergHeight) / (bergLength(1,iCategory,iCell)**2*bergHeight(1,iCategory,iCell))
+             dBergMass = min(dBergLength, 1.0_RKIND)
 
              ! update berg dimensions
-             bergLength(1,iCategory,iCell) = bergLength(1,iCategory,iCell) - dBergLength
-             bergHeight(1,iCategory,iCell) = bergHeight(1,iCategory,iCell) - dBergHeight
+             bergLength(1,iCategory,iCell) = max(bergLength(1,iCategory,iCell) - dBergLength, 0.0_RKIND)
+             bergHeight(1,iCategory,iCell) = max(bergHeight(1,iCategory,iCell) - dBergHeight, 0.0_RKIND)
   
              ! calculate berg mass lost (kg)
              bergMeltMass(iCategory,iCell) = dBergMass*bergMassCategory(iCategory,iCell)
 
              ! update berg mass state variable
-             bergMassCategory(iCategory,iCell) = bergMassCategory(iCategory,iCell) - bergMeltMass(iCategory,iCell)
+             bergMassCategory(iCategory,iCell) = max(bergMassCategory(iCategory,iCell) - bergMeltMass(iCategory,iCell), 0.0_RKIND)
+
+             if (bergLength(1,iCategory,iCell) == 0.0_RKIND .or. &
+                 bergHeight(1,iCategory,iCell) == 0.0_RKIND .or. &
+                 bergMassCategory(iCategory,iCell) == 0.0_RKIND) then
+
+                ! all mass has melted and set dimensions to 0
+                bergLength(1,iCategory,iCell) = 0.0_RKIND
+                bergHeight(1,iCategory,iCell) = 0.0_RKIND
+                bergMassCategory(iCategory,iCell) = 0.0_RKIND
+
+             endif
 
           endif
 
