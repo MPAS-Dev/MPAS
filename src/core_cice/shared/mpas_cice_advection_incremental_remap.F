@@ -2754,7 +2754,8 @@ contains
     ! pools
     type (mpas_pool_type), pointer :: tracerPool
     type (mpas_pool_type), pointer :: meshPool
-    type (mpas_pool_type), pointer :: velocityPool
+!dcnote - remove
+    ! type (mpas_pool_type), pointer :: velocityPool
     type (mpas_pool_type), pointer :: incrementalRemapPool
 !dcnote - prefixIncrementalRemapPool name can be improved, need to distinguish for
 ! maskCategoryCell and workCategoryCell variables that have nCategories dependence
@@ -2884,7 +2885,7 @@ contains
     call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
 ! !dcnote - testing using sea ice velocities
 !     call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'velocity_solver', velocityPool)
-    call mpas_pool_get_subpool(block % structs, 'velocity_solver', velocityPool)
+    ! call mpas_pool_get_subpool(block % structs, 'velocity_solver', velocityPool)
     call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
     call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
 
@@ -2892,10 +2893,13 @@ contains
     configPool => block % configs
     call mpas_pool_get_config(configPool, 'config_rotate_cartesian_grid', config_rotate_cartesian_grid)
     call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
+
 !dcnote - generalize
     ! get velocity
-    call mpas_pool_get_array(velocityPool, 'uVelocity', uVelocity)
-    call mpas_pool_get_array(velocityPool, 'vVelocity', vVelocity)
+    uVelocity => tracersHead % uVelocity
+    vVelocity => tracersHead % vVelocity
+    ! call mpas_pool_get_array(velocityPool, 'uVelocity', uVelocity)
+    ! call mpas_pool_get_array(velocityPool, 'vVelocity', vVelocity)
     ! call mpas_pool_get_array(velocityPool, 'u' // trim(tracersHead % argumentName) // 'Velocity', uVelocity)
     ! call mpas_pool_get_array(velocityPool, 'v' // trim(tracersHead % argumentName) // 'Velocity', vVelocity)
 

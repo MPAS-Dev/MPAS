@@ -117,9 +117,10 @@ module cice_advection_incremental_remap_tracers
 
       real(kind=RKIND), dimension(:,:),     pointer :: yGrad2D => null()
       real(kind=RKIND), dimension(:,:,:),   pointer :: yGrad3D => null()
-!dcnote - add velocity to tracersHead?
-      ! real(kind=RKIND), dimension(:,:),     pointer :: uVelocity => null()
-      ! real(kind=RKIND), dimension(:,:),     pointer :: vVelocity => null()
+
+! dcnote - add velocity to tracersHead
+      real(kind=RKIND), dimension(:),     pointer :: uVelocity => null()
+      real(kind=RKIND), dimension(:),     pointer :: vVelocity => null()
 
       ! pointer to parent tracer
       type(tracer_type), pointer :: parent => null()
@@ -1044,6 +1045,7 @@ contains
 
     type(MPAS_pool_type), pointer :: &
          tracerPool,              &! ice area plus tracer fields
+         tracerVelocityPool,      &! velocity to be used to advect tracers
          tracerMaskPool,          &! integer mask for each tracer
          tracerEdgeFluxPool,      &! edge flux for each tracer
          tracerProductPool,       &! mass-tracer products for each tracer
@@ -1073,6 +1075,8 @@ contains
     endif
 
     call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
+    ! call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'velocity_solver', tracerVelocityPool)
+    call MPAS_pool_get_subpool(block % structs, 'velocity_solver', tracerVelocityPool)
     call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_masks', tracerMaskPool)
     call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_edge_fluxes', tracerEdgeFluxPool)
     call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_products', tracerProductPool)
@@ -1143,6 +1147,10 @@ contains
           thisTracer % localMin2D => tracerField2DReal % array
           call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField2DReal)
           thisTracer % localMax2D => tracerField2DReal % array
+          call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
+          thisTracer % uVelocity => tracerField1DReal % array
+          call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
+          thisTracer % vVelocity => tracerField1DReal % array
 
        elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 2) then    ! 3D formally but 2D physically
 
@@ -1174,6 +1182,10 @@ contains
           thisTracer % localMin2D => tracerField3DReal % array(1,:,:)
           call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField3DReal)
           thisTracer % localMax2D => tracerField3DReal % array(1,:,:)
+          call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
+          thisTracer % uVelocity => tracerField1DReal % array
+          call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
+          thisTracer % vVelocity => tracerField1DReal % array
 
        elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 3) then    ! 3D formally and physically
 
@@ -1205,6 +1217,10 @@ contains
           thisTracer % localMin3D => tracerField3DReal % array
           call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField3DReal)
           thisTracer % localMax3D => tracerField3DReal % array
+          call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
+          thisTracer % uVelocity => tracerField1DReal % array
+          call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
+          thisTracer % vVelocity => tracerField1DReal % array
 
        endif  ! nDims
 
