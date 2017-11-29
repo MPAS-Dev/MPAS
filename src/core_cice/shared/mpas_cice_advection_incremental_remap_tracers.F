@@ -30,7 +30,7 @@ module cice_advection_incremental_remap_tracers
 
    public :: cice_add_ice_tracers_to_linked_list, &
              cice_add_berg_tracers_to_linked_list, &
-             cice_set_tracer_array_pointers,  &
+             cice_set_tracer_array_pointers, &
              cice_update_tracer_halo
 
    ! the type that makes up each element in the linked list
@@ -41,6 +41,8 @@ module cice_advection_incremental_remap_tracers
 !dcnote - add attributes to dynamically build pools and array names
       character(len=strKIND) :: prefixName
       character(len=strKIND) :: argumentName
+!dcnote
+      integer :: iCat      ! category number for icebergs
 
       integer :: ndims     ! number of dimensions in the tracer array
                            ! (nCategories, nCells) for 2D
@@ -118,9 +120,10 @@ module cice_advection_incremental_remap_tracers
       real(kind=RKIND), dimension(:,:),     pointer :: yGrad2D => null()
       real(kind=RKIND), dimension(:,:,:),   pointer :: yGrad3D => null()
 
-! dcnote - add velocity to tracersHead
       real(kind=RKIND), dimension(:),     pointer :: uVelocity => null()
       real(kind=RKIND), dimension(:),     pointer :: vVelocity => null()
+
+      ! real(kind=RKIND), pointer :: dynamicsTimeStep => null()
 
       ! pointer to parent tracer
       type(tracer_type), pointer :: parent => null()
@@ -152,9 +155,17 @@ module cice_advection_incremental_remap_tracers
 
    ! type(tracer_type), pointer, public :: tracersHead ! the linked list, but this always points to the first element
    type(tracer_type), pointer, public :: iceTracersHead ! the linked list, but this always points to the first element
-!dcnote - add tracersHead for bergs
    type(tracer_type), pointer, public :: bergTracersHead ! the linked list, but this always points to the first element
-   ! type(tracer_type), pointer, public :: bergTracersHead1 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead1 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead2 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead3 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead4 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead5 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead6 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead7 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead8 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead9 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead10 ! the linked list, but this always points to the first element
 
    logical, parameter :: verboseTracers = .false.
 
@@ -539,13 +550,18 @@ contains
 !>  at the head of the list.
 !-----------------------------------------------------------------------
 
-  subroutine cice_add_berg_tracers_to_linked_list(domain, bergTracersHead)
+  subroutine cice_add_berg_tracers_to_linked_list(domain, &
+                                                  bergTracersHead, &
+                                                  iCategory)
 
     type(domain_type), intent(in) :: &
          domain   !< Input:
 
     type(tracer_type), intent(out), pointer :: &
          bergTracersHead
+
+    integer, intent(in) :: &
+         iCategory ! iceberg category
 
     type(tracer_type), pointer :: thisTracer  ! diagnostic only
 
@@ -560,9 +576,9 @@ contains
 
     ! First the tracers that are always included:
 
-    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergAreaCategory', 'None',       'berg_', 'Berg')
-    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergHeight', 'bergAreaCategory', 'berg_', 'Berg')
-    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergLength', 'bergAreaCategory', 'berg_', 'Berg')
+    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergAreaCategory', 'None',       'berg_', 'Berg', iCategory)
+    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergHeight', 'bergAreaCategory', 'berg_', 'Berg', iCategory)
+    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergLength', 'bergAreaCategory', 'berg_', 'Berg', iCategory)
 
     ! Next the tracers that might be included, depending on column package options:
 
@@ -632,7 +648,8 @@ contains
                                               tracerName,  &
                                               parentName, &
                                               prefixName, &
-                                              argumentName)
+                                              argumentName, &
+                                              iCategoryIn)
 
     type(tracer_type), intent(inout), pointer :: &
          tracersHead ! pointer to first element of linked list
@@ -643,8 +660,21 @@ contains
          prefixName, &
          argumentName
 
+    integer, intent(in), optional :: &
+         iCategoryIn
+
     type(tracer_type), pointer :: &
          newTracer
+
+    integer :: iCategory
+
+    ! assign category if provided, otherwise set to 0
+    if (present(iCategoryIn)) then
+       iCategory = iCategoryIn
+    else
+       iCategory = 0
+    endif
+
 
     ! see if the linked list has any elements yet
     if (.not. associated(tracersHead)) then
@@ -678,6 +708,7 @@ contains
     newTracer % parentName = trim(parentName)
     newTracer % prefixName = trim(prefixName)
     newTracer % argumentName = trim(argumentName)
+    newTracer % iCat = iCategory
 
     ! initialize hasChild and nParents; these are modified below
     newTracer % hasChild = .false.
@@ -1068,6 +1099,8 @@ contains
 
     integer :: timeLevel
 
+    integer :: iCategory ! index for iceberg category
+
     if (present(timeLevelIn)) then
        timeLevel = timeLevelIn
     else
@@ -1075,8 +1108,7 @@ contains
     endif
 
     call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
-    ! call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'velocity_solver', tracerVelocityPool)
-    call MPAS_pool_get_subpool(block % structs, 'velocity_solver', tracerVelocityPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'velocity_solver', tracerVelocityPool)
     call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_masks', tracerMaskPool)
     call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_edge_fluxes', tracerEdgeFluxPool)
     call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_products', tracerProductPool)
@@ -1117,112 +1149,154 @@ contains
 
        endif
 
-       if (thisFieldInfo%nDims == 2 .and. thisTracer % nDims == 2) then    ! 2D formally and physically
+       if (trim(tracersHead % prefixName) == '') then
 
-          call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField2DReal, timeLevel)
-          thisTracer % array2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField2DInteger)
-          thisTracer % arrayMask2D => tracerField2DInteger % array
-          call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField2DReal)
-          thisTracer % edgeFlux2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField2DReal)
-          thisTracer % massTracerProduct2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField4DReal)
-          thisTracer % triangleValue2D => tracerField4DReal % array
-          call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField2DReal)
-          thisTracer % xBarycenter2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField2DReal)
-          thisTracer % yBarycenter2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField2DReal)
-          thisTracer % center2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField2DReal)
-          thisTracer % xGrad2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField2DReal)
-          thisTracer % yGrad2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField1DReal, 1)
-          thisTracer % globalSumInit2D => tracerField1DReal % array
-          call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField1DReal, 2)
-          thisTracer % globalSumFinal2D => tracerField1DReal % array
-          call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField2DReal)
-          thisTracer % localMin2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField2DReal)
-          thisTracer % localMax2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
-          thisTracer % uVelocity => tracerField1DReal % array
-          call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
-          thisTracer % vVelocity => tracerField1DReal % array
+          if (thisFieldInfo%nDims == 2 .and. thisTracer % nDims == 2) then    ! 2D formally and physically
 
-       elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 2) then    ! 3D formally but 2D physically
+             call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField2DReal, timeLevel)
+             thisTracer % array2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField2DInteger)
+             thisTracer % arrayMask2D => tracerField2DInteger % array
+             call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField2DReal)
+             thisTracer % edgeFlux2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField2DReal)
+             thisTracer % massTracerProduct2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField4DReal)
+             thisTracer % triangleValue2D => tracerField4DReal % array
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField2DReal)
+             thisTracer % xBarycenter2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField2DReal)
+             thisTracer % yBarycenter2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField2DReal)
+             thisTracer % center2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField2DReal)
+             thisTracer % xGrad2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField2DReal)
+             thisTracer % yGrad2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField1DReal, 1)
+             thisTracer % globalSumInit2D => tracerField1DReal % array
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField1DReal, 2)
+             thisTracer % globalSumFinal2D => tracerField1DReal % array
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField2DReal)
+             thisTracer % localMin2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField2DReal)
+             thisTracer % localMax2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
+             thisTracer % uVelocity => tracerField1DReal % array
+             call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
+             thisTracer % vVelocity => tracerField1DReal % array
+
+          elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 2) then    ! 3D formally but 2D physically
+
+             call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField3DReal, timeLevel)
+             thisTracer % array2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField3DInteger)
+             thisTracer % arrayMask2D => tracerField3DInteger % array(1,:,:)
+             call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField3DReal)
+             thisTracer % edgeFlux2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField3DReal)
+             thisTracer % massTracerProduct2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField5DReal)
+             thisTracer % triangleValue2D => tracerField5DReal % array(1,:,:,:,:)
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField3DReal)
+             thisTracer % xBarycenter2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField3DReal)
+             thisTracer % yBarycenter2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField3DReal)
+             thisTracer % center2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField3DReal)
+             thisTracer % xGrad2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField3DReal)
+             thisTracer % yGrad2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 1)
+             thisTracer % globalSumInit2D => tracerField2DReal % array(1,:)
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 2)
+             thisTracer % globalSumFinal2D => tracerField2DReal % array(1,:)
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField3DReal)
+             thisTracer % localMin2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField3DReal)
+             thisTracer % localMax2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
+             thisTracer % uVelocity => tracerField1DReal % array
+             call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
+             thisTracer % vVelocity => tracerField1DReal % array
+
+          elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 3) then    ! 3D formally and physically
+
+             call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField3DReal, timeLevel)
+             thisTracer % array3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField3DInteger)
+             thisTracer % arrayMask3D => tracerField3DInteger % array
+             call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField3DReal)
+             thisTracer % edgeFlux3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField3DReal)
+             thisTracer % massTracerProduct3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField5DReal)
+             thisTracer % triangleValue3D => tracerField5DReal % array
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField3DReal)
+             thisTracer % xBarycenter3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField3DReal)
+             thisTracer % yBarycenter3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField3DReal)
+             thisTracer % center3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField3DReal)
+             thisTracer % xGrad3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField3DReal)
+             thisTracer % yGrad3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 1)
+             thisTracer % globalSumInit3D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 2)
+             thisTracer % globalSumFinal3D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField3DReal)
+             thisTracer % localMin3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField3DReal)
+             thisTracer % localMax3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
+             thisTracer % uVelocity => tracerField1DReal % array
+             call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
+             thisTracer % vVelocity => tracerField1DReal % array
+
+          endif  ! nDims
+
+       elseif (trim(tracersHead % prefixName) == 'berg_') then
+
+          ! point to only a single category for icebergs
+          iCategory = thisTracer % iCat
 
           call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField3DReal, timeLevel)
-          thisTracer % array2D => tracerField3DReal % array(1,:,:)
+          thisTracer % array2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField3DInteger)
-          thisTracer % arrayMask2D => tracerField3DInteger % array(1,:,:)
+          thisTracer % arrayMask2D => tracerField3DInteger % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField3DReal)
-          thisTracer % edgeFlux2D => tracerField3DReal % array(1,:,:)
+          thisTracer % edgeFlux2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField3DReal)
-          thisTracer % massTracerProduct2D => tracerField3DReal % array(1,:,:)
+          thisTracer % massTracerProduct2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField5DReal)
-          thisTracer % triangleValue2D => tracerField5DReal % array(1,:,:,:,:)
+          thisTracer % triangleValue2D => tracerField5DReal % array(1,iCategory:iCategory,:,:,:)
           call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField3DReal)
-          thisTracer % xBarycenter2D => tracerField3DReal % array(1,:,:)
+          thisTracer % xBarycenter2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField3DReal)
-          thisTracer % yBarycenter2D => tracerField3DReal % array(1,:,:)
+          thisTracer % yBarycenter2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField3DReal)
-          thisTracer % center2D => tracerField3DReal % array(1,:,:)
+          thisTracer % center2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField3DReal)
-          thisTracer % xGrad2D => tracerField3DReal % array(1,:,:)
+          thisTracer % xGrad2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField3DReal)
-          thisTracer % yGrad2D => tracerField3DReal % array(1,:,:)
+          thisTracer % yGrad2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 1)
-          thisTracer % globalSumInit2D => tracerField2DReal % array(1,:)
+          thisTracer % globalSumInit2D => tracerField2DReal % array(1,iCategory:iCategory)
           call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 2)
-          thisTracer % globalSumFinal2D => tracerField2DReal % array(1,:)
+          thisTracer % globalSumFinal2D => tracerField2DReal % array(1,iCategory:iCategory)
           call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField3DReal)
-          thisTracer % localMin2D => tracerField3DReal % array(1,:,:)
+          thisTracer % localMin2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField3DReal)
-          thisTracer % localMax2D => tracerField3DReal % array(1,:,:)
-          call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
-          thisTracer % uVelocity => tracerField1DReal % array
-          call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
-          thisTracer % vVelocity => tracerField1DReal % array
+          thisTracer % localMax2D => tracerField3DReal % array(1,iCategory:iCategory,:)
+          call MPAS_pool_get_field(tracerVelocityPool, 'uBergVelocity', tracerField2DReal)
+          thisTracer % uVelocity => tracerField2DReal % array(iCategory,:)
+          call MPAS_pool_get_field(tracerVelocityPool, 'vBergVelocity', tracerField2DReal)
+          thisTracer % vVelocity => tracerField2DReal % array(iCategory,:)
 
-       elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 3) then    ! 3D formally and physically
-
-          call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField3DReal, timeLevel)
-          thisTracer % array3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField3DInteger)
-          thisTracer % arrayMask3D => tracerField3DInteger % array
-          call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField3DReal)
-          thisTracer % edgeFlux3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField3DReal)
-          thisTracer % massTracerProduct3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField5DReal)
-          thisTracer % triangleValue3D => tracerField5DReal % array
-          call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField3DReal)
-          thisTracer % xBarycenter3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField3DReal)
-          thisTracer % yBarycenter3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField3DReal)
-          thisTracer % center3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField3DReal)
-          thisTracer % xGrad3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField3DReal)
-          thisTracer % yGrad3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 1)
-          thisTracer % globalSumInit3D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 2)
-          thisTracer % globalSumFinal3D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField3DReal)
-          thisTracer % localMin3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField3DReal)
-          thisTracer % localMax3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
-          thisTracer % uVelocity => tracerField1DReal % array
-          call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
-          thisTracer % vVelocity => tracerField1DReal % array
-
-       endif  ! nDims
+endif
 
        thisTracer => thisTracer % next
 

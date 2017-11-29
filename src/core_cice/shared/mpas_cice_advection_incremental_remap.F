@@ -29,7 +29,6 @@ module cice_advection_incremental_remap
    use cice_advection_incremental_remap_tracers, only: &
         tracer_type, &
         cice_add_ice_tracers_to_linked_list, &
-        cice_add_berg_tracers_to_linked_list, &
         cice_set_tracer_array_pointers, &
         cice_update_tracer_halo
 
@@ -175,9 +174,7 @@ contains
     use mpas_vector_reconstruction, only: mpas_init_reconstruct
 
     use cice_advection_incremental_remap_tracers, only: &
-         iceTracersHead, &
-         bergTracersHead
-         ! bergTracersHead1
+         iceTracersHead
 
     type (domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -277,9 +274,6 @@ contains
     character(len=strKIND) :: &
          errorMessage ! error message for critical error
 
-    logical, pointer :: &
-         config_use_bergs ! flag for iceberg model
-
     ! check the number of halos against the vertex degree
     call check_halo_layer_number(domain)
 
@@ -291,11 +285,6 @@ contains
 
     ! construct a linked list of tracers for sea ice
     call cice_add_ice_tracers_to_linked_list(domain, iceTracersHead)
-
-    ! construct a linked list of tracers for icebergs
-    call MPAS_pool_get_config(domain % configs, "config_use_bergs", config_use_bergs)
-    if (config_use_bergs) &
-       call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead)
 
     ! assign pointers
     block => domain % blocklist
@@ -2451,9 +2440,6 @@ contains
 
        call mpas_timer_start("incr remap init halo")
        ! velocity
-!dcnote - generalize
-       ! call MPAS_dmpar_field_halo_exch(domain, 'uVelocity')
-       ! call MPAS_dmpar_field_halo_exch(domain, 'vVelocity')
        call MPAS_dmpar_field_halo_exch(domain, 'u' // trim(tracersHead % argumentName) // 'Velocity')
        call MPAS_dmpar_field_halo_exch(domain, 'v' // trim(tracersHead % argumentName) // 'Velocity')
 
@@ -2481,12 +2467,9 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Convert volume to thickness')
-!dcnote - generalize
        ! get tracer pool and work array
        call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
        call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'incremental_remap', incrementalRemapPool)
-!dcnote - workCategory
-       ! call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
        call mpas_pool_get_array(incrementalRemapPool, 'work' // trim(tracersHead % argumentName) // 'CategoryCell', workCategoryCell)
 
        ! set pointers to tracer arrays
@@ -2531,6 +2514,7 @@ contains
 
        if (verboseRun) call mpas_log_write('Call incremental_remap_block: block = $i', intArgs=(/block % localBlockID/))
 !dcnote - dynamicsTimeStep will need to be adjusted
+! dynamicsTimeStep = tracersHead % dynamicsTimeStep
        ! get dynamics time step
        call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // "velocity_solver", velocitySolverPool)
        ! call MPAS_pool_get_array(velocitySolverPool, "dynamicsTimeStep", dynamicsTimeStep)
@@ -2593,12 +2577,10 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Convert thickness to volume')
-!dcnote - generalize workCategory Cell dimensions
+
        ! get tracer pool and work array
        call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
        call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'incremental_remap', incrementalRemapPool)
-!dcnote - workCategory
-       ! call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
        call mpas_pool_get_array(incrementalRemapPool, 'work' // trim(tracersHead % argumentName) // 'CategoryCell', workCategoryCell)
 
        ! set pointers to tracer arrays
@@ -2754,8 +2736,6 @@ contains
     ! pools
     type (mpas_pool_type), pointer :: tracerPool
     type (mpas_pool_type), pointer :: meshPool
-!dcnote - remove
-    ! type (mpas_pool_type), pointer :: velocityPool
     type (mpas_pool_type), pointer :: incrementalRemapPool
 !dcnote - prefixIncrementalRemapPool name can be improved, need to distinguish for
 ! maskCategoryCell and workCategoryCell variables that have nCategories dependence
@@ -2766,8 +2746,6 @@ contains
     real(kind=RKIND), dimension(:), pointer :: &
          uVelocity,   &     ! velocity components at vertices
          vVelocity
-
-!dcnote - add separate berg velocities for testing
 
     ! mesh quantities
     integer, pointer :: &
@@ -2902,7 +2880,7 @@ contains
     ! call mpas_pool_get_array(velocityPool, 'vVelocity', vVelocity)
     ! call mpas_pool_get_array(velocityPool, 'u' // trim(tracersHead % argumentName) // 'Velocity', uVelocity)
     ! call mpas_pool_get_array(velocityPool, 'v' // trim(tracersHead % argumentName) // 'Velocity', vVelocity)
-
+!dcnote - would need to generalize
     ! set pointers to tracer arrays
     call cice_set_tracer_array_pointers(tracersHead, block, timeLevel)
 
@@ -3067,7 +3045,7 @@ contains
        call mpas_log_write('Max (uvel, vvel) = $r $r', realArgs=(/maxval(uVelocity), maxval(vVelocity)/))
        call mpas_log_write('Max (uvel, vvel)*dt = $r $r', realArgs=(/maxval(uVelocity)*dt, maxval(vVelocity)*dt/))
     endif
-!dcnote generalize - need to call over categories
+
     call mpas_timer_start("incr remap departure points")
     call find_departure_points(&
          domain,                              &
@@ -3164,7 +3142,6 @@ contains
     ! Integrate mass and tracer fluxes over each departure triangle.
     !-------------------------------------------------------------------
 
-!dcnote - argument to only apply to one category
     call mpas_timer_start("incr remap integrate fluxes")
     call integrate_fluxes_over_triangles(&
          tracersHead,          &
@@ -8812,7 +8789,6 @@ contains
 
 !-----------------------------------------------------------------------
 
-!dcnote - add nCategories to argument list, create maskCategoryCell here
   subroutine zap_small_mass(&
        tracersHead,   &
        nCellsSolve,   &

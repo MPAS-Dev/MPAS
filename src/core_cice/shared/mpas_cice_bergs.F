@@ -54,6 +54,10 @@ contains
     use cice_berg_velocity_solver, only: &
          cice_init_berg_velocity_solver
 
+    use cice_advection_incremental_remap_tracers, only: &
+         bergTracersHead, &
+         cice_add_berg_tracers_to_linked_list
+
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
 
@@ -71,6 +75,10 @@ contains
 
        ! initialize velocity solver
        call cice_init_berg_velocity_solver(domain)
+
+! dcnote - add routine to cice_berg_state
+       ! initialize tracers
+       call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead, 1)
 
        call mpas_timer_stop("Berg initialization")
 
