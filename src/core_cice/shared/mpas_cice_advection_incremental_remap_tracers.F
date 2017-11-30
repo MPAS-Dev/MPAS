@@ -155,7 +155,7 @@ module cice_advection_incremental_remap_tracers
 
    ! type(tracer_type), pointer, public :: tracersHead ! the linked list, but this always points to the first element
    type(tracer_type), pointer, public :: iceTracersHead ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead ! the linked list, but this always points to the first element
+   ! type(tracer_type), pointer, public :: bergTracersHead ! the linked list, but this always points to the first element
    type(tracer_type), pointer, public :: bergTracersHead1 ! the linked list, but this always points to the first element
    type(tracer_type), pointer, public :: bergTracersHead2 ! the linked list, but this always points to the first element
    type(tracer_type), pointer, public :: bergTracersHead3 ! the linked list, but this always points to the first element
@@ -551,21 +551,21 @@ contains
 !-----------------------------------------------------------------------
 
   subroutine cice_add_berg_tracers_to_linked_list(domain, &
-                                                  bergTracersHead, &
+                                                  tracersHead, &
                                                   iCategory)
 
     type(domain_type), intent(in) :: &
          domain   !< Input:
 
     type(tracer_type), intent(out), pointer :: &
-         bergTracersHead
+         tracersHead
 
     integer, intent(in) :: &
          iCategory ! iceberg category
 
     type(tracer_type), pointer :: thisTracer  ! diagnostic only
 
-    nullify(bergTracersHead)
+    nullify(tracersHead)
     nullify(thisTracer)
 
     ! add all the tracers to the linked list
@@ -576,14 +576,14 @@ contains
 
     ! First the tracers that are always included:
 
-    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergAreaCategory', 'None',       'berg_', 'Berg', iCategory)
-    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergHeight', 'bergAreaCategory', 'berg_', 'Berg', iCategory)
-    call add_tracer_to_tracer_linked_list(bergTracersHead, 'bergLength', 'bergAreaCategory', 'berg_', 'Berg', iCategory)
+    call add_tracer_to_tracer_linked_list(tracersHead, 'bergAreaCategory', 'None',       'berg_', 'Berg', iCategory)
+    call add_tracer_to_tracer_linked_list(tracersHead, 'bergHeight', 'bergAreaCategory', 'berg_', 'Berg', iCategory)
+    call add_tracer_to_tracer_linked_list(tracersHead, 'bergLength', 'bergAreaCategory', 'berg_', 'Berg', iCategory)
 
     ! Next the tracers that might be included, depending on column package options:
 
     if (verboseTracers) then
-       thisTracer => bergTracersHead
+       thisTracer => tracersHead
        call mpas_log_write(' ')
        call mpas_log_write('Tracers in initial list:')
        call mpas_log_write(' ')
@@ -598,22 +598,22 @@ contains
     endif
 
     ! set the connectivity in the list
-    call create_tracers_connectivity(bergTracersHead)
+    call create_tracers_connectivity(tracersHead)
 
     ! calculate the number of parents for each tracer
-    call set_parent_numbers(bergTracersHead)
+    call set_parent_numbers(tracersHead)
 
     ! remove inactive tracers from the list
-    call remove_inactive_tracers(domain, bergTracersHead)
+    call remove_inactive_tracers(domain, tracersHead)
 
     ! set the ordered list
     ! The resulting list will have the Type 1 tracers first, followed by Type 2 and then Type 3
     ! IR requires this order so as to compute parent properties before they are needed by child tracers
-    call set_tracer_order(bergTracersHead)
+    call set_tracer_order(tracersHead)
 
     !WHL - debug
     if (verboseTracers) then
-       thisTracer => bergTracersHead
+       thisTracer => tracersHead
        call mpas_log_write(' ')
        call mpas_log_write('Tracers in ordered list:')
        call mpas_log_write(' ')
@@ -628,7 +628,7 @@ contains
           call mpas_log_write(' ')
           thisTracer => thisTracer % next
        enddo
-       if (associated(bergTracersHead)) call mpas_log_write('bergTracersHead:'//trim(bergTracersHead % tracerName))
+       if (associated(tracersHead)) call mpas_log_write('bergTracersHead:'//trim(tracersHead % tracerName))
     endif
 
   end subroutine cice_add_berg_tracers_to_linked_list

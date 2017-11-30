@@ -27,7 +27,8 @@ module cice_berg_initialize
    save
 
    public :: &
-      cice_init_berg_calving_fluxes
+      cice_init_berg_calving_fluxes, &
+      cice_init_berg_tracers
 
 contains
 

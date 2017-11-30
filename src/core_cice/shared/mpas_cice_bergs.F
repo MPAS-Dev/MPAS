@@ -49,14 +49,11 @@ contains
   subroutine cice_bergs_init(domain)
 
     use cice_berg_initialize, only: &
-         cice_init_berg_calving_fluxes
+         cice_init_berg_calving_fluxes, &
+         cice_init_berg_tracers
 
     use cice_berg_velocity_solver, only: &
          cice_init_berg_velocity_solver
-
-    use cice_advection_incremental_remap_tracers, only: &
-         bergTracersHead, &
-         cice_add_berg_tracers_to_linked_list
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -76,9 +73,8 @@ contains
        ! initialize velocity solver
        call cice_init_berg_velocity_solver(domain)
 
-! dcnote - add routine to cice_berg_state
        ! initialize tracers
-       call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead, 1)
+       call cice_init_berg_tracers(domain)
 
        call mpas_timer_stop("Berg initialization")
 
@@ -98,16 +94,13 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine cice_run_berg_dynamics(domain, clock, ierr)!{{{
+  subroutine cice_run_berg_dynamics(domain, clock, ierr)
 
     use cice_berg_velocity_solver, only: &
          cice_run_berg_velocity_solver
 
-    use cice_advection_incremental_remap, only: &
-         cice_run_advection_incremental_remap
-
-    use cice_advection_incremental_remap_tracers, only: &
-         bergTracersHead
+    use cice_berg_advection, only: &
+         cice_run_berg_advection
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -119,22 +112,26 @@ contains
          ierr  !< Input/Output:
 
     logical, pointer :: &
+         config_use_berg_velocity_solver ! indicates if berg velocity solver is used
+
+    logical, pointer :: &
          config_use_berg_advection ! flag for advection
+
+    ! determine if velocity solver switched on
+    call MPAS_pool_get_config(domain % configs, "config_use_berg_velocity_solver", config_use_berg_velocity_solver)
+    call MPAS_pool_get_config(domain % configs, "config_use_berg_advection", config_use_berg_advection)
 
     ! berg velocity solver
     call mpas_timer_start("Berg velocity solver")
-    call cice_run_berg_velocity_solver(domain, clock)
+    if (config_use_berg_velocity_solver) call cice_run_berg_velocity_solver(domain, clock)
     call mpas_timer_stop("Berg velocity solver")
 
     ! advection by incremental remapping
     call mpas_timer_start("Berg advection")
-    call MPAS_pool_get_config(domain % configs, "config_use_berg_advection", config_use_berg_advection)
-    if (config_use_berg_advection) &
-       call cice_run_advection_incremental_remap(domain, bergTracersHead, clock, ierr, &
-                                                 updateHaloInitIn = .true., updateHaloFinalIn = .true.)
+    if (config_use_berg_advection) call cice_run_berg_advection(domain, clock, ierr)
     call mpas_timer_stop("Berg advection")
 
-  end subroutine cice_run_berg_dynamics!}}}
+  end subroutine cice_run_berg_dynamics
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !

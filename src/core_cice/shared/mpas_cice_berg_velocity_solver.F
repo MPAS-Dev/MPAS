@@ -231,7 +231,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine cice_run_berg_velocity_solver(domain, clock)!{{{
+  subroutine cice_run_berg_velocity_solver(domain, clock)
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -239,27 +239,17 @@ contains
     type(MPAS_Clock_type), intent(in) :: &
          clock !< Input:
 
-    logical, pointer :: &
-         config_use_berg_velocity_solver ! indicates if berg velocity solver is used
+    ! pre subcycle
+    call mpas_timer_start("Berg velocity solver pre-cycle")
+    call berg_velocity_solver_pre_subcycle(domain)
+    call mpas_timer_stop("Berg velocity solver pre-cycle")
 
-    ! determine if velocity solver switched on
-    call MPAS_pool_get_config(domain % configs, "config_use_berg_velocity_solver", config_use_berg_velocity_solver)
+    ! subcycle the dynamics
+    call mpas_timer_start("Berg velocity solver sub-cycle")
+    call berg_velocity_solver_subcycle(domain, clock)
+    call mpas_timer_stop("Berg velocity solver sub-cycle")
 
-    if (config_use_berg_velocity_solver) then
-
-       ! pre subcycle
-       call mpas_timer_start("Berg velocity solver pre-cycle")
-       call berg_velocity_solver_pre_subcycle(domain)
-       call mpas_timer_stop("Berg velocity solver pre-cycle")
-
-       ! subcycle the dynamics
-       call mpas_timer_start("Berg velocity solver sub-cycle")
-       call berg_velocity_solver_subcycle(domain, clock)
-       call mpas_timer_stop("Berg velocity solver sub-cycle")
-
-    endif ! config_use_berg_velocity_solver
-
-  end subroutine cice_run_berg_velocity_solver!}}}
+  end subroutine cice_run_berg_velocity_solver
 
 !-----------------------------------------------------------------------
 ! Pre sub-cycle
