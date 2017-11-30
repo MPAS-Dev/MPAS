@@ -48,12 +48,14 @@ contains
 
   subroutine cice_bergs_init(domain)
 
-    use cice_berg_initialize, only: &
-         cice_init_berg_calving_fluxes, &
-         cice_init_berg_tracers
+    use cice_berg_calving, only: &
+         cice_init_berg_calving_fluxes
 
     use cice_berg_velocity_solver, only: &
          cice_init_berg_velocity_solver
+
+    use cice_berg_advection, only: &
+         cice_init_berg_tracers
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:

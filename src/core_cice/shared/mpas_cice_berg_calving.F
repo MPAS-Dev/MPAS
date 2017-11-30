@@ -1,15 +1,16 @@
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  cice_berg_initialize
+!  cice_berg_calving
 !
-!> \brief   Initialize iceberg model
+!> \brief   Set up calving fluxes for the iceberg model
 !> \author  Darin Comeau, LANL
 !> \date    19 May 2017
-!> \details This module is intended to initialize the iceberg model.
+!> \details This module is intended to set up and handle calving fluxes
+!> for the iceberg model.
 !
 !-----------------------------------------------------------------------
 
-module cice_berg_initialize
+module cice_berg_calving
 
    use mpas_derived_types
    use mpas_pool_routines
@@ -27,8 +28,7 @@ module cice_berg_initialize
    save
 
    public :: &
-      cice_init_berg_calving_fluxes, &
-      cice_init_berg_tracers
+      cice_init_berg_calving_fluxes
 
 contains
 
@@ -440,4 +440,4 @@ contains
 
 !-----------------------------------------------------------------------
 
-end module cice_berg_initialize
+end module cice_berg_calving

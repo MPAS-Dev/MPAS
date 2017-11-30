@@ -65,7 +65,7 @@ contains
     type(domain_type), intent(inout) :: &
          domain
 
-    ! ! dcnote - possible this way?
+    ! dcnote - possible this way? open to improvement
     ! integer :: iCategory
 
     ! call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)

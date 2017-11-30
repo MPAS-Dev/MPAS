@@ -2663,7 +2663,7 @@
 
 	<!-- iceberg velocity solver -->
 	<var_struct name="berg_velocity_solver" time_levs="1" packages="pkgBergs">
-		<var name="dynamicsBergTimeStep"		type="real"		dimensions=""								name_in_code="dynamicsBergTimeStep"			units="s"		packages="pkgBergs"/>
+		<var name="bergDynamicsTimeStep"		type="real"		dimensions=""								name_in_code="bergDynamicsTimeStep"			units="s"		packages="pkgBergs"/>
 		<var name="uBergVelocity"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="uBergVelocity"				units="m/s"		packages="pkgBergs"/>
 		<var name="vBergVelocity"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="vBergVelocity"				units="m/s"		packages="pkgBergs"/>
 		<var name="uBergVelocityCell"			type="real"		dimensions="nBergCategories nCells Time"	name_in_code="uBergVelocityCell"			units="m/s"		packages="pkgBergs"/>

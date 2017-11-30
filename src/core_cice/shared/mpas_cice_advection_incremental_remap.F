@@ -2377,7 +2377,6 @@ contains
          updateHaloInit,   & ! if true, do initial halo updates for velocity, mass and tracer fields
          updateHaloFinal     ! if true, do final halo updates for mass and tracer fields
 
-    type (mpas_pool_type), pointer :: velocitySolverPool
     type (mpas_pool_type), pointer :: incrementalRemapPool
     type (mpas_pool_type), pointer :: tracerPool
 
@@ -2439,7 +2438,10 @@ contains
        if (verboseRun) call mpas_log_write('Doing initial halo updates for velocity, mass and tracers')
 
        call mpas_timer_start("incr remap init halo")
+
        ! velocity
+       ! dcnote - with this setup, halo exchanges occur for iceberg velocities for every category
+       ! open to improvement
        call MPAS_dmpar_field_halo_exch(domain, 'u' // trim(tracersHead % argumentName) // 'Velocity')
        call MPAS_dmpar_field_halo_exch(domain, 'v' // trim(tracersHead % argumentName) // 'Velocity')
 
@@ -2513,12 +2515,9 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Call incremental_remap_block: block = $i', intArgs=(/block % localBlockID/))
-!dcnote - dynamicsTimeStep will need to be adjusted
-! dynamicsTimeStep = tracersHead % dynamicsTimeStep
+
        ! get dynamics time step
-       call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // "velocity_solver", velocitySolverPool)
-       ! call MPAS_pool_get_array(velocitySolverPool, "dynamicsTimeStep", dynamicsTimeStep)
-       call MPAS_pool_get_array(velocitySolverPool, "dynamics" // trim(tracersHead % argumentName) // "TimeStep", dynamicsTimeStep)
+       dynamicsTimeStep => tracersHead % dynamicsTimeStep
 
        ! do IR for this block
        call incremental_remap_block(&
@@ -2737,8 +2736,9 @@ contains
     type (mpas_pool_type), pointer :: tracerPool
     type (mpas_pool_type), pointer :: meshPool
     type (mpas_pool_type), pointer :: incrementalRemapPool
-!dcnote - prefixIncrementalRemapPool name can be improved, need to distinguish for
-! maskCategoryCell and workCategoryCell variables that have nCategories dependence
+
+    ! dcnote - prefixIncrementalRemapPool needed to distinguish for maskCategoryCell and workCategoryCell
+    ! variables that have nCategories dependence open to improvement
     type (mpas_pool_type), pointer :: prefixIncrementalRemapPool
     type (mpas_pool_type), pointer :: configPool
 
@@ -2861,9 +2861,6 @@ contains
 
     ! get pools
     call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-! !dcnote - testing using sea ice velocities
-!     call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'velocity_solver', velocityPool)
-    ! call mpas_pool_get_subpool(block % structs, 'velocity_solver', velocityPool)
     call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
     call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
 
@@ -2872,15 +2869,10 @@ contains
     call mpas_pool_get_config(configPool, 'config_rotate_cartesian_grid', config_rotate_cartesian_grid)
     call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
 
-!dcnote - generalize
     ! get velocity
     uVelocity => tracersHead % uVelocity
     vVelocity => tracersHead % vVelocity
-    ! call mpas_pool_get_array(velocityPool, 'uVelocity', uVelocity)
-    ! call mpas_pool_get_array(velocityPool, 'vVelocity', vVelocity)
-    ! call mpas_pool_get_array(velocityPool, 'u' // trim(tracersHead % argumentName) // 'Velocity', uVelocity)
-    ! call mpas_pool_get_array(velocityPool, 'v' // trim(tracersHead % argumentName) // 'Velocity', vVelocity)
-!dcnote - would need to generalize
+
     ! set pointers to tracer arrays
     call cice_set_tracer_array_pointers(tracersHead, block, timeLevel)
 
@@ -2932,7 +2924,7 @@ contains
     call mpas_pool_get_array(incrementalRemapPool, 'minLengthEdgesOnVertex', minLengthEdgesOnVertex)
     call mpas_pool_get_array(incrementalRemapPool, 'maskEdge', maskEdge)
     call mpas_pool_get_array(incrementalRemapPool, 'maskCell', maskCell)
-!dcnote - generalize
+
     call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'incremental_remap', prefixIncrementalRemapPool)
     call mpas_pool_get_array(prefixIncrementalRemapPool, 'mask' // trim(tracersHead % argumentName) // 'CategoryCell', maskCategoryCell)
     call mpas_pool_get_array(prefixIncrementalRemapPool, 'work' // trim(tracersHead % argumentName) // 'CategoryCell', workCategoryCell)
