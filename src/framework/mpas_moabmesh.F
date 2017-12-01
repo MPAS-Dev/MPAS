@@ -50,14 +50,16 @@ module mpas_moabmesh
 
     integer , external :: iMOAB_RegisterFortranApplication, &
         iMOAB_CreateVertices, iMOAB_WriteMesh, iMOAB_CreateElements, &
-        iMOAB_ResolveSharedEntities, iMOAB_DetermineGhostEntities
+        iMOAB_ResolveSharedEntities, iMOAB_DetermineGhostEntities, &
+        iMOAB_DefineTagStorage,  iMOAB_SetIntTagStorage
     integer :: c_comm, i1, j1, ic, lastvertex
     character*12 appname
     integer :: ierr, num_verts_in_cells, ext_comp_id
     real(kind=RKIND), allocatable, target :: moab_vert_coords(:)
     integer dimcoord, dimen, mbtype, block_ID, proc_id
     integer  ,allocatable , target :: all_connects(:)
-    character*100 outfile, wopts, localmeshfile, lnum
+    character*100 outfile, wopts, localmeshfile, lnum, tagname
+    integer tagtype, numco, tag_sto_len, ent_type, tagindex
 
     c_comm = domain % dminfo % comm
     appname = 'MPAS_MESH'//CHAR(0)
@@ -137,6 +139,21 @@ module mpas_moabmesh
 
        ierr = iMOAB_CreateElements( pid, nCellsSolve, mbtype, maxEdges, all_connects, block_ID );
        call errorout(ierr, 'fail to create polygons')
+!      set the global id for vertices
+!   first, retrieve the tag
+       tagname='GLOBAL_ID'//CHAR(0)
+       tagtype = 0  ! dense, integer
+       numco = 1
+       ierr = iMOAB_DefineTagStorage(pid, tagname, tagtype, numco,  tagindex )
+       call errorout(ierr, 'fail to get global id tag')
+! now set the values
+       ent_type = 0 ! vertex type
+       ierr = iMOAB_SetIntTagStorage ( pid, tagname, nVertices , ent_type, indexToVertexID )
+       call errorout(ierr, 'fail to set global id tag for vertices')
+       ! set global id tag for elements
+       ent_type = 1 ! now set the global id tag on elements
+       ierr = iMOAB_SetIntTagStorage ( pid, tagname, nCellsSolve, ent_type, indexToCellID)
+       call errorout(ierr, 'fail to set global id tag for polygons')
        ! get next block
 #ifdef MPAS_DEBUG
        if (proc_id.lt. 5) then
