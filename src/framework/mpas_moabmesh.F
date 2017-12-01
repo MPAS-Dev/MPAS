@@ -53,7 +53,7 @@ module mpas_moabmesh
     character*12 appname
     integer :: ierr, num_verts_in_cells, ext_comp_id
     real(kind=RKIND), allocatable, target :: moab_vert_coords(:)
-    integer, allocatable, target :: indexUsed(:), invMap(:)
+    integer, allocatable, target :: indexUsed(:), invMap(:), localIds(:)
     integer dimcoord, dimen, mbtype, block_ID, proc_id
     integer  ,allocatable , target :: all_connects(:)
     character*100 outfile, wopts, localmeshfile, lnum, tagname
@@ -97,12 +97,10 @@ module mpas_moabmesh
 !       call mpas_pool_get_array(meshPool, 'yCell', yCell)
 !       call mpas_pool_get_array(meshPool, 'zCell', zCell)
 
-#ifdef MPAS_DEBUG
-       call mpas_log_write(' number of vertices:: $i number of cells:: $i solve: v:$i c:$i', intArgs=(/nVertices, nCells, nVerticesSolve, nCellsSolve/) )
-#endif
+       call mpas_log_write(' MOAB instance: number of vertices:: $i number of cells:: $i solve: v:$i c:$i', intArgs=(/nVertices, nCells, nVerticesSolve, nCellsSolve/) )
         !!
        allocate(indexUsed(nVertices), invMap(nVertices) ) ! conservative, invMap should be smaller
-       indexUsed = 0 ! not used yet
+       indexUsed = 0
        invMap = 0
     ! fill now connectivity array, nCellsSolve; fist pad to max nc
        num_verts_in_cells = nCellsSolve * maxEdges
@@ -147,10 +145,11 @@ module mpas_moabmesh
        dimen = 3
        ierr = iMOAB_CreateVertices(pid, dimcoord, dimen, moab_vert_coords)
        call errorout(ierr, 'fail to create vertices')
+       call mpas_log_write(' MOAB instance: created $i vertices on local proc $i ',intArgs=(/currentVertex, proc_id/))
 !  so we know we used only currentvertex vertices in the pool (the rest are in halo)
        mbtype = 4 !  polygon
 
-       block_ID = 100 + nblocks ! this will be for coarse mesh
+       block_ID = 100*proc_id + nblocks ! we should have only one block right now
 
        ierr = iMOAB_CreateElements( pid, nCellsSolve, mbtype, maxEdges, all_connects, block_ID );
        call errorout(ierr, 'fail to create polygons')
@@ -162,11 +161,12 @@ module mpas_moabmesh
        ierr = iMOAB_DefineTagStorage(pid, tagname, tagtype, numco,  tagindex )
        call errorout(ierr, 'fail to get global id tag')
 ! now set the values
-       ent_type = 0 ! vertex type! reuse
+       ent_type = 0 ! vertex type
+       allocate(localIds(currentVertex))
        do i1 = 1, currentVertex
-         invMap(i1) = indexToVertexID (invMap(i1))
+         localIds(i1) = indexToVertexID (invMap(i1))
        enddo
-       ierr = iMOAB_SetIntTagStorage ( pid, tagname, currentVertex , ent_type, invMap )
+       ierr = iMOAB_SetIntTagStorage ( pid, tagname, currentVertex , ent_type, localIds )
        call errorout(ierr, 'fail to set global id tag for vertices')
        ! set global id tag for elements
        ent_type = 1 ! now set the global id tag on elements
@@ -176,19 +176,20 @@ module mpas_moabmesh
 #ifdef MPAS_DEBUG
        if (proc_id.lt. 5) then
          write(lnum,"(I0.2)")proc_id
-         localmeshfile = 'owned_'//trim(lnum)// '.h5m' // CHAR(0)
+         localmeshfile = 'ownedOcn_'//trim(lnum)// '.h5m' // CHAR(0)
          wopts = CHAR(0)
          ierr = iMOAB_WriteMesh(pid, localmeshfile, wopts)
          call errorout(ierr, 'fail to write local mesh file')
        endif
 #endif
-       ierr = iMOAB_ResolveSharedEntities( pid, currentVertex, invMap );
+       ierr = iMOAB_ResolveSharedEntities( pid, currentVertex, localIds );
        call errorout(ierr, 'fail to resolve shared entities')
 
        deallocate (moab_vert_coords)
        deallocate (all_connects)
        deallocate (indexUsed)
        deallocate (invMap)
+       deallocate (localIds)
        block => block % next
 
     end do !}}}
@@ -198,7 +199,7 @@ module mpas_moabmesh
       call errorout(1, 'more than one block per task')
     endif 
     !     write out the mesh file to disk, in parallel
-    outfile = 'whole.h5m'//CHAR(0)
+    outfile = 'wholeMPAS.h5m'//CHAR(0)
     wopts   = 'PARALLEL=WRITE_PART'//CHAR(0)
     ierr = iMOAB_WriteMesh(pid, outfile, wopts)
     call errorout(ierr, 'fail to write the mesh file')
