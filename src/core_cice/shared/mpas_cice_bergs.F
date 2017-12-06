@@ -114,24 +114,33 @@ contains
          ierr  !< Input/Output:
 
     logical, pointer :: &
-         config_use_berg_velocity_solver ! indicates if berg velocity solver is used
+         config_use_berg_velocity_solver, & ! indicates if berg velocity solver is used
+         config_use_berg_advection
 
-    logical, pointer :: &
-         config_use_berg_advection ! flag for advection
+    integer, pointer :: &
+         config_berg_dynamics_subcycle_number ! berg dynamics subcycling number
+
+    integer :: &
+         iBergSubcycle
 
     ! determine if velocity solver switched on
     call MPAS_pool_get_config(domain % configs, "config_use_berg_velocity_solver", config_use_berg_velocity_solver)
     call MPAS_pool_get_config(domain % configs, "config_use_berg_advection", config_use_berg_advection)
+    call MPAS_pool_get_config(domain % configs, "config_berg_dynamics_subcycle_number", config_berg_dynamics_subcycle_number)
 
-    ! berg velocity solver
-    call mpas_timer_start("Berg velocity solver")
-    if (config_use_berg_velocity_solver) call cice_run_berg_velocity_solver(domain, clock)
-    call mpas_timer_stop("Berg velocity solver")
+    do iBergSubcycle = 1, config_berg_dynamics_subcycle_number
 
-    ! advection by incremental remapping
-    call mpas_timer_start("Berg advection")
-    if (config_use_berg_advection) call cice_run_berg_advection(domain, clock, ierr)
-    call mpas_timer_stop("Berg advection")
+       ! berg velocity solver
+       call mpas_timer_start("Berg velocity solver")
+       if (config_use_berg_velocity_solver) call cice_run_berg_velocity_solver(domain, clock)
+       call mpas_timer_stop("Berg velocity solver")
+
+       ! advection by incremental remapping
+       call mpas_timer_start("Berg advection")
+       if (config_use_berg_advection) call cice_run_berg_advection(domain, clock, ierr)
+       call mpas_timer_stop("Berg advection")
+
+    enddo ! iBergSubcycle
 
   end subroutine cice_run_berg_dynamics
 

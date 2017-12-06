@@ -240,9 +240,10 @@ contains
          clock !< Input:
 
     ! pre subcycle
-    call mpas_timer_start("Berg velocity solver pre-cycle")
+    ! dcnote - with advection, these need to be recalculated each subcycle
+    call mpas_timer_start("Berg velocity solver pre-subcycle")
     call berg_velocity_solver_pre_subcycle(domain)
-    call mpas_timer_stop("Berg velocity solver pre-cycle")
+    call mpas_timer_stop("Berg velocity solver pre-subcycle")
 
     ! subcycle the dynamics
     call mpas_timer_start("Berg velocity solver sub-cycle")
@@ -263,7 +264,7 @@ contains
 !> \author  Darin Comeau, LANL
 !> \date    June 28, 2017
 !> \details This subroutine initializes and prepares variables & masks
-!> needed for iceberg velocity subcycling.
+!> needed for iceberg velocity subcycle step.
 !
 !-----------------------------------------------------------------------
 
@@ -809,45 +810,7 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  berg_velocity_solver_subcycle
-!> \brief   Solve for berg velocities
-!> \author  Darin Comeau, LANL
-!> \date    July 17, 2017
-!> \details This subroutine solves for iceberg velocities on a subcycle.
-!
-!-----------------------------------------------------------------------
-
-  subroutine berg_velocity_solver_subcycle(&
-       domain, &
-       clock)!{{{
-
-    type(domain_type), intent(inout) :: &
-         domain !< Input/Output:
-
-    type(MPAS_Clock_type), intent(in) :: &
-         clock !< Input:
-
-    integer, pointer :: &
-         config_berg_dynamics_subcycle_number ! berg dynamics subcycling number
-
-    integer :: &
-         iBergSubcycle
-
-    call MPAS_pool_get_config(domain % configs, "config_berg_dynamics_subcycle_number", config_berg_dynamics_subcycle_number)
-
-    do iBergSubcycle = 1, config_berg_dynamics_subcycle_number
-
-       call single_subcycle_berg_velocity_solver(&
-            domain, &
-            clock)
-
-    enddo
-
-  end subroutine berg_velocity_solver_subcycle!}}}
-
-!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-!
-!  single_subcycle_berg_velocity_solver
+!  berg_velocity_subcycle
 !
 !> \brief   Solve for berg velocities
 !> \author  Darin Comeau, LANL
@@ -857,7 +820,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine single_subcycle_berg_velocity_solver(&
+  subroutine berg_velocity_subcycle(&
        domain, &
        clock)!{{{
 
@@ -897,7 +860,7 @@ contains
     call MPAS_dmpar_field_halo_exch(domain, 'vBergVelocity')
     call mpas_timer_stop("Berg velocity solver halo")
 
-  end subroutine single_subcycle_berg_velocity_solver!}}}
+  end subroutine berg_velocity_subcycle!}}}
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
