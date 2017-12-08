@@ -48,7 +48,8 @@ module mpas_moabmesh
     integer , external :: iMOAB_RegisterFortranApplication, &
         iMOAB_CreateVertices, iMOAB_WriteMesh, iMOAB_CreateElements, &
         iMOAB_ResolveSharedEntities, iMOAB_DetermineGhostEntities, &
-        iMOAB_DefineTagStorage,  iMOAB_SetIntTagStorage
+        iMOAB_DefineTagStorage,  iMOAB_SetIntTagStorage , &
+        iMOAB_UpdateMeshInfo
     integer :: c_comm, i1, j1, ic, lastvertex
     character*12 appname
     integer :: ierr, num_verts_in_cells, ext_comp_id
@@ -198,6 +199,8 @@ module mpas_moabmesh
     if (nblocks .ne. 1) then
       call errorout(1, 'more than one block per task')
     endif 
+    ierr = iMOAB_UpdateMeshInfo(pid)
+    call errorout(ierr, 'fail to update mesh info')
     !     write out the mesh file to disk, in parallel
     outfile = 'wholeMPAS.h5m'//CHAR(0)
     wopts   = 'PARALLEL=WRITE_PART'//CHAR(0)
