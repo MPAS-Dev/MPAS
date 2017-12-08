@@ -1031,7 +1031,7 @@ module mpas_geometry_utils
       integer, dimension(:), intent(in) :: nEdgesOnCell        ! number of edges bordering cell
       real (kind=RKIND), dimension(:), intent(in) :: xc,yc,zc  ! center cell locations
       real (kind=RKIND), intent(in) :: xp,yp,zp                ! point to find cell locations
-      type (mpas_pool_type), intent(in), pointer :: meshPool   ! meshPool pointer
+      type (mpas_pool_type), intent(in) :: meshPool            ! meshPool pointer
 
       real (kind=RKIND) :: pointRadius   ! magnitude of a point radius
       integer :: iPoint, aPoint, cellGuess, cellID
@@ -1251,7 +1251,7 @@ module mpas_geometry_utils
       real (kind=RKIND), dimension(3, nVertices), intent(in) :: vertCoords
       real (kind=RKIND), dimension(3), intent(in) :: pointInterp
       real (kind=RKIND), dimension(nVertices), optional, intent(in) :: areaBin
-      type (mpas_pool_type), pointer :: meshPool
+      type (mpas_pool_type) :: meshPool
       ! output
       real (kind=RKIND), dimension(nVertices) :: mpas_wachspress_coordinates
       ! computational intermediates
