@@ -157,6 +157,12 @@ module ocn_core_interface
        character (len=StrKIND) :: tracerGroupName, configName, packageName
        integer :: startIndex, strLen
 
+      logical, pointer :: cdgActive, config_cdg_do_passive
+      integer, pointer :: config_cdg_basis_order_horiz, config_cdg_num_basis_funcs_horiz
+      integer, pointer :: config_cdg_quad_order_horiz, config_cdg_num_quad_points_horiz
+      integer, pointer :: config_cdg_cell_depth, config_cdg_max_inc_cells
+      integer, pointer :: config_cdg_basis_order_vert, config_cdg_num_basis_funcs_3d
+
       ierr = 0
 
       !
@@ -276,6 +282,92 @@ module ocn_core_interface
       call mpas_pool_get_config(configPool, 'config_pressure_gradient_type', config_pressure_gradient_type)
       if (config_pressure_gradient_type.eq.'Jacobian_from_TS') then
          inSituEOSActive = .true.
+      end if
+
+      !
+      ! Initialize cdg advection parameters
+      !
+      call mpas_pool_get_package(packagePool, 'cdgActive', cdgActive)
+      call mpas_pool_get_config(configPool, 'config_cdg_do_passive', config_cdg_do_passive)
+      if (config_cdg_do_passive) then
+         cdgActive = .true.
+         call mpas_pool_get_config(configPool, 'config_cdg_quad_order_horiz', config_cdg_quad_order_horiz)
+         call mpas_pool_get_config(configPool, 'config_cdg_num_quad_points_horiz', config_cdg_num_quad_points_horiz)
+         call mpas_pool_get_config(configPool, 'config_cdg_basis_order_horiz', config_cdg_basis_order_horiz)
+         call mpas_pool_get_config(configPool, 'config_cdg_num_basis_funcs_horiz', config_cdg_num_basis_funcs_horiz)
+         call mpas_pool_get_config(configPool, 'config_cdg_cell_depth', config_cdg_cell_depth)
+         call mpas_pool_get_config(configPool, 'config_cdg_max_inc_cells', config_cdg_max_inc_cells)
+         call mpas_pool_get_config(configPool, 'config_cdg_basis_order_vert', config_cdg_basis_order_vert)
+         call mpas_pool_get_config(configPool, 'config_cdg_num_basis_funcs_3d', config_cdg_num_basis_funcs_3d)
+
+         select case (config_cdg_quad_order_horiz)
+            case (1)
+               config_cdg_num_quad_points_horiz = 1
+            case (2)
+               config_cdg_num_quad_points_horiz = 3
+            case (3:4)
+               config_cdg_num_quad_points_horiz = 6
+            case (5)
+               config_cdg_num_quad_points_horiz = 10
+            case (6)
+               config_cdg_num_quad_points_horiz = 11
+            case (8)
+               config_cdg_num_quad_points_horiz = 16
+            case (9)
+               config_cdg_num_quad_points_horiz = 19
+            case default
+               call mpas_log_write( 'invalid thickness weighted tracer field quadrature order for the cdg advection scheme, must be 1-9' )
+               stop
+         end select
+
+         select case (config_cdg_basis_order_horiz)
+            case (1)
+               config_cdg_num_basis_funcs_horiz = 1
+            case (2)
+               config_cdg_num_basis_funcs_horiz = 3
+            case (3)
+               config_cdg_num_basis_funcs_horiz = 6
+            case (4)
+               config_cdg_num_basis_funcs_horiz = 10
+            case (5)
+               config_cdg_num_basis_funcs_horiz = 15
+            case default
+               call mpas_log_write( 'invalid thickness weighted tracer field basis function order for the cdg advection scheme, must be 0-4' )
+               stop
+         end select
+
+         select case (config_cdg_cell_depth)
+            ! Must account for both quad and hex meshes
+            case (1)
+               config_cdg_max_inc_cells = 6
+            case (2)
+               config_cdg_max_inc_cells = 20
+            case (3)
+               config_cdg_max_inc_cells = 42
+            case default
+               call mpas_log_write( 'invalid cell depth for the cdg advection scheme, must be 1-3' )
+               stop
+         end select
+
+         if (config_cdg_basis_order_horiz .eq. 1 .and. config_cdg_basis_order_vert .eq. 1) then
+            config_cdg_num_basis_funcs_3d = 1
+         else if (config_cdg_basis_order_horiz .eq. 1 .and. config_cdg_basis_order_vert .eq. 2) then
+            config_cdg_num_basis_funcs_3d = 2
+         else if (config_cdg_basis_order_horiz .eq. 1 .and. config_cdg_basis_order_vert .eq. 3) then
+            config_cdg_num_basis_funcs_3d = 3
+         else if (config_cdg_basis_order_horiz .eq. 2 .and. config_cdg_basis_order_vert .eq. 1) then
+            config_cdg_num_basis_funcs_3d = 3
+         else if (config_cdg_basis_order_horiz .eq. 2 .and. config_cdg_basis_order_vert .eq. 2) then
+            config_cdg_num_basis_funcs_3d = 4
+         else if (config_cdg_basis_order_horiz .eq. 2 .and. config_cdg_basis_order_vert .eq. 3) then
+            config_cdg_num_basis_funcs_3d = 5
+         else if (config_cdg_basis_order_horiz .eq. 3 .and. config_cdg_basis_order_vert .eq. 1) then
+            config_cdg_num_basis_funcs_3d = 6
+         else if (config_cdg_basis_order_horiz .eq. 3 .and. config_cdg_basis_order_vert .eq. 2) then
+            config_cdg_num_basis_funcs_3d = 7
+         else if (config_cdg_basis_order_horiz .eq. 3 .and. config_cdg_basis_order_vert .eq. 3) then
+            config_cdg_num_basis_funcs_3d = 8
+         end if
       end if
 
       !

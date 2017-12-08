@@ -79,6 +79,8 @@ module ocn_forward_mode
 
    use ocn_constants
 
+   use ocn_cdg_manager
+
    implicit none
    private
 
@@ -126,6 +128,8 @@ module ocn_forward_mode
       character (len=StrKIND), pointer :: config_vert_coord_movement, config_pressure_gradient_type
       real (kind=RKIND), pointer :: config_maxMeshDensity
 
+      logical, pointer :: config_cdg_do_passive
+
       ierr = 0
 
       !
@@ -145,6 +149,7 @@ module ocn_forward_mode
       call mpas_pool_get_config(domain % configs, 'config_filter_btr_mode', config_filter_btr_mode)
       call mpas_pool_get_config(domain % configs, 'config_maxMeshDensity', config_maxMeshDensity)
       call mpas_pool_get_config(domain % configs, 'config_conduct_tests', config_conduct_tests)
+      call mpas_pool_get_config(domain % configs, 'config_cdg_do_passive', config_cdg_do_passive)
 
       !
       ! Read input data for model
@@ -183,6 +188,10 @@ module ocn_forward_mode
 
       ! Initialize submodules before initializing blocks.
       call ocn_timestep_init(ierr)
+
+      if (config_cdg_do_passive) then
+         call ocn_cdg_manager_init_periodic_geom(domain)
+      end if
 
       call ocn_thick_hadv_init(err_tmp)
       ierr = ior(ierr, err_tmp)
@@ -348,6 +357,12 @@ module ocn_forward_mode
           call mpas_log_write('An error was encountered while initializing ' &
                // 'the analysis members in the MPAS-Ocean forward mode', MPAS_LOG_CRIT)
       endif
+
+      ! Initialize the cdg advection modules
+      if (config_cdg_do_passive) then
+         call ocn_cdg_manager_init(domain, err_tmp)
+         ierr = ior(ierr, err_tmp)
+      end if
 
    end function ocn_forward_mode_init!}}}
 
@@ -665,6 +680,14 @@ module ocn_forward_mode
       type (domain_type), intent(inout) :: domain
 
       integer :: ierr
+
+      logical, pointer :: config_cdg_do_passive
+
+      call mpas_pool_get_config(domain % configs, 'config_cdg_do_passive', config_cdg_do_passive)
+
+      if (config_cdg_do_passive) then
+         call ocn_cdg_manager_finalize(domain, ierr)
+      end if
 
       call ocn_analysis_finalize(domain, ierr)
 

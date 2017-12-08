@@ -66,6 +66,13 @@ OBJS = mpas_ocn_init_routines.o \
 	   mpas_ocn_sea_ice.o \
 	   mpas_ocn_framework_forcing.o \
        mpas_ocn_particle_helpers.o \
+       mpas_ocn_cdg_types.o \
+       mpas_ocn_cdg_triangle.o \
+       mpas_ocn_cdg_basis.o \
+       mpas_ocn_cdg_characteristic.o \
+       mpas_ocn_cdg_advection.o \
+       mpas_ocn_cdg_manager.o \
+       mpas_ocn_cdg_advection_vert.o \
 
 all: $(OBJS)
 
@@ -196,6 +203,22 @@ mpas_ocn_time_average_coupled.o: mpas_ocn_constants.o
 mpas_ocn_framework_forcing.o:
 
 mpas_ocn_particle_helpers.o:
+
+mpas_ocn_cdg_types.o:
+
+mpas_ocn_cdg_triangle.o: mpas_ocn_cdg_types.o mpas_ocn_particle_helpers.o
+
+mpas_ocn_cdg_basis.o: mpas_ocn_cdg_triangle.o mpas_ocn_cdg_types.o
+
+mpas_ocn_cdg_characteristic.o: mpas_ocn_cdg_triangle.o mpas_ocn_particle_helpers.o
+
+mpas_ocn_cdg_limiter.o: mpas_ocn_cdg_basis.o mpas_ocn_cdg_triangle.o mpas_ocn_cdg_types.o
+
+mpas_ocn_cdg_advection.o: mpas_ocn_cdg_limiter.o mpas_ocn_cdg_characteristic.o mpas_ocn_cdg_basis.o mpas_ocn_cdg_triangle.o mpas_ocn_cdg_types.o mpas_ocn_particle_helpers.o
+
+mpas_ocn_cdg_advection_vert.o: mpas_ocn_cdg_basis.o mpas_ocn_cdg_types.o
+
+mpas_ocn_cdg_manager.o: mpas_ocn_cdg_advection_vert.o mpas_ocn_cdg_advection.o mpas_ocn_cdg_limiter.o mpas_ocn_cdg_characteristic.o mpas_ocn_cdg_basis.o mpas_ocn_cdg_triangle.o mpas_ocn_cdg_types.o mpas_ocn_particle_helpers.o
 
 clean:
 	$(RM) *.o *.i *.mod *.f90

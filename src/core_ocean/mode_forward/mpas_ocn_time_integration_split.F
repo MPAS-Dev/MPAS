@@ -42,6 +42,8 @@ module ocn_time_integration_split
 
    use ocn_effective_density_in_land_ice
 
+   use ocn_cdg_manager
+
    implicit none
    private
    save
@@ -1739,6 +1741,9 @@ module ocn_time_integration_split
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! END large iteration loop
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      ! CDG tracer advection
+      call ocn_cdg_manager_run(domain, dt)
 
       call mpas_timer_start("se implicit vert mix")
 

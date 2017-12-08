@@ -9,7 +9,9 @@ OBJS = mpas_vector_operations.o \
        mpas_tracer_advection_helpers.o \
        mpas_tracer_advection_mono.o \
        mpas_tracer_advection_std.o \
-	   mpas_geometry_utils.o
+	   mpas_geometry_utils.o \
+	   mpas_planar_projection.o \
+	   fsi.o
 
 DEPS := $(shell find ../core_$(CORE)/ -type f -name "*.xml" ! -name "*processed.xml")
 
@@ -28,6 +30,10 @@ mpas_tracer_advection_helpers.o: mpas_geometry_utils.o $(DEPS)
 mpas_tracer_advection_mono.o: mpas_tracer_advection_helpers.o
 mpas_tracer_advection_std.o: mpas_tracer_advection_helpers.o
 mpas_geometry_utils.o: mpas_matrix_operations.o
+mpas_planar_projection.o:
+
+fsi.o: ./siqk/fsi.cpp ./siqk/fsi.h ./siqk/siqp.hpp ./siqk/Array_raw.hpp
+	$(CC) -std=c++11 -I ./siqk -c ./siqk/fsi.cpp
 
 clean:
 	$(RM) *.o *.mod *.f90 libops.a

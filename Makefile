@@ -222,11 +222,11 @@ gfortran:
 	"FFLAGS_OPT = -O3 -m64 -ffree-line-length-none -fconvert=big-endian -ffree-form" \
 	"CFLAGS_OPT = -O3 -m64" \
 	"CXXFLAGS_OPT = -O3 -m64" \
-	"LDFLAGS_OPT = -O3 -m64" \
+	"LDFLAGS_OPT = -O3 -m64 /usr/projects/hpcsoft/toss2/common/gcc/4.8.2/lib64/libstdc++.so" \
 	"FFLAGS_DEBUG = -g -m64 -ffree-line-length-none -fconvert=big-endian -ffree-form -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,overflow" \
 	"CFLAGS_DEBUG = -g -m64" \
 	"CXXFLAGS_DEBUG = -O3 -m64" \
-	"LDFLAGS_DEBUG = -g -m64" \
+	"LDFLAGS_DEBUG = -g -m64 /usr/projects/hpcsoft/toss2/common/gcc/4.8.2/lib64/libstdc++.so" \
 	"FFLAGS_OMP = -fopenmp" \
 	"CFLAGS_OMP = -fopenmp" \
 	"CORE = $(CORE)" \
