@@ -221,8 +221,10 @@ module ocn_tracer_advection_mono
 
           ! Operate on top cell in column
           k = 1
-          tracer_max_vert(k,iCell) = max(tracer_cur(k,iCell),tracer_cur(k+1,iCell))
-          tracer_min_vert(k,iCell) = min(tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+          !tracer_max_vert(k,iCell) = max(tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+          !tracer_min_vert(k,iCell) = min(tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+          tracer_max_hor(k,iCell) = max(tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+          tracer_min_hor(k,iCell) = min(tracer_cur(k,iCell),tracer_cur(k+1,iCell))
 
           ! Operate on next-to-top cell in column
           k = max(1, min(maxLevelCell(iCell), 2))
@@ -231,8 +233,10 @@ module ocn_tracer_advection_mono
             verticalWeightKm1 = verticalCellSize(k, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
             high_order_vert_flux(k,iCell) = w(k,iCell)*(verticalWeightK*tracer_cur(k,iCell)+verticalWeightKm1 &
                 *tracer_cur(k-1,iCell))
-            tracer_max_vert(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
-            tracer_min_vert(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+            !tracer_max_vert(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+            !tracer_min_vert(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+            tracer_max_hor(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+            tracer_min_hor(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
           end if
 
           ! Operate on internal cells in column
@@ -242,8 +246,10 @@ module ocn_tracer_advection_mono
                                        tracer_cur(k  ,iCell),tracer_cur(k+1,iCell), w(k,iCell))
 
                 ! mrp 170818 note: these two lines are identical to other sets, could be pulled out.
-                tracer_max_vert(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
-                tracer_min_vert(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                !tracer_max_vert(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                !tracer_min_vert(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                tracer_max_hor(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                tracer_min_hor(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
              end do
           else if ( vert3rdOrder ) then
              do k=3,maxLevelCell(iCell)-1
@@ -251,8 +257,10 @@ module ocn_tracer_advection_mono
                                        tracer_cur(k  ,iCell),tracer_cur(k+1,iCell), w(k,iCell), coef_3rd_order )
 
                 ! mrp 170818 note: these two lines are identical to other sets, could be pulled out.
-                tracer_max_vert(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
-                tracer_min_vert(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                !tracer_max_vert(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                !tracer_min_vert(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                tracer_max_hor(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                tracer_min_hor(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
              end do
           else if ( vert2ndOrder ) then
              do k=3,maxLevelCell(iCell)-1
@@ -262,8 +270,10 @@ module ocn_tracer_advection_mono
                                               * tracer_cur(k-1,iCell))
 
                 ! mrp 170818 note: these two lines are identical to other sets, could be pulled out.
-                tracer_max_vert(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
-                tracer_min_vert(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                !tracer_max_vert(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                !tracer_min_vert(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                tracer_max_hor(k,iCell) = max(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
+                tracer_min_hor(k,iCell) = min(tracer_cur(k-1,iCell),tracer_cur(k,iCell),tracer_cur(k+1,iCell))
              end do
           end if
 
@@ -272,12 +282,14 @@ module ocn_tracer_advection_mono
           verticalWeightK = verticalCellSize(k-1, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
           verticalWeightKm1 = verticalCellSize(k, iCell) / (verticalCellSize(k, iCell) + verticalCellSize(k-1, iCell))
           high_order_vert_flux(k,iCell) = w(k,iCell)*(verticalWeightK*tracer_cur(k,iCell)+verticalWeightKm1*tracer_cur(k-1,iCell))
-          tracer_max_vert(k,iCell) = max(tracer_cur(k,iCell),tracer_cur(k-1,iCell))
-          tracer_min_vert(k,iCell) = min(tracer_cur(k,iCell),tracer_cur(k-1,iCell))
+          !tracer_max_vert(k,iCell) = max(tracer_cur(k,iCell),tracer_cur(k-1,iCell))
+          !tracer_min_vert(k,iCell) = min(tracer_cur(k,iCell),tracer_cur(k-1,iCell))
+          tracer_max_hor(k,iCell) = max(tracer_cur(k,iCell),tracer_cur(k-1,iCell))
+          tracer_min_hor(k,iCell) = min(tracer_cur(k,iCell),tracer_cur(k-1,iCell))
 
           ! Compute tracer_min_hor and tracer_max_hor from the surrounding horizontal cells
-          tracer_max_hor(:,iCell) = tracer_cur(:,iCell)
-          tracer_min_hor(:,iCell) = tracer_cur(:,iCell)
+          !tracer_max_hor(:,iCell) = tracer_cur(:,iCell)
+          !tracer_min_hor(:,iCell) = tracer_cur(:,iCell)
           do i = 1, nEdgesOnCell(iCell)
             do k=1, min(maxLevelCell(iCell), maxLevelCell(cellsOnCell(i, iCell)))
               tracer_max_hor(k,iCell) = max(tracer_max_hor(k,iCell),tracer_cur(k, cellsOnCell(i,iCell)))
