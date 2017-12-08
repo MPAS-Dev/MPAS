@@ -123,6 +123,7 @@
 #endif
 
 #ifdef MPAS_NATIVE_TIMERS
+             call mpas_threading_barrier()
              if ( threadNum == 0 ) then
                 setup_timer = .false.
    
