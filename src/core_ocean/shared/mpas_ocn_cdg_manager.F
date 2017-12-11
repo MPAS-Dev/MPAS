@@ -30,13 +30,13 @@
 !#define CDG_INIT_ANALYTIC
 
 ! Lock exchange
-#define NX_LOCAL 8
-#define XLEN 8000.0_RKIND
-#define DELX 500.0_RKIND
-! Overflow
 !#define NX_LOCAL 8
-!#define XLEN 16000.0_RKIND
-!#define DELX 1000.0_RKIND
+!#define XLEN 8000.0_RKIND
+!#define DELX 500.0_RKIND
+! Overflow
+#define NX_LOCAL 8
+#define XLEN 16000.0_RKIND
+#define DELX 1000.0_RKIND
 !#define XLEN 128000.0_RKIND
 !#define DELX 8000.0_RKIND
 ! Baroclinic channel
@@ -121,7 +121,6 @@ module ocn_cdg_manager
       type (mpas_pool_type), pointer :: tracersPool
       type (mpas_pool_type), pointer :: tendPool
       type (mpas_pool_type), pointer :: diagnosticsPool
-      type (mpas_pool_type), pointer :: particlesPool
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: cdgPool
 
@@ -162,14 +161,13 @@ module ocn_cdg_manager
          call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
          call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
          call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
-         call mpas_pool_get_subpool(block % structs, 'particles', particlesPool)
          call mpas_pool_get_subpool(block % structs, 'cdg', cdgPool)
 
          call mpas_pool_get_array(cdgPool, 'hqCoeffsCur', hqCur)
          call mpas_pool_get_array(cdgPool, 'hqCoeffsNew', hqNew)
 
          call mpas_timer_start("cdg advection")
-         call ocn_cdg_manager_advect(meshPool, statePool, diagnosticsPool, tendPool, particlesPool, scratchPool, cdgPool, dt, &
+         call ocn_cdg_manager_advect(meshPool, statePool, diagnosticsPool, tendPool, scratchPool, cdgPool, dt, &
             config_cdg_lim, config_cdg_do_every, hqCur, hqNew)
          call mpas_timer_stop("cdg advection")
 
@@ -514,7 +512,6 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .true.)
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: statePool
       type (mpas_pool_type), pointer :: diagnosticsPool
-      type (mpas_pool_type), pointer :: particlesPool
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: cdgPool
 
@@ -533,7 +530,6 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .true.)
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block % structs, 'state', statePool)
          call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
-         call mpas_pool_get_subpool(block % structs, 'particles', particlesPool)
          call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
          call mpas_pool_get_subpool(block % structs, 'cdg', cdgPool)
 
@@ -576,15 +572,15 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .false.)
             call mpas_pool_get_array(cdgPool, 'uVertexVelocityMid', uVertexMid)
             call mpas_pool_get_array(cdgPool, 'vVertexVelocityMid', vVertexMid)
             call mpas_pool_get_array(cdgPool, 'wVertexVelocityMid', wVertexMid)
-            call mpas_pool_get_array(particlesPool, 'uVertexVelocity', uVertexNew)
-            call mpas_pool_get_array(particlesPool, 'vVertexVelocity', vVertexNew)
-            call mpas_pool_get_array(particlesPool, 'wVertexVelocity', wVertexNew)
+            call mpas_pool_get_array(cdgPool, 'uVertexVelocityNew', uVertexNew)
+            call mpas_pool_get_array(cdgPool, 'vVertexVelocityNew', vVertexNew)
+            call mpas_pool_get_array(cdgPool, 'wVertexVelocityNew', wVertexNew)
 
             ! Integrate the vertices backwards along velocity characteristics to their departure points
-            call mpas_pool_get_field(particlesPool, 'uVertexVelocity', uVertex)
-            call mpas_pool_get_field(particlesPool, 'vVertexVelocity', vVertex)
-            call mpas_pool_get_field(particlesPool, 'wVertexVelocity', wVertex)
-            call ocn_vertex_reconstruction(0, meshPool, scratchPool, particlesPool, layerThickness, normVelocitySum, uVertex, vVertex, wVertex)
+            call mpas_pool_get_field(cdgPool, 'uVertexVelocityNew', uVertex)
+            call mpas_pool_get_field(cdgPool, 'vVertexVelocityNew', vVertex)
+            call mpas_pool_get_field(cdgPool, 'wVertexVelocityNew', wVertex)
+            call ocn_vertex_reconstruction(0, meshPool, scratchPool, scratchPool, layerThickness, normVelocitySum, uVertex, vVertex, wVertex)
 
             if (firstStep) then
                vertAleVelocityOld(:,:) = vertAleVelocityMid(:,:)
@@ -608,7 +604,6 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .false.)
       do while (associated(block))
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block % structs, 'state', statePool)
-         call mpas_pool_get_subpool(block % structs, 'particles', particlesPool)
          call mpas_pool_get_subpool(block % structs, 'cdg', cdgPool)
 
          if (mod(step,do_every) .eq. do_every - 1) then
@@ -616,10 +611,10 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .false.)
             call mpas_pool_get_array(cdgPool, 'departureEdges', departureEdges)
 
             if (onSphere) then
-               call ocn_cdg_char_departure_points(meshPool, particlesPool, cdgPool, dt, departurePoints)
+               call ocn_cdg_char_departure_points(meshPool, cdgPool, dt, departurePoints)
             else
-               call ocn_cdg_char_departure_points_planar(meshPool, particlesPool, cdgPool, dt, departurePoints)
-               call ocn_cdg_char_integrate_edge_planar(meshPool, particlesPool, cdgPool, dt, departureEdges)
+               call ocn_cdg_char_departure_points_planar(meshPool, cdgPool, dt, departurePoints)
+               call ocn_cdg_char_integrate_edge_planar(meshPool, cdgPool, dt, departureEdges)
             end if
 
             call ocn_cdg_basis_init_mean_3d(meshPool, statePool, cdgPool, hqQuad3D, hqBasis3D, 1)
@@ -640,7 +635,6 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .false.)
       type (mpas_pool_type), pointer :: statePool
       type (mpas_pool_type), pointer :: diagnosticsPool
       type (mpas_pool_type), pointer :: tracersPool
-      type (mpas_pool_type), pointer :: particlesPool
       type (mpas_pool_type), pointer :: cdgPool
 
       type (block_type), pointer :: block
@@ -699,7 +693,6 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .false.)
       do while (associated(block))
          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
          call mpas_pool_get_subpool(block % structs, 'state', statePool)
-         call mpas_pool_get_subpool(block % structs, 'particles', particlesPool)
          call mpas_pool_get_subpool(block % structs, 'cdg', cdgPool)
          call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
          call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
@@ -721,9 +714,9 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .false.)
             call mpas_pool_get_array(cdgPool, 'vertAleVelocityOld', vertAleVelocityOld)
             call mpas_pool_get_array(cdgPool, 'contFluxEdge', contFluxEdge)
             call mpas_pool_get_array(cdgPool, 'contFluxCell', contFluxCell)
-            call mpas_pool_get_array(particlesPool, 'uVertexVelocity', uVertex)
-            call mpas_pool_get_array(particlesPool, 'vVertexVelocity', vVertex)
-            call mpas_pool_get_array(particlesPool, 'wVertexVelocity', wVertex)
+            call mpas_pool_get_array(cdgPool, 'uVertexVelocityNew', uVertex)
+            call mpas_pool_get_array(cdgPool, 'vVertexVelocityNew', vVertex)
+            call mpas_pool_get_array(cdgPool, 'wVertexVelocityNew', wVertex)
             call mpas_pool_get_array(cdgPool, 'uVertexVelocityOld', uVertexOld)
             call mpas_pool_get_array(cdgPool, 'vVertexVelocityOld', vVertexOld)
             call mpas_pool_get_array(cdgPool, 'wVertexVelocityOld', wVertexOld)
@@ -752,13 +745,12 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .false.)
 ! hq_data: thickness weighter tracer concentration field used to assemble the flux vector
 ! hq_curr: thickness weighter tracer concentration field at the new time level
 
-   subroutine ocn_cdg_manager_advect(meshPool, statePool, diagnosticsPool, tendPool, particlesPool, scratchPool, cdgPool, dt, limType, doEvery, hqCur, hqNew)!{{{
+   subroutine ocn_cdg_manager_advect(meshPool, statePool, diagnosticsPool, tendPool, scratchPool, cdgPool, dt, limType, doEvery, hqCur, hqNew)!{{{
 
       type (mpas_pool_type), intent(in) :: meshPool
       type (mpas_pool_type), intent(in) :: statePool
       type (mpas_pool_type), intent(in) :: diagnosticsPool
       type (mpas_pool_type), intent(in) :: tendPool
-      type (mpas_pool_type), intent(in) :: particlesPool
       type (mpas_pool_type), intent(in) :: scratchPool
       type (mpas_pool_type), intent(inout) :: cdgPool
       integer, intent(in) :: limType, doEvery
@@ -793,7 +785,7 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .false.)
 
       ! Construct the vertical fluxes
       call mpas_timer_start("cdg vert flux")
-      call ocn_cdg_advection_vert_swept_region(meshPool, particlesPool, cdgPool, hqQuad3D, hqBasis3D, dt, flux, hqNew)
+      call ocn_cdg_advection_vert_swept_region(meshPool, cdgPool, hqQuad3D, hqBasis3D, dt, flux, hqNew)
       call mpas_timer_stop("cdg vert flux")
 
       ! Construct the horizontal fluxes
@@ -801,19 +793,19 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .false.)
       call ocn_cdg_advection_edge_scaling(meshPool, diagnosticsPool, cdgPool, dt)
       call mpas_timer_stop("cdg edge scale")
       if (onSphere) then
-         call ocn_cdg_advection_swept_regions(meshPool, particlesPool, cdgPool, hqQuad3D, hqBasis3D, dt, flux, hqNew)
+         call ocn_cdg_advection_swept_regions(meshPool, cdgPool, hqQuad3D, hqBasis3D, dt, flux, hqNew)
       else
          call mpas_timer_start("cdg horiz flux", .false.)
-         call ocn_cdg_advection_swept_regions_planar(meshPool, particlesPool, cdgPool, hqQuad3D, hqBasis3D, dt, flux, hqNew)
+         call ocn_cdg_advection_swept_regions_planar(meshPool, cdgPool, hqQuad3D, hqBasis3D, dt, flux, hqNew)
          call mpas_timer_stop("cdg horiz flux")
       end if
 
       ! Construct the integral over the elements at the previous time level
       call mpas_timer_start("cdg lhs assemble")
       if (onSphere) then
-         call ocn_cdg_advection_prev_flux(meshPool, diagnosticsPool, particlesPool, cdgPool, hqQuad3D, hqBasis3D, dt, flux, hqCur)
+         call ocn_cdg_advection_prev_flux(meshPool, diagnosticsPool, cdgPool, hqQuad3D, hqBasis3D, dt, flux, hqCur)
       else
-         call ocn_cdg_advection_prev_flux_planar(meshPool, particlesPool, cdgPool, hqQuad3D, hqBasis3D, dt, flux, hqCur)
+         call ocn_cdg_advection_prev_flux_planar(meshPool, cdgPool, hqQuad3D, hqBasis3D, dt, flux, hqCur)
       end if
       call mpas_timer_stop("cdg lhs assemble")
 

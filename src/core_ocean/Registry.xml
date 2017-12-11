@@ -3095,6 +3095,15 @@
 	    <var name="wVertexVelocityMid" type="real" dimensions="nVertLevels nVertices" units="m s^{-1}"
 	         description="recostructed w horizontal velocity at vertices at the cdg supercycle mid time level"
 	    />
+	    <var name="uVertexVelocityNew" type="real" dimensions="nVertLevels nVertices" units="m s^{-1}"
+	         description="recostructed u horizontal velocity at vertices at the cdg supercycle mid time level"
+	    />
+	    <var name="vVertexVelocityNew" type="real" dimensions="nVertLevels nVertices" units="m s^{-1}"
+	         description="recostructed v horizontal velocity at vertices at the cdg supercycle mid time level"
+	    />
+	    <var name="wVertexVelocityNew" type="real" dimensions="nVertLevels nVertices" units="m s^{-1}"
+	         description="recostructed w horizontal velocity at vertices at the cdg supercycle mid time level"
+	    />
 	</var_struct>
 	<var_struct name="scratch" time_levs="1">
 		<var name="normalThicknessFlux" persistence="scratch" type="real" dimensions="nVertLevels nEdges Time"

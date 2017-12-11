@@ -61,10 +61,9 @@ module ocn_cdg_characteristic
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_cdg_char_departure_points(meshPool, particlesPool, cdgPool, dt, departurePoints)!{{{
+   subroutine ocn_cdg_char_departure_points(meshPool, cdgPool, dt, departurePoints)!{{{
 
       type (mpas_pool_type), pointer, intent(in) :: meshPool
-      type (mpas_pool_type), pointer, intent(in) :: particlesPool
       type (mpas_pool_type), pointer, intent(in) :: cdgPool
       real (kind=RKIND), intent(in) :: dt
       real (kind=RKIND), dimension(:,:,:), intent(out) :: departurePoints
@@ -88,21 +87,20 @@ module ocn_cdg_characteristic
       call mpas_pool_get_array(meshPool, 'cellsOnCell', cellsOnCell)
       call mpas_pool_get_array(meshPool, 'cellsOnVertex', cellsOnVertex)
       call mpas_pool_get_array(meshPool, 'verticesOnCell', verticesOnCell)
-
       call mpas_pool_get_array(meshPool, 'xCell', xCell)
       call mpas_pool_get_array(meshPool, 'yCell', yCell)
       call mpas_pool_get_array(meshPool, 'zCell', zCell)
       call mpas_pool_get_array(meshPool, 'xVertex', xVertex)
       call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
       call mpas_pool_get_array(meshPool, 'zVertex', zVertex)
+      call mpas_pool_get_array(meshPool, 'wachspressAreaB', areaBArray)
 
-      call mpas_pool_get_array(particlesPool, 'uVertexVelocity', uVertex)
-      call mpas_pool_get_array(particlesPool, 'vVertexVelocity', vVertex)
-      call mpas_pool_get_array(particlesPool, 'wVertexVelocity', wVertex)
+      call mpas_pool_get_array(cdgPool, 'uVertexVelocityNew', uVertex)
+      call mpas_pool_get_array(cdgPool, 'vVertexVelocityNew', vVertex)
+      call mpas_pool_get_array(cdgPool, 'wVertexVelocityNew', wVertex)
       call mpas_pool_get_array(cdgPool, 'uVertexVelocityMid', uVertexMid)
       call mpas_pool_get_array(cdgPool, 'vVertexVelocityMid', vVertexMid)
       call mpas_pool_get_array(cdgPool, 'wVertexVelocityMid', wVertexMid)
-      call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
 
       do iVertex = 1, nVertices
          x1(1) = xVertex(iVertex)
@@ -143,10 +141,9 @@ module ocn_cdg_characteristic
 
    end subroutine ocn_cdg_char_departure_points!}}}
 
-   subroutine ocn_cdg_char_departure_points_planar(meshPool, particlesPool, cdgPool, dt, departurePoints)!{{{
+   subroutine ocn_cdg_char_departure_points_planar(meshPool, cdgPool, dt, departurePoints)!{{{
 
       type (mpas_pool_type), pointer, intent(in) :: meshPool
-      type (mpas_pool_type), pointer, intent(in) :: particlesPool
       type (mpas_pool_type), pointer, intent(in) :: cdgPool
       real (kind=RKIND), intent(in) :: dt
       real (kind=RKIND), dimension(:,:,:), intent(out) :: departurePoints
@@ -177,11 +174,11 @@ module ocn_cdg_characteristic
       call mpas_pool_get_array(meshPool, 'zCell', zCell)
       call mpas_pool_get_array(meshPool, 'xVertex', xVertex)
       call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
-      call mpas_pool_get_array(particlesPool, 'uVertexVelocity', uVertexNew)
-      call mpas_pool_get_array(particlesPool, 'vVertexVelocity', vVertexNew)
+      call mpas_pool_get_array(meshPool, 'wachspressAreaB', areaBArray)
+      call mpas_pool_get_array(cdgPool, 'uVertexVelocityNew', uVertexNew)
+      call mpas_pool_get_array(cdgPool, 'vVertexVelocityNew', vVertexNew)
       call mpas_pool_get_array(cdgPool, 'uVertexVelocityMid', uVertexMid)
       call mpas_pool_get_array(cdgPool, 'vVertexVelocityMid', vVertexMid)
-      call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
 
       do iVertex = 1, nVertices
          do iLevel = 1, maxLevelVertexBot(iVertex)
@@ -398,10 +395,9 @@ module ocn_cdg_characteristic
 
    end subroutine find_and_interp_velocity_planar!}}}
 
-   subroutine ocn_cdg_char_integrate_edge_planar(meshPool, particlesPool, cdgPool, dt, departureEdges) !{{{
+   subroutine ocn_cdg_char_integrate_edge_planar(meshPool, cdgPool, dt, departureEdges) !{{{
 
       type (mpas_pool_type), intent(in) :: meshPool
-      type (mpas_pool_type), intent(in) :: particlesPool
       type (mpas_pool_type), intent(in) :: cdgPool
       real (kind=RKIND), intent(in) :: dt
       real (kind=RKIND), dimension(:,:,:), intent(out) :: departureEdges
@@ -432,9 +428,9 @@ module ocn_cdg_characteristic
       call mpas_pool_get_array(meshPool, 'xCell', xCell)
       call mpas_pool_get_array(meshPool, 'yCell', yCell)
       call mpas_pool_get_array(meshPool, 'zCell', zCell)
+      call mpas_pool_get_array(meshPool, 'wachspressAreaB', areaBArray)
       call mpas_pool_get_array(cdgPool, 'uVertexVelocityMid', uVertexMid)
       call mpas_pool_get_array(cdgPool, 'vVertexVelocityMid', vVertexMid)
-      call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
       call mpas_pool_get_array(cdgPool, 'normVelocitySum', normVelocitySum)
 
       do iEdge = 1, nEdges

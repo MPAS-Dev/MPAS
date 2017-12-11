@@ -192,10 +192,9 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_cdg_advection_swept_regions(meshPool, particlesPool, cdgPool, quad, basis, dt, fluxes, c_kj)!{{{
+   subroutine ocn_cdg_advection_swept_regions(meshPool, cdgPool, quad, basis, dt, fluxes, c_kj)!{{{
 
       type (mpas_pool_type), intent(in) :: meshPool
-      type (mpas_pool_type), intent(in) :: particlesPool
       type (mpas_pool_type), intent(in) :: cdgPool
       type (cdgQuad3D), intent(in) :: quad
       type (cdgBasis3D), intent(in) :: basis
@@ -252,6 +251,7 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
       call mpas_pool_get_array(meshPool, 'zVertex', zVertex)
       call mpas_pool_get_array(meshPool, 'edgeNormalVectors', edgeNormVecs)
       call mpas_pool_get_array(meshPool, 'bottomDepth', bottomDepth)
+      call mpas_pool_get_array(meshPool, 'wachspressAreaB', areaBArray)
 
       call mpas_pool_get_array(cdgPool, 'layerThicknessOld', layerThicknessOld)
       call mpas_pool_get_array(cdgPool, 'layerThicknessMid', layerThicknessMid)
@@ -266,7 +266,6 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
       call mpas_pool_get_array(cdgPool, 'uVertexVelocityMid', uVertexMid)
       call mpas_pool_get_array(cdgPool, 'vVertexVelocityMid', vVertexMid)
       call mpas_pool_get_array(cdgPool, 'wVertexVelocityMid', wVertexMid)
-      call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
       call mpas_pool_get_array(cdgPool, 'transGlobalToCell', transGtoC)
       call mpas_pool_get_array(cdgPool, 'departurePoints', departurePoints)
       call mpas_pool_get_array(cdgPool, 'nIncCells', nIncCells)
@@ -427,10 +426,9 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
 
    end subroutine ocn_cdg_advection_swept_regions!}}}
 
-   subroutine ocn_cdg_advection_swept_regions_planar(meshPool, particlesPool, cdgPool, quad, basis, dt, fluxes, c_kj)!{{{
+   subroutine ocn_cdg_advection_swept_regions_planar(meshPool, cdgPool, quad, basis, dt, fluxes, c_kj)!{{{
 
       type (mpas_pool_type), intent(in) :: meshPool
-      type (mpas_pool_type), intent(in) :: particlesPool
       type (mpas_pool_type), intent(in) :: cdgPool
       type (cdgQuad3D), intent(in) :: quad
       type (cdgBasis3D), intent(in) :: basis
@@ -483,6 +481,7 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
       call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
       call mpas_pool_get_array(meshPool, 'bottomDepth', bottomDepth)
       call mpas_pool_get_array(meshPool, 'edgeNormalVectors', edgeNormVecs)
+      call mpas_pool_get_array(meshPool, 'wachspressAreaB', areaBArray)
       call mpas_pool_get_array(cdgPool, 'layerThicknessOld', layerThicknessOld)
       call mpas_pool_get_array(cdgPool, 'layerThicknessMid', layerThicknessMid)
       call mpas_pool_get_array(cdgPool, 'normVelocitySum', normVelocityNew)
@@ -492,7 +491,6 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
       call mpas_pool_get_array(cdgPool, 'vVertexVelocityOld', vVertexOld)
       call mpas_pool_get_array(cdgPool, 'uVertexVelocityMid', uVertexMid)
       call mpas_pool_get_array(cdgPool, 'vVertexVelocityMid', vVertexMid)
-      call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
       call mpas_pool_get_array(cdgPool, 'departurePoints', departurePoints)
       call mpas_pool_get_array(cdgPool, 'nIncCells', nIncCells)
       call mpas_pool_get_array(cdgPool, 'incCells', incCells)
@@ -672,11 +670,10 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_cdg_advection_prev_flux(meshPool, statePool, particlesPool, cdgPool, quad, basis, dt, fluxes, c_kj_cur)!{{{
+   subroutine ocn_cdg_advection_prev_flux(meshPool, statePool, cdgPool, quad, basis, dt, fluxes, c_kj_cur)!{{{
 
       type (mpas_pool_type), intent(in) :: meshPool
       type (mpas_pool_type), intent(in) :: statePool
-      type (mpas_pool_type), intent(in) :: particlesPool
       type (mpas_pool_type), intent(in) :: cdgPool
       type (cdgQuad3D), intent(in) :: quad
       type (cdgBasis3D), intent(in) :: basis
@@ -711,6 +708,7 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
       call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
       call mpas_pool_get_array(meshPool, 'zVertex', zVertex)
       call mpas_pool_get_array(meshPool, 'bottomDepth', bottomDepth)
+      call mpas_pool_get_array(meshPool, 'wachspressAreaB', areaBArray)
       call mpas_pool_get_array(cdgPool, 'layerThicknessOld', layerThicknessOld)
       call mpas_pool_get_array(cdgPool, 'layerThicknessMid', layerThicknessMid)
       call mpas_pool_get_dimension(cdgPool, 'nTracers', nTracers)
@@ -722,7 +720,6 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
       call mpas_pool_get_array(cdgPool, 'uVertexVelocityMid', uVertexMid)
       call mpas_pool_get_array(cdgPool, 'vVertexVelocityMid', vVertexMid)
       call mpas_pool_get_array(cdgPool, 'wVertexVelocityMid', wVertexMid)
-      call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
       call mpas_pool_get_array(cdgPool, 'transGlobalToCell', transGtoC)
       call mpas_pool_get_array(cdgPool, 'triAreas', triAreas)
 
@@ -793,10 +790,9 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
 
    end subroutine ocn_cdg_advection_prev_flux!}}}
 
-   subroutine ocn_cdg_advection_prev_flux_planar(meshPool, particlesPool, cdgPool, quad, basis, dt, fluxes, c_kj_cur)!{{{
+   subroutine ocn_cdg_advection_prev_flux_planar(meshPool, cdgPool, quad, basis, dt, fluxes, c_kj_cur)!{{{
 
       type (mpas_pool_type), intent(in) :: meshPool
-      type (mpas_pool_type), intent(in) :: particlesPool
       type (mpas_pool_type), intent(in) :: cdgPool
       type (cdgQuad3D), intent(in) :: quad
       type (cdgBasis3D), intent(in) :: basis
@@ -832,6 +828,7 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
       call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
       call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
       call mpas_pool_get_array(meshPool, 'bottomDepth', bottomDepth)
+      call mpas_pool_get_array(meshPool, 'wachspressAreaB', areaBArray)
       call mpas_pool_get_array(cdgPool, 'layerThicknessOld', layerThicknessOld)
       call mpas_pool_get_array(cdgPool, 'layerThicknessMid', layerThicknessMid)
       call mpas_pool_get_array(cdgPool, 'vertAleVelocityOld', wTopOld)
@@ -840,7 +837,6 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
       call mpas_pool_get_array(cdgPool, 'vVertexVelocityOld', vVertexOld)
       call mpas_pool_get_array(cdgPool, 'uVertexVelocityMid', uVertexMid)
       call mpas_pool_get_array(cdgPool, 'vVertexVelocityMid', vVertexMid)
-      call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
       call mpas_pool_get_array(cdgPool, 'triAreas', triAreas)
 
       allocate(qFinal(2,quad % nh))

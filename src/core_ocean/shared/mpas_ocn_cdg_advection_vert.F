@@ -237,10 +237,9 @@ module ocn_cdg_advection_vert
 
    end subroutine ocn_cdg_advection_vert_fluxes!}}}
 
-   subroutine ocn_cdg_advection_vert_swept_region(meshPool, particlesPool, cdgPool, quad, basis, dt, flux, coeffs)!{{{
+   subroutine ocn_cdg_advection_vert_swept_region(meshPool, cdgPool, quad, basis, dt, flux, coeffs)!{{{
 
       type(mpas_pool_type), intent(in) :: meshPool
-      type(mpas_pool_type), intent(in) :: particlesPool
       type(mpas_pool_type), intent(in) :: cdgPool
       type(cdgQuad3d), intent(in) :: quad
       type(cdgBasis3D), intent(in) :: basis
@@ -284,6 +283,7 @@ module ocn_cdg_advection_vert
       call mpas_pool_get_array(meshPool, 'xCell', xCell)
       call mpas_pool_get_array(meshPool, 'yCell', yCell)
       call mpas_pool_get_array(meshPool, 'zCell', zCell)
+      call mpas_pool_get_array(meshPool, 'wachspressAreaB', areaBArray)
       call mpas_pool_get_array(cdgPool, 'layerThicknessOld', layerThicknessOld)
       call mpas_pool_get_array(cdgPool, 'layerThicknessMid', layerThicknessMid)
       call mpas_pool_get_array(cdgPool, 'vertAleVelocitySum', wTopNew)
@@ -296,7 +296,6 @@ module ocn_cdg_advection_vert
       call mpas_pool_get_array(cdgPool, 'vVertexVelocityMid', vVertexMid)
       call mpas_pool_get_array(cdgPool, 'wVertexVelocityMid', wVertexMid)
       call mpas_pool_get_array(cdgPool, 'triAreas', triAreas)
-      call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
       call mpas_pool_get_array(cdgPool, 'contFluxCell', contFluxCell)
 
       mean => basis % mean_cur
