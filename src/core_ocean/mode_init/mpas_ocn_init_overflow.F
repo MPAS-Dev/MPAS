@@ -258,9 +258,11 @@ contains
 
            ! Set layerThickness and restingThickness
            if ( trim(config_overflow_layer_type) == 'z-level' ) then
+              bottomDepth(iCell) = 0.0_RKIND
               do k = 1, maxLevelCell(iCell)
                  layerThickness(k, iCell) = config_overflow_bottom_depth * (interfaceLocations(k+1) - interfaceLocations(k))
                  restingThickness(k, iCell) = layerThickness(k, iCell)
+                 bottomDepth(iCell) = bottomDepth(iCell) + layerThickness(k, iCell)
               end do
            else if ( trim(config_overflow_layer_type) == 'sigma' ) then
               do k = 1, nVertLevels
