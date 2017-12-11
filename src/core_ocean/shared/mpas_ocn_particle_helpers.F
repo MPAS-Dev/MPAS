@@ -74,7 +74,6 @@ contains
       ! local variables
       !-----------------------------------------------------------------
       type (block_type), pointer :: block
-      type (mpas_pool_type), pointer :: particlesPool
       type (mpas_pool_type), pointer :: meshPool
       integer  :: nVertices, iCell, i, im1, i0, ip1, iVertex
       integer, pointer :: nCells
@@ -94,7 +93,6 @@ contains
       do while (associated(block))
         ! setup pointers / get block
         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-        call mpas_pool_get_subpool(block % structs, 'particles', particlesPool)
         call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
         call mpas_pool_get_config(meshPool, 'is_periodic', is_periodic)
         call mpas_pool_get_config(meshPool, 'x_period', x_period)
@@ -109,7 +107,7 @@ contains
         call mpas_pool_get_array(meshPool, 'xCell', xCell)
         call mpas_pool_get_array(meshPool, 'yCell', yCell)
         call mpas_pool_get_array(meshPool, 'zCell', zCell)
-        call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
+        call mpas_pool_get_array(meshPool, 'wachspressAreaB', areaBArray)
 
         ! compute B_i coefficients
         areaBArray = 0.0_RKIND

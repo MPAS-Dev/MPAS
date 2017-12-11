@@ -2134,6 +2134,9 @@
 			 description="Array to hold integers that represent logicals determining if a cell should be culled or not by the MpasCellCuller tool."
 			 packages="cullCells"
 		/>
+		<var name="wachspressAreaB" type="real" dimensions="maxEdges nCells" units="m^2"
+			description="cached polygon subarea B_i used in Wachspess calculation"
+		/>
 	</var_struct>
 	<var_struct name="verticalMesh" time_levs="1">
 		<var name="restingThickness" type="real" dimensions="nVertLevels nCells" units="m"
@@ -2960,29 +2963,6 @@
 		<var name="frazilSurfacePressure" type="real" dimensions="nCells Time" units="Pa"
 			 description="surface pressure forcing due to weight of frazil ice"
 			 packages="frazilIce"
-		/>
-	</var_struct>
-	<var_struct name="particles" time_levs="1">
-		<var name="uVertexVelocity" type="real" dimensions="nVertLevels nVertices Time" units="m s^{-1}"
-			 description="recostructed u horizontal velocity at vertices"
-		/>
-		<var name="vVertexVelocity" type="real" dimensions="nVertLevels nVertices Time" units="m s^{-1}"
-			 description="recostructed v horizontal velocity at vertices"
-		/>
-		<var name="wVertexVelocity" type="real" dimensions="nVertLevels nVertices Time" units="m s^{-1}"
-			 description="recostructed w horizontal velocity at vertices"
-		/>
-        <var name="wachspressAreaB" type="real" dimensions="maxEdges nCells" units="m^2"
-             description="cached polygon subarea B_i used in Wachspess calculation"
-        />
-		<var name="filteredVelocityW" type="real" dimensions="nVertLevels nCells Time" units="m s^{-1}"
-			 description="filtered u horizontal velocity at cells"
-		/>
-		<var name="filteredVelocityV" type="real" dimensions="nVertLevels nCells Time" units="m s^{-1}"
-			 description="filtered v horizontal velocity at cells"
-		/>
-		<var name="filteredVelocityU" type="real" dimensions="nVertLevels nCells Time" units="m s^{-1}"
-			 description="filtered w horizontal velocity at cells"
 		/>
 	</var_struct>
 	<!-- Data members for the CDG advection scheme -->
