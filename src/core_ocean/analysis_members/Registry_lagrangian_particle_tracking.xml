@@ -210,6 +210,15 @@
 		/>
 	</var_struct>
 	<var_struct name="lagrPartTrackFields" time_levs="2" packages="lagrPartTrackAMPKG">
+		<var name="uVertexVelocity" type="real" dimensions="nVertLevels nVertices Time" units="m s^{-1}"
+			 description="recostructed u horizontal velocity at vertices"
+		/>
+		<var name="vVertexVelocity" type="real" dimensions="nVertLevels nVertices Time" units="m s^{-1}"
+			 description="recostructed v horizontal velocity at vertices"
+		/>
+		<var name="wVertexVelocity" type="real" dimensions="nVertLevels nVertices Time" units="m s^{-1}"
+			 description="recostructed w horizontal velocity at vertices"
+		/>
 		<var name="buoyancy" type="real" dimensions="nVertLevels nCells Time" units="kg m^{-3}"
 			 description="buoyancy values at cell mid points, currently proxy for density"
 		/>
@@ -217,6 +226,15 @@
 	<var_struct name="lagrPartTrackCells" time_levs="1" packages="lagrPartTrackAMPKG">
 		<var name="cellOwnerBlock" type="integer" dimensions="nCells" units="unitless"
 			 description="designates ownership of cell in terms of computational block"
+		/>
+		<var name="filteredVelocityW" type="real" dimensions="nVertLevels nCells Time" units="m s^{-1}"
+			 description="filtered u horizontal velocity at cells"
+		/>
+		<var name="filteredVelocityV" type="real" dimensions="nVertLevels nCells Time" units="m s^{-1}"
+			 description="filtered v horizontal velocity at cells"
+		/>
+		<var name="filteredVelocityU" type="real" dimensions="nVertLevels nCells Time" units="m s^{-1}"
+			 description="filtered w horizontal velocity at cells"
 		/>
 		<var name="buoyancySurfaceVelocityZonal" type="real" dimensions="nBuoyancySurfaces nCells Time" units="m s^{-1}"
 			 description="horizontal zonal velocity on buoyancy surface"

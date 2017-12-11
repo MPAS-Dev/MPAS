@@ -180,7 +180,7 @@ contains
       call zero_autocorrelation_sums(domain)
 
       ! previous compute startup calls
-      call intialize_wachspress_coefficients(domain, err)
+      call mpas_initialize_wachspress_coefficients(domain, err)
       call initalize_fields(domain, err)
       call compute_velocity_on_potentialdensity_surface(domain,err,1)
       call compute_velocity_on_potentialdensity_surface(domain,err,2)
@@ -250,7 +250,6 @@ contains
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: diagnosticsPool
       type (mpas_pool_type), pointer :: lagrPartTrackFieldsPool, lagrPartTrackCellsPool, lagrPartTrackScratchPool
-      type (mpas_pool_type), pointer :: particlesPool
       integer, dimension(:), pointer :: cellOwnerBlock
       integer, pointer :: currentBlock, ioBlock, indexToParticleID, transfered
       type (mpas_particle_list_type), pointer :: particlelist
@@ -344,7 +343,6 @@ contains
         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
         call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
-        call mpas_pool_get_subpool(block % structs, 'particles', particlesPool)
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackFields', lagrPartTrackFieldsPool)
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackScratch', lagrPartTrackScratchPool)
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackCells', lagrPartTrackCellsPool)
@@ -358,7 +356,7 @@ contains
         call mpas_pool_get_array(meshPool, 'xVertex', xVertex)
         call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
         call mpas_pool_get_array(meshPool, 'zVertex', zVertex)
-        call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
+        call mpas_pool_get_array(meshPool, 'wachspressAreaB', areaBArray)
         call mpas_pool_get_array(diagnosticsPool, 'zTop', zTop)
         call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
         call mpas_pool_get_array(diagnosticsPool, 'vertVelocityTop', vertVelocityTop)
@@ -390,12 +388,10 @@ contains
 
         !{{{
         ! flip previous time level to back (switching memory pointers)
-        ! TODO: make sure its ok to shift the time levels on the other fields in
-        ! the particles pool (this was previously applied to the lagrPartTrackFields pool)
-        call mpas_pool_shift_time_levels(particlesPool)
-        call mpas_pool_get_field(particlesPool, 'uVertexVelocity', uVertexVelocity, timeLevel=2)
-        call mpas_pool_get_field(particlesPool, 'vVertexVelocity', vVertexVelocity, timeLevel=2)
-        call mpas_pool_get_field(particlesPool, 'wVertexVelocity', wVertexVelocity, timeLevel=2)
+        call mpas_pool_shift_time_levels(lagrPartTrackFieldsPool)
+        call mpas_pool_get_field(lagrPartTrackFieldsPool, 'uVertexVelocity', uVertexVelocity, timeLevel=2)
+        call mpas_pool_get_field(lagrPartTrackFieldsPool, 'vVertexVelocity', vVertexVelocity, timeLevel=2)
+        call mpas_pool_get_field(lagrPartTrackFieldsPool, 'wVertexVelocity', wVertexVelocity, timeLevel=2)
 #ifdef MPAS_DEBUG
         call mpas_timer_stop("memtasksLPT")
 #endif
@@ -404,7 +400,7 @@ contains
         call mpas_timer_start("reconst_filter_LPT")
 #endif
         ! need to handle periodicity within functions below for vertex reconstruction
-        call ocn_vertex_reconstruction(filterNum, meshPool, scratchPool, particlesPool, &
+        call ocn_vertex_reconstruction(filterNum, meshPool, scratchPool, lagrPartTrackCellsPool, &
           layerThickness % array, normalVelocity % array, &
           uVertexVelocity, vVertexVelocity, wVertexVelocity)
 #ifdef MPAS_DEBUG
@@ -618,7 +614,7 @@ contains
               call mpas_timer_start("velocity_time_interpolationLPT")
 #endif
               call velocity_time_interpolation(particleVelocity, particleVelocityVert, &
-                diagnosticsPool, lagrPartTrackFieldsPool, particlesPool, &
+                diagnosticsPool, lagrPartTrackFieldsPool, &
                 timeInterpOrder, timeCoeff, iCell, iLevel, buoyancyInterp, maxLevelCell, &
                 verticalTreatment, indexLevel, nCellVertices, verticesOnCell, boundaryVertex, &
                 xSubStep, zSubStep, zMid, zTop, vertVelocityTop, xVertex, yVertex, zVertex, meshPool, areaBArray)
@@ -715,7 +711,7 @@ contains
           call mpas_timer_start("velocity_time_interpolationLPT")
 #endif
           call velocity_time_interpolation(particleVelocity, particleVelocityVert, &
-            diagnosticsPool, lagrPartTrackFieldsPool, particlesPool, &
+            diagnosticsPool, lagrPartTrackFieldsPool, &
             timeInterpOrder, timeCoeff, iCell, iLevel, buoyancyInterp, maxLevelCell, &
             verticalTreatment, indexLevel, nCellVertices, verticesOnCell, boundaryVertex, &
             particlePosition, zLevelParticle, zMid, zTop, vertVelocityTop, xVertex, yVertex, zVertex, &
@@ -774,8 +770,6 @@ contains
 
           if (.not. resetParticle) then
             ! update halo fields for particles moving from adjacent computational halos
-            ! TODO: check the appropriate pool to pass here with the
-            ! reorganization of the pools
             call mpas_particle_list_update_particle_block(domain, block, particle, 'lagrPartTrackCells', iCell)
           end if
 
@@ -1281,7 +1275,6 @@ contains
       type (mpas_pool_type), pointer :: diagnosticsPool
       type (mpas_pool_type), pointer :: lagrPartTrackFieldsPool, lagrPartTrackScratchPool, lagrPartTrackCellsPool
       type (mpas_pool_type), pointer :: scratchPool
-      type (mpas_pool_type), pointer :: particlesPool
       real(kind=RKIND), dimension(:,:), pointer :: normalVelocity, layerThickness
       integer :: timeLev
       integer, pointer :: filterNum
@@ -1303,7 +1296,6 @@ contains
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackCells', lagrPartTrackCellsPool)
         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
         call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
-        call mpas_pool_get_subpool(block % structs, 'particles', particlesPool)
 
         !! initialize field for RBF (needed depending upon calling pattern of analysis member)
         !call mpas_initialize_vectors(meshPool)
@@ -1312,9 +1304,9 @@ contains
         ! initialize fresh memory for both levels
         do timeLev = 1, 2
           ! connect variables to pointer array
-          call mpas_pool_get_field(particlesPool, 'uVertexVelocity', uVV, timeLevel=timeLev)
-          call mpas_pool_get_field(particlesPool, 'vVertexVelocity', vVV, timeLevel=timeLev)
-          call mpas_pool_get_field(particlesPool, 'wVertexVelocity', wVV, timeLevel=timeLev)
+          call mpas_pool_get_field(lagrPartTrackFieldsPool, 'uVertexVelocity', uVV, timeLevel=timeLev)
+          call mpas_pool_get_field(lagrPartTrackFieldsPool, 'vVertexVelocity', vVV, timeLevel=timeLev)
+          call mpas_pool_get_field(lagrPartTrackFieldsPool, 'wVertexVelocity', wVV, timeLevel=timeLev)
 
           ! initialize, but could potentially remove these lines
           uVV % array = 0.0_RKIND
@@ -1339,7 +1331,7 @@ contains
 #ifdef MPAS_DEBUG
           call mpas_timer_start("init_reconst_filter_LPT")
 #endif
-          call ocn_vertex_reconstruction(filterNum, meshPool, scratchPool, particlesPool, &
+          call ocn_vertex_reconstruction(filterNum, meshPool, scratchPool, lagrPartTrackCellsPool, &
             layerThickness, normalVelocity, uVV, vVV, wVV)
 #ifdef MPAS_DEBUG
           call mpas_timer_stop("init_reconst_filter_LPT")
@@ -1352,124 +1344,6 @@ contains
       !call mpas_log_write( 'inialize_vertex_velocity end')
 
    end subroutine initalize_fields!}}}
-
-!***********************************************************************
-!
-!  routine initalize_wachspress_coefficients
-!
-!> \brief   Initialize Wachspress coefficients
-!> \author  Phillip Wolfram
-!> \date    01/26/2015
-!> \details
-!>  This routine inializes the B_i Wachspress coefficients which are
-!>  static in time
-!
-!-----------------------------------------------------------------------
-   subroutine intialize_wachspress_coefficients(domain, err) !{{{
-
-      implicit none
-
-      !-----------------------------------------------------------------
-      ! input/output variables
-      !-----------------------------------------------------------------
-      type (domain_type), intent(in) :: domain
-
-      !-----------------------------------------------------------------
-      ! output variables
-      !-----------------------------------------------------------------
-      integer, intent(out) :: err !< Output: error flag
-
-      !-----------------------------------------------------------------
-      ! local variables
-      !-----------------------------------------------------------------
-      type (block_type), pointer :: block
-      type (mpas_pool_type), pointer :: lagrPartTrackCellsPool
-      type (mpas_pool_type), pointer :: meshPool
-      type (mpas_pool_type), pointer :: particlesPool
-      integer  :: nVertices, iCell, i, im1, i0, ip1, iVertex
-      integer, pointer :: nCells
-      real (kind=RKIND), dimension(:), allocatable :: xv,yv,zv
-      real (kind=RKIND), dimension(3) :: v1, v2, v3
-      real (kind=RKIND), pointer :: radiusLocal
-      integer, dimension(:,:), pointer :: verticesOnCell
-      integer, dimension(:), pointer :: nCellVerticesArray
-      real (kind=RKIND), dimension(:), pointer :: xVertex, yVertex, zVertex
-      real (kind=RKIND), dimension(:), pointer :: xCell, yCell, zCell
-      real (kind=RKIND), dimension(:,:), pointer :: areaBArray
-      logical, pointer :: on_a_sphere, is_periodic
-      real(kind=RKIND), pointer :: x_period, y_period
-
-      err = 0
-
-      block => domain % blocklist
-      do while (associated(block))
-        ! setup pointers / get block
-        call mpas_pool_get_subpool(block % structs, 'lagrPartTrackCells', lagrPartTrackCellsPool)
-        call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-        call mpas_pool_get_subpool(block % structs, 'particles', particlesPool)
-        call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
-        call mpas_pool_get_config(meshPool, 'is_periodic', is_periodic)
-        call mpas_pool_get_config(meshPool, 'x_period', x_period)
-        call mpas_pool_get_config(meshPool, 'y_period', y_period)
-        call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
-        call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nCellVerticesArray)
-        call mpas_pool_get_config(meshPool, 'sphere_radius', radiusLocal)
-        call mpas_pool_get_array(meshPool, 'verticesOnCell', verticesOnCell)
-        call mpas_pool_get_array(meshPool, 'xVertex', xVertex)
-        call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
-        call mpas_pool_get_array(meshPool, 'zVertex', zVertex)
-        call mpas_pool_get_array(meshPool, 'xCell', xCell)
-        call mpas_pool_get_array(meshPool, 'yCell', yCell)
-        call mpas_pool_get_array(meshPool, 'zCell', zCell)
-        call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
-
-        ! compute B_i coefficients
-        areaBArray = 0.0_RKIND
-        do iCell = 1, nCells
-          nVertices = nCellVerticesArray(iCell)
-          allocate(xv(nVertices), yv(nVertices), zv(nVertices))
-          if (on_a_sphere .or. .not. is_periodic) then
-            xv = xVertex(verticesOnCell(:,iCell))
-            yv = yVertex(verticesOnCell(:,iCell))
-            zv = zVertex(verticesOnCell(:,iCell))
-          else
-            do iVertex=1,nVertices
-              xv(iVertex) = mpas_fix_periodicity(xVertex(verticesOnCell(iVertex,iCell)), &
-                xCell(iCell), x_period)
-              yv(iVertex) = mpas_fix_periodicity(yVertex(verticesOnCell(iVertex,iCell)), &
-                yCell(iCell), y_period)
-              zv(iVertex) = zVertex(verticesOnCell(iVertex,iCell))
-            end do
-          end if
-          do i = 1, nVertices
-            ! compute first area B_i
-            ! get vertex indices
-            im1 = mod(nVertices + i - 2, nVertices) + 1
-            i0  = mod(nVertices + i - 1, nVertices) + 1
-            ip1 = mod(nVertices + i    , nVertices) + 1
-
-            ! precompute B_i areas
-            ! always the same because B_i independent of xp,yp,zp
-            v1(1) = xv(im1)
-            v1(2) = yv(im1)
-            v1(3) = zv(im1)
-            v2(1) = xv(i0)
-            v2(2) = yv(i0)
-            v2(3) = zv(i0)
-            v3(1) = xv(ip1)
-            v3(2) = yv(ip1)
-            v3(3) = zv(ip1)
-            areaBArray(iCell, i) = mpas_triangle_signed_area(v1, v2, v3, meshPool)
-          end do
-          deallocate(xv, yv, zv)
-
-        end do
-
-
-        block => block %  next
-      end do
-
-   end subroutine intialize_wachspress_coefficients !}}}
 
 !***********************************************************************
 !
@@ -1648,7 +1522,6 @@ contains
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: diagnosticsPool
       type (mpas_pool_type), pointer :: lagrPartTrackFieldsPool, lagrPartTrackCellsPool, lagrPartTrackScratchPool
-      type (mpas_pool_type), pointer :: particlesPool
       integer, dimension(:), pointer :: cellOwnerBlock
       integer, pointer :: currentBlock, ioBlock, indexToParticleID, transfered
       integer :: currentProc, ioProc
@@ -1711,7 +1584,6 @@ contains
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackFields', lagrPartTrackFieldsPool)
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackScratch', lagrPartTrackScratchPool)
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackCells', lagrPartTrackCellsPool)
-        call mpas_pool_get_subpool(block % structs, 'particles', particlesPool)
 
         ! particlelist should be stored in the structs pool probably (need to seriously rework the code!)
         particlelist => block % particlelist
@@ -1722,7 +1594,7 @@ contains
         call mpas_pool_get_array(meshPool, 'xVertex', xVertex)
         call mpas_pool_get_array(meshPool, 'yVertex', yVertex)
         call mpas_pool_get_array(meshPool, 'zVertex', zVertex)
-        call mpas_pool_get_array(particlesPool, 'wachspressAreaB', areaBArray)
+        call mpas_pool_get_array(meshPool, 'wachspressAreaB', areaBArray)
         call mpas_pool_get_array(diagnosticsPool, 'zTop', zTop)
         call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
         call mpas_pool_get_array(diagnosticsPool, 'vertVelocityTop', vertVelocityTop)
@@ -1822,7 +1694,7 @@ contains
           ! return interpolated horizontal velocity "particleVelocity" and vertical velocity "particleVelocityVert"
           ! noting we use the final positions
           call velocity_time_interpolation(particleVelocity, particleVelocityVert, &
-            diagnosticsPool, lagrPartTrackFieldsPool, particlesPool, &
+            diagnosticsPool, lagrPartTrackFieldsPool, &
             timeInterpOrder, timeCoeff, iCell, iLevel, buoyancyInterp, maxLevelCell, &
             verticalTreatment, indexLevel, nCellVertices, verticesOnCell, boundaryVertex, &
             particlePosition, zLevelParticle, zMid, zTop, vertVelocityTop, xVertex, yVertex, zVertex,  &
@@ -1999,7 +1871,7 @@ contains
 !
 !-----------------------------------------------------------------------
   subroutine velocity_time_interpolation(particleVelocity, particleVelocityVert, &
-      diagnosticsPool,  lagrPartTrackFieldsPool, particlesPool, &
+      diagnosticsPool,  lagrPartTrackFieldsPool, &
       timeInterpOrder, timeCoeff, iCell, iLevel, buoyancyInterp, maxLevelCell, &
       verticalTreatment, indexLevel, nCellVertices, verticesOnCell, boundaryVertex, &
       xSubStep, zSubStep, zMid, zTop, vertVelocityTop, xVertex, yVertex, zVertex, meshPool, areaBArray) !{{{
@@ -2008,7 +1880,7 @@ contains
     !-----------------------------------------------------------------
     ! input variables
     !-----------------------------------------------------------------
-    type (mpas_pool_type), pointer, intent(in) :: diagnosticsPool, lagrPartTrackFieldsPool, particlesPool
+    type (mpas_pool_type), pointer, intent(in) :: diagnosticsPool, lagrPartTrackFieldsPool
     integer, intent(in) :: timeInterpOrder
     real (kind=RKIND), dimension(2), intent(in) :: timeCoeff
     integer, intent(in) :: iCell
@@ -2087,9 +1959,9 @@ contains
     do aTimeLevel = 1, timeInterpOrder
 
       ! define arrays!{{{
-      call mpas_pool_get_array(particlesPool, 'uVertexVelocity', uVertexVelocityArray, timeLevel=aTimeLevel)
-      call mpas_pool_get_array(particlesPool, 'vVertexVelocity', vVertexVelocityArray, timeLevel=aTimeLevel)
-      call mpas_pool_get_array(particlesPool, 'wVertexVelocity', wVertexVelocityArray, timeLevel=aTimeLevel)
+      call mpas_pool_get_array(lagrPartTrackFieldsPool, 'uVertexVelocity', uVertexVelocityArray, timeLevel=aTimeLevel)
+      call mpas_pool_get_array(lagrPartTrackFieldsPool, 'vVertexVelocity', vVertexVelocityArray, timeLevel=aTimeLevel)
+      call mpas_pool_get_array(lagrPartTrackFieldsPool, 'wVertexVelocity', wVertexVelocityArray, timeLevel=aTimeLevel)
       call mpas_pool_get_array(diagnosticsPool, 'potentialDensity', buoyancy)
       !}}}
 
