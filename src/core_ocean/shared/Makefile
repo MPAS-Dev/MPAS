@@ -65,7 +65,7 @@ OBJS = mpas_ocn_init_routines.o \
 	   mpas_ocn_time_average_coupled.o \
 	   mpas_ocn_sea_ice.o \
 	   mpas_ocn_framework_forcing.o \
-       mpas_ocn_particle_helpers.o \
+	   mpas_ocn_particle_helpers.o \
 
 all: $(OBJS)
 

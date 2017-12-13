@@ -249,7 +249,7 @@ contains
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: diagnosticsPool
-      type (mpas_pool_type), pointer :: lagrPartTrackFieldsPool, lagrPartTrackCellsPool, lagrPartTrackScratchPool
+      type (mpas_pool_type), pointer :: lagrPartTrackFieldsPool, lagrPartTrackCellsPool
       integer, dimension(:), pointer :: cellOwnerBlock
       integer, pointer :: currentBlock, ioBlock, indexToParticleID, transfered
       type (mpas_particle_list_type), pointer :: particlelist
@@ -344,7 +344,6 @@ contains
         call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackFields', lagrPartTrackFieldsPool)
-        call mpas_pool_get_subpool(block % structs, 'lagrPartTrackScratch', lagrPartTrackScratchPool)
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackCells', lagrPartTrackCellsPool)
 
         ! particlelist should be stored in the structs pool probably (need to seriously rework the code!)
@@ -1273,7 +1272,7 @@ contains
       type (mpas_pool_type), pointer :: statePool
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: diagnosticsPool
-      type (mpas_pool_type), pointer :: lagrPartTrackFieldsPool, lagrPartTrackScratchPool, lagrPartTrackCellsPool
+      type (mpas_pool_type), pointer :: lagrPartTrackFieldsPool, lagrPartTrackCellsPool
       type (mpas_pool_type), pointer :: scratchPool
       real(kind=RKIND), dimension(:,:), pointer :: normalVelocity, layerThickness
       integer :: timeLev
@@ -1292,7 +1291,6 @@ contains
         ! setup pointers / get block
         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackFields', lagrPartTrackFieldsPool)
-        call mpas_pool_get_subpool(block % structs, 'lagrPartTrackScratch', lagrPartTrackScratchPool)
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackCells', lagrPartTrackCellsPool)
         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
         call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
@@ -1521,7 +1519,7 @@ contains
       type (mpas_pool_type), pointer :: meshPool
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: diagnosticsPool
-      type (mpas_pool_type), pointer :: lagrPartTrackFieldsPool, lagrPartTrackCellsPool, lagrPartTrackScratchPool
+      type (mpas_pool_type), pointer :: lagrPartTrackFieldsPool, lagrPartTrackCellsPool
       integer, dimension(:), pointer :: cellOwnerBlock
       integer, pointer :: currentBlock, ioBlock, indexToParticleID, transfered
       integer :: currentProc, ioProc
@@ -1582,7 +1580,6 @@ contains
         call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
         call mpas_pool_get_subpool(block % structs, 'diagnostics', diagnosticsPool)
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackFields', lagrPartTrackFieldsPool)
-        call mpas_pool_get_subpool(block % structs, 'lagrPartTrackScratch', lagrPartTrackScratchPool)
         call mpas_pool_get_subpool(block % structs, 'lagrPartTrackCells', lagrPartTrackCellsPool)
 
         ! particlelist should be stored in the structs pool probably (need to seriously rework the code!)

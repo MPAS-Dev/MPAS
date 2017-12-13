@@ -347,22 +347,3 @@
 			 description="v velocity of particle - meridional direction"
 		/>
 	</var_struct>
-	<var_struct name="lagrPartTrackNonHalo" time_levs="1" packages="lagrPartTrackAMPKG">
-	</var_struct>
-	<var_struct name="lagrPartTrackScratch" time_levs="1" packages="lagrPartTrackAMPKG">
-		<var name="ucTemp" type="real" dimensions="nVertLevels nCells" units="m s^{-1}"
-			 description="cell velocity"
-		/>
-		<var name="uvX" type="real" dimensions="nVertLevels nVertices" units="m s^{-1}"
-			 description="vertex velocity- x component"
-		/>
-		<var name="uvY" type="real" dimensions="nVertLevels nVertices" units="m s^{-1}"
-			 description="vertex velocity- y component"
-		/>
-		<var name="uvZ" type="real" dimensions="nVertLevels nVertices" units="m s^{-1}"
-			 description="vertex velocity- z component"
-		/>
-		<var name="boundaryCellGlobal" type="integer" dimensions="nVertLevels nCells" units="unitless"
-			 description="Mask for determining boundary cells, but global. A boundary cell has at least one inactive cell neighboring it."
-		/>
-	</var_struct>
