@@ -302,7 +302,7 @@ contains
 !>  Output: reconstructed vector field (measured in X,Y,Z) located at vertices
 !-----------------------------------------------------------------------
   subroutine ocn_vertex_reconstruction(filterNum, meshPool, scratchPool, particlesPool, layerThickness, u, & !{{{
-                                       uvReconstructX, uvReconstructY, uvReconstructZ )
+                                       uvReconstructX, uvReconstructY, uvReconstructZ)
 
     implicit none
 
@@ -364,12 +364,12 @@ contains
     type (field2DInteger), pointer :: boundaryVertex, boundaryCell, boundaryVertexGlobal
 
     ! get pointers
+    call mpas_pool_get_field(meshPool, 'boundaryVertexGlobal', boundaryVertexGlobal)
     call mpas_pool_get_field(scratchPool, 'ucReconstructX', ucReconstructX)
     call mpas_pool_get_field(scratchPool, 'ucReconstructY', ucReconstructY)
     call mpas_pool_get_field(scratchPool, 'ucReconstructZ', ucReconstructZ)
     call mpas_pool_get_field(scratchPool, 'ucReconstructZonal', ucReconstructZonal)
     call mpas_pool_get_field(scratchPool, 'ucReconstructMeridional', ucReconstructMeridional)
-    call mpas_pool_get_field(scratchPool, 'boundaryVertexGlobal', boundaryVertexGlobal)
 
     ! allocate memory
     call mpas_allocate_scratch_field(ucReconstructX, .True.)
@@ -377,7 +377,6 @@ contains
     call mpas_allocate_scratch_field(ucReconstructZ, .True.)
     call mpas_allocate_scratch_field(ucReconstructZonal, .True.)
     call mpas_allocate_scratch_field(ucReconstructMeridional, .True.)
-    call mpas_allocate_scratch_field(boundaryVertexGlobal, .True.)
 
     ucReconstructX % array = 0.0_RKIND
     ucReconstructY % array = 0.0_RKIND
@@ -446,7 +445,6 @@ contains
     call mpas_deallocate_scratch_field(ucReconstructZ, .True.)
     call mpas_deallocate_scratch_field(ucReconstructZonal, .True.)
     call mpas_deallocate_scratch_field(ucReconstructMeridional, .True.)
-    call mpas_deallocate_scratch_field(boundaryVertexGlobal, .True.)
 
   end subroutine ocn_RBFvertex!}}}
 

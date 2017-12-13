@@ -1271,6 +1271,7 @@
 		<package name="cullCells" description="This package controls variables that provide information on what cells should be culled."/>
 		<package name="tracerBudget" description="This package controls variables that record the tracer budget."/>
 		<package name="cdg" description="This package includes variables for the cdg advection scheme, such as quadrature and basis function arrays."/>
+		<package name="meshInterpolation" description="This package includes variables required for the interpolation of lagrangian particles."/>
 	</packages>
 
 	<streams>
@@ -2135,7 +2136,12 @@
 			 packages="cullCells"
 		/>
 		<var name="wachspressAreaB" type="real" dimensions="maxEdges nCells" units="m^2"
-			description="cached polygon subarea B_i used in Wachspess calculation"
+			 description="cached polygon subarea B_i used in Wachspess calculation"
+			 packages="meshInterpolation"
+		/>
+		<var name="boundaryVertexGlobal" type="integer" dimensions="nVertLevels nVertices" units="unitless"
+			 description="Mask for determining boundary vertices, but global. A boundary vertex has at least one inactive cell neighboring it."
+			 packages="meshInterpolation"
 		/>
 	</var_struct>
 	<var_struct name="verticalMesh" time_levs="1">
@@ -3495,9 +3501,6 @@
 		<var name="ucReconstructZonal" type="real" dimensions="nVertLevels nCells" units="m s^{-1}"
 			 description="reconstructed cell center velocity- zonal component"
 		/>
-		<var name="boundaryVertexGlobal" type="integer" dimensions="nVertLevels nVertices" units="unitless"
-			 description="Mask for determining boundary vertices, but global. A boundary vertex has at least one inactive cell neighboring it."
-		/>
 		<var name="ucX" type="real" dimensions="nVertLevels nCells" units="m s^{-1}"
 			 description="cell velocity- x component"
 		/>
@@ -3506,6 +3509,18 @@
 		/>
 		<var name="ucZ" type="real" dimensions="nVertLevels nCells" units="m s^{-1}"
 			 description="cell velocity- z component"
+		/>
+		<var name="uvX" type="real" dimensions="nVertLevels nVertices" units="m s^{-1}"
+			 description="vertex velocity- x component"
+		/>
+		<var name="uvY" type="real" dimensions="nVertLevels nVertices" units="m s^{-1}"
+			 description="vertex velocity- y component"
+		/>
+		<var name="uvZ" type="real" dimensions="nVertLevels nVertices" units="m s^{-1}"
+			 description="vertex velocity- z component"
+		/>
+		<var name="ucTemp" type="real" dimensions="nVertLevels nCells" units="m s^{-1}"
+			 description="cell velocity"
 		/>
 	</var_struct>
 	<var_struct name="pointLocations" time_levs="1">

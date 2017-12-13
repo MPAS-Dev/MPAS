@@ -133,6 +133,10 @@ module ocn_core_interface
       logical, pointer :: tracerGroupIdealAgePKGActive
       logical, pointer :: tracerGroupTTDPKGActive
 
+      logical, pointer :: cdgActive
+      logical, pointer :: lightActive
+      logical, pointer :: meshInterpolationActive
+
       logical, pointer :: config_use_tracerGroup
       logical, pointer :: config_use_tracerGroup_surface_bulk_forcing
       logical, pointer :: config_use_tracerGroup_surface_restoring
@@ -455,6 +459,17 @@ module ocn_core_interface
             end if
          end if
       end do
+
+      !
+      ! setup the mesh interpolation package if cdg or light is active
+      !
+      call mpas_pool_get_package(packagePool, 'cdgActive', cdgActive)
+      call mpas_pool_get_package(packagePool, 'lagrPartTrackAMPKGActive', lightActive)
+      call mpas_pool_get_package(packagePool, 'meshInterpolationActive', meshInterpolationActive)
+      if (cdgActive .or. lightActive) then
+         meshInterpolationActive = .true.
+      end if
+
 
       !
       ! test for conflicts, i.e. package settings that are inconsistent in combination
