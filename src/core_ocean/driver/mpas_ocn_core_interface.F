@@ -161,7 +161,7 @@ module ocn_core_interface
        character (len=StrKIND) :: tracerGroupName, configName, packageName
        integer :: startIndex, strLen
 
-      logical, pointer :: cdgActive, config_cdg_do_passive
+      logical, pointer :: config_cdg_do_passive
       integer, pointer :: config_cdg_basis_order_horiz, config_cdg_num_basis_funcs_horiz
       integer, pointer :: config_cdg_quad_order_horiz, config_cdg_num_quad_points_horiz
       integer, pointer :: config_cdg_cell_depth, config_cdg_max_inc_cells
