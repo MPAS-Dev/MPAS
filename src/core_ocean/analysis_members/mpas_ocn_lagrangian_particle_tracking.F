@@ -548,7 +548,7 @@ contains
 #ifdef MPAS_DEBUG
                 call mpas_timer_start("particle_horizontal_movementLPT")
 #endif
-                call particle_horizontal_movement(meshPool, xSubStep, diffSubStep)
+                call mpas_particle_horizontal_movement(xSubStep, diffSubStep, onSphere)
 #ifdef MPAS_DEBUG
                 call mpas_timer_stop("particle_horizontal_movementLPT")
 #endif
@@ -639,7 +639,7 @@ contains
 #ifdef MPAS_DEBUG
             call mpas_timer_start("particle_horizontal_movementLPT")
 #endif
-            call particle_horizontal_movement(meshPool, particlePosition, diffParticlePosition)
+            call mpas_particle_horizontal_movement(particlePosition, diffParticlePosition, onSphere)
 #ifdef MPAS_DEBUG
             call mpas_timer_stop("particle_horizontal_movementLPT")
 #endif
@@ -2111,117 +2111,6 @@ contains
      particle_horizontal_interpolation(3) = mpas_wachspress_interpolate(lambda, uVertex(3,:))
 
    end function particle_horizontal_interpolation !}}}
-
-!***********************************************************************
-!
-!  routine particle_horizontal_movement
-!
-!> \brief   Compute horizontal movement for particle so particle stays
-!>          in spherical shell
-!> \author  Phillip Wolfram
-!> \date    05/20/2014
-!> \details
-!>  This routine returns the particle position pParticle corresponding
-!>  to an initial particle position pParticle for a Cartesian movemnt
-!>  dpParticle.  If the calculation is onSphere, then the distance
-!>  |dpParticle| must be along the great circle route of pParticle
-!>  and the projection of pParticle + dpParticle on the spherical
-!>  shell corresponding to pParticle.
-!
-!-----------------------------------------------------------------------
-  subroutine particle_horizontal_movement(meshPool, pParticle, dpParticle) !{{{
-
-     implicit none
-
-     !-----------------------------------------------------------------
-     ! input variables
-     !-----------------------------------------------------------------
-     real (kind=RKIND), dimension(:), intent(in) :: dpParticle
-     type (mpas_pool_type), intent(in), pointer :: meshPool
-
-     !-----------------------------------------------------------------
-     ! input / output variables
-     !-----------------------------------------------------------------
-     real (kind=RKIND), dimension(:), intent(inout) :: pParticle
-
-     !-----------------------------------------------------------------
-     ! local variables
-     !-----------------------------------------------------------------
-     real (kind=RKIND) :: lenPath, arcLen
-     real (kind=RKIND) :: radiusShell
-     real (kind=RKIND), dimension(size(pParticle)) :: pParticleTemp
-     real (kind=RKIND), dimension(size(pParticle)) :: pParticleInterp
-     real (kind=RKIND) :: alpha
-     real (kind=RKIND), parameter :: eps=1e-10_RKIND
-     logical, pointer :: onSphere, is_periodic
-     real(kind=RKIND), pointer :: x_period, y_period
-     character (len=StrKIND) :: message
-     ! choosen based on the parameters, note that we loose about 6 - 7 units of precision because R is so large!
-     ! therefore, eps = 1e-10 is conservative, if not too high!  this just helps with numerical stability
-     !dpParticle    =   -4.2428037617887103E-011   4.3076544298828060E-011   5.0760704444480953E-011
-     !pParticle     =    4444887.2990309987       -891565.00525021972        4476665.3916420965
-     !pParticleTemp =    4444887.2990309987       -891565.00525021972        4476665.3916420965
-     !mpas_arc_length =    0.0000000000000000      lenPath =    7.8945399869363434E-011
-
-     call mpas_pool_get_config(meshPool, 'on_a_sphere', onSphere)
-     call mpas_pool_get_config(meshPool, 'is_periodic', is_periodic)
-     call mpas_pool_get_config(meshPool, 'x_period', x_period)
-     call mpas_pool_get_config(meshPool, 'y_period', y_period)
-
-     ! may need a condition to determine if we need to project back to the sphere
-     if(onSphere) then
-       ! need to make sure new point is on the spherical shell
-
-       ! get path length
-       LIGHT_DEBUG_ALL_WRITE('dpParticle = ' COMMA dpParticle)
-       lenPath = sqrt(sum(dpParticle*dpParticle))
-
-       ! consider case of particle not moving (need to have this code here in general)
-       !if (lenPath < eps) then
-       ! this is ok because this is only the case if the points are the same.  If there is a
-       ! numerical instability it probably should be handled differently.
-       if (lenPath < eps) then
-         return
-       end if
-
-       ! get radius of particle's horizontal shell
-       radiusShell = sqrt(sum(pParticle*pParticle))
-
-       ! project endpoint to spherical shell containing pParticle
-       pParticleTemp = pParticle + dpParticle
-       pParticleTemp = ( radiusShell / sqrt(sum(pParticleTemp*pParticleTemp)) ) * pParticleTemp
-
-       ! compute alpha parameter for spherical interpolant / extrapolant
-       LIGHT_DEBUG_ALL_WRITE('dpParticle    = ' COMMA dpParticle)
-       LIGHT_DEBUG_ALL_WRITE('pParticle     = ' COMMA pParticle)
-       LIGHT_DEBUG_ALL_WRITE('pParticleTemp = ' COMMA pParticleTemp)
-       write(message, *) 'mpas_arc_length = ',  mpas_arc_length( pParticle(1), pParticle(2), pParticle(3), &
-                         pParticleTemp(1), pParticleTemp(2), pParticleTemp(3)), 'lenPath = ', lenPath
-       LIGHT_DEBUG_ALL_WRITE(message)
-       arcLen = mpas_arc_length(pParticle(1),pParticle(2),pParticle(3) , pParticleTemp(1),pParticleTemp(2),pParticleTemp(3))
-       if (arcLen > eps) then
-         alpha = lenPath / arcLen
-       else
-         return
-       endif
-
-       ! compute final position based on spherical interpolant
-       call mpas_spherical_linear_interp(pParticleInterp, pParticle, pParticleTemp, alpha)
-       pParticle = pParticleInterp
-     else
-       ! we are just on a plane so there is no need for spherical interpolation to keep
-       ! the new particle location on a spherical shell
-       pParticle = pParticle + dpParticle
-
-       ! periodic fix to make sure particle advection stays in domain
-       if (is_periodic) then
-         pParticle(1) = mpas_fix_periodicity(pParticle(1), x_period/2.0_RKIND, x_period)
-         pParticle(2) = mpas_fix_periodicity(pParticle(2), y_period/2.0_RKIND, y_period)
-         !pParticle(3) = pParticle(3)
-       end if
-     endif
-
-   end subroutine particle_horizontal_movement!}}}
 
 !***********************************************************************
 !
