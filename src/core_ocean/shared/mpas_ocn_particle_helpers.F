@@ -39,7 +39,7 @@ module ocn_particle_helpers
    public :: mpas_initialize_wachspress_coefficients, &
              mpas_particle_horizontal_movement,       &
              ocn_vertex_reconstruction,               &
-             old_ocn_spherical_area
+             ocn_spherical_area
 
 contains
 
@@ -148,7 +148,7 @@ contains
             if (.not. on_a_sphere) then
               areaBArray(i, iCell) = mpas_triangle_signed_area(v1, v2, v3, meshPool)
             else
-              areaBArray(i, iCell) = old_ocn_spherical_area(v1(1), v1(2), v1(3), v2(1), v2(2), v2(3), v3(1), v3(2), v3(3), radius)
+              areaBArray(i, iCell) = ocn_spherical_area(v1(1), v1(2), v1(3), v2(1), v2(2), v2(3), v3(1), v3(2), v3(3), radius)
             end if
           end do
           deallocate(xv, yv, zv)
@@ -177,6 +177,7 @@ contains
 !>  shell corresponding to pParticle.
 !
 !-----------------------------------------------------------------------
+
   subroutine mpas_particle_horizontal_movement(pParticle, dpParticle, onSphere, is_periodic, x_period, y_period) !{{{
 
      implicit none
@@ -263,7 +264,21 @@ contains
 
    end subroutine mpas_particle_horizontal_movement!}}}
 
-   real (kind=RKIND) function old_ocn_spherical_area(ax, ay, az, bx, by, bz, cx, cy, cz, radius)!{{{
+!***********************************************************************
+!
+!  routine ocn_spherical area
+!
+!> \brief   Compute the area of a triangle on the sphere
+!> \author  Phillip Wolfram, Dave Lee
+!> \date    12/18/2017
+!> \details     
+!>  This routine computes the area of a triangle on the surface of a 
+!>  sphere of specified radius. This routine is more stable than the
+!>  mpas_triangle_signed_area_sphere routine for accute triangles.
+!         
+!-----------------------------------------------------------------------
+
+   real (kind=RKIND) function ocn_spherical_area(ax, ay, az, bx, by, bz, cx, cy, cz, radius)!{{{
 
       real (kind=RKIND), intent(in) :: ax, ay, az, bx, by, bz, cx, cy, cz, radius
 
@@ -271,21 +286,18 @@ contains
       real (kind=RKIND) :: S                ! Length of semi-perimeter of TRI(ABC)
       real (kind=RKIND), dimension(3) :: aa, bb, cc
 
-      !AB = old_ocn_arc_length(ax,ay,az , bx,by,bz, radius) / radius
-      !BC = old_ocn_arc_length(bx,by,bz , cx,cy,cz, radius) / radius
-      !CA = old_ocn_arc_length(cx,cy,cz , ax,ay,az, radius) / radius
       AB = mpas_arc_length(ax,ay,az , bx,by,bz) / radius
       BC = mpas_arc_length(bx,by,bz , cx,cy,cz) / radius
       CA = mpas_arc_length(cx,cy,cz , ax,ay,az) / radius
       S  = 0.5_RKIND * (AB + BC + CA)
 
       ! need max for degenerate case where one side length is zero (which makes arg to sqrt go negative)
-      old_ocn_spherical_area = 4.0_RKIND*radius*radius*   &
+      ocn_spherical_area = 4.0_RKIND*radius*radius*   &
         atan( sqrt(max(0.0_RKIND, tan(0.5_RKIND*S) * tan(0.5_RKIND*(S-AB)) * tan(0.5_RKIND*(S-BC)) * tan(0.5_RKIND*(S-CA))) ) )
 
-      old_ocn_spherical_area = abs(old_ocn_spherical_area)
+      ocn_spherical_area = abs(ocn_spherical_area)
 
-   end function old_ocn_spherical_area!}}}
+   end function ocn_spherical_area!}}}
 
 !***********************************************************************
 !
