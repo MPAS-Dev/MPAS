@@ -325,7 +325,6 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
                   eDep(1) = xEdge(jEdge)
                   eDep(2) = yEdge(jEdge)
                   eDep(3) = zEdge(jEdge)
-                  !call particle_horizontal_movement(meshPool, eDep, -dt*normalVelocity(iLevel,jEdge)*edgeNormVecs(:,jEdge))
                   call mpas_particle_horizontal_movement(eDep, -dt*normalVelocity(iLevel,jEdge)*edgeNormVecs(:,jEdge), .true.)
                   isBowtie = ocn_cdg_advection_bowtie_test(preImage(:,3), preImage(:,4), preImage(:,2), eDep)
                end if
@@ -337,8 +336,6 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
                   preImage(2,2) = yVertex(iVertex)
                   preImage(3,2) = zVertex(iVertex)
                   dx(:) = -dt*normalVelocity(iLevel,jEdge)*edgeNormVecs(:,jEdge)
-                  !call particle_horizontal_movement(meshPool, preImage(:,1), dx)
-                  !call particle_horizontal_movement(meshPool, preImage(:,2), dx)
                   call mpas_particle_horizontal_movement(preImage(:,1), dx, .true.)
                   call mpas_particle_horizontal_movement(preImage(:,2), dx, .true.)
                end if
@@ -358,6 +355,7 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
                      ! Calculate the quadrature weight
                      triArea = old_ocn_spherical_area(tris(1,1,iTri), tris(2,1,iTri), tris(3,1,iTri), &
                         tris(1,2,iTri), tris(2,2,iTri), tris(3,2,iTri), tris(1,3,iTri), tris(2,3,iTri), tris(3,3,iTri), radius)
+                     !triArea = mpas_triangle_signed_area_sphere(tris(:,1,iTri), tris(:,2,iTri), tris(:,3,iTri), radius)
 #ifdef CDG_EDGE_SCALE
                      triArea = triArea*edgeScale(iLevel,jEdge)
 #endif
@@ -1496,7 +1494,6 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
                eDep(1) = xEdge(iEdge)
                eDep(2) = yEdge(iEdge)
                eDep(3) = zEdge(iEdge)
-               !call particle_horizontal_movement(meshPool, eDep, -dt*normalVelocity(iLevel,iEdge)*edgeNormVecs(:,iEdge))
                call mpas_particle_horizontal_movement(eDep, -dt*normalVelocity(iLevel,iEdge)*edgeNormVecs(:,iEdge), .true.)
                isBowtie = ocn_cdg_advection_bowtie_test(preImage(:,3), preImage(:,4), preImage(:,2), eDep)
             end if
@@ -1508,8 +1505,6 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
                preImage(2,2) = yVertex(iVertex)
                preImage(3,2) = zVertex(iVertex)
                dx(:) = -dt*normalVelocity(iLevel,iEdge)*edgeNormVecs(:,iEdge)
-               !call particle_horizontal_movement(meshPool, preImage(:,1), dx)
-               !call particle_horizontal_movement(meshPool, preImage(:,2), dx)
                call mpas_particle_horizontal_movement(preImage(:,1), dx, .true.)
                call mpas_particle_horizontal_movement(preImage(:,2), dx, .true.)
             end if
@@ -1532,6 +1527,7 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
                do iTri = 1, nTris
                   triArea = old_ocn_spherical_area(tris(1,1,iTri), tris(2,1,iTri), tris(3,1,iTri), &
                      tris(1,2,iTri), tris(2,2,iTri), tris(3,2,iTri), tris(1,3,iTri), tris(2,3,iTri), tris(3,3,iTri), radius)
+                  !triArea = mpas_triangle_signed_area_sphere(tris(:,1,iTri), tris(:,2,iTri), tris(:,3,iTri), radius)
 
                   fluxes(iLevel,iEdge) = fluxes(iLevel,iEdge) + triArea*layerThickness(iLevel,jCell)
                end do ! iTri

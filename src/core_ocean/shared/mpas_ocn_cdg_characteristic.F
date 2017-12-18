@@ -292,7 +292,7 @@ module ocn_cdg_characteristic
       real (kind=RKIND), dimension(:,:), intent(out) :: xf
 
       integer :: ip, jCell
-      real (kind=RKIND), dimension(2) :: x1, x2, x3, x4, u1, u2, u3, u4
+      real (kind=RKIND), dimension(3) :: x1, x2, x3, x4, u1, u2, u3, u4
 
       do ip = 1, np
          x1(1) = xp(ip)

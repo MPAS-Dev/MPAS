@@ -30,13 +30,13 @@
 !#define CDG_INIT_ANALYTIC
 
 ! Lock exchange
-!#define NX_LOCAL 8
-!#define XLEN 8000.0_RKIND
-!#define DELX 500.0_RKIND
-! Overflow
 #define NX_LOCAL 8
-#define XLEN 16000.0_RKIND
-#define DELX 1000.0_RKIND
+#define XLEN 8000.0_RKIND
+#define DELX 500.0_RKIND
+! Overflow
+!#define NX_LOCAL 8
+!#define XLEN 16000.0_RKIND
+!#define DELX 1000.0_RKIND
 !#define XLEN 128000.0_RKIND
 !#define DELX 8000.0_RKIND
 ! Baroclinic channel
