@@ -122,7 +122,7 @@ module ocn_cdg_triangle
                iVertex = verticesOnCell(iEdge,iCell)
                jVertex = verticesOnCell(jEdge,iCell)
                if (domain % on_a_sphere) then
-                  triAreas(iEdge,iCell) = old_ocn_spherical_area(xVertex(iVertex), yVertex(iVertex), zVertex(iVertex), &
+                  triAreas(iEdge,iCell) = ocn_spherical_area(xVertex(iVertex), yVertex(iVertex), zVertex(iVertex), &
                      xVertex(jVertex), yVertex(jVertex), zVertex(jVertex), xCell(iCell), yCell(iCell), zCell(iCell), radius)
                else
                   triAreas(iEdge,iCell) = 0.5_RKIND*abs( (xVertex(iVertex) - xCell(iCell))*(yVertex(jVertex) - yCell(iCell)) - &

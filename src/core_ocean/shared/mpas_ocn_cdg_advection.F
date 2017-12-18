@@ -353,9 +353,8 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
                   ! Perform quadrature integration (on the plane)
                   do iTri = 1, nTris
                      ! Calculate the quadrature weight
-                     triArea = old_ocn_spherical_area(tris(1,1,iTri), tris(2,1,iTri), tris(3,1,iTri), &
+                     triArea = ocn_spherical_area(tris(1,1,iTri), tris(2,1,iTri), tris(3,1,iTri), &
                         tris(1,2,iTri), tris(2,2,iTri), tris(3,2,iTri), tris(1,3,iTri), tris(2,3,iTri), tris(3,3,iTri), radius)
-                     !triArea = mpas_triangle_signed_area_sphere(tris(:,1,iTri), tris(:,2,iTri), tris(:,3,iTri), radius)
 #ifdef CDG_EDGE_SCALE
                      triArea = triArea*edgeScale(iLevel,jEdge)
 #endif
@@ -1525,9 +1524,8 @@ c_kj(1,iTracer,iLevel,iCell) = ansA
                call ocn_cdg_advection_gen_tris(nIntEdges, intCell, nTris, tris)
 
                do iTri = 1, nTris
-                  triArea = old_ocn_spherical_area(tris(1,1,iTri), tris(2,1,iTri), tris(3,1,iTri), &
+                  triArea = ocn_spherical_area(tris(1,1,iTri), tris(2,1,iTri), tris(3,1,iTri), &
                      tris(1,2,iTri), tris(2,2,iTri), tris(3,2,iTri), tris(1,3,iTri), tris(2,3,iTri), tris(3,3,iTri), radius)
-                  !triArea = mpas_triangle_signed_area_sphere(tris(:,1,iTri), tris(:,2,iTri), tris(:,3,iTri), radius)
 
                   fluxes(iLevel,iEdge) = fluxes(iLevel,iEdge) + triArea*layerThickness(iLevel,jCell)
                end do ! iTri
