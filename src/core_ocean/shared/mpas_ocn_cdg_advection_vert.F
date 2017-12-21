@@ -252,15 +252,12 @@ module ocn_cdg_advection_vert
       logical, pointer :: onSphere
       integer, pointer :: nCells, nVertLevels, nTracers
       integer, dimension(:), pointer :: maxLevelCell, nEdgesOnCell
-      integer, dimension(:,:), pointer :: cellsOnCell, edgesOnCell, cellsOnVertex
+      integer, dimension(:,:), pointer :: cellsOnCell, edgesOnCell, cellsOnVertex, verticesOnCell
       real (kind=RKIND), dimension(:), pointer :: dvEdge, areaCell, bottomDepth
-      real (kind=RKIND), dimension(:,:), pointer :: tend_layerThickness, triAreas
-      real (kind=RKIND), dimension(:,:), pointer :: layerThicknessOld, layerThicknessMid, wTopOld, wTopNew, wTopMid, &
-                                                    uVertexOld, uVertexMid, wVertexMid, vVertexOld, vVertexMid, wVertexOld
-
-      integer, dimension(:,:), pointer :: verticesOnCell
       real (kind=RKIND), dimension(:), pointer :: xVertex, yVertex, zVertex, xCell, yCell, zCell
       real (kind=RKIND), dimension(:,:), pointer :: areaBArray, contFluxCell
+      real (kind=RKIND), dimension(:,:), pointer :: layerThicknessOld, layerThicknessMid, wTopOld, wTopNew, wTopMid, triAreas, &
+                                                    uVertexOld, uVertexMid, wVertexMid, vVertexOld, vVertexMid, wVertexOld
       real (kind=RKIND), dimension(:,:,:), pointer :: mean
 
       real (kind=RKIND), dimension(:), allocatable :: zHalf, wHalf, depPts, zMidOld, zFullOld, zFullMid

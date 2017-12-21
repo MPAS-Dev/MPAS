@@ -758,25 +758,15 @@ call ocn_cdg_vert_adv(meshPool, statePool, diagnosticsPool, cdgPool, .false.)
       real (kind=RKIND), dimension(:,:,:,:), intent(inout) :: hqCur
       real (kind=RKIND), dimension(:,:,:,:), intent(out) :: hqNew
 
-      type(mpas_pool_type), pointer :: tracersPool
       logical, pointer :: onSphere
-      integer, pointer :: nVertLevels, nEdges, nCells, nCellsSolve, nTracers
-      integer, dimension(:), pointer :: maxLevelCell, nEdgesOnCell, maxLevelEdgeTop
-      integer, dimension(:,:), pointer :: cellsOnCell, cellsOnEdge, edgesOnCell, highOrderAdvectionMask, edgeSignOnCell
-      real (kind=RKIND), dimension(:), pointer :: dvEdge, areaCell
-      real (kind=RKIND), dimension(:,:), pointer :: wTop, layerThickness, normalVelocity, tend_layerThickness, contFluxEdge, contFluxCell
+      integer, pointer :: nVertLevels, nCells, nTracers
 
-      integer :: iCell, iLevel, iTracer, iBasis
       real (kind=RKIND), dimension(:,:,:,:), allocatable :: flux
 
       call mpas_pool_get_config(meshPool, 'on_a_sphere', onSphere)
-      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
       call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
       call mpas_pool_get_dimension(cdgPool, 'nTracers', nTracers)
-      call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 2)
-      call mpas_pool_get_array(cdgPool, 'contFluxEdge', contFluxEdge)
-      call mpas_pool_get_array(cdgPool, 'contFluxCell', contFluxCell)
 
       if (mod(step,doEvery) .ne. doEvery - 1) return
 
