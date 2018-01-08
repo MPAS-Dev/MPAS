@@ -51,15 +51,15 @@ contains
 
     use cice_advection_incremental_remap_tracers, only: &
          cice_add_berg_tracers_to_linked_list, &
-         bergTracersHead1, &
-         bergTracersHead2, &
-         bergTracersHead3, &
-         bergTracersHead4, &
-         bergTracersHead5, &
-         bergTracersHead6, &
-         bergTracersHead7, &
-         bergTracersHead8, &
-         bergTracersHead9, &
+         bergTracersHead01, &
+         bergTracersHead02, &
+         bergTracersHead03, &
+         bergTracersHead04, &
+         bergTracersHead05, &
+         bergTracersHead06, &
+         bergTracersHead07, &
+         bergTracersHead08, &
+         bergTracersHead09, &
          bergTracersHead10
 
     type(domain_type), intent(inout) :: &
@@ -76,15 +76,15 @@ contains
 
     ! enddo
 
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead1, 1)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead2, 2)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead3, 3)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead4, 4)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead5, 5)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead6, 6)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead7, 7)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead8, 8)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead9, 9)
+    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead01, 1)
+    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead02, 2)
+    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead03, 3)
+    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead04, 4)
+    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead05, 5)
+    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead06, 6)
+    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead07, 7)
+    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead08, 8)
+    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead09, 9)
     call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead10, 10)
 
   end subroutine cice_init_berg_tracers
@@ -111,15 +111,15 @@ contains
          cice_run_advection_incremental_remap
 
     use cice_advection_incremental_remap_tracers, only: &
-         bergTracersHead1, &
-         bergTracersHead2, &
-         bergTracersHead3, &
-         bergTracersHead4, &
-         bergTracersHead5, &
-         bergTracersHead6, &
-         bergTracersHead7, &
-         bergTracersHead8, &
-         bergTracersHead9, &
+         bergTracersHead01, &
+         bergTracersHead02, &
+         bergTracersHead03, &
+         bergTracersHead04, &
+         bergTracersHead05, &
+         bergTracersHead06, &
+         bergTracersHead07, &
+         bergTracersHead08, &
+         bergTracersHead09, &
          bergTracersHead10
 
     type(domain_type), intent(inout) :: &
@@ -131,23 +131,24 @@ contains
     integer, intent(inout) :: &
          ierr  !< Input/Output:
 
-    call cice_run_advection_incremental_remap(domain, bergTracersHead1, clock, ierr, &
+
+    call cice_run_advection_incremental_remap(domain, bergTracersHead01, clock, ierr, &
                                               updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead2, clock, ierr, &
+    call cice_run_advection_incremental_remap(domain, bergTracersHead02, clock, ierr, &
                                               updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead3, clock, ierr, &
+    call cice_run_advection_incremental_remap(domain, bergTracersHead03, clock, ierr, &
                                               updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead4, clock, ierr, &
+    call cice_run_advection_incremental_remap(domain, bergTracersHead04, clock, ierr, &
                                               updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead5, clock, ierr, &
+    call cice_run_advection_incremental_remap(domain, bergTracersHead05, clock, ierr, &
                                               updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead6, clock, ierr, &
+    call cice_run_advection_incremental_remap(domain, bergTracersHead06, clock, ierr, &
                                               updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead7, clock, ierr, &
+    call cice_run_advection_incremental_remap(domain, bergTracersHead07, clock, ierr, &
                                               updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead8, clock, ierr, &
+    call cice_run_advection_incremental_remap(domain, bergTracersHead08, clock, ierr, &
                                               updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead9, clock, ierr, &
+    call cice_run_advection_incremental_remap(domain, bergTracersHead09, clock, ierr, &
                                               updateHaloInitIn = .true., updateHaloFinalIn = .true.)
     call cice_run_advection_incremental_remap(domain, bergTracersHead10, clock, ierr, &
                                               updateHaloInitIn = .true., updateHaloFinalIn = .true.)

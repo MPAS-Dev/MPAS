@@ -2057,7 +2057,7 @@
 	</var_struct>
 
 	<!-- incremental remapping -->
-	<var_struct name="incremental_remap" time_levs="1">
+	<var_struct name="incremental_remap_geom" time_levs="1">
 		<var name="xTriangle"				type="real"	dimensions="nQuadPoints nTriPerEdgeRemap nEdges"	name_in_code="xTriangle"/>
 		<var name="yTriangle"				type="real"	dimensions="nQuadPoints nTriPerEdgeRemap nEdges"	name_in_code="yTriangle"/>
 		<var name="iCellTriangle"			type="integer"	dimensions="nTriPerEdgeRemap nEdges"			name_in_code="iCellTriangle"/>
@@ -2093,6 +2093,9 @@
 		<var name="yyyyAvgCell"			type="real"	dimensions="nCells"					name_in_code="yyyyAvgCell"/>
 		<var name="maskEdge"				type="integer"	dimensions="nEdges"					name_in_code="maskEdge"/>
 		<var name="maskCell"				type="integer"	dimensions="nCells"					name_in_code="maskCell"/>
+	</var_struct>
+
+	<var_struct name="incremental_remap" time_levs="1">
 		<var name="maskCategoryCell"			type="integer"	dimensions="nCategories nCells"			name_in_code="maskCategoryCell"/>
 		<var name="workCategoryCell"			type="real"	dimensions="nCategories nCells"			name_in_code="workCategoryCell"/>
 	</var_struct>

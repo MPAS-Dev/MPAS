@@ -810,7 +810,7 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  berg_velocity_subcycle
+!  berg_velocity_solver_subcycle
 !
 !> \brief   Solve for berg velocities
 !> \author  Darin Comeau, LANL
@@ -820,7 +820,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine berg_velocity_subcycle(&
+  subroutine berg_velocity_solver_subcycle(&
        domain, &
        clock)!{{{
 
@@ -860,7 +860,7 @@ contains
     call MPAS_dmpar_field_halo_exch(domain, 'vBergVelocity')
     call mpas_timer_stop("Berg velocity solver halo")
 
-  end subroutine berg_velocity_subcycle!}}}
+  end subroutine berg_velocity_solver_subcycle!}}}
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !

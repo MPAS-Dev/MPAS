@@ -39,7 +39,7 @@ module cice_advection_incremental_remap_tracers
       character(len=strKIND) :: tracerName
       character(len=strKIND) :: parentName
       character(len=strKIND) :: prefixName
-      character(len=strKIND) :: argumentName
+      character(len=strKIND) :: rootName
 
       integer :: iCat      ! category number for icebergs
 
@@ -122,7 +122,7 @@ module cice_advection_incremental_remap_tracers
       real(kind=RKIND), dimension(:),     pointer :: uVelocity => null()
       real(kind=RKIND), dimension(:),     pointer :: vVelocity => null()
 
-      real(kind=RKIND), pointer :: dynamicsTimeStep => null()
+      real(kind=RKIND), pointer :: advectionTimeStep => null()
 
       ! pointer to parent tracer
       type(tracer_type), pointer :: parent => null()
@@ -153,15 +153,15 @@ module cice_advection_incremental_remap_tracers
    end type tracer_type
 
    type(tracer_type), pointer, public :: iceTracersHead ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead1 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead2 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead3 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead4 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead5 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead6 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead7 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead8 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead9 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead01 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead02 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead03 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead04 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead05 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead06 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead07 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead08 ! the linked list, but this always points to the first element
+   type(tracer_type), pointer, public :: bergTracersHead09 ! the linked list, but this always points to the first element
    type(tracer_type), pointer, public :: bergTracersHead10 ! the linked list, but this always points to the first element
 
    logical, parameter :: verboseTracers = .false.
@@ -645,7 +645,7 @@ contains
                                               tracerName,  &
                                               parentName, &
                                               prefixName, &
-                                              argumentName, &
+                                              rootName, &
                                               iCategoryIn)
 
     type(tracer_type), intent(inout), pointer :: &
@@ -655,7 +655,7 @@ contains
          tracerName, &
          parentName, &
          prefixName, &
-         argumentName
+         rootName
 
     integer, intent(in), optional :: &
          iCategoryIn
@@ -704,7 +704,7 @@ contains
     newTracer % tracerName = trim(tracerName)
     newTracer % parentName = trim(parentName)
     newTracer % prefixName = trim(prefixName)
-    newTracer % argumentName = trim(argumentName)
+    newTracer % rootName = trim(rootName)
     newTracer % iCat = iCategory
 
     ! initialize hasChild and nParents; these are modified below
@@ -1186,7 +1186,7 @@ contains
              call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
              thisTracer % vVelocity => tracerField1DReal % array
              call MPAS_pool_get_array(tracerVelocityPool, 'dynamicsTimeStep', timeStep)
-             thisTracer % dynamicsTimeStep => timeStep
+             thisTracer % advectionTimeStep => timeStep
 
           elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 2) then    ! 3D formally but 2D physically
 
@@ -1223,7 +1223,7 @@ contains
              call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
              thisTracer % vVelocity => tracerField1DReal % array
              call MPAS_pool_get_array(tracerVelocityPool, 'dynamicsTimeStep', timeStep)
-             thisTracer % dynamicsTimeStep => timeStep
+             thisTracer % advectionTimeStep => timeStep
 
           elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 3) then    ! 3D formally and physically
 
@@ -1260,7 +1260,7 @@ contains
              call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
              thisTracer % vVelocity => tracerField1DReal % array
              call MPAS_pool_get_array(tracerVelocityPool, 'dynamicsTimeStep', timeStep)
-             thisTracer % dynamicsTimeStep => timeStep
+             thisTracer % advectionTimeStep => timeStep
 
           endif  ! nDims
 
@@ -1302,7 +1302,7 @@ contains
           call MPAS_pool_get_field(tracerVelocityPool, 'vBergVelocity', tracerField2DReal)
           thisTracer % vVelocity => tracerField2DReal % array(iCategory,:)
           call MPAS_pool_get_array(tracerVelocityPool, 'bergDynamicsTimeStep', timeStep)
-          thisTracer % dynamicsTimeStep => timeStep
+          thisTracer % advectionTimeStep => timeStep
 
        endif
 
