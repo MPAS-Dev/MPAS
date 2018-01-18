@@ -51,41 +51,27 @@ contains
 
     use cice_advection_incremental_remap_tracers, only: &
          cice_add_berg_tracers_to_linked_list, &
-         bergTracersHead01, &
-         bergTracersHead02, &
-         bergTracersHead03, &
-         bergTracersHead04, &
-         bergTracersHead05, &
-         bergTracersHead06, &
-         bergTracersHead07, &
-         bergTracersHead08, &
-         bergTracersHead09, &
-         bergTracersHead10
+         bergTracersHeadArray
 
     type(domain_type), intent(inout) :: &
          domain
 
-    ! dcnote - possible this way? open to improvement
-    ! integer :: iCategory
+    integer, pointer :: &
+         nBergCategories
 
-    ! call MPAS_pool_get_dimension(mesh, "nBergCategories", nBergCategories)
+    integer :: iCategory
 
-    ! do iCategory = 1, nBergCategories
+    call MPAS_pool_get_dimension(domain % blocklist % dimensions, "nBergCategories", nBergCategories)
 
-    !    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead//trim(iCategory), iCategory)
+    allocate(bergTracersHeadArray(nBergCategories))
 
-    ! enddo
+    do iCategory = 1, nBergCategories
 
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead01, 1)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead02, 2)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead03, 3)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead04, 4)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead05, 5)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead06, 6)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead07, 7)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead08, 8)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead09, 9)
-    call cice_add_berg_tracers_to_linked_list(domain, bergTracersHead10, 10)
+       call cice_add_berg_tracers_to_linked_list(domain, &
+                                                 bergTracersHeadArray(iCategory) % tracerTypePtr, &
+                                                 iCategory)
+
+    enddo
 
   end subroutine cice_init_berg_tracers
 
@@ -111,16 +97,7 @@ contains
          cice_run_advection_incremental_remap
 
     use cice_advection_incremental_remap_tracers, only: &
-         bergTracersHead01, &
-         bergTracersHead02, &
-         bergTracersHead03, &
-         bergTracersHead04, &
-         bergTracersHead05, &
-         bergTracersHead06, &
-         bergTracersHead07, &
-         bergTracersHead08, &
-         bergTracersHead09, &
-         bergTracersHead10
+         bergTracersHeadArray
 
     type(domain_type), intent(inout) :: &
          domain
@@ -131,27 +108,23 @@ contains
     integer, intent(inout) :: &
          ierr  !< Input/Output:
 
+    integer, pointer :: &
+         nBergCategories
 
-    call cice_run_advection_incremental_remap(domain, bergTracersHead01, clock, ierr, &
-                                              updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead02, clock, ierr, &
-                                              updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead03, clock, ierr, &
-                                              updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead04, clock, ierr, &
-                                              updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead05, clock, ierr, &
-                                              updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead06, clock, ierr, &
-                                              updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead07, clock, ierr, &
-                                              updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead08, clock, ierr, &
-                                              updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead09, clock, ierr, &
-                                              updateHaloInitIn = .true., updateHaloFinalIn = .true.)
-    call cice_run_advection_incremental_remap(domain, bergTracersHead10, clock, ierr, &
-                                              updateHaloInitIn = .true., updateHaloFinalIn = .true.)
+    integer :: iCategory
+
+    call MPAS_pool_get_dimension(domain % blocklist % dimensions, "nBergCategories", nBergCategories)
+
+    do iCategory = 1, nBergCategories
+
+       call cice_run_advection_incremental_remap(domain, &
+                                                 bergTracersHeadArray(iCategory) % tracerTypePtr, &
+                                                 clock, &
+                                                 ierr, &
+                                                 updateHaloInitIn = .true., &
+                                                 updateHaloFinalIn = .true.)
+
+    enddo
 
   end subroutine cice_run_berg_advection
 

@@ -152,17 +152,16 @@ module cice_advection_incremental_remap_tracers
 
    end type tracer_type
 
+   ! construct a type for an array of tracer_types
+   type, public :: tracer_ptr_type
+
+       type(tracer_type), pointer :: tracerTypePtr
+
+    end type tracer_ptr_type
+
    type(tracer_type), pointer, public :: iceTracersHead ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead01 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead02 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead03 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead04 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead05 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead06 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead07 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead08 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead09 ! the linked list, but this always points to the first element
-   type(tracer_type), pointer, public :: bergTracersHead10 ! the linked list, but this always points to the first element
+
+   type(tracer_ptr_type), dimension(:), allocatable, public :: bergTracersHeadArray ! array of linked list pointers
 
    logical, parameter :: verboseTracers = .false.
 
