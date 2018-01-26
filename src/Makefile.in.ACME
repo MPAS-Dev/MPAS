@@ -40,7 +40,7 @@ endif
 # Set MOAB info if it is being used
 ifeq ($(strip $(USE_MOAB)), TRUE)
   ifdef MOAB_PATH
-    CPPDEFS += -DHAVE_MOAB
+    CPPDEFS += -DHAVE_MOAB -DMOAB_MPAS_INSIDE_E3SM
     MOAB_INCLUDES = -I$(MOAB_PATH)/include
   else
     $(error MOAB_PATH must be defined when USE_MOAB is TRUE)

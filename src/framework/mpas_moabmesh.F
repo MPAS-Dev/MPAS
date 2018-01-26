@@ -10,11 +10,14 @@ module mpas_moabmesh
   use mpas_stream_manager
   use mpas_pool_routines
   !use mpas_vector_operations
-
-  implicit none
 #include "moab/MOABConfig.h"
 
+#ifdef MOAB_MPAS_INSIDE_E3SM
+  use seq_comm_mct, only: MPOID
+#else
   integer, public :: MPOID !   app id on moab side, for MPAS ocean
+#endif
+  implicit none
 
   contains
 
