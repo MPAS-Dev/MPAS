@@ -48,8 +48,14 @@ contains
 
   subroutine cice_bergs_init(domain)
 
-    use cice_berg_initialize, only: cice_init_berg_calving_fluxes
-    use cice_berg_velocity_solver, only: cice_init_berg_velocity_solver
+    use cice_berg_calving, only: &
+         cice_init_berg_calving_fluxes
+
+    use cice_berg_velocity_solver, only: &
+         cice_init_berg_velocity_solver
+
+    use cice_berg_advection, only: &
+         cice_init_berg_tracers
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -69,6 +75,9 @@ contains
        ! initialize velocity solver
        call cice_init_berg_velocity_solver(domain)
 
+       ! initialize tracers
+       call cice_init_berg_tracers(domain)
+
        call mpas_timer_stop("Berg initialization")
 
     endif
@@ -87,9 +96,13 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine cice_run_berg_dynamics(domain, clock)!{{{
+  subroutine cice_run_berg_dynamics(domain, clock, ierr)
 
-    use cice_berg_velocity_solver, only: cice_run_berg_velocity_solver
+    use cice_berg_velocity_solver, only: &
+         cice_run_berg_velocity_solver
+
+    use cice_berg_advection, only: &
+         cice_run_berg_advection
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -97,14 +110,39 @@ contains
     type(MPAS_Clock_type), intent(in) :: &
          clock !< Input:
 
-    ! berg velocity solver
-    call mpas_timer_start("Berg velocity solver")
-    call cice_run_berg_velocity_solver(domain, clock)
-    call mpas_timer_stop("Berg velocity solver")
+    integer, intent(inout) :: &
+         ierr  !< Input/Output:
 
-    ! advection (to add)
+    logical, pointer :: &
+         config_use_berg_velocity_solver, & ! indicates if berg velocity solver is used
+         config_use_berg_advection
 
-  end subroutine cice_run_berg_dynamics!}}}
+    integer, pointer :: &
+         config_berg_dynamics_subcycle_number ! berg dynamics subcycling number
+
+    integer :: &
+         iBergSubcycle
+
+    ! determine if velocity solver switched on
+    call MPAS_pool_get_config(domain % configs, "config_use_berg_velocity_solver", config_use_berg_velocity_solver)
+    call MPAS_pool_get_config(domain % configs, "config_use_berg_advection", config_use_berg_advection)
+    call MPAS_pool_get_config(domain % configs, "config_berg_dynamics_subcycle_number", config_berg_dynamics_subcycle_number)
+
+    do iBergSubcycle = 1, config_berg_dynamics_subcycle_number
+
+       ! berg velocity solver
+       call mpas_timer_start("Berg velocity solver")
+       if (config_use_berg_velocity_solver) call cice_run_berg_velocity_solver(domain, clock)
+       call mpas_timer_stop("Berg velocity solver")
+
+       ! advection by incremental remapping
+       call mpas_timer_start("Berg advection")
+       if (config_use_berg_advection) call cice_run_berg_advection(domain, clock, ierr)
+       call mpas_timer_stop("Berg advection")
+
+    enddo ! iBergSubcycle
+
+  end subroutine cice_run_berg_dynamics
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -118,11 +156,15 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine cice_run_berg_postdynamics(domain, clock, itimestep)!{{{
+  subroutine cice_run_berg_postdynamics(domain, clock, itimestep)
 
-    use cice_berg_decay, only: cice_run_berg_decay
-    use cice_berg_state, only: cice_berg_accumulate_calving_mass, &
-                               cice_berg_release_calving_mass
+    use cice_berg_decay, only: &
+         cice_run_berg_decay
+
+    use cice_berg_state, only: &
+         cice_berg_update_mass_and_area, &
+         cice_berg_accumulate_calving_mass, &
+         cice_berg_release_calving_mass
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -132,6 +174,11 @@ contains
 
     integer, intent(in) :: &
          itimestep !< Input:
+
+    ! berg mass and area state variables update
+    call mpas_timer_start("Berg update mass")
+    call cice_berg_update_mass_and_area(domain)
+    call mpas_timer_stop("Berg update mass")
 
     ! berg decay solver
     call mpas_timer_start("Berg decay")
@@ -144,7 +191,7 @@ contains
     call cice_berg_release_calving_mass(domain, itimestep)
     call mpas_timer_stop("Berg calving")
 
-  end subroutine cice_run_berg_postdynamics!}}}  
+  end subroutine cice_run_berg_postdynamics
 
 !-----------------------------------------------------------------------
 

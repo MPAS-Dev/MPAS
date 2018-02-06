@@ -557,9 +557,15 @@
 
 	<!-- icebergs -->
 	<nml_record name="bergs" in_defaults="true">
-		<nml_option name="config_use_bergs"			type="logical"		default_value="false"/>
-		<nml_option name="config_berg_initial_condition"	type="character"	default_value="none"	possible_values="'none'"/>
-		<nml_option name="config_berg_calving_flux_type"	type="character"	default_value="obs_Rignot2013"	possible_values="'obs_Rignot2013' or 'coastal_uniform' or 'regional_uniform'"/>
+		<nml_option name="config_use_bergs"			type="logical"		default_value="false"	units="unitless"
+					description="Flag to turn on iceberg model"
+					possible_values=".true. or .false."/>
+		<nml_option name="config_berg_initial_condition"	type="character"	default_value="none"	units="unitless"
+					description="Initial condition type (currently empty, placeholder for restart option)"
+					possible_values="'none'"/>
+		<nml_option name="config_berg_calving_flux_type"	type="character"	default_value="obs_Rignot2013"	units="unitless"
+					description="The way in which icebergs are calved into the model"
+					possible_values="'obs_Rignot2013' or 'coastal_uniform' or 'regional_uniform'"/>
 		<nml_option name="config_berg_calving_mask_latitude_minimum" type="real" default_value="-90.0"	units="degrees latitude"/>
 		<nml_option name="config_berg_calving_mask_latitude_maximum" type="real" default_value="-60.0"	units="degrees latitude"/>
 		<nml_option name="config_berg_calving_mask_longitude_minimum" type="real" default_value="0.0"	units="degrees longitude"/>
@@ -581,6 +587,7 @@
 		<nml_option name="config_berg_density" type="real" default_value="850.0"	units="kg/m^3"/>
 		<nml_option name="config_specific_heat_fresh_ice" type="real" default_value="2106.0"	units="J/kg/K"/>
 		<nml_option name="config_berg_allow_rollover"			type="logical"		default_value="false"/>
+		<nml_option name="config_use_berg_advection"			type="logical"		default_value="false"/>
 	</nml_record>
 
 	<streams>
@@ -724,6 +731,7 @@
 			<var name="mobileFraction"/>
 			<var name="newlyFormedIce"/>
 			<var name="maximumIcePresence"/>
+			<var name="bergAreaCategory"/>
 			<var name="bergMassCategory"/>
 			<var name="bergLength"/>
 			<var name="bergHeight"/>
@@ -1054,7 +1062,7 @@
 <!--TODO WHL - Convert iceVolume and snowVolume to iceThickness and snowThickness (and change the source code accordingly) -->
 	<!-- ice state -->
 	<var_struct name="tracers" time_levs="2">
-		<var name="iceAreaCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="iceAreaCategory"/>
+		<var name="iceAreaCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="iceAreaCategory"	description=""/>
 		<var name="iceVolumeCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="iceVolumeCategory"/>
 		<var name="snowVolumeCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="snowVolumeCategory"/>
 		<var name="surfaceTemperature"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="surfaceTemperature"/>
@@ -1134,10 +1142,6 @@
 		<var name="verticalAerosolsSnow"		type="real"	dimensions="nzAerosolsSnowLayers nCategories nCells Time"	name_in_code="verticalAerosolsSnow"		packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsIce"		type="real"	dimensions="nzAerosolsIceLayers nCategories nCells Time"	name_in_code="verticalAerosolsIce"		packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinity"			type="real"	dimensions="nBioLayers nCategories nCells Time"		name_in_code="verticalSalinity"		packages="pkgTracerZSalinity"/>
-		<var name="bergMassCategory"		type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergMassCategory"		units="kg"	packages="pkgBergs"/>
-		<var name="bergAreaCategory"		type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergAreaCategory"		units="1"	packages="pkgBergs"/>
-		<var name="bergLength"			type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergLength"		units="m"	packages="pkgBergs"/>
-		<var name="bergHeight"			type="real"	dimensions="nBergCategories nCells Time"				name_in_code="bergHeight"		units="m"	packages="pkgBergs"/>
 	</var_struct>
 	<var_struct name="tracers_aggregate" time_levs="1">
 		<var name="iceAreaCell"			type="real"	dimensions="nCells Time"			name_in_code="iceAreaCell"/>
@@ -1219,8 +1223,6 @@
 		<var name="verticalAerosolsIceCell"		type="real"	dimensions="nzAerosolsIceLayers nCells Time"	name_in_code="verticalAerosolsIceCell"		packages="pkgTracerZAerosols"/>
 		<var name="verticalAerosolsConcCell"		type="real"	dimensions="nzAerosolsLayers nCells Time"	name_in_code="verticalAerosolsConcCell"	packages="pkgTracerZAerosols"/>
 		<var name="verticalSalinityCell"		type="real"	dimensions="nBioLayers nCells Time"		name_in_code="verticalSalinityCell"		packages="pkgTracerZSalinity"/>
-		<var name="bergMassCell"			type="real"	dimensions="nCells Time"				name_in_code="bergMassCell"				units="kg"	packages="pkgBergs"/>
-		<var name="bergAreaCell"			type="real"	dimensions="nCells Time"				name_in_code="bergAreaCell"				units="1"	packages="pkgBergs"/>
 	</var_struct>
 	<var_struct name="icestate" time_levs="1">
 		<var name="iceAreaCellInitial"			type="real"	dimensions="nCells Time"		name_in_code="iceAreaCellInitial"/>
@@ -2055,7 +2057,7 @@
 	</var_struct>
 
 	<!-- incremental remapping -->
-	<var_struct name="incremental_remap" time_levs="1">
+	<var_struct name="incremental_remap_geom" time_levs="1">
 		<var name="xTriangle"				type="real"	dimensions="nQuadPoints nTriPerEdgeRemap nEdges"	name_in_code="xTriangle"/>
 		<var name="yTriangle"				type="real"	dimensions="nQuadPoints nTriPerEdgeRemap nEdges"	name_in_code="yTriangle"/>
 		<var name="iCellTriangle"			type="integer"	dimensions="nTriPerEdgeRemap nEdges"			name_in_code="iCellTriangle"/>
@@ -2091,6 +2093,9 @@
 		<var name="yyyyAvgCell"			type="real"	dimensions="nCells"					name_in_code="yyyyAvgCell"/>
 		<var name="maskEdge"				type="integer"	dimensions="nEdges"					name_in_code="maskEdge"/>
 		<var name="maskCell"				type="integer"	dimensions="nCells"					name_in_code="maskCell"/>
+	</var_struct>
+
+	<var_struct name="incremental_remap" time_levs="1">
 		<var name="maskCategoryCell"			type="integer"	dimensions="nCategories nCells"			name_in_code="maskCategoryCell"/>
 		<var name="workCategoryCell"			type="real"	dimensions="nCategories nCells"			name_in_code="workCategoryCell"/>
 	</var_struct>
@@ -2563,75 +2568,156 @@
 	</var_struct>
 
 	<!-- icebergs -->
-	<var_struct name="berg_calving" time_levs="1" packages="pkgBergs">
-		<var name="bergCalvingDistribution"		type="real"	dimensions="nBergCategories"	name_in_code="bergCalvingDistribution"/>
-		<var name="bergCalvingLength"			type="real"	dimensions="nBergCategories"		name_in_code="bergCalvingLength"/>
-		<var name="bergCalvingHeight"			type="real"	dimensions="nBergCategories"		name_in_code="bergCalvingHeight"/>
-		<var name="oneCalvedBergMass"			type="real"	dimensions="nBergCategories"		name_in_code="oneCalvedBergMass"/>
-		<var name="nBergCalvingCells"			type="integer"	dimensions=""		name_in_code="nBergCalvingCells"/>
-		<var name="nBergCalvingCellsTotal"			type="integer"	dimensions=""		name_in_code="nBergCalvingCellsTotal"/>
-		<var name="calvingFluxObs"			type="real"	dimensions="nCells"		name_in_code="calvingFluxObs"/>
-		<var name="bergCalvingFlux"			type="real"	dimensions="nCells"		name_in_code="bergCalvingFlux"/>
-		<var name="bergCalvingMask"			type="integer"	dimensions="nBergCategories nCells"		name_in_code="bergCalvingMask"/>
-		<var name="bergCalvingMass"			type="real"	dimensions="nBergCategories nCells"		name_in_code="bergCalvingMass"/>
+
+	<!-- iceberg tracers -->
+	<var_struct name="berg_tracers" time_levs="2" packages="pkgBergs">
+		<var name="bergAreaCategory"	type="real"	dimensions="ONE nBergCategories nCells Time"		name_in_code="bergAreaCategory"		units="1"	packages="pkgBergs"/>
+		<var name="bergHeight"			type="real"	dimensions="ONE nBergCategories nCells Time"		name_in_code="bergHeight"			units="m"	packages="pkgBergs"/>
+		<var name="bergLength"			type="real"	dimensions="ONE nBergCategories nCells Time"	name_in_code="bergLength"			units="m"	packages="pkgBergs"/>
 	</var_struct>
 
+	<var_struct name="berg_tracers_aggregate" time_levs="1"	packages="pkgBergs">
+		<var name="bergAreaCell"		type="real"	dimensions="nCells Time"						name_in_code="bergAreaCell"			units="1"	packages="pkgBergs"/>
+	</var_struct>
+
+	<var_struct name="berg_tracer_masks" time_levs="1"	packages="pkgBergs">
+		<var name="bergAreaCategoryMask"		type="integer"	dimensions="ONE nBergCategories nCells"			name_in_code="bergAreaCategoryMask"	units="1"	packages="pkgBergs"/>
+		<var name="bergHeightMask"		type="integer"	dimensions="ONE nBergCategories nCells"			name_in_code="bergHeightMask"	units="1"	packages="pkgBergs"/>
+		<var name="bergLengthMask"		type="integer"	dimensions="ONE nBergCategories nCells"			name_in_code="bergLengthMask"	units="1"	packages="pkgBergs"/>
+	</var_struct>
+
+	<var_struct name="berg_tracer_edge_fluxes" time_levs="1"	packages="pkgBergs">
+		<var name="bergAreaCategoryEdgeFlux"			type="real"	dimensions="ONE nBergCategories nEdges"			name_in_code="bergAreaCategoryEdgeFlux"		packages="pkgBergs"/>
+		<var name="bergHeightEdgeFlux"			type="real"	dimensions="ONE nBergCategories nEdges"			name_in_code="bergHeightEdgeFlux"		packages="pkgBergs"/>
+		<var name="bergLengthEdgeFlux"			type="real"	dimensions="ONE nBergCategories nEdges"			name_in_code="bergLengthEdgeFlux"		packages="pkgBergs"/>
+	</var_struct>
+
+	<var_struct name="berg_tracer_products" time_levs="1"	packages="pkgBergs">
+		<var name="bergAreaCategoryProduct"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergAreaCategoryProduct"		packages="pkgBergs"/>
+		<var name="bergHeightProduct"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergHeightProduct"		packages="pkgBergs"/>
+		<var name="bergLengthProduct"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergLengthProduct"		packages="pkgBergs"/>
+	</var_struct>
+
+	<var_struct name="berg_tracer_triangles" time_levs="1"	 packages="pkgBergs">
+		<var name="bergAreaCategoryTriangle"			type="real"	dimensions="ONE nBergCategories nQuadPoints nTriPerEdgeRemap nEdges"			name_in_code="bergAreaCategoryTriangle"		packages="pkgBergs"/>
+		<var name="bergHeightTriangle"			type="real"	dimensions="ONE nBergCategories nQuadPoints nTriPerEdgeRemap nEdges"			name_in_code="bergHeightTriangle"		packages="pkgBergs"/>
+		<var name="bergLengthTriangle"			type="real"	dimensions="ONE nBergCategories nQuadPoints nTriPerEdgeRemap nEdges"			name_in_code="bergLengthTriangle"		packages="pkgBergs"/>
+	</var_struct>
+
+	<var_struct name="berg_tracer_barycenter" time_levs="1"	packages="pkgBergs">
+		<var name="bergAreaCategoryBarycenterx"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergAreaCategoryBarycenterx"		packages="pkgBergs"/>
+		<var name="bergAreaCategoryBarycentery"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergAreaCategoryBarycentery"		packages="pkgBergs"/>
+		<var name="bergHeightBarycenterx"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergHeightBarycenterx"		packages="pkgBergs"/>
+		<var name="bergHeightBarycentery"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergHeightBarycentery"		packages="pkgBergs"/>
+		<var name="bergLengthBarycenterx"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergLengthBarycenterx"		packages="pkgBergs"/>
+		<var name="bergLengthBarycentery"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergLengthBarycentery"		packages="pkgBergs"/>
+	</var_struct>
+
+	<var_struct name="berg_tracer_reconstruction" time_levs="1"	packages="pkgBergs">
+		<var name="bergAreaCategoryCenter"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergAreaCategoryCenter"	packages="pkgBergs"/>
+		<var name="bergAreaCategoryGradx"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergAreaCategoryGradx"	packages="pkgBergs"/>
+		<var name="bergAreaCategoryGrady"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergAreaCategoryGrady"	packages="pkgBergs"/>
+		<var name="bergHeightCenter"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergHeightCenter"	packages="pkgBergs"/>
+		<var name="bergHeightGradx"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergHeightGradx"	packages="pkgBergs"/>
+		<var name="bergHeightGrady"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergHeightGrady"	packages="pkgBergs"/>
+		<var name="bergLengthCenter"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergLengthCenter"	packages="pkgBergs"/>
+		<var name="bergLengthGradx"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergLengthGradx"	packages="pkgBergs"/>
+		<var name="bergLengthGrady"		type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergLengthGrady"	packages="pkgBergs"/>
+	</var_struct>
+
+	<var_struct name="berg_tracer_conservation" time_levs="2"	packages="pkgBergs">
+		<var name="bergAreaCategoryCons"		type="real"	dimensions="ONE nBergCategories"				name_in_code="bergAreaCategoryCons"		packages="pkgBergs"/>
+		<var name="bergHeightCons"		type="real"	dimensions="ONE nBergCategories"				name_in_code="bergHeightCons"		packages="pkgBergs"/>
+		<var name="bergLengthCons"		type="real"	dimensions="ONE nBergCategories"				name_in_code="bergLengthCons"		packages="pkgBergs"/>
+	</var_struct>
+
+	<var_struct name="berg_tracer_monotonicity" time_levs="1"	packages="pkgBergs">
+		<var name="bergAreaCategoryLocalMin"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergAreaCategoryLocalMin"		packages="pkgBergs"/>
+		<var name="bergAreaCategoryLocalMax"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergAreaCategoryLocalMax"		packages="pkgBergs"/>
+		<var name="bergHeightLocalMin"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergHeightLocalMin"		packages="pkgBergs"/>
+		<var name="bergHeightLocalMax"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergHeightLocalMax"		packages="pkgBergs"/>
+		<var name="bergLengthLocalMin"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergLengthLocalMin"		packages="pkgBergs"/>
+		<var name="bergLengthLocalMax"			type="real"	dimensions="ONE nBergCategories nCells"			name_in_code="bergLengthLocalMax"		packages="pkgBergs"/>
+	</var_struct>
+
+	<var_struct name="berg_incremental_remap" time_levs="1" packages="pkgBergs">
+		<var name="maskBergCategoryCell"			type="integer"	dimensions="nBergCategories nCells"		name_in_code="maskBergCategoryCell"	units="1"	packages="pkgBergs"/>
+		<var name="workBergCategoryCell"			type="real"	dimensions="nBergCategories nCells"			name_in_code="workBergCategoryCell"	units="1"	packages="pkgBergs"/>
+	</var_struct>
+
+	<!-- iceberg state -->
 	<var_struct name="berg_state" time_levs="1" packages="pkgBergs">
-		<var name="bergDraft"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergDraft"/>
-		<var name="oneBergArea"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="oneBergArea"/>
-		<var name="oneBergMass"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="oneBergMass"/>
-		<var name="bergAirContactArea"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergAirContactArea"/>
-		<var name="bergOcnContactArea"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergOcnContactArea"/>
-		<var name="bergIceContactArea"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergIceContactArea"/>
+		<var name="bergMassCategory"	type="real"	dimensions="nBergCategories nCells Time"	name_in_code="bergMassCategory"		units="kg"	packages="pkgBergs"/>
+		<var name="bergMassCell"		type="real"	dimensions="nCells Time"						name_in_code="bergMassCell"			units="kg"	packages="pkgBergs"/>
+	</var_struct>
+
+	<!-- iceberg calving -->
+	<var_struct name="berg_calving" time_levs="1" packages="pkgBergs">
+		<var name="bergCalvingDistribution"	type="real"		dimensions="nBergCategories"		name_in_code="bergCalvingDistribution"	units="1"			packages="pkgBergs"/>
+		<var name="bergCalvingLength"		type="real"		dimensions="nBergCategories"		name_in_code="bergCalvingLength"		units="m"			packages="pkgBergs"/>
+		<var name="bergCalvingHeight"		type="real"		dimensions="nBergCategories"		name_in_code="bergCalvingHeight"		units="m"			packages="pkgBergs"/>
+		<var name="oneCalvedBergMass"		type="real"		dimensions="nBergCategories"		name_in_code="oneCalvedBergMass"		units="kg"			packages="pkgBergs"/>
+		<var name="nBergCalvingCells"		type="integer"	dimensions=""						name_in_code="nBergCalvingCells"		units="1"			packages="pkgBergs"/>
+		<var name="nBergCalvingCellsTotal"	type="integer"	dimensions=""						name_in_code="nBergCalvingCellsTotal"	units="1"			packages="pkgBergs"/>
+		<var name="calvingFluxObs"			type="real"		dimensions="nCells"					name_in_code="calvingFluxObs"			units="kg/m^2/s"	packages="pkgBergs"/>
+		<var name="bergCalvingFlux"			type="real"		dimensions="nCells"					name_in_code="bergCalvingFlux"			units="kg/m^2/s"	packages="pkgBergs"/>
+		<var name="bergCalvingMask"			type="integer"	dimensions="nBergCategories nCells"	name_in_code="bergCalvingMask"			units="1"			packages="pkgBergs"/>
+		<var name="bergCalvingMass"			type="real"		dimensions="nBergCategories nCells"	name_in_code="bergCalvingMass"			units="kg"			packages="pkgBergs"/>
 	</var_struct>
 
 	<!-- iceberg velocity solver -->
 	<var_struct name="berg_velocity_solver" time_levs="1" packages="pkgBergs">
-		<var name="bergDynamicsTimeStep"		type="real"	dimensions=""				name_in_code="bergDynamicsTimeStep"/>
-		<var name="uBergVelocity"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="uBergVelocity"/>
-		<var name="vBergVelocity"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="vBergVelocity"/>
-		<var name="uBergVelocityCell"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="uBergVelocityCell"/>
-		<var name="vBergVelocityCell"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="vBergVelocityCell"/>
-		<var name="uBergVelocityInitial"		type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="uBergVelocityInitial"/>
-		<var name="vBergVelocityInitial"		type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="vBergVelocityInitial"/>
-		<var name="bergMassVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergMassVertex"/>
-		<var name="bergVelocityMask"			type="integer"	dimensions="nBergCategories nVertices Time"		name_in_code="bergVelocityMask"/>
-		<var name="bergDraftVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergDraftVertex"/>
-		<var name="oneBergAreaVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="oneBergAreaVertex"/>
-		<var name="oneBergMassVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="oneBergMassVertex"/>
-		<var name="bergAirContactAreaVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergAirContactAreaVertex"/>
-		<var name="bergOcnContactAreaVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergOcnContactAreaVertex"/>
-		<var name="bergIceContactAreaVertex"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergIceContactAreaVertex"/>
-		<var name="uAirVelocityVertex"			type="real"	dimensions="nVertices Time"		name_in_code="uAirVelocityVertex"/>
-		<var name="vAirVelocityVertex"			type="real"	dimensions="nVertices Time"		name_in_code="vAirVelocityVertex"/>
-		<var name="airDensityVertex"			type="real"	dimensions="nVertices Time"		name_in_code="airDensityVertex"/>
-		<var name="bergCoefAtmU"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergCoefAtmU"/>
-		<var name="bergCoefAtmV"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergCoefAtmV"/>
-		<var name="bergCoefOcnU"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergCoefOcnU"/>
-		<var name="bergCoefOcnV"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergCoefOcnV"/>
-		<var name="bergCoefIceU"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergCoefIceU"/>
-		<var name="bergCoefIceV"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergCoefIceV"/>
-		<var name="bergCoefCorU"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergCoefCorU"/>
-		<var name="bergCoefCorV"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergCoefCorV"/>
-		<var name="bergCoefTltU"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergCoefTltU"/>
-		<var name="bergCoefTltV"			type="real"	dimensions="nBergCategories nVertices Time"		name_in_code="bergCoefTltV"/>
+		<var name="bergDynamicsTimeStep"		type="real"		dimensions=""								name_in_code="bergDynamicsTimeStep"			units="s"		packages="pkgBergs"/>
+		<var name="uBergVelocity"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="uBergVelocity"				units="m/s"		packages="pkgBergs"/>
+		<var name="vBergVelocity"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="vBergVelocity"				units="m/s"		packages="pkgBergs"/>
+		<var name="uBergVelocityCell"			type="real"		dimensions="nBergCategories nCells Time"	name_in_code="uBergVelocityCell"			units="m/s"		packages="pkgBergs"/>
+		<var name="vBergVelocityCell"			type="real"		dimensions="nBergCategories nCells Time"	name_in_code="vBergVelocityCell"			units="m/s"		packages="pkgBergs"/>
+		<var name="uBergVelocityInitial"		type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="uBergVelocityInitial"			units="m/s"		packages="pkgBergs"/>
+		<var name="vBergVelocityInitial"		type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="vBergVelocityInitial"			units="m/s"		packages="pkgBergs"/>
+		<var name="bergMassVertex"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergMassVertex"				units="kg"		packages="pkgBergs"/>
+		<var name="bergVelocityMask"			type="integer"	dimensions="nBergCategories nVertices Time"	name_in_code="bergVelocityMask"				units="1"		packages="pkgBergs"/>
+		<var name="bergDraft"					type="real"		dimensions="nBergCategories nCells Time"	name_in_code="bergDraft"					units="m"		packages="pkgBergs"/>
+		<var name="oneBergArea"					type="real"		dimensions="nBergCategories nCells Time"	name_in_code="oneBergArea"					units="m^2"		packages="pkgBergs"/>
+		<var name="oneBergMass"					type="real"		dimensions="nBergCategories nCells Time"	name_in_code="oneBergMass"					units="kg"		packages="pkgBergs"/>
+		<var name="bergDraftVertex"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergDraftVertex"				units="m"		packages="pkgBergs"/>
+		<var name="oneBergAreaVertex"			type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="oneBergAreaVertex"			units="m^2"		packages="pkgBergs"/>
+		<var name="oneBergMassVertex"			type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="oneBergMassVertex"			units="kg"		packages="pkgBergs"/>
+		<var name="bergAirContactArea"			type="real"		dimensions="nBergCategories nCells Time"	name_in_code="bergAirContactArea"			units="m^2"		packages="pkgBergs"/>
+		<var name="bergOcnContactArea"			type="real"		dimensions="nBergCategories nCells Time"	name_in_code="bergOcnContactArea"			units="m^2"		packages="pkgBergs"/>
+		<var name="bergIceContactArea"			type="real"		dimensions="nBergCategories nCells Time"	name_in_code="bergIceContactArea"			units="m^2"		packages="pkgBergs"/>
+		<var name="bergAirContactAreaVertex"	type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergAirContactAreaVertex"		units="m^2"		packages="pkgBergs"/>
+		<var name="bergOcnContactAreaVertex"	type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergOcnContactAreaVertex"		units="m^2"		packages="pkgBergs"/>
+		<var name="bergIceContactAreaVertex"	type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergIceContactAreaVertex"		units="m^2"		packages="pkgBergs"/>
+		<var name="uAirVelocityVertex"			type="real"		dimensions="nVertices Time"					name_in_code="uAirVelocityVertex"			units="m/s"		packages="pkgBergs"/>
+		<var name="vAirVelocityVertex"			type="real"		dimensions="nVertices Time"					name_in_code="vAirVelocityVertex"			units="m/s"		packages="pkgBergs"/>
+		<var name="airDensityVertex"			type="real"		dimensions="nVertices Time"					name_in_code="airDensityVertex"				units="kg/m^3"	packages="pkgBergs"/>
+		<var name="bergCoefAtmU"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefAtmU"					units="kg*m/s^2"	packages="pkgBergs"/>
+		<var name="bergCoefAtmV"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefAtmV"					units="kg*m/s^2"	packages="pkgBergs"/>
+		<var name="bergCoefOcnU"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefOcnU"					units="kg*m/s^2"	packages="pkgBergs"/>
+		<var name="bergCoefOcnV"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefOcnV"					units="kg*m/s^2"	packages="pkgBergs"/>
+		<var name="bergCoefIceU"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefIceU"					units="kg*m/s^2"	packages="pkgBergs"/>
+		<var name="bergCoefIceV"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefIceV"					units="kg*m/s^2"	packages="pkgBergs"/>
+		<var name="bergCoefCorU"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefCorU"					units="kg*m/s^2"	packages="pkgBergs"/>
+		<var name="bergCoefCorV"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefCorV"					units="kg*m/s^2"	packages="pkgBergs"/>
+		<var name="bergCoefTltU"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefTltU"					units="kg*m/s^2"	packages="pkgBergs"/>
+		<var name="bergCoefTltV"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefTltV"					units="kg*m/s^2"	packages="pkgBergs"/>
 	</var_struct>
 
-	<!-- iceberg decay -->
+	<!-- iceberg decay solver -->
 	<var_struct name="berg_decay" time_levs="1" packages="pkgBergs">
-		<var name="bergDecayMask"			type="integer"	dimensions="nBergCategories nCells Time"		name_in_code="bergDecayMask"/>
-		<var name="bergBasalMeltRate"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergBasalMeltRate"	units="m/s"/>
-		<var name="bergLateralMeltRate"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergLateralMeltRate"	units="m/s"/>
-		<var name="bergWaveErosionRate"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergWaveErosionRate"	units="m/s"/>
-		<var name="bergMeltMass"			type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergMeltMass"	units="kg"/>
+		<var name="bergDecayMask"			type="integer"	dimensions="nBergCategories nCells Time"	name_in_code="bergDecayMask"/>
+		<var name="bergBasalMeltRate"		type="real"		dimensions="nBergCategories nCells Time"	name_in_code="bergBasalMeltRate"	units="m/s"		packages="pkgBergs"/>
+		<var name="bergLateralMeltRate"		type="real"		dimensions="nBergCategories nCells Time"	name_in_code="bergLateralMeltRate"	units="m/s"		packages="pkgBergs"/>
+		<var name="bergWaveErosionRate"		type="real"		dimensions="nBergCategories nCells Time"	name_in_code="bergWaveErosionRate"	units="m/s"		packages="pkgBergs"/>
+		<var name="bergMeltMass"			type="real"		dimensions="nBergCategories nCells Time"	name_in_code="bergMeltMass"			units="kg"		packages="pkgBergs"/>
 	</var_struct>
 
-	<!-- fluxes from icebergs -->
+	<!-- icebergs fluxes -->
 	<var_struct name="berg_fluxes" time_levs="1" packages="pkgBergs">
-		<var name="bergFreshwaterFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergFreshwaterFluxCategory"	units="kg/m^2/s"/>
-		<var name="bergLatentHeatFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"		name_in_code="bergLatentHeatFluxCategory"	units="J/m^2/s"/>
-		<var name="bergFreshwaterFluxCell"	type="real"	dimensions="nCells Time"				name_in_code="bergFreshwaterFluxCell"	units="kg/m^2/s"/>
-		<var name="bergLatentHeatFluxCell"	type="real"	dimensions="nCells Time"				name_in_code="bergLatentHeatFluxCell"	units="J/m^2/s"/>
+		<var name="bergFreshwaterFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"	name_in_code="bergFreshwaterFluxCategory"	units="kg/m^2/s"	packages="pkgBergs"/>
+		<var name="bergLatentHeatFluxCategory"	type="real"	dimensions="nBergCategories nCells Time"	name_in_code="bergLatentHeatFluxCategory"	units="J/m^2/s"		packages="pkgBergs"/>
+		<var name="bergFreshwaterFluxCell"		type="real"	dimensions="nCells Time"					name_in_code="bergFreshwaterFluxCell"		units="kg/m^2/s"	packages="pkgBergs"/>
+		<var name="bergLatentHeatFluxCell"		type="real"	dimensions="nCells Time"					name_in_code="bergLatentHeatFluxCell"		units="J/m^2/s"		packages="pkgBergs"/>
 	</var_struct>
 
 #include "analysis_members/Registry_cice_analysis_members.xml"

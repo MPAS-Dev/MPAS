@@ -153,13 +153,6 @@ contains
        call cice_run_velocity_solver(domain, clock)
        call mpas_timer_stop("Velocity solver")
 
-       ! berg dynamics
-       if (config_use_bergs) then
-          call mpas_timer_start("Berg dynamics")
-          call cice_run_berg_dynamics(domain, clock)
-          call mpas_timer_stop("Berg dynamics")
-       endif
-
        ! advection
        call mpas_timer_start("Advection")
        if (config_use_advection) &
@@ -172,6 +165,13 @@ contains
        call cice_column_dynamics_time_integration(domain, clock, ierr)
        call mpas_timer_stop("Column")
        if (ierr > 0) return
+
+       ! berg dynamics
+       if (config_use_bergs) then
+          call mpas_timer_start("Berg dynamics")
+          call cice_run_berg_dynamics(domain, clock, ierr)
+          call mpas_timer_stop("Berg dynamics")
+       endif
 
     enddo ! iDynamicsSubcycle
 

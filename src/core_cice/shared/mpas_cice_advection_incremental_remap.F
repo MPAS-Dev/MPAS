@@ -28,8 +28,7 @@ module cice_advection_incremental_remap
 
    use cice_advection_incremental_remap_tracers, only: &
         tracer_type, &
-        tracersHead, &
-        cice_add_tracers_to_linked_list, &
+        cice_add_ice_tracers_to_linked_list, &
         cice_set_tracer_array_pointers, &
         cice_update_tracer_halo
 
@@ -174,6 +173,9 @@ contains
     use mpas_rbf_interpolation, only: mpas_rbf_interp_initialize
     use mpas_vector_reconstruction, only: mpas_init_reconstruct
 
+    use cice_advection_incremental_remap_tracers, only: &
+         iceTracersHead
+
     type (domain_type), intent(inout) :: &
          domain !< Input/Output:
 
@@ -183,7 +185,7 @@ contains
 
     type (mpas_pool_type), pointer :: meshPool
     type (mpas_pool_type), pointer :: rotatedMeshPool
-    type (mpas_pool_type), pointer :: incrementalRemapPool
+    type (mpas_pool_type), pointer :: incrementalRemapGeomPool
     type (mpas_pool_type), pointer :: configPool
 
     real(kind=RKIND), dimension(:,:), pointer ::  &
@@ -281,8 +283,8 @@ contains
        call mpas_log_write('Add tracers to linked list')
     endif
 
-    ! construct a linked list of tracers
-    call cice_add_tracers_to_linked_list(domain)
+    ! construct a linked list of tracers for sea ice
+    call cice_add_ice_tracers_to_linked_list(domain, iceTracersHead)
 
     ! assign pointers
     block => domain % blocklist
@@ -296,7 +298,7 @@ contains
        ! get pools
        call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
        call mpas_pool_get_subpool(block % structs, 'rotated_mesh', rotatedMeshPool)
-       call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
+       call mpas_pool_get_subpool(block % structs, 'incremental_remap_geom', incrementalRemapGeomPool)
 
        ! get config options
        configPool => block % configs
@@ -361,22 +363,22 @@ contains
        allocate(geomAvgCell)
        call get_incremental_remap_geometry_pointers(geomAvgCell, block)
 
-       call mpas_pool_get_array(incrementalRemapPool, 'transCellToGlobal', transCellToGlobal)
-       call mpas_pool_get_array(incrementalRemapPool, 'transGlobalToCell', transGlobalToCell)
-       call mpas_pool_get_array(incrementalRemapPool, 'transVertexToGlobal', transVertexToGlobal)
-       call mpas_pool_get_array(incrementalRemapPool, 'transGlobalToVertex', transGlobalToVertex)
-       call mpas_pool_get_array(incrementalRemapPool, 'transEdgeToGlobal', transEdgeToGlobal)
-       call mpas_pool_get_array(incrementalRemapPool, 'transGlobalToEdge', transGlobalToEdge)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'transCellToGlobal', transCellToGlobal)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'transGlobalToCell', transGlobalToCell)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'transVertexToGlobal', transVertexToGlobal)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'transGlobalToVertex', transGlobalToVertex)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'transEdgeToGlobal', transEdgeToGlobal)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'transGlobalToEdge', transGlobalToEdge)
 
-       call mpas_pool_get_array(incrementalRemapPool, 'xVertexOnCell', xVertexOnCell)
-       call mpas_pool_get_array(incrementalRemapPool, 'yVertexOnCell', yVertexOnCell)
-       call mpas_pool_get_array(incrementalRemapPool, 'xVertexOnEdge', xVertexOnEdge)
-       call mpas_pool_get_array(incrementalRemapPool, 'yVertexOnEdge', yVertexOnEdge)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'xVertexOnCell', xVertexOnCell)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'yVertexOnCell', yVertexOnCell)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'xVertexOnEdge', xVertexOnEdge)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'yVertexOnEdge', yVertexOnEdge)
 
-       call mpas_pool_get_array(incrementalRemapPool, 'remapEdge', remapEdge)
-       call mpas_pool_get_array(incrementalRemapPool, 'cellsOnEdgeRemap', cellsOnEdgeRemap)
-       call mpas_pool_get_array(incrementalRemapPool, 'edgesOnEdgeRemap', edgesOnEdgeRemap)
-       call mpas_pool_get_array(incrementalRemapPool, 'minLengthEdgesOnVertex', minLengthEdgesOnVertex)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'remapEdge', remapEdge)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'cellsOnEdgeRemap', cellsOnEdgeRemap)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'edgesOnEdgeRemap', edgesOnEdgeRemap)
+       call mpas_pool_get_array(incrementalRemapGeomPool, 'minLengthEdgesOnVertex', minLengthEdgesOnVertex)
 
        ! Find the local index, block ID and proc ID associated with global diagnostic cells, edges and vertices.
        ! Note: If ctest/etest/vtest lie on a processor other than the head node, then diagnostic output will be written
@@ -2059,27 +2061,27 @@ contains
 
     ! local variables
 
-    type (mpas_pool_type), pointer :: incrementalRemapPool
+    type (mpas_pool_type), pointer :: incrementalRemapGeomPool
 
     ! get IR pool
-    call MPAS_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
+    call MPAS_pool_get_subpool(block % structs, 'incremental_remap_geom', incrementalRemapGeomPool)
 
     ! get arrays and assign pointers
 
-    call MPAS_pool_get_array(incrementalRemapPool, 'xAvgCell',     geomAvgCell % x)
-    call MPAS_pool_get_array(incrementalRemapPool, 'yAvgCell',     geomAvgCell % y)
-    call MPAS_pool_get_array(incrementalRemapPool, 'xxAvgCell',    geomAvgCell % xx)
-    call MPAS_pool_get_array(incrementalRemapPool, 'xyAvgCell',    geomAvgCell % xy)
-    call MPAS_pool_get_array(incrementalRemapPool, 'yyAvgCell',    geomAvgCell % yy)
-    call MPAS_pool_get_array(incrementalRemapPool, 'xxxAvgCell',   geomAvgCell % xxx)
-    call MPAS_pool_get_array(incrementalRemapPool, 'xxyAvgCell',   geomAvgCell % xxy)
-    call MPAS_pool_get_array(incrementalRemapPool, 'xyyAvgCell',   geomAvgCell % xyy)
-    call MPAS_pool_get_array(incrementalRemapPool, 'yyyAvgCell',   geomAvgCell % yyy)
-    call MPAS_pool_get_array(incrementalRemapPool, 'xxxxAvgCell',  geomAvgCell % xxxx)
-    call MPAS_pool_get_array(incrementalRemapPool, 'xxxyAvgCell',  geomAvgCell % xxxy)
-    call MPAS_pool_get_array(incrementalRemapPool, 'xxyyAvgCell',  geomAvgCell % xxyy)
-    call MPAS_pool_get_array(incrementalRemapPool, 'xyyyAvgCell',  geomAvgCell % xyyy)
-    call MPAS_pool_get_array(incrementalRemapPool, 'yyyyAvgCell',  geomAvgCell % yyyy)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'xAvgCell',     geomAvgCell % x)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'yAvgCell',     geomAvgCell % y)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'xxAvgCell',    geomAvgCell % xx)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'xyAvgCell',    geomAvgCell % xy)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'yyAvgCell',    geomAvgCell % yy)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'xxxAvgCell',   geomAvgCell % xxx)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'xxyAvgCell',   geomAvgCell % xxy)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'xyyAvgCell',   geomAvgCell % xyy)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'yyyAvgCell',   geomAvgCell % yyy)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'xxxxAvgCell',  geomAvgCell % xxxx)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'xxxyAvgCell',  geomAvgCell % xxxy)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'xxyyAvgCell',  geomAvgCell % xxyy)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'xyyyAvgCell',  geomAvgCell % xyyy)
+    call MPAS_pool_get_array(incrementalRemapGeomPool, 'yyyyAvgCell',  geomAvgCell % yyyy)
 
   end subroutine get_incremental_remap_geometry_pointers
 
@@ -2339,6 +2341,7 @@ contains
 
   subroutine cice_run_advection_incremental_remap(&
        domain,      &
+       tracersHead, &
        clock,       &
        ierr,        &
        timeLevelIn, &
@@ -2349,6 +2352,9 @@ contains
 
     type (domain_type), intent(inout) :: &
          domain    !< Input/Output: domain info
+
+    type (tracer_type), intent(inout), pointer :: &
+         tracersHead !< Input/Output: linked list of tracers
 
     type (MPAS_Clock_type), intent(in) :: &
          clock     !< Input: clock
@@ -2371,7 +2377,6 @@ contains
          updateHaloInit,   & ! if true, do initial halo updates for velocity, mass and tracer fields
          updateHaloFinal     ! if true, do final halo updates for mass and tracer fields
 
-    type (mpas_pool_type), pointer :: velocitySolverPool
     type (mpas_pool_type), pointer :: incrementalRemapPool
     type (mpas_pool_type), pointer :: tracerPool
 
@@ -2390,7 +2395,7 @@ contains
 
     ! dynamics time step
     real(kind=RKIND), pointer :: &
-         dynamicsTimeStep
+         advectionTimeStep
 
     ! assign pointers
     dminfo => domain % dminfo
@@ -2433,10 +2438,12 @@ contains
        if (verboseRun) call mpas_log_write('Doing initial halo updates for velocity, mass and tracers')
 
        call mpas_timer_start("incr remap init halo")
-       ! velocity
 
-       call MPAS_dmpar_field_halo_exch(domain, 'uVelocity')
-       call MPAS_dmpar_field_halo_exch(domain, 'vVelocity')
+       ! velocity
+       ! dcnote - with this setup, halo exchanges occur for iceberg velocities for every category
+       ! open to improvement
+       call MPAS_dmpar_field_halo_exch(domain, 'u' // trim(tracersHead % rootName) // 'Velocity')
+       call MPAS_dmpar_field_halo_exch(domain, 'v' // trim(tracersHead % rootName) // 'Velocity')
 
        ! mass and tracers
        call cice_update_tracer_halo(tracersHead, domain, timeLevel)
@@ -2462,11 +2469,10 @@ contains
     do while (associated(block))
 
        if (verboseRun) call mpas_log_write('Convert volume to thickness')
-
        ! get tracer pool and work array
-       call mpas_pool_get_subpool(block % structs, 'tracers', tracerPool)
-       call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
-       call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
+       call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
+       call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'incremental_remap', incrementalRemapPool)
+       call mpas_pool_get_array(incrementalRemapPool, 'work' // trim(tracersHead % rootName) // 'CategoryCell', workCategoryCell)
 
        ! set pointers to tracer arrays
        call cice_set_tracer_array_pointers(tracersHead, block, timeLevel)
@@ -2511,14 +2517,13 @@ contains
        if (verboseRun) call mpas_log_write('Call incremental_remap_block: block = $i', intArgs=(/block % localBlockID/))
 
        ! get dynamics time step
-       call MPAS_pool_get_subpool(block % structs, "velocity_solver", velocitySolverPool)
-       call MPAS_pool_get_array(velocitySolverPool, "dynamicsTimeStep", dynamicsTimeStep)
+       advectionTimeStep => tracersHead % advectionTimeStep
 
        ! do IR for this block
        call incremental_remap_block(&
             domain, &
             block, &
-            dynamicsTimeStep, &
+            advectionTimeStep, &
             tracersHead, &
             ierr)
        if (ierr > 0) exit
@@ -2573,9 +2578,9 @@ contains
        if (verboseRun) call mpas_log_write('Convert thickness to volume')
 
        ! get tracer pool and work array
-       call mpas_pool_get_subpool(block % structs, 'tracers', tracerPool)
-       call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
-       call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
+       call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
+       call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'incremental_remap', incrementalRemapPool)
+       call mpas_pool_get_array(incrementalRemapPool, 'work' // trim(tracersHead % rootName) // 'CategoryCell', workCategoryCell)
 
        ! set pointers to tracer arrays
        call cice_set_tracer_array_pointers(tracersHead, block, timeLevel)
@@ -2719,7 +2724,7 @@ contains
     integer, intent(inout) :: &
          ierr         !< Input/Output: error code
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead  !< Input/output: pointer to first element of linked list of tracers
                       ! The pointer stays attached to the first tracer, but all tracers are updated
 
@@ -2730,7 +2735,8 @@ contains
     ! pools
     type (mpas_pool_type), pointer :: tracerPool
     type (mpas_pool_type), pointer :: meshPool
-    type (mpas_pool_type), pointer :: velocityPool
+    type (mpas_pool_type), pointer :: incrementalRemapGeomPool
+
     type (mpas_pool_type), pointer :: incrementalRemapPool
     type (mpas_pool_type), pointer :: configPool
 
@@ -2853,9 +2859,8 @@ contains
 
     ! get pools
     call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-    call mpas_pool_get_subpool(block % structs, 'velocity_solver', velocityPool)
-    call mpas_pool_get_subpool(block % structs, 'tracers', tracerPool)
-    call mpas_pool_get_subpool(block % structs, 'incremental_remap', incrementalRemapPool)
+    call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
+    call mpas_pool_get_subpool(block % structs, 'incremental_remap_geom', incrementalRemapGeomPool)
 
     ! get config options
     configPool => block % configs
@@ -2863,8 +2868,8 @@ contains
     call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
 
     ! get velocity
-    call mpas_pool_get_array(velocityPool, 'uVelocity', uVelocity)
-    call mpas_pool_get_array(velocityPool, 'vVelocity', vVelocity)
+    uVelocity => tracersHead % uVelocity
+    vVelocity => tracersHead % vVelocity
 
     ! set pointers to tracer arrays
     call cice_set_tracer_array_pointers(tracersHead, block, timeLevel)
@@ -2901,24 +2906,26 @@ contains
     allocate(geomAvgCell)
     call get_incremental_remap_geometry_pointers(geomAvgCell, block)
 
-    call mpas_pool_get_array(incrementalRemapPool, 'xVertexOnCell', xVertexOnCell)
-    call mpas_pool_get_array(incrementalRemapPool, 'yVertexOnCell', yVertexOnCell)
-    call mpas_pool_get_array(incrementalRemapPool, 'xVertexOnEdge', xVertexOnEdge)
-    call mpas_pool_get_array(incrementalRemapPool, 'yVertexOnEdge', yVertexOnEdge)
-    call mpas_pool_get_array(incrementalRemapPool, 'departurePoint', departurePoint)
-    call mpas_pool_get_array(incrementalRemapPool, 'remapEdge', remapEdge)
-    call mpas_pool_get_array(incrementalRemapPool, 'cellsOnEdgeRemap', cellsOnEdgeRemap)
-    call mpas_pool_get_array(incrementalRemapPool, 'edgesOnEdgeRemap', edgesOnEdgeRemap)
-    call mpas_pool_get_array(incrementalRemapPool, 'xTriangle', xTriangle)
-    call mpas_pool_get_array(incrementalRemapPool, 'yTriangle', yTriangle)
-    call mpas_pool_get_array(incrementalRemapPool, 'iCellTriangle', iCellTriangle)
-    call mpas_pool_get_array(incrementalRemapPool, 'triangleArea', triangleArea)
-    call mpas_pool_get_array(incrementalRemapPool, 'transGlobalToCell',   transGlobalToCell)
-    call mpas_pool_get_array(incrementalRemapPool, 'minLengthEdgesOnVertex', minLengthEdgesOnVertex)
-    call mpas_pool_get_array(incrementalRemapPool, 'maskEdge', maskEdge)
-    call mpas_pool_get_array(incrementalRemapPool, 'maskCell', maskCell)
-    call mpas_pool_get_array(incrementalRemapPool, 'maskCategoryCell', maskCategoryCell)
-    call mpas_pool_get_array(incrementalRemapPool, 'workCategoryCell', workCategoryCell)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'xVertexOnCell', xVertexOnCell)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'yVertexOnCell', yVertexOnCell)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'xVertexOnEdge', xVertexOnEdge)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'yVertexOnEdge', yVertexOnEdge)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'departurePoint', departurePoint)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'remapEdge', remapEdge)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'cellsOnEdgeRemap', cellsOnEdgeRemap)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'edgesOnEdgeRemap', edgesOnEdgeRemap)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'xTriangle', xTriangle)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'yTriangle', yTriangle)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'iCellTriangle', iCellTriangle)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'triangleArea', triangleArea)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'transGlobalToCell',   transGlobalToCell)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'minLengthEdgesOnVertex', minLengthEdgesOnVertex)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'maskEdge', maskEdge)
+    call mpas_pool_get_array(incrementalRemapGeomPool, 'maskCell', maskCell)
+
+    call mpas_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'incremental_remap', incrementalRemapPool)
+    call mpas_pool_get_array(incrementalRemapPool, 'mask' // trim(tracersHead % rootName) // 'CategoryCell', maskCategoryCell)
+    call mpas_pool_get_array(incrementalRemapPool, 'work' // trim(tracersHead % rootName) // 'CategoryCell', workCategoryCell)
 
     ! Optional initial diagnostics: Write a list of cells with ice
     ! If verboseGlobal = true, then this info is also written at the end of each time step.
@@ -3377,7 +3384,7 @@ contains
     integer, intent(out), dimension(:) :: &
          maskCell     ! = 1 for cells with initial nonzero mass, else = 0
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead  !< Input/output: pointer to first element of linked list of tracers
                       ! The 'arrayMask' variable of the tracer derived type is set here
 
@@ -3598,7 +3605,7 @@ contains
     type(geometric_avg_cell_type), pointer :: &
          geomAvgCell        !< Input: derived type holding geometric averages
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead        !< Input/output: pointer to first element of linked list of tracers
                             ! unlimited gradients on input; limited gradients on output
 
@@ -6650,7 +6657,7 @@ contains
        block,                &
        ierr)
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead      !< Input/output: pointer to first element of linked list of tracers
                           !                This subroutine outputs thisTracer % edgeFlux2d/3d
 
@@ -7008,7 +7015,7 @@ contains
     integer, intent(in) :: &
          nCells            !< Input: number of cells to be updated
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead       !< Input/output: pointer to first element of linked list of tracers
                            ! old values on input; new values on output
 
@@ -7169,7 +7176,7 @@ contains
     real(kind=RKIND), dimension(:), intent(in) :: &
          areaCell          !< Input: cell area
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead       !< Input/output: pointer to first element of linked list of tracers
                            ! old tracer values on input; new values on output
 
@@ -7577,7 +7584,7 @@ contains
          dcEdge,        &  !< Input: distance between the 2 cell centers on each side of an edge
          dvEdge            !< Input: distance between the 2 vertices of an edge
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead       !< Input/output: pointer to first element of linked list of tracers
                            ! The pointer stays attached to the first tracer, but all tracers are updated
     ! local variables
@@ -8012,7 +8019,7 @@ contains
        areaCell,      &
        init)
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead  !< Input/output: pointer to first element of linked list of tracers
                       ! The pointer stays attached to the first tracer, but all tracer sums are updated
 
@@ -8138,7 +8145,7 @@ contains
 
     type (dm_info), intent(in) :: dminfo   !< Input: domain info
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead    !< Input/output: pointer to first element of linked list of tracers
                         ! The pointer stays attached to the first tracer, but tracer sums are updated
 
@@ -8283,7 +8290,7 @@ contains
        nEdgesOnCell,  &
        cellsOnCell)
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead   !< Input/output: pointer to first element of linked list of tracers
                        ! The pointer stays attached to the first tracer, but all tracer sums are updated
 
@@ -8429,7 +8436,7 @@ contains
     type (domain_type), intent(inout) :: &
          domain        !< Input: domain info
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead   !< Input/output: pointer to first element of linked list of tracers
                        ! The pointer stays attached to the first tracer, but all tracer sums are updated
 
@@ -8475,7 +8482,7 @@ contains
     ! get pools
 
     call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
-    call mpas_pool_get_subpool(domain % blocklist % structs, 'tracer_monotonicity', tracerMonotonicityPool)
+    call mpas_pool_get_subpool(domain % blocklist % structs, trim(tracersHead % prefixName) // 'tracer_monotonicity', tracerMonotonicityPool)
 
     ! get grid quantities
 
@@ -8777,7 +8784,7 @@ contains
        nCellsSolve,   &
        maskCategoryCell)
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead     !< Input/output: pointer to first element of linked list of tracers
                          ! The pointer stays attached to the first tracer
 
@@ -9333,5 +9340,7 @@ contains
     enddo
 
   end subroutine thickness_to_volume
+
+!-----------------------------------------------------------------------
 
 end module cice_advection_incremental_remap

@@ -28,8 +28,9 @@ module cice_advection_incremental_remap_tracers
    private
    save
 
-   public :: cice_add_tracers_to_linked_list, &
-             cice_set_tracer_array_pointers,  &
+   public :: cice_add_ice_tracers_to_linked_list, &
+             cice_add_berg_tracers_to_linked_list, &
+             cice_set_tracer_array_pointers, &
              cice_update_tracer_halo
 
    ! the type that makes up each element in the linked list
@@ -37,6 +38,10 @@ module cice_advection_incremental_remap_tracers
 
       character(len=strKIND) :: tracerName
       character(len=strKIND) :: parentName
+      character(len=strKIND) :: prefixName
+      character(len=strKIND) :: rootName
+
+      integer :: iCat      ! category number for icebergs
 
       integer :: ndims     ! number of dimensions in the tracer array
                            ! (nCategories, nCells) for 2D
@@ -114,6 +119,11 @@ module cice_advection_incremental_remap_tracers
       real(kind=RKIND), dimension(:,:),     pointer :: yGrad2D => null()
       real(kind=RKIND), dimension(:,:,:),   pointer :: yGrad3D => null()
 
+      real(kind=RKIND), dimension(:),     pointer :: uVelocity => null()
+      real(kind=RKIND), dimension(:),     pointer :: vVelocity => null()
+
+      real(kind=RKIND), pointer :: advectionTimeStep => null()
+
       ! pointer to parent tracer
       type(tracer_type), pointer :: parent => null()
 
@@ -142,16 +152,24 @@ module cice_advection_incremental_remap_tracers
 
    end type tracer_type
 
-   type(tracer_type), pointer, public :: tracersHead ! the linked list, but this always points to the first element
+   ! construct a type for an array of tracer_types
+   type, public :: tracer_ptr_type
+
+       type(tracer_type), pointer :: tracerTypePtr
+
+    end type tracer_ptr_type
+
+   type(tracer_type), pointer, public :: iceTracersHead ! the linked list, but this always points to the first element
+
+   type(tracer_ptr_type), dimension(:), allocatable, public :: bergTracersHeadArray ! array of linked list pointers
 
    logical, parameter :: verboseTracers = .false.
-!   logical, parameter :: verboseTracers = .true.
 
 contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  routine cice_add_tracers_to_linked_list
+!  routine cice_add_ice_tracers_to_linked_list
 !
 !> \brief  construct a linked list of tracers
 !> \author Adrian Turner and William Lipscomb
@@ -161,10 +179,13 @@ contains
 !>  at the head of the list.
 !-----------------------------------------------------------------------
 
-  subroutine cice_add_tracers_to_linked_list(domain)
+  subroutine cice_add_ice_tracers_to_linked_list(domain, tracersHead)
 
     type(domain_type), intent(in) :: &
          domain   !< Input:
+
+    type(tracer_type), intent(out), pointer :: &
+         tracersHead
 
     logical, pointer :: &
          pkgColumnTracerIceAgeActive, &
@@ -219,13 +240,13 @@ contains
 
     ! First the tracers that are always included:
 
-    call add_tracer_to_tracer_linked_list(tracersHead, 'iceAreaCategory',      'None')
-    call add_tracer_to_tracer_linked_list(tracersHead, 'iceVolumeCategory',    'iceAreaCategory')
-    call add_tracer_to_tracer_linked_list(tracersHead, 'snowVolumeCategory',   'iceAreaCategory')
-    call add_tracer_to_tracer_linked_list(tracersHead, 'surfaceTemperature',   'iceAreaCategory')
-    call add_tracer_to_tracer_linked_list(tracersHead, 'iceEnthalpy',          'iceVolumeCategory')
-    call add_tracer_to_tracer_linked_list(tracersHead, 'iceSalinity',          'iceVolumeCategory')
-    call add_tracer_to_tracer_linked_list(tracersHead, 'snowEnthalpy',         'snowVolumeCategory')
+    call add_tracer_to_tracer_linked_list(tracersHead, 'iceAreaCategory',      'None',              '','')
+    call add_tracer_to_tracer_linked_list(tracersHead, 'iceVolumeCategory',    'iceAreaCategory',   '','')
+    call add_tracer_to_tracer_linked_list(tracersHead, 'snowVolumeCategory',   'iceAreaCategory',   '','')
+    call add_tracer_to_tracer_linked_list(tracersHead, 'surfaceTemperature',   'iceAreaCategory',   '','')
+    call add_tracer_to_tracer_linked_list(tracersHead, 'iceEnthalpy',          'iceVolumeCategory', '','')
+    call add_tracer_to_tracer_linked_list(tracersHead, 'iceSalinity',          'iceVolumeCategory', '','')
+    call add_tracer_to_tracer_linked_list(tracersHead, 'snowEnthalpy',         'snowVolumeCategory','','')
 
     ! Next the tracers that might be included, depending on column package options:
 
@@ -296,171 +317,171 @@ contains
     call MPAS_pool_get_config(configPool, "config_use_level_meltponds", config_use_level_meltponds)
 
     if (pkgColumnTracerIceAgeActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'iceAge',               'iceVolumeCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'iceAge',               'iceVolumeCategory', '','')
     endif
 
     if (pkgColumnTracerFirstYearIceActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'firstYearIceArea',     'iceAreaCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'firstYearIceArea',     'iceAreaCategory', '','')
     endif
 
     if (pkgColumnTracerLevelIceActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'levelIceArea',         'iceAreaCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'levelIceVolume',       'iceVolumeCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'levelIceArea',         'iceAreaCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'levelIceVolume',       'iceVolumeCategory', '','')
     endif
 
     if (pkgColumnTracerPondsActive) then
        if (config_use_level_meltponds) then
-          call add_tracer_to_tracer_linked_list(tracersHead, 'pondArea',             'levelIceArea')
+          call add_tracer_to_tracer_linked_list(tracersHead, 'pondArea',             'levelIceArea', '','')
        else
-          call add_tracer_to_tracer_linked_list(tracersHead, 'pondArea',             'iceAreaCategory')
+          call add_tracer_to_tracer_linked_list(tracersHead, 'pondArea',             'iceAreaCategory', '','')
        endif
-       call add_tracer_to_tracer_linked_list(tracersHead, 'pondDepth',            'pondArea')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'pondDepth',            'pondArea', '','')
     endif
 
     if (pkgColumnTracerLidThicknessActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'pondLidThickness',     'pondArea')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'pondLidThickness',     'pondArea', '','')
     endif
 
     if (pkgColumnTracerAerosolsActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'snowScatteringAerosol','snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'snowBodyAerosol',      'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'iceScatteringAerosol', 'iceVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'iceBodyAerosol',       'iceVolumeCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'snowScatteringAerosol','snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'snowBodyAerosol',      'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'iceScatteringAerosol', 'iceVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'iceBodyAerosol',       'iceVolumeCategory', '','')
     endif
 
     ! brine height tracer
     if (pkgTracerBrineActive) &
-       call add_tracer_to_tracer_linked_list(tracersHead, 'brineFraction',               'iceVolumeCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'brineFraction',               'iceVolumeCategory', '','')
 
     ! skeletal layer biogeochemistry
     if (pkgTracerSkeletalAlgaeActive) &
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalAlgaeConc',           'iceAreaCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalAlgaeConc',           'iceAreaCategory', '','')
 
     ! nitrate
     if (pkgTracerSkeletalNitrateActive) &
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalNitrateConc',         'iceAreaCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalNitrateConc',         'iceAreaCategory', '','')
 
     ! carbon (DOC and DIC)
     if (pkgTracerSkeletalCarbonActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDOCConc',             'iceAreaCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDICConc',             'iceAreaCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDOCConc',             'iceAreaCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDICConc',             'iceAreaCategory', '','')
     endif
 
     ! DON (proteins...)
     if (pkgTracerSkeletalDONActive) &
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDONConc',             'iceAreaCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDONConc',             'iceAreaCategory', '','')
 
     ! ammonium
     if (pkgTracerSkeletalAmmoniumActive) &
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalAmmoniumConc',        'iceAreaCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalAmmoniumConc',        'iceAreaCategory', '','')
 
     ! silicate
     if (pkgTracerSkeletalSilicateActive) &
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalSilicateConc',        'iceAreaCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalSilicateConc',        'iceAreaCategory', '','')
 
     ! DMS and products
     if (pkgTracerSkeletalDMSActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDMSConc',             'iceAreaCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDMSPpConc',           'iceAreaCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDMSPdConc',           'iceAreaCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDMSConc',             'iceAreaCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDMSPpConc',           'iceAreaCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDMSPdConc',           'iceAreaCategory', '','')
     endif
 
     ! nonreactive mobile tracer
     if (pkgTracerSkeletalNonreactiveActive) &
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalNonreactiveConc',     'iceAreaCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalNonreactiveConc',     'iceAreaCategory', '','')
 
     ! humic material
     if (pkgTracerSkeletalHumicsActive) &
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalHumicsConc',          'iceAreaCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalHumicsConc',          'iceAreaCategory', '','')
 
     ! iron
     if (pkgTracerSkeletalIronActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalParticulateIronConc', 'iceAreaCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDissolvedIronConc',   'iceAreaCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalParticulateIronConc', 'iceAreaCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'skeletalDissolvedIronConc',   'iceAreaCategory', '','')
     endif
 
     ! vertical biogeochemistry
     ! fraction of tracer in the mobile phase
     if (pkgTracerMobileFractionActive) &
-       call add_tracer_to_tracer_linked_list(tracersHead, 'mobileFraction',              'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'mobileFraction',              'brineFraction', '','')
 
     ! algal nitrogen
     if (pkgTracerVerticalAlgaeActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAlgaeSnow',           'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAlgaeIce',            'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAlgaeSnow',           'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAlgaeIce',            'brineFraction', '','')
     endif
 
     ! nitrate
     if (pkgTracerVerticalNitrateActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalNitrateSnow',         'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalNitrateIce',          'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalNitrateSnow',         'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalNitrateIce',          'brineFraction', '','')
     endif
 
     ! carbon
     if (pkgTracerVerticalCarbonActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDOCSnow',             'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDICSnow',             'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDOCIce',              'brineFraction')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDICIce',              'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDOCSnow',             'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDICSnow',             'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDOCIce',              'brineFraction', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDICIce',              'brineFraction', '','')
     endif
 
     ! DON (proteins...)
     if (pkgTracerVerticalDONActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDONSnow',             'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDONIce',              'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDONSnow',             'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDONIce',              'brineFraction', '','')
     endif
 
     ! ammonium
     if (pkgTracerVerticalAmmoniumActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAmmoniumSnow',        'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAmmoniumIce',         'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAmmoniumSnow',        'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAmmoniumIce',         'brineFraction', '','')
     endif
 
     ! silicate
     if (pkgTracerVerticalSilicateActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalSilicateSnow',        'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalSilicateIce',         'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalSilicateSnow',        'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalSilicateIce',         'brineFraction', '','')
     endif
 
     ! DMS and related products
     if (pkgTracerVerticalDMSActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSSnow',             'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSPpSnow',           'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSPdSnow',           'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSIce',              'brineFraction')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSPpIce',            'brineFraction')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSPdIce',            'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSSnow',             'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSPpSnow',           'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSPdSnow',           'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSIce',              'brineFraction', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSPpIce',            'brineFraction', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDMSPdIce',            'brineFraction', '','')
     endif
 
     ! nonreactive mobile tracer
     if (pkgTracerVerticalNonreactiveActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalNonreactiveSnow',     'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalNonreactiveIce',      'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalNonreactiveSnow',     'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalNonreactiveIce',      'brineFraction', '','')
     endif
 
     ! humic material
     if (pkgTracerVerticalHumicsActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalHumicsSnow',          'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalHumicsIce',           'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalHumicsSnow',          'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalHumicsIce',           'brineFraction', '','')
     endif
 
     ! iron
     if (pkgTracerVerticalIronActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalParticulateIronSnow', 'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDissolvedIronSnow',   'snowVolumeCategory')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalParticulateIronIce',  'brineFraction')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDissolvedIronIce',    'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalParticulateIronSnow', 'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDissolvedIronSnow',   'snowVolumeCategory', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalParticulateIronIce',  'brineFraction', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalDissolvedIronIce',    'brineFraction', '','')
     endif
 
     ! vertical aerosols
     if (pkgTracerZAerosolsActive) then
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAerosolsIce','brineFraction')
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAerosolsSnow','snowVolumeCategory')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAerosolsIce','brineFraction', '','')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalAerosolsSnow','snowVolumeCategory', '','')
     endif
 
     ! vertical salinity
     if (pkgTracerZSalinityActive) &
-       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalSalinity',            'brineFraction')
+       call add_tracer_to_tracer_linked_list(tracersHead, 'verticalSalinity',            'brineFraction', '','')
 
     if (verboseTracers) then
        thisTracer => tracersHead
@@ -508,10 +529,105 @@ contains
           call mpas_log_write(' ')
           thisTracer => thisTracer % next
        enddo
-       if (associated(tracersHead)) call mpas_log_write('tracersHead:'//trim(tracersHead % tracerName))
+       if (associated(tracersHead)) call mpas_log_write('iceTracersHead:'//trim(tracersHead % tracerName))
     endif
 
-  end subroutine cice_add_tracers_to_linked_list
+  end subroutine cice_add_ice_tracers_to_linked_list
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  routine cice_add_berg_tracers_to_linked_list
+!
+!> \brief  construct a linked list of tracers
+!> \author Adrian Turner and William Lipscomb
+!> \date   March 2015
+!> \details
+!>  This routine constructs a linked list of tracers, with iceAreaCategory
+!>  at the head of the list.
+!-----------------------------------------------------------------------
+
+  subroutine cice_add_berg_tracers_to_linked_list(domain, &
+                                                  tracersHead, &
+                                                  iCategory)
+
+    type(domain_type), intent(in) :: &
+         domain   !< Input:
+
+    type(tracer_type), intent(out), pointer :: &
+         tracersHead
+
+    integer, intent(in) :: &
+         iCategory ! iceberg category
+
+    type(tracer_type), pointer :: thisTracer  ! diagnostic only
+
+    nullify(tracersHead)
+    nullify(thisTracer)
+
+    ! add all the tracers to the linked list
+    ! Note: These can be added in any order. They are reordered later to the order required for IR.
+    ! Note: The fractional iceberg area (bergAreaCategory) is actually a mass-like field rather than a tracer.
+    !       It is included here because it is the parent (or grandparent or great-grandparent) of all tracers
+    !        and is part of the tracer pool.
+
+    ! First the tracers that are always included:
+
+    call add_tracer_to_tracer_linked_list(tracersHead, 'bergAreaCategory', 'None',       'berg_', 'Berg', iCategory)
+    call add_tracer_to_tracer_linked_list(tracersHead, 'bergHeight', 'bergAreaCategory', 'berg_', 'Berg', iCategory)
+    call add_tracer_to_tracer_linked_list(tracersHead, 'bergLength', 'bergAreaCategory', 'berg_', 'Berg', iCategory)
+
+    ! Next the tracers that might be included, depending on column package options:
+
+    if (verboseTracers) then
+       thisTracer => tracersHead
+       call mpas_log_write(' ')
+       call mpas_log_write('Tracers in initial list:')
+       call mpas_log_write(' ')
+       do while (associated(thisTracer))
+          call mpas_log_write('Tracer: '//trim(thisTracer % tracerName))
+          if (associated(thisTracer % nextInitial)) then
+             call mpas_log_write('next: '//trim(thisTracer % nextInitial % tracerName))
+          endif
+          call mpas_log_write(' ')
+          thisTracer => thisTracer % nextInitial
+       enddo
+    endif
+
+    ! set the connectivity in the list
+    call create_tracers_connectivity(tracersHead)
+
+    ! calculate the number of parents for each tracer
+    call set_parent_numbers(tracersHead)
+
+    ! remove inactive tracers from the list
+    call remove_inactive_tracers(domain, tracersHead)
+
+    ! set the ordered list
+    ! The resulting list will have the Type 1 tracers first, followed by Type 2 and then Type 3
+    ! IR requires this order so as to compute parent properties before they are needed by child tracers
+    call set_tracer_order(tracersHead)
+
+    !WHL - debug
+    if (verboseTracers) then
+       thisTracer => tracersHead
+       call mpas_log_write(' ')
+       call mpas_log_write('Tracers in ordered list:')
+       call mpas_log_write(' ')
+       do while (associated(thisTracer))
+          call mpas_log_write('Tracer: '//trim(thisTracer % tracerName))
+          call mpas_log_write('Parent: '//trim(thisTracer % parentName))
+          call mpas_log_write('hasChild: $l', logicArgs=(/thisTracer % hasChild/))
+          call mpas_log_write('nParents: $i', intArgs=(/thisTracer % nParents/))
+          if (associated(thisTracer % next)) then
+             call mpas_log_write('next: '//trim(thisTracer % next % tracerName))
+          endif
+          call mpas_log_write(' ')
+          thisTracer => thisTracer % next
+       enddo
+       if (associated(tracersHead)) call mpas_log_write('bergTracersHead:'//trim(tracersHead % tracerName))
+    endif
+
+  end subroutine cice_add_berg_tracers_to_linked_list
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -526,17 +642,35 @@ contains
 
   subroutine add_tracer_to_tracer_linked_list(tracersHead, &
                                               tracerName,  &
-                                              parentName)
+                                              parentName, &
+                                              prefixName, &
+                                              rootName, &
+                                              iCategoryIn)
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), intent(inout), pointer :: &
          tracersHead ! pointer to first element of linked list
 
     character(len=*), intent(in) :: &
          tracerName, &
-         parentName
+         parentName, &
+         prefixName, &
+         rootName
+
+    integer, intent(in), optional :: &
+         iCategoryIn
 
     type(tracer_type), pointer :: &
          newTracer
+
+    integer :: iCategory
+
+    ! assign category if provided, otherwise set to 0
+    if (present(iCategoryIn)) then
+       iCategory = iCategoryIn
+    else
+       iCategory = 0
+    endif
+
 
     ! see if the linked list has any elements yet
     if (.not. associated(tracersHead)) then
@@ -568,6 +702,9 @@ contains
     ! newTracer is the new linked list element ready to have stuff done to it!
     newTracer % tracerName = trim(tracerName)
     newTracer % parentName = trim(parentName)
+    newTracer % prefixName = trim(prefixName)
+    newTracer % rootName = trim(rootName)
+    newTracer % iCat = iCategory
 
     ! initialize hasChild and nParents; these are modified below
     newTracer % hasChild = .false.
@@ -695,7 +832,7 @@ contains
     tracer => tracersHead
     do while (associated(tracer))
 
-       call MPAS_pool_get_subpool(domain % blocklist % structs, 'tracers', tracerPool)
+       call MPAS_pool_get_subpool(domain % blocklist % structs, trim(tracer % prefixName) // 'tracers', tracerPool)
 
        call MPAS_pool_get_field_info(tracerPool, trim(tracer % tracerName), fieldInfo)
 
@@ -737,7 +874,7 @@ contains
 
     logical :: first ! initially true; set to false after the first active tracer is found
 
-    call MPAS_pool_get_subpool(domain % blocklist % structs, 'tracers', tracerPool)
+    call MPAS_pool_get_subpool(domain % blocklist % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
 
     ! loop over the tracers in the linked list, and identify the active tracers
     tracer => tracersHead
@@ -847,7 +984,7 @@ contains
 
   subroutine set_tracer_order(tracersHead)
 
-    type(tracer_type), pointer :: &
+    type(tracer_type), pointer, intent(inout) :: &
          tracersHead ! pointer to the first element of the linked list
                      ! altered here to point to the first element of the newly ordered list
 
@@ -935,6 +1072,7 @@ contains
 
     type(MPAS_pool_type), pointer :: &
          tracerPool,              &! ice area plus tracer fields
+         tracerVelocityPool,      &! velocity to be used to advect tracers
          tracerMaskPool,          &! integer mask for each tracer
          tracerEdgeFluxPool,      &! edge flux for each tracer
          tracerProductPool,       &! mass-tracer products for each tracer
@@ -946,6 +1084,7 @@ contains
 
     type(MPAS_pool_field_info_type) :: thisFieldInfo
 
+    type(field0DReal), pointer :: tracerField0DReal
     type(field1DReal), pointer :: tracerField1DReal
     type(field2DReal), pointer :: tracerField2DReal
     type(field3DReal), pointer :: tracerField3DReal
@@ -957,21 +1096,26 @@ contains
 
     integer :: timeLevel
 
+    integer :: iCategory ! index for iceberg category
+
+    real(kind=RKIND), pointer :: timeStep
+
     if (present(timeLevelIn)) then
        timeLevel = timeLevelIn
     else
        timeLevel = 1
     endif
 
-    call MPAS_pool_get_subpool(block % structs, 'tracers', tracerPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_masks', tracerMaskPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_edge_fluxes', tracerEdgeFluxPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_products', tracerProductPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_triangles', tracerTrianglePool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_barycenter', tracerBarycenterPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_reconstruction', tracerReconstructionPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_conservation', tracerConservationPool)
-    call MPAS_pool_get_subpool(block % structs, 'tracer_monotonicity', tracerMonotonicityPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracers', tracerPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'velocity_solver', tracerVelocityPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_masks', tracerMaskPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_edge_fluxes', tracerEdgeFluxPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_products', tracerProductPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_triangles', tracerTrianglePool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_barycenter', tracerBarycenterPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_reconstruction', tracerReconstructionPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_conservation', tracerConservationPool)
+    call MPAS_pool_get_subpool(block % structs, trim(tracersHead % prefixName) // 'tracer_monotonicity', tracerMonotonicityPool)
 
     ! loop over the tracers in the linked list
 
@@ -1004,100 +1148,162 @@ contains
 
        endif
 
-       if (thisFieldInfo%nDims == 2 .and. thisTracer % nDims == 2) then    ! 2D formally and physically
+       if (trim(tracersHead % prefixName) == '') then
 
-          call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField2DReal, timeLevel)
-          thisTracer % array2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField2DInteger)
-          thisTracer % arrayMask2D => tracerField2DInteger % array
-          call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField2DReal)
-          thisTracer % edgeFlux2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField2DReal)
-          thisTracer % massTracerProduct2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField4DReal)
-          thisTracer % triangleValue2D => tracerField4DReal % array
-          call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField2DReal)
-          thisTracer % xBarycenter2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField2DReal)
-          thisTracer % yBarycenter2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField2DReal)
-          thisTracer % center2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField2DReal)
-          thisTracer % xGrad2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField2DReal)
-          thisTracer % yGrad2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField1DReal, 1)
-          thisTracer % globalSumInit2D => tracerField1DReal % array
-          call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField1DReal, 2)
-          thisTracer % globalSumFinal2D => tracerField1DReal % array
-          call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField2DReal)
-          thisTracer % localMin2D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField2DReal)
-          thisTracer % localMax2D => tracerField2DReal % array
+          if (thisFieldInfo%nDims == 2 .and. thisTracer % nDims == 2) then    ! 2D formally and physically
 
-       elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 2) then    ! 3D formally but 2D physically
+             call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField2DReal, timeLevel)
+             thisTracer % array2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField2DInteger)
+             thisTracer % arrayMask2D => tracerField2DInteger % array
+             call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField2DReal)
+             thisTracer % edgeFlux2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField2DReal)
+             thisTracer % massTracerProduct2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField4DReal)
+             thisTracer % triangleValue2D => tracerField4DReal % array
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField2DReal)
+             thisTracer % xBarycenter2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField2DReal)
+             thisTracer % yBarycenter2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField2DReal)
+             thisTracer % center2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField2DReal)
+             thisTracer % xGrad2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField2DReal)
+             thisTracer % yGrad2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField1DReal, 1)
+             thisTracer % globalSumInit2D => tracerField1DReal % array
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField1DReal, 2)
+             thisTracer % globalSumFinal2D => tracerField1DReal % array
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField2DReal)
+             thisTracer % localMin2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField2DReal)
+             thisTracer % localMax2D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
+             thisTracer % uVelocity => tracerField1DReal % array
+             call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
+             thisTracer % vVelocity => tracerField1DReal % array
+             call MPAS_pool_get_array(tracerVelocityPool, 'dynamicsTimeStep', timeStep)
+             thisTracer % advectionTimeStep => timeStep
+
+          elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 2) then    ! 3D formally but 2D physically
+
+             call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField3DReal, timeLevel)
+             thisTracer % array2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField3DInteger)
+             thisTracer % arrayMask2D => tracerField3DInteger % array(1,:,:)
+             call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField3DReal)
+             thisTracer % edgeFlux2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField3DReal)
+             thisTracer % massTracerProduct2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField5DReal)
+             thisTracer % triangleValue2D => tracerField5DReal % array(1,:,:,:,:)
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField3DReal)
+             thisTracer % xBarycenter2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField3DReal)
+             thisTracer % yBarycenter2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField3DReal)
+             thisTracer % center2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField3DReal)
+             thisTracer % xGrad2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField3DReal)
+             thisTracer % yGrad2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 1)
+             thisTracer % globalSumInit2D => tracerField2DReal % array(1,:)
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 2)
+             thisTracer % globalSumFinal2D => tracerField2DReal % array(1,:)
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField3DReal)
+             thisTracer % localMin2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField3DReal)
+             thisTracer % localMax2D => tracerField3DReal % array(1,:,:)
+             call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
+             thisTracer % uVelocity => tracerField1DReal % array
+             call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
+             thisTracer % vVelocity => tracerField1DReal % array
+             call MPAS_pool_get_array(tracerVelocityPool, 'dynamicsTimeStep', timeStep)
+             thisTracer % advectionTimeStep => timeStep
+
+          elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 3) then    ! 3D formally and physically
+
+             call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField3DReal, timeLevel)
+             thisTracer % array3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField3DInteger)
+             thisTracer % arrayMask3D => tracerField3DInteger % array
+             call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField3DReal)
+             thisTracer % edgeFlux3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField3DReal)
+             thisTracer % massTracerProduct3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField5DReal)
+             thisTracer % triangleValue3D => tracerField5DReal % array
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField3DReal)
+             thisTracer % xBarycenter3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField3DReal)
+             thisTracer % yBarycenter3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField3DReal)
+             thisTracer % center3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField3DReal)
+             thisTracer % xGrad3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField3DReal)
+             thisTracer % yGrad3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 1)
+             thisTracer % globalSumInit3D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 2)
+             thisTracer % globalSumFinal3D => tracerField2DReal % array
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField3DReal)
+             thisTracer % localMin3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField3DReal)
+             thisTracer % localMax3D => tracerField3DReal % array
+             call MPAS_pool_get_field(tracerVelocityPool, 'uVelocity', tracerField1DReal)
+             thisTracer % uVelocity => tracerField1DReal % array
+             call MPAS_pool_get_field(tracerVelocityPool, 'vVelocity', tracerField1DReal)
+             thisTracer % vVelocity => tracerField1DReal % array
+             call MPAS_pool_get_array(tracerVelocityPool, 'dynamicsTimeStep', timeStep)
+             thisTracer % advectionTimeStep => timeStep
+
+          endif  ! nDims
+
+       elseif (trim(tracersHead % prefixName) == 'berg_') then
+
+          ! point to only a single category for icebergs
+          iCategory = thisTracer % iCat
 
           call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField3DReal, timeLevel)
-          thisTracer % array2D => tracerField3DReal % array(1,:,:)
+          thisTracer % array2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField3DInteger)
-          thisTracer % arrayMask2D => tracerField3DInteger % array(1,:,:)
+          thisTracer % arrayMask2D => tracerField3DInteger % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField3DReal)
-          thisTracer % edgeFlux2D => tracerField3DReal % array(1,:,:)
+          thisTracer % edgeFlux2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField3DReal)
-          thisTracer % massTracerProduct2D => tracerField3DReal % array(1,:,:)
+          thisTracer % massTracerProduct2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField5DReal)
-          thisTracer % triangleValue2D => tracerField5DReal % array(1,:,:,:,:)
+          thisTracer % triangleValue2D => tracerField5DReal % array(1,iCategory:iCategory,:,:,:)
           call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField3DReal)
-          thisTracer % xBarycenter2D => tracerField3DReal % array(1,:,:)
+          thisTracer % xBarycenter2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField3DReal)
-          thisTracer % yBarycenter2D => tracerField3DReal % array(1,:,:)
+          thisTracer % yBarycenter2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField3DReal)
-          thisTracer % center2D => tracerField3DReal % array(1,:,:)
+          thisTracer % center2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField3DReal)
-          thisTracer % xGrad2D => tracerField3DReal % array(1,:,:)
+          thisTracer % xGrad2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField3DReal)
-          thisTracer % yGrad2D => tracerField3DReal % array(1,:,:)
+          thisTracer % yGrad2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 1)
-          thisTracer % globalSumInit2D => tracerField2DReal % array(1,:)
+          thisTracer % globalSumInit2D => tracerField2DReal % array(1,iCategory:iCategory)
           call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 2)
-          thisTracer % globalSumFinal2D => tracerField2DReal % array(1,:)
+          thisTracer % globalSumFinal2D => tracerField2DReal % array(1,iCategory:iCategory)
           call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField3DReal)
-          thisTracer % localMin2D => tracerField3DReal % array(1,:,:)
+          thisTracer % localMin2D => tracerField3DReal % array(1,iCategory:iCategory,:)
           call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField3DReal)
-          thisTracer % localMax2D => tracerField3DReal % array(1,:,:)
+          thisTracer % localMax2D => tracerField3DReal % array(1,iCategory:iCategory,:)
+          call MPAS_pool_get_field(tracerVelocityPool, 'uBergVelocity', tracerField2DReal)
+          thisTracer % uVelocity => tracerField2DReal % array(iCategory,:)
+          call MPAS_pool_get_field(tracerVelocityPool, 'vBergVelocity', tracerField2DReal)
+          thisTracer % vVelocity => tracerField2DReal % array(iCategory,:)
+          call MPAS_pool_get_array(tracerVelocityPool, 'bergDynamicsTimeStep', timeStep)
+          thisTracer % advectionTimeStep => timeStep
 
-       elseif (thisFieldInfo%nDims == 3 .and. thisTracer % nDims == 3) then    ! 3D formally and physically
-
-          call MPAS_pool_get_field(tracerPool, trim(thisTracer % tracerName), tracerField3DReal, timeLevel)
-          thisTracer % array3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerMaskPool, trim(thisTracer % tracerName) // 'Mask', tracerField3DInteger)
-          thisTracer % arrayMask3D => tracerField3DInteger % array
-          call MPAS_pool_get_field(tracerEdgeFluxPool, trim(thisTracer % tracerName) // 'EdgeFlux', tracerField3DReal)
-          thisTracer % edgeFlux3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerProductPool, trim(thisTracer % tracerName) // 'Product', tracerField3DReal)
-          thisTracer % massTracerProduct3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerTrianglePool, trim(thisTracer % tracerName) // 'Triangle', tracerField5DReal)
-          thisTracer % triangleValue3D => tracerField5DReal % array
-          call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycenterx', tracerField3DReal)
-          thisTracer % xBarycenter3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerBarycenterPool, trim(thisTracer % tracerName) // 'Barycentery', tracerField3DReal)
-          thisTracer % yBarycenter3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Center', tracerField3DReal)
-          thisTracer % center3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Gradx', tracerField3DReal)
-          thisTracer % xGrad3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerReconstructionPool, trim(thisTracer % tracerName) // 'Grady', tracerField3DReal)
-          thisTracer % yGrad3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 1)
-          thisTracer % globalSumInit3D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerConservationPool, trim(thisTracer % tracerName) // 'Cons', tracerField2DReal, 2)
-          thisTracer % globalSumFinal3D => tracerField2DReal % array
-          call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMin', tracerField3DReal)
-          thisTracer % localMin3D => tracerField3DReal % array
-          call MPAS_pool_get_field(tracerMonotonicityPool, trim(thisTracer % tracerName) // 'LocalMax', tracerField3DReal)
-          thisTracer % localMax3D => tracerField3DReal % array
-
-       endif  ! nDims
+       endif
 
        thisTracer => thisTracer % next
 
@@ -1151,6 +1357,6 @@ contains
 
   end subroutine cice_update_tracer_halo
 
-  !-----------------------------------------------
+!-----------------------------------------------------------------------
 
 end module cice_advection_incremental_remap_tracers
