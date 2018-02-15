@@ -226,8 +226,7 @@ contains
 !> \brief   Calculate iceberg velocities by solving momentum equation
 !> \author  Darin Comeau, LANL
 !> \date    June 28, 2017
-!> \details This subroutine is a wrapper for the iceberg velocity solver
-!> over a sea ice time step.
+!> \details This subroutine is a wrapper for the iceberg velocity solver.
 !
 !-----------------------------------------------------------------------
 
@@ -239,39 +238,10 @@ contains
     type(MPAS_Clock_type), intent(in) :: &
          clock !< Input:
 
-    ! pre subcycle
-    ! dcnote - with advection, these need to be recalculated each subcycle
-    call mpas_timer_start("Berg velocity solver pre-subcycle")
-    call berg_velocity_solver_pre_subcycle(domain)
-    call mpas_timer_stop("Berg velocity solver pre-subcycle")
+     character(len=strKIND), pointer :: &
+         config_berg_velocity_solver_type
 
-    ! subcycle the dynamics
-    call mpas_timer_start("Berg velocity solver sub-cycle")
-    call berg_velocity_solver_subcycle(domain, clock)
-    call mpas_timer_stop("Berg velocity solver sub-cycle")
-
-  end subroutine cice_run_berg_velocity_solver
-
-!-----------------------------------------------------------------------
-! Pre sub-cycle
-!-----------------------------------------------------------------------
-
-!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-!
-!  berg_velocity_solver_pre_subcycle
-!
-!> \brief   Prepare for iceberg velocity solver subcycling.
-!> \author  Darin Comeau, LANL
-!> \date    June 28, 2017
-!> \details This subroutine initializes and prepares variables & masks
-!> needed for iceberg velocity subcycle step.
-!
-!-----------------------------------------------------------------------
-
-  subroutine berg_velocity_solver_pre_subcycle(domain)
-
-    type(domain_type), intent(inout) :: &
-         domain
+    call MPAS_pool_get_config(domain % configs, "config_berg_velocity_solver_type", config_berg_velocity_solver_type)
 
     ! initialize subcycle variables
     call mpas_timer_start("init subcycle var")
@@ -288,7 +258,32 @@ contains
     call berg_vertical_areas(domain)
     call mpas_timer_stop("berg vertical area")
 
-  end subroutine berg_velocity_solver_pre_subcycle
+    ! solve for velocity
+    if (trim(config_berg_velocity_solver_type) == "forward_euler") then
+
+       call mpas_timer_start("Calculate berg forcing terms")
+       call calculate_berg_forcing(domain)
+       call mpas_timer_stop("Calculate berg forcing terms")
+
+       call mpas_timer_start("Berg velocity solver compute")
+       call solve_berg_velocity_forward_euler(domain)
+       call mpas_timer_stop("Berg velocity solver compute")
+
+    else
+
+       call mpas_log_write(&
+            "berg_velocity_solver: config_berg_velocity_solver_type unknown:"//trim(config_berg_velocity_solver_type), &
+            MPAS_LOG_CRIT)
+
+    endif
+
+    ! halo exchange
+    call mpas_timer_start("Berg velocity solver halo")
+    call MPAS_dmpar_field_halo_exch(domain, 'uBergVelocity')
+    call MPAS_dmpar_field_halo_exch(domain, 'vBergVelocity')
+    call mpas_timer_stop("Berg velocity solver halo")
+
+  end subroutine cice_run_berg_velocity_solver
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -841,64 +836,6 @@ contains
     end do ! block
 
   end subroutine berg_vertical_areas
-
-!-----------------------------------------------------------------------
-! Sub-cycle
-!-----------------------------------------------------------------------
-
-!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-!
-!  berg_velocity_solver_subcycle
-!
-!> \brief   Solve for berg velocities
-!> \author  Darin Comeau, LANL
-!> \date    July 17, 2017
-!> \details This subroutine calculates the forcing terms and solves for
-!> iceberg velocities within the subcycle timestep.
-!
-!-----------------------------------------------------------------------
-
-  subroutine berg_velocity_solver_subcycle(&
-       domain, &
-       clock)!{{{
-
-    type(domain_type), intent(inout) :: &
-         domain
-
-    type(MPAS_Clock_type), intent(in) :: &
-         clock !< Input:
-
-    character(len=strKIND), pointer :: &
-         config_berg_velocity_solver_type
-
-    call MPAS_pool_get_config(domain % configs, "config_berg_velocity_solver_type", config_berg_velocity_solver_type)
-
-    ! solve for velocity
-    if (trim(config_berg_velocity_solver_type) == "forward_euler") then
-
-       call mpas_timer_start("Calculate berg forcing terms")
-       call calculate_berg_forcing(domain)
-       call mpas_timer_stop("Calculate berg forcing terms")
-
-       call mpas_timer_start("Berg velocity solver compute")
-       call solve_berg_velocity_forward_euler(domain)
-       call mpas_timer_stop("Berg velocity solver compute")
-
-    else
-
-       call mpas_log_write(&
-            "berg_velocity_solver: config_berg_velocity_solver_type unknown:"//trim(config_berg_velocity_solver_type), &
-            MPAS_LOG_CRIT)
-
-    endif
-
-    ! halo exchange
-    call mpas_timer_start("Berg velocity solver halo")
-    call MPAS_dmpar_field_halo_exch(domain, 'uBergVelocity')
-    call MPAS_dmpar_field_halo_exch(domain, 'vBergVelocity')
-    call mpas_timer_stop("Berg velocity solver halo")
-
-  end subroutine berg_velocity_solver_subcycle!}}}
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
