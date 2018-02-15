@@ -5827,6 +5827,10 @@ module mpas_pool_routines
                      end if
 
 !TODO: are there cases where we need to delete more data here?
+!A: Yes at least one.
+                     if (associated(ptr_prev % data)) then
+                       deallocate(ptr_prev % data)
+                     end if
                      deallocate(ptr_prev)
                   end if
                   pool_remove_member = .true.
@@ -5860,6 +5864,10 @@ module mpas_pool_routines
                         end if
 
 !TODO: are there cases where we need to delete more data here?
+!A: Yes at least one.
+                       if (associated(ptr % data)) then
+                         deallocate(ptr % data)
+                       end if
                         deallocate(ptr)
                      end if
                      pool_remove_member = .true.
