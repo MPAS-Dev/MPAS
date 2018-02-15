@@ -63,47 +63,40 @@ contains
          block
 
     logical, pointer :: &
-         config_use_berg_decay, & ! flag to turn on / off berg decay parameterization
          config_berg_allow_rollover ! flag to turn on / off berg rollover due to instability
 
-    ! determine if decay is switched on
-    call MPAS_pool_get_config(domain % configs, "config_use_berg_decay", config_use_berg_decay)
     call MPAS_pool_get_config(domain % configs, "config_berg_allow_rollover", config_berg_allow_rollover)
 
-    if (config_use_berg_decay) then
+    block => domain % blocklist
+    do while (associated(block))
 
-       block => domain % blocklist
-       do while (associated(block))
+       ! reset iceberg decay variables
+       call init_berg_decay(block)
 
-          ! reset iceberg decay variables
-          call init_berg_decay(block)
+       ! get mask for iceberg decay calculations
+       call berg_decay_calculation_mask(block)
 
-          ! get mask for iceberg decay calculations
-          call berg_decay_calculation_mask(block)
+       ! wrapper for calculating each of three iceberg decay terms
+       call calculate_berg_decay_terms(block)
 
-          ! wrapper for calculating each of three iceberg decay terms
-          call calculate_berg_decay_terms(block)
+       ! apply iceberg decay terms
+       call berg_calculate_melt(block)
 
-          ! apply iceberg decay terms
-          call berg_calculate_melt(block)
+       ! convert lost iceberg mass to freshwater and latent heat fluxes
+       call berg_melt_fluxes(block)
 
-          ! convert lost iceberg mass to freshwater and latent heat fluxes
-          call berg_melt_fluxes(block)
+       ! determine if iceberg is stable, and rollover if needed
+       if (config_berg_allow_rollover) then
+          call mpas_timer_start("Berg rollover check")
+          call berg_rollover_check(block)
+          call mpas_timer_stop("Berg rollover check")
+       endif
 
-          ! determine if iceberg is stable, and rollover if needed
-          if (config_berg_allow_rollover) then
-             call mpas_timer_start("Berg rollover check")
-             call berg_rollover_check(block)
-             call mpas_timer_stop("Berg rollover check")
-          endif
+       ! update iceberg area state variable
+       call berg_update_area_after_decay(block)
 
-          ! update iceberg area state variable
-          call berg_update_area_after_decay(block)
-
-          block => block % next
-       enddo
-
-    endif ! config_use_berg_decay
+       block => block % next
+    enddo
 
   end subroutine cice_run_berg_decay!}}}
 

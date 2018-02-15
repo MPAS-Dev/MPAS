@@ -317,7 +317,18 @@ contains
          uBergVelocity, & ! berg velocity
          vBergVelocity, &
          uBergVelocityInitial, & ! storage for berg velocity at beginning of timestep
-         vBergVelocityInitial
+         vBergVelocityInitial, &
+         bergCoefAtmU, & ! atmospheric forcing term (kg*m/s^2)
+         bergCoefAtmV, &
+         bergCoefOcnU, & ! oceanic forcing term (kg*m/s^2)
+         bergCoefOcnV, &
+         bergCoefIceU, & ! sea ice forcing term (kg*m/s^2)
+         bergCoefIceV, &
+         bergCoefCorU, & ! Coriolis forcing term (kg*m/s^2)
+         bergCoefCorV, &
+         bergCoefTltU, & ! sea surface tilt forcing term (kg*m/s^2)
+         bergCoefTltV
+
 
     integer, pointer :: &
          nVerticesSolve, &
@@ -339,6 +350,16 @@ contains
        call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocity)
        call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocityInitial", uBergVelocityInitial)
        call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocityInitial", vBergVelocityInitial)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefAtmU", bergCoefAtmU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefAtmV", bergCoefAtmV)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefOcnU", bergCoefOcnU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefOcnV", bergCoefOcnV)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefIceU", bergCoefIceU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefIceV", bergCoefIceV)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefCorU", bergCoefCorU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefCorV", bergCoefCorV)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefTltU", bergCoefTltU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefTltV", bergCoefTltV)
 
        do iVertex = 1, nVerticesSolve
 
@@ -347,6 +368,16 @@ contains
              ! store berg velocities at beginning of timestep
              uBergVelocityInitial(iCategory,iVertex) = uBergVelocity(iCategory,iVertex)
              vBergVelocityInitial(iCategory,iVertex) = vBergVelocity(iCategory,iVertex)
+             bergCoefAtmU(iCategory,iVertex) = 0.0_RKIND
+             bergCoefAtmV(iCategory,iVertex) = 0.0_RKIND
+             bergCoefOcnU(iCategory,iVertex) = 0.0_RKIND
+             bergCoefOcnV(iCategory,iVertex) = 0.0_RKIND
+             bergCoefIceU(iCategory,iVertex) = 0.0_RKIND
+             bergCoefIceV(iCategory,iVertex) = 0.0_RKIND
+             bergCoefCorU(iCategory,iVertex) = 0.0_RKIND
+             bergCoefCorV(iCategory,iVertex) = 0.0_RKIND
+             bergCoefTltU(iCategory,iVertex) = 0.0_RKIND
+             bergCoefTltV(iCategory,iVertex) = 0.0_RKIND
 
           enddo ! iCategory
 
@@ -705,6 +736,13 @@ contains
        call MPAS_pool_get_array(bergVelocityPool, "bergIceContactAreaVertex", bergIceContactAreaVertex)
 
        bergSnow = 0.0_RKIND ! no snow on bergs for now
+
+       oneBergArea(:,:) = 0.0_RKIND
+       oneBergMass(:,:) = 0.0_RKIND
+       bergDraft(:,:) = 0.0_RKIND
+       bergAirContactArea(:,:) = 0.0_RKIND
+       bergOcnContactArea(:,:) = 0.0_RKIND
+       bergIceContactArea(:,:) = 0.0_RKIND
 
        do iCell = 1, nCellsSolve
 

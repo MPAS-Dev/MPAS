@@ -86,6 +86,38 @@ contains
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
+!  cice_run_berg_predynamics
+!
+!> \brief   Wrapper for pre-dynamics routines
+!> \author  Darin Comeau, LANL
+!> \date    07 Feb 2018
+!> \details This subroutine is a wrapper for the iceberg timestep before
+!> dynamics.
+!
+!-----------------------------------------------------------------------
+
+  subroutine cice_run_berg_predynamics(domain)
+
+    use cice_berg_state, only: &
+         cice_berg_init_displaced_area
+
+    type(domain_type), intent(inout) :: &
+         domain !< Input/Output:
+
+    logical, pointer :: &
+         config_berg_update_open_water ! flag to turn on / off bergs affecting open water
+
+    call MPAS_pool_get_config(domain % configs, "config_berg_update_open_water", config_berg_update_open_water)
+
+    ! reset berg displaced area for timestep
+    if (config_berg_update_open_water) call cice_berg_update_open_water_area(domain)
+
+  end subroutine cice_run_berg_predynamics
+
+! !-----------------------------------------------------------------------
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
 !  cice_run_berg_dynamics
 !
 !> \brief   Wrapper for iceberg dynamics
@@ -164,7 +196,8 @@ contains
     use cice_berg_state, only: &
          cice_berg_update_mass_and_area, &
          cice_berg_accumulate_calving_mass, &
-         cice_berg_release_calving_mass
+         cice_berg_release_calving_mass, &
+         cice_berg_update_open_water_area
 
     type(domain_type), intent(inout) :: &
          domain !< Input/Output:
@@ -175,6 +208,13 @@ contains
     integer, intent(in) :: &
          itimestep !< Input:
 
+    logical, pointer :: &
+         config_use_berg_decay, & ! flag to turn on / off berg decay parameterization
+         config_berg_update_open_water ! flag to turn on / off bergs affecting open water
+
+    call MPAS_pool_get_config(domain % configs, "config_use_berg_decay", config_use_berg_decay)
+    call MPAS_pool_get_config(domain % configs, "config_berg_update_open_water", config_berg_update_open_water)
+
     ! berg mass and area state variables update
     call mpas_timer_start("Berg update mass")
     call cice_berg_update_mass_and_area(domain)
@@ -182,7 +222,7 @@ contains
 
     ! berg decay solver
     call mpas_timer_start("Berg decay")
-    call cice_run_berg_decay(domain, clock)
+    if (config_use_berg_decay) call cice_run_berg_decay(domain, clock)
     call mpas_timer_stop("Berg decay")
 
     ! berg calving
@@ -190,6 +230,9 @@ contains
     call cice_berg_accumulate_calving_mass(domain)
     call cice_berg_release_calving_mass(domain, itimestep)
     call mpas_timer_stop("Berg calving")
+
+    ! update open water
+    if (config_berg_update_open_water) call cice_berg_update_open_water_area(domain)
 
   end subroutine cice_run_berg_postdynamics
 
