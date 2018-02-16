@@ -730,6 +730,644 @@ done_searching:
 	return 0;
 }/*}}}*/
 
+int validate_var_struct(ezxml_t var_struct, ezxml_t registry) {/*{{{*/
+	ezxml_t var_xml, var_array_xml, substruct_xml;
+
+	const char *name, *time_levs, *packages, *streams;
+
+	char *string, *tofree, *err_string;
+
+	name = ezxml_attr(var_struct, "name");
+	time_levs = ezxml_attr(var_struct, "time_levs");
+	packages = ezxml_attr(var_struct, "packages");
+	streams = ezxml_attr(var_struct, "streams");
+
+	if ( name == NULL ) {
+		fprintf(stderr, "ERROR: name attribute missing for var_struct\n");
+		return 1;
+	}
+
+	if ( time_levs == NULL ) {
+		fprintf(stderr, "ERROR: time_levs attribute missing for var_struct '%s'\n", name);
+		return 1;
+	}
+
+	if ( atoi(time_levs) == 0 ){
+		fprintf(stderr, "WARNING: time_levs attribute on var_struct '%s' has a value of 0, which will be replaced with 1.\n", name);
+	} else if ( atoi(time_levs) < 1 ){
+		fprintf(stderr, "ERROR: time_levs attribute on var_struct '%s' cannot have a negative value.\n", name);
+		return 1;
+	}
+
+	if (packages != NULL) {
+		string = strdup(packages);
+		err_string = check_packages(registry, string);
+		free(string);
+
+		if (err_string != NULL){
+			fprintf(stderr, "ERROR: Package %s used on var_struct %s is not defined.\n", err_string, name);
+			return 1;
+		}
+	}
+
+	if (streams != NULL) {
+		string = strdup(streams);
+		err_string = check_streams(registry, string);
+		free(string);
+
+		if (err_string != NULL) {
+			fprintf(stderr, "ERROR: Stream %s attached to var_struct %s is not defined.\n", err_string, name);
+			return 1;
+		}
+	}
+
+	// Validate all var_structs nested in this var_struct
+	for ( substruct_xml = ezxml_child(var_struct, "var_struct"); substruct_xml; substruct_xml = substruct_xml->next){
+		if ( ! validate_var_struct(substruct_xml, registry) ) {
+			return 1;
+		}
+	}
+
+	// Validate all var_arrays in this var_struct
+	for ( var_array_xml = ezxml_child(var_struct, "var_array"); var_array_xml; var_array_xml = var_array_xml->next){
+		if ( ! validate_var_array(var_array_xml, var_struct, registry) ) {
+			return 1;
+		}
+	}
+
+	// Validate all var in this var_struct
+	for ( var_xml = ezxml_child(var_struct, "var"); var_xml; var_xml = var_xml->next){
+		if ( ! validate_var(var_xml, var_struct, registry) ) {
+			return 1;
+		}
+	}
+
+	/*{{{
+	// Validate Variable Structures
+	for(structs_xml = ezxml_child(registry, "var_struct"); structs_xml; structs_xml = structs_xml->next){
+		structname = ezxml_attr(structs_xml, "name");
+		time_levs = ezxml_attr(structs_xml, "time_levs");
+		structpackages = ezxml_attr(structs_xml, "packages");
+		structstreams = ezxml_attr(structs_xml, "streams");
+
+		if (structname == NULL){
+			fprintf(stderr,"ERROR: Name missing for var_struct.\n");
+			return 1;
+		}
+
+		if (time_levs == NULL){
+			fprintf(stderr,"ERROR: time_levs attribute missing for var_struct %s.\n", structname);
+			return 1;
+		} else {
+			if (atoi(time_levs) == 0){
+				fprintf(stderr, "WARNING: time_levs attribute on var_struct %s is 0. It will be replaced with 1.\n", structname);
+			} else if (atoi(time_levs) < 1){
+				fprintf(stderr, "ERROR: time_levs attribute on var_struct %s is negative.\n", structname);
+				return 1;
+			}
+		}
+
+		if (structpackages != NULL) {
+			string = strdup(structpackages);
+			err_string = check_packages(registry, string);
+			free(string);
+
+			if (err_string != NULL){
+				fprintf(stderr, "ERROR: Package %s used on var_struct %s is not defined.\n", err_string, structname);
+				return 1;
+			}
+		}
+
+		if (structstreams != NULL) {
+			string = strdup(structstreams);
+			err_string = check_streams(registry, string);
+			free(string);
+
+			if (err_string != NULL) {
+				fprintf(stderr, "ERROR: Stream %s attached to var_struct %s is not defined.\n", err_string, structname);
+				return 1;
+			}
+		}
+
+		// Validate variable arrays
+		for(var_arr_xml = ezxml_child(structs_xml, "var_array"); var_arr_xml; var_arr_xml = var_arr_xml->next){
+			vararrname = ezxml_attr(var_arr_xml, "name");
+			vararrtype = ezxml_attr(var_arr_xml, "type");
+			vararrdims = ezxml_attr(var_arr_xml, "dimensions");
+			vararrpersistence = ezxml_attr(var_arr_xml, "persistence");
+			vararrpackages = ezxml_attr(var_arr_xml, "packages");
+			vararrstreams = ezxml_attr(var_arr_xml, "streams");
+			time_levs = ezxml_attr(var_arr_xml, "time_levs");
+
+			if (vararrname == NULL){
+				fprintf(stderr,"ERROR: Name attribute missing for var_array in var_struct %s.\n", structname);
+				return 1;
+			}
+
+			if (time_levs != NULL){
+				if (atoi(time_levs) == 0){
+					fprintf(stderr, "WARNING: time_levs attribute on var_array %s in var_struct %s is 0. It will be replaced with 1.\n", vararrname, structname);
+				} else if (atoi(time_levs) < 1){
+					fprintf(stderr, "ERROR: time_levs attribute on var_array %s in var_struct %s is negative.\n", vararrname, structname);
+					return 1;
+				}
+			}
+
+			if (vararrtype == NULL){
+				fprintf(stderr,"ERROR: Type attribute missing for var_array %s in var_struct %s.\n", vararrname, structname);
+				return 1;
+			} else if (strcasecmp("logical", vararrtype) != 0 && strcasecmp("real", vararrtype) != 0 &&
+					strcasecmp("integer", vararrtype) != 0 && strcasecmp("text", vararrtype) != 0) {
+				fprintf(stderr,"ERROR: Type attribute on var_array %s in var_struct %s is not equal to one of logical, real, integer, or text.\n", vararrname, structname);
+				return 1;
+			}
+
+			if (vararrdims == NULL){
+				fprintf(stderr,"ERROR: Dimensions attribute missing for var_array %s in var_struct %s.\n", vararrname, structname);
+				return 1;
+			} else { 
+				string = strdup(vararrdims);
+				err_string = check_dimensions(registry, string);
+				free(string);
+
+				if (err_string != NULL){
+					fprintf(stderr,"ERROR: Dimension %s on var_array %s in var_struct %s is not defined.\n", err_string, vararrname, structname);
+					return 1;
+				}
+			}
+
+			persistence = PERSISTENT;
+			if (vararrpersistence != NULL){
+				persistence = check_persistence(vararrpersistence);
+
+				if(persistence == -1) {
+					fprintf(stderr, "\ton var_array %s in var_struct %s.\n", vararrname, structname);
+					return -1;
+				}
+			}
+
+			if(persistence == SCRATCH && vararrpackages != NULL){
+				fprintf(stderr, "ERROR: Packages attribute not allowed on scratch var_array %s in var_struct %s.\n", vararrname, structname);
+				return -1;
+			} else if (persistence == SCRATCH && vararrpackages == NULL && structpackages != NULL) {
+				fprintf(stderr, "ERROR: Packages attribute inherited from var_struct %s not allowed on scratch var_array %s in var_struct %s.\n", structname, vararrname, structname);
+				return -1;
+			} else if (persistence == PERSISTENT && vararrpackages != NULL){
+				string = strdup(vararrpackages);
+				err_string = check_packages(registry, string);
+				free(string);
+
+				if (err_string != NULL){
+					fprintf(stderr, "ERROR: Package %s used on var_array %s in var_struct %s is not defined.\n", err_string, vararrname, structname);
+					return 1;
+				}
+			}
+
+			if (persistence == SCRATCH && vararrstreams != NULL){
+				fprintf(stderr, "ERROR: Streams attribute not allowed on scratch var_array %s in var_struct %s.\n", vararrname, structname);
+				return -1;
+			} 
+			else if (persistence == SCRATCH && vararrstreams == NULL && structstreams != NULL) {
+				fprintf(stderr, "ERROR: Streams attribute inherited from var_struct %s not allowed on scratch var_array %s in var_struct %s.\n", structname, vararrname, structname);
+				return -1;
+			} 
+			else if (persistence == PERSISTENT && vararrstreams != NULL) {
+				string = strdup(vararrstreams);
+				err_string = check_streams(registry, string);
+				free(string);
+
+				if (err_string != NULL) {
+					fprintf(stderr, "ERROR: Stream %s attached to var_array %s in var_struct %s is not defined.\n", err_string, vararrname, structname);
+					return 1;
+				}
+			}
+
+
+			// Validate variables in variable arrays
+			for(var_xml = ezxml_child(var_arr_xml, "var"); var_xml; var_xml = var_xml->next){
+				varname = ezxml_attr(var_xml, "name");
+				varunits = ezxml_attr(var_xml, "units");
+				vardesc = ezxml_attr(var_xml, "description");
+				vararrgroup = ezxml_attr(var_xml, "array_group");
+				varname_in_code = ezxml_attr(var_xml, "name_in_code");
+				varpackages = ezxml_attr(var_xml, "packages");
+				varstreams = ezxml_attr(var_xml, "streams");
+
+				if (varname == NULL) {
+					fprintf(stderr,"ERROR: Name missing for constituent variable in var_array %s in var_struct %s.\n", vararrname, structname);
+					return 1;
+				}
+
+				if (vararrgroup == NULL){
+					fprintf(stderr,"ERROR: Array group attribute missing for constituent variable %s in var_array %s in var_struct %s.\n", varname, vararrname, structname);
+					return 1;
+				}
+
+				if (persistence == SCRATCH && vararrpackages != NULL) {
+					fprintf(stderr, "ERROR: Packages attribute not allowed on constituent variable %s within scratch var_srray %s in var_struct %s.\n", varname, vararrname, structname);
+					return 1;
+				}
+
+				if (persistence == SCRATCH && vararrstreams != NULL) {
+					fprintf(stderr, "ERROR: Streams attribute not allowed on constituent variable %s within scratch var_srray %s in var_struct %s.\n", varname, vararrname, structname);
+					return 1;
+				}
+
+				if(varpackages != NULL){
+					string = strdup(varpackages);
+					err_string = check_packages(registry, string);
+					free(string);
+
+					if (err_string != NULL){
+						fprintf(stderr, "ERROR: Package %s used on constituent variable %s in var_array %s var_struct %s is not defined.\n", err_string, varname, vararrname, structname);
+						return 1;
+					}
+				}
+
+				if(varstreams != NULL){
+					string = strdup(varstreams);
+					err_string = check_streams(registry, string);
+					free(string);
+
+					if (err_string != NULL){
+						fprintf(stderr, "ERROR: Stream %s attached to constituent variable %s in var_array %s var_struct %s is not defined.\n", err_string, varname, vararrname, structname);
+						return 1;
+					}
+				}
+
+			}
+		}
+
+		for(var_xml = ezxml_child(structs_xml, "var"); var_xml; var_xml = var_xml->next){
+			varname = ezxml_attr(var_xml, "name");
+			varpersistence = ezxml_attr(var_xml, "persistence");
+			vartype = ezxml_attr(var_xml, "type");
+			vardims = ezxml_attr(var_xml, "dimensions");
+			varunits = ezxml_attr(var_xml, "units");
+			vardesc = ezxml_attr(var_xml, "description");
+			varname_in_code = ezxml_attr(var_xml, "name_in_code");
+			varpackages = ezxml_attr(var_xml, "packages");
+			varstreams = ezxml_attr(var_xml, "streams");
+			time_levs = ezxml_attr(var_xml, "time_levs");
+
+			if (varname == NULL) {
+				fprintf(stderr,"ERROR: Variable name missing in var_struct %s\n.", structname);
+				return 1;
+			}
+
+			if (time_levs != NULL){
+				if (atoi(time_levs) == 0){
+					fprintf(stderr, "WARNING: time_levs attribute on var %s in var_struct %s is 0. It will be replaced with 1.\n", varname, structname);
+				} else if (atoi(time_levs) < 1){
+					fprintf(stderr, "ERROR: time_levs attribute on var %s in var_struct %s is negative.\n", varname, structname);
+					return 1;
+				}
+			}
+
+			if(vartype == NULL) {
+				fprintf(stderr,"ERROR: Type attribute missing on variable %s in var_struct %s\n.", varname, structname);
+				return 1;
+			} else if (strcasecmp("logical", vartype) != 0 && strcasecmp("real", vartype) != 0 &&
+					strcasecmp("integer", vartype) != 0 && strcasecmp("text", vartype) != 0) {
+				fprintf(stderr,"ERROR: Type attribute on variable %s in var_struct %s is not equal to one of logical, real, integer, or text.\n", varname, structname);
+				return 1;
+			}
+
+			if (vardims == NULL) {
+				fprintf(stderr,"ERROR: Dimensions attribute missing for variable %s in var_struct %s.\n", varname, structname);
+				return 1;
+			} else {
+				if (strcasecmp("", vardims) != 0) {
+					string = strdup(vardims);
+					err_string = check_dimensions(registry, string);
+					free(string);
+
+					if(err_string != NULL) {
+						fprintf(stderr,"ERROR: Dimension %s on variable %s in var_struct %s not defined.\n", err_string, varname, structname); 
+						return 1;
+					}
+				}
+			}
+
+			persistence = PERSISTENT;
+			if (varpersistence != NULL) {
+				persistence = check_persistence(varpersistence);
+
+				if(persistence == -1){
+					fprintf(stderr, "\ton varaible %s in var_struct %s.\n", varname, structname);
+					return -1;
+				}
+			}
+
+			if(varpackages != NULL && persistence == PERSISTENT){
+				string = strdup(varpackages);
+				err_string = check_packages(registry, string);
+				free(string);
+
+				if (err_string != NULL){
+					fprintf(stderr, "ERROR: Package %s used on variable %s in var_struct %s is not defined.\n", err_string, varname, structname);
+					return 1;
+				}
+			} else if ( persistence == SCRATCH && varpackages != NULL ) {
+				fprintf(stderr, "ERROR: Packages attribute not allowed on scratch variable %s in var_struct %s.\n", varname, structname);
+				return -1;
+			} else if ( persistence == SCRATCH && varpackages == NULL && structpackages != NULL) {
+				fprintf(stderr, "ERROR: Packages attribute inherited from var_struct %s not allowed on scratch var %s in var_struct %s.\n", structname, varname, structname);
+				return -1;
+			}
+
+			if (varstreams != NULL && persistence == PERSISTENT) {
+				string = strdup(varstreams);
+				err_string = check_streams(registry, string);
+				free(string);
+
+				if (err_string != NULL) {
+					fprintf(stderr, "ERROR: Stream %s attached to variable %s in var_struct %s is not defined.\n", err_string, varname, structname);
+					return 1;
+				}
+			} 
+			else if ( persistence == SCRATCH && varstreams != NULL ) {
+				fprintf(stderr, "ERROR: Streams attribute not allowed on scratch variable %s in var_struct %s.\n", varname, structname);
+				return -1;
+			} 
+			else if ( persistence == SCRATCH && varstreams == NULL && structstreams != NULL) {
+				fprintf(stderr, "ERROR: Streams attribute inherited from var_struct %s not allowed on scratch var %s in var_struct %s.\n", structname, varname, structname);
+				return -1;
+			}
+
+		}
+	}
+	}}}*/
+
+}/*}}}*/
+
+int validate_var_array(ezxml_t var_array, ezxml_t parent_struct, ezxml_t registry) {/*{{{*/
+	ezxml_t var_xml;
+	const char *structname, *structpackages, *structstreams;
+	const char *name, *type, *dims, *persistence_str, *packages, *streams, *time_levs;
+	const char *varname, *varunits, *vardesc, *group, *varname_in_code, *varpackages, *varstreams;
+	char *string, *tofree, *err_string;
+	int persistence;
+
+	structname = ezxml_attr(parent_struct, "name");
+	structpackages = ezxml_attr(parent_struct, "packages");
+	structstreams = ezxml_attr(parent_struct, "streams");
+
+	name = ezxml_attr(var_array, "name");
+	type = ezxml_attr(var_array, "type");
+	dims = ezxml_attr(var_array, "dimensions");
+	persistence_str = ezxml_attr(var_array, "persistence");
+	packages = ezxml_attr(var_array, "packages");
+	streams = ezxml_attr(var_array, "streams");
+	time_levs = ezxml_attr(var_array, "time_levs");
+
+	if (name == NULL){
+		fprintf(stderr,"ERROR: Name attribute missing for var_array in var_struct %s.\n", structname);
+		return 1;
+	}
+
+	if (time_levs != NULL){
+		if (atoi(time_levs) == 0){
+			fprintf(stderr, "WARNING: time_levs attribute on var_array %s in var_struct %s is 0. It will be replaced with 1.\n", name, structname);
+		} else if (atoi(time_levs) < 1){
+			fprintf(stderr, "ERROR: time_levs attribute on var_array %s in var_struct %s is negative.\n", name, structname);
+			return 1;
+		}
+	}
+
+	if (type == NULL){
+		fprintf(stderr,"ERROR: Type attribute missing for var_array %s in var_struct %s.\n", name, structname);
+		return 1;
+	} else if (strcasecmp("logical", type) != 0 && strcasecmp("real", type) != 0 &&
+			strcasecmp("integer", type) != 0 && strcasecmp("text", type) != 0) {
+		fprintf(stderr,"ERROR: Type attribute on var_array %s in var_struct %s is not equal to one of logical, real, integer, or text.\n", name, structname);
+		return 1;
+	}
+
+	if (dims == NULL){
+		fprintf(stderr,"ERROR: Dimensions attribute missing for var_array %s in var_struct %s.\n", name, structname);
+		return 1;
+	} else { 
+		string = strdup(dims);
+		err_string = check_dimensions(registry, string);
+		free(string);
+
+		if (err_string != NULL){
+			fprintf(stderr,"ERROR: Dimension %s on var_array %s in var_struct %s is not defined.\n", err_string, name, structname);
+			return 1;
+		}
+	}
+
+	persistence = PERSISTENT;
+	if (persistence_str != NULL){
+		persistence = check_persistence(persistence_str);
+
+		if(persistence == -1) {
+			fprintf(stderr, "\ton var_array %s in var_struct %s.\n", name, structname);
+			return -1;
+		}
+	}
+
+	if(persistence == SCRATCH && packages != NULL){
+		fprintf(stderr, "ERROR: Packages attribute not allowed on scratch var_array %s in var_struct %s.\n", name, structname);
+		return -1;
+	} else if (persistence == SCRATCH && packages == NULL && structpackages != NULL) {
+		fprintf(stderr, "ERROR: Packages attribute inherited from var_struct %s not allowed on scratch var_array %s in var_struct %s.\n", structname, name, structname);
+		return -1;
+	} else if (persistence == PERSISTENT && packages != NULL){
+		string = strdup(packages);
+		err_string = check_packages(registry, string);
+		free(string);
+
+		if (err_string != NULL){
+			fprintf(stderr, "ERROR: Package %s used on var_array %s in var_struct %s is not defined.\n", err_string, name, structname);
+			return 1;
+		}
+	}
+
+	if (persistence == SCRATCH && streams != NULL){
+		fprintf(stderr, "ERROR: Streams attribute not allowed on scratch var_array %s in var_struct %s.\n", name, structname);
+		return -1;
+	} 
+	else if (persistence == SCRATCH && streams == NULL && structstreams != NULL) {
+		fprintf(stderr, "ERROR: Streams attribute inherited from var_struct %s not allowed on scratch var_array %s in var_struct %s.\n", structname, name, structname);
+		return -1;
+	} 
+	else if (persistence == PERSISTENT && streams != NULL) {
+		string = strdup(streams);
+		err_string = check_streams(registry, string);
+		free(string);
+
+		if (err_string != NULL) {
+			fprintf(stderr, "ERROR: Stream %s attached to var_array %s in var_struct %s is not defined.\n", err_string, name, structname);
+			return 1;
+		}
+	}
+
+
+	// Validate variables in variable arrays
+	for(var_xml = ezxml_child(var_array, "var"); var_xml; var_xml = var_xml->next){
+		varname = ezxml_attr(var_xml, "name");
+		varunits = ezxml_attr(var_xml, "units");
+		vardesc = ezxml_attr(var_xml, "description");
+		group = ezxml_attr(var_xml, "array_group");
+		varname_in_code = ezxml_attr(var_xml, "name_in_code");
+		varpackages = ezxml_attr(var_xml, "packages");
+		varstreams = ezxml_attr(var_xml, "streams");
+
+		if (varname == NULL) {
+			fprintf(stderr,"ERROR: Name missing for constituent variable in var_array %s in var_struct %s.\n", name, structname);
+			return 1;
+		}
+
+		if (group == NULL){
+			fprintf(stderr,"ERROR: Array group attribute missing for constituent variable %s in var_array %s in var_struct %s.\n", varname, name, structname);
+			return 1;
+		}
+
+		if (persistence == SCRATCH && packages != NULL) {
+			fprintf(stderr, "ERROR: Packages attribute not allowed on constituent variable %s within scratch var_srray %s in var_struct %s.\n", varname, name, structname);
+			return 1;
+		}
+
+		if (persistence == SCRATCH && streams != NULL) {
+			fprintf(stderr, "ERROR: Streams attribute not allowed on constituent variable %s within scratch var_srray %s in var_struct %s.\n", varname, name, structname);
+			return 1;
+		}
+
+		if(varpackages != NULL){
+			string = strdup(varpackages);
+			err_string = check_packages(registry, string);
+			free(string);
+
+			if (err_string != NULL){
+				fprintf(stderr, "ERROR: Package %s used on constituent variable %s in var_array %s var_struct %s is not defined.\n", err_string, varname, name, structname);
+				return 1;
+			}
+		}
+
+		if(varstreams != NULL){
+			string = strdup(varstreams);
+			err_string = check_streams(registry, string);
+			free(string);
+
+			if (err_string != NULL){
+				fprintf(stderr, "ERROR: Stream %s attached to constituent variable %s in var_array %s var_struct %s is not defined.\n", err_string, varname, name, structname);
+				return 1;
+			}
+		}
+
+	}
+
+}/*}}}*/
+
+int validate_var(ezxml_t var, ezxml_t parent_struct, ezxml_t registry){/*{{{*/
+	const char *structname, *structpackages, *structstreams;
+	const char *varname, *varpersistence, *vartype, *vardims, *varunits, *vardesc, *varname_in_code, *varpackages, *varstreams, *time_levs;
+	char *string, *tofree, *err_string;
+	int persistence;
+
+	structname = ezxml_attr(parent_struct, "name");
+	structpackages = ezxml_attr(parent_struct, "packages");
+	structstreams = ezxml_attr(parent_struct, "streams");
+
+	varname = ezxml_attr(var, "name");
+	varpersistence = ezxml_attr(var, "persistence");
+	vartype = ezxml_attr(var, "type");
+	vardims = ezxml_attr(var, "dimensions");
+	varunits = ezxml_attr(var, "units");
+	vardesc = ezxml_attr(var, "description");
+	varname_in_code = ezxml_attr(var, "name_in_code");
+	varpackages = ezxml_attr(var, "packages");
+	varstreams = ezxml_attr(var, "streams");
+	time_levs = ezxml_attr(var, "time_levs");
+
+	if (varname == NULL) {
+		fprintf(stderr,"ERROR: Variable name missing in var_struct %s\n.", structname);
+		return 1;
+	}
+
+	if (time_levs != NULL){
+		if (atoi(time_levs) == 0){
+			fprintf(stderr, "WARNING: time_levs attribute on var %s in var_struct %s is 0. It will be replaced with 1.\n", varname, structname);
+		} else if (atoi(time_levs) < 1){
+			fprintf(stderr, "ERROR: time_levs attribute on var %s in var_struct %s is negative.\n", varname, structname);
+			return 1;
+		}
+	}
+
+	if(vartype == NULL) {
+		fprintf(stderr,"ERROR: Type attribute missing on variable %s in var_struct %s\n.", varname, structname);
+		return 1;
+	} else if (strcasecmp("logical", vartype) != 0 && strcasecmp("real", vartype) != 0 &&
+			strcasecmp("integer", vartype) != 0 && strcasecmp("text", vartype) != 0) {
+		fprintf(stderr,"ERROR: Type attribute on variable %s in var_struct %s is not equal to one of logical, real, integer, or text.\n", varname, structname);
+		return 1;
+	}
+
+	if (vardims == NULL) {
+		fprintf(stderr,"ERROR: Dimensions attribute missing for variable %s in var_struct %s.\n", varname, structname);
+		return 1;
+	} else {
+		if (strcasecmp("", vardims) != 0) {
+			string = strdup(vardims);
+			err_string = check_dimensions(registry, string);
+			free(string);
+
+			if(err_string != NULL) {
+				fprintf(stderr,"ERROR: Dimension %s on variable %s in var_struct %s not defined.\n", err_string, varname, structname); 
+				return 1;
+			}
+		}
+	}
+
+	persistence = PERSISTENT;
+	if (varpersistence != NULL) {
+		persistence = check_persistence(varpersistence);
+
+		if(persistence == -1){
+			fprintf(stderr, "\ton varaible %s in var_struct %s.\n", varname, structname);
+			return -1;
+		}
+	}
+
+	if(varpackages != NULL && persistence == PERSISTENT){
+		string = strdup(varpackages);
+		err_string = check_packages(registry, string);
+		free(string);
+
+		if (err_string != NULL){
+			fprintf(stderr, "ERROR: Package %s used on variable %s in var_struct %s is not defined.\n", err_string, varname, structname);
+			return 1;
+		}
+	} else if ( persistence == SCRATCH && varpackages != NULL ) {
+		fprintf(stderr, "ERROR: Packages attribute not allowed on scratch variable %s in var_struct %s.\n", varname, structname);
+		return -1;
+	} else if ( persistence == SCRATCH && varpackages == NULL && structpackages != NULL) {
+		fprintf(stderr, "ERROR: Packages attribute inherited from var_struct %s not allowed on scratch var %s in var_struct %s.\n", structname, varname, structname);
+		return -1;
+	}
+
+	if (varstreams != NULL && persistence == PERSISTENT) {
+		string = strdup(varstreams);
+		err_string = check_streams(registry, string);
+		free(string);
+
+		if (err_string != NULL) {
+			fprintf(stderr, "ERROR: Stream %s attached to variable %s in var_struct %s is not defined.\n", err_string, varname, structname);
+			return 1;
+		}
+	} 
+	else if ( persistence == SCRATCH && varstreams != NULL ) {
+		fprintf(stderr, "ERROR: Streams attribute not allowed on scratch variable %s in var_struct %s.\n", varname, structname);
+		return -1;
+	} 
+	else if ( persistence == SCRATCH && varstreams == NULL && structstreams != NULL) {
+		fprintf(stderr, "ERROR: Streams attribute inherited from var_struct %s not allowed on scratch var %s in var_struct %s.\n", structname, varname, structname);
+		return -1;
+	}
+}/*}}}*/
+
 
 int parse_reg_xml(ezxml_t registry)/*{{{*/
 {
@@ -761,12 +1399,12 @@ int parse_reg_xml(ezxml_t registry)/*{{{*/
 }/*}}}*/
 
 
-int is_unique_field(ezxml_t registry, ezxml_t field, const char *check_name){/*{{{*/
+int is_unique_field(ezxml_t current_position, ezxml_t field, const char *check_name){/*{{{*/
 	ezxml_t struct_xml, var_arr_xml, var_xml;
 
 	const char *name;
 
-	for(struct_xml = ezxml_child(registry, "var_struct"); struct_xml; struct_xml = struct_xml->next){
+	for(struct_xml = ezxml_child(current_position, "var_struct"); struct_xml; struct_xml = struct_xml->next){
 		for(var_arr_xml = ezxml_child(struct_xml, "var_array"); var_arr_xml; var_arr_xml = var_arr_xml->next){
 			for(var_xml = ezxml_child(var_arr_xml, "var"); var_xml; var_xml = var_xml->next){
 				name = ezxml_attr(var_xml, "name");
@@ -783,6 +1421,8 @@ int is_unique_field(ezxml_t registry, ezxml_t field, const char *check_name){/*{
 				return 0;
 			}
 		}
+
+		if ( ! is_unique_field(struct_xml, field, check_name) ) return 0;
 	}
 
 	return 1;
