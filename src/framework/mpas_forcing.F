@@ -1288,6 +1288,9 @@ contains
     type(mpas_forcing_stream_type), pointer :: &
          forcingStream
 
+    type (MPAS_Alarm_type), pointer :: &
+         alarmPtr
+
     ! check if cycling alarm is ringing
     if (mpas_is_alarm_ringing(forcingGroup % forcingClock, forcingGroup % forcingCycleAlarmID)) then
 
@@ -1296,7 +1299,7 @@ contains
        ! if ringing cycle the clock
        oldForingClockTime = mpas_get_clock_time(forcingGroup % forcingClock, MPAS_NOW)
        newForcingClockTime = oldForingClockTime - forcingGroup % forcingCycleDuration
-       call mpas_set_clock_time(forcingGroup % forcingClock, newForcingClockTime, MPAS_NOW)
+       call mpas_set_clock_time(forcingGroup % forcingClock, newForcingClockTime, MPAS_NOW, calibrateAlarms=.false.)
 
        ! if ringing cycle the forcing times
        forcingStream => forcingGroup % stream
@@ -1309,6 +1312,17 @@ contains
 
           forcingStream => forcingStream % next
        enddo
+
+       ! cycle alarms
+       alarmPtr => forcingGroup % forcingClock % alarmListHead
+       do while (associated(alarmPtr))
+
+          if (alarmPtr % isSet) then
+             alarmPtr % prevRingTime = alarmPtr % prevRingTime - forcingGroup % forcingCycleDuration
+          endif
+
+          alarmPtr => alarmPtr % next
+       end do
 
     endif ! forcingCycleAlarmID ringing
 
@@ -1599,6 +1613,10 @@ contains
 
     interpolants(1) = diffr2 / diffr
     interpolants(2) = 1.0_RKIND - interpolants(1) !diffr1 / diffr
+
+    if (interpolants(1) < 0.0_RKIND .or. interpolants(1) > 1.0_RKIND) then
+       call MPAS_dmpar_global_abort('Forcing: Error: get_interpolants_linear: Interpolant not in range [0,1]')
+    endif
 
   end subroutine get_interpolants_linear!}}}
 
