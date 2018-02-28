@@ -588,6 +588,7 @@
 		<nml_option name="config_specific_heat_fresh_ice" type="real" default_value="2106.0"	units="J/kg/K"/>
 		<nml_option name="config_berg_allow_rollover"			type="logical"		default_value="false"/>
 		<nml_option name="config_use_berg_advection"			type="logical"		default_value="false"/>
+		<nml_option name="config_berg_update_open_water"       type="logical"    default_value="false"/>
 	</nml_record>
 
 	<streams>
@@ -1062,7 +1063,7 @@
 <!--TODO WHL - Convert iceVolume and snowVolume to iceThickness and snowThickness (and change the source code accordingly) -->
 	<!-- ice state -->
 	<var_struct name="tracers" time_levs="2">
-		<var name="iceAreaCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="iceAreaCategory"	description=""/>
+		<var name="iceAreaCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="iceAreaCategory"/>
 		<var name="iceVolumeCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="iceVolumeCategory"/>
 		<var name="snowVolumeCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="snowVolumeCategory"/>
 		<var name="surfaceTemperature"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="surfaceTemperature"/>
@@ -2649,6 +2650,7 @@
 	<var_struct name="berg_state" time_levs="1" packages="pkgBergs">
 		<var name="bergMassCategory"	type="real"	dimensions="nBergCategories nCells Time"	name_in_code="bergMassCategory"		units="kg"	packages="pkgBergs"/>
 		<var name="bergMassCell"		type="real"	dimensions="nCells Time"						name_in_code="bergMassCell"			units="kg"	packages="pkgBergs"/>
+		<var name="bergDisplacedArea"	type="real" dimensions="nCells Time"					name_in_code="bergDisplacedArea"	units="1"	packages="pkgBergs"/>
 	</var_struct>
 
 	<!-- iceberg calving -->

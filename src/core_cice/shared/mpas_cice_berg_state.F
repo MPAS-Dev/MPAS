@@ -31,7 +31,9 @@ module cice_berg_state
       cice_berg_release_calving_mass, &
       cice_berg_dimensions_update, &
       cice_berg_area_update, &
-      cice_berg_update_mass_and_area
+      cice_berg_update_mass_and_area, &
+      cice_berg_update_open_water_area, &
+      cice_berg_init_displaced_area
 
 contains
 
@@ -627,6 +629,127 @@ contains
     enddo
 
   end subroutine cice_berg_update_mass_and_area
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  cice_berg_update_open_water_area
+!
+!> \brief   Update berg masses
+!> \author  Darin Comeau, LANL
+!> \date    22 Jan 2018
+!> \details This routine updates open water area after iceberg advection.
+!
+!-----------------------------------------------------------------------
+
+  subroutine cice_berg_update_open_water_area(domain)
+
+    type(domain_type), intent(inout) :: &
+         domain !< Input/Output:
+
+    type(block_type), pointer :: &
+         block
+
+    type(MPAS_pool_type), pointer :: &
+         meshPool, &
+         tracersAggregatePool, &
+         bergTracersAggregatePool, &
+         bergStatePool, &
+         iceStatePool
+
+    integer, pointer :: &
+         nCellsSolve
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         iceAreaCell, &
+         bergAreaCell, & ! aggregate berg area
+         bergDisplacedArea, &
+         openWaterArea
+
+    integer :: &
+         iCell
+
+    block => domain % blocklist
+    do while (associated(block))
+
+       call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
+       call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracersAggregatePool)
+       call MPAS_pool_get_subpool(block % structs, "berg_tracers_aggregate", bergTracersAggregatePool)
+       call MPAS_pool_get_subpool(block % structs, "berg_state", bergStatePool)
+       call MPAS_pool_get_subpool(block % structs, "icestate", iceStatePool)
+
+       call MPAS_pool_get_dimension(meshPool, "nCellsSolve", nCellsSolve)
+
+       call MPAS_pool_get_array(tracersAggregatePool, "iceAreaCell", iceAreaCell)
+       call MPAS_pool_get_array(bergTracersAggregatePool, "bergAreaCell", bergAreaCell)
+       call MPAS_pool_get_array(bergStatePool, "bergDisplacedArea", bergDisplacedArea)
+       call MPAS_pool_get_array(iceStatePool, "openWaterArea", openWaterArea)
+
+       openWaterArea(:) = 0.0_RKIND
+
+       do iCell = 1, nCellsSolve
+
+          openWaterArea(iCell) = 1.0_RKIND - iceAreaCell(iCell) - bergAreaCell(iCell)
+
+          if (openWaterArea(iCell) < 0.0_RKIND) then
+
+             ! displaced area for sea ice
+             call mpas_log_write("bergs: negative open water, displaced area for sea ice, $r:", realArgs=(/openWaterArea(iCell)/))
+
+             ! sea ice needs to free up this area
+             bergDisplacedArea(iCell) = bergDisplacedArea(iCell) + abs(openWaterArea(iCell))
+
+             openWaterArea(iCell) = 0.0_RKIND
+
+          endif
+
+       enddo
+
+    block => block % next
+    enddo
+
+  end subroutine cice_berg_update_open_water_area
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  cice_berg_init_displaced_area
+!
+!> \brief   Update berg masses
+!> \author  Darin Comeau, LANL
+!> \date    15 Jan 2018
+!> \details This routine resets berg displaced area at the beginning of
+!> the timestep open water area after iceberg advection.
+!
+!-----------------------------------------------------------------------
+
+  subroutine cice_berg_init_displaced_area(domain)
+
+    type(domain_type), intent(inout) :: &
+         domain !< Input/Output:
+
+    type(block_type), pointer :: &
+         block
+
+    type(MPAS_pool_type), pointer :: &
+         bergStatePool
+
+    real(kind=RKIND), dimension(:), pointer :: &
+         bergDisplacedArea
+
+    integer :: &
+         iCell
+
+    block => domain % blocklist
+    do while (associated(block))
+
+       call MPAS_pool_get_subpool(block % structs, "berg_state", bergStatePool)
+       call MPAS_pool_get_array(bergStatePool, "bergDisplacedArea", bergDisplacedArea)
+
+       bergDisplacedArea (:) = 0.0_RKIND
+
+    block => block % next
+    enddo
+
+  end subroutine cice_berg_init_displaced_area
 
 !-----------------------------------------------------------------------
 

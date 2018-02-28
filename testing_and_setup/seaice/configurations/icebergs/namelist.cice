@@ -336,7 +336,8 @@
     config_berg_density = 850.0
     config_specific_heat_fresh_ice = 2106.0
     config_berg_allow_rollover = true
-    config_use_berg_advection = false
+    config_use_berg_advection = true
+    config_berg_update_open_water = true
 /
 &AM_highFrequencyOutput
     config_AM_highFrequencyOutput_enable = false
