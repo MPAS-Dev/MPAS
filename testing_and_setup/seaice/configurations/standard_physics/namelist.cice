@@ -339,6 +339,8 @@
     config_specific_heat_fresh_ice = 2106.0
     config_berg_allow_rollover = false
     config_use_berg_advection = false
+    config_berg_update_open_water = false
+    config_berg_seaice_interaction = false
 /
 &AM_highFrequencyOutput
     config_AM_highFrequencyOutput_enable = false

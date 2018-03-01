@@ -588,6 +588,8 @@
 		<nml_option name="config_specific_heat_fresh_ice" type="real" default_value="2106.0"	units="J/kg/K"/>
 		<nml_option name="config_berg_allow_rollover"			type="logical"		default_value="false"/>
 		<nml_option name="config_use_berg_advection"			type="logical"		default_value="false"/>
+		<nml_option name="config_berg_update_open_water"       type="logical"    default_value="false"/>
+		<nml_option name="config_berg_seaice_interaction"       type="logical"    default_value="false"/>
 	</nml_record>
 
 	<streams>
@@ -1062,7 +1064,7 @@
 <!--TODO WHL - Convert iceVolume and snowVolume to iceThickness and snowThickness (and change the source code accordingly) -->
 	<!-- ice state -->
 	<var_struct name="tracers" time_levs="2">
-		<var name="iceAreaCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="iceAreaCategory"	description=""/>
+		<var name="iceAreaCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="iceAreaCategory"/>
 		<var name="iceVolumeCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="iceVolumeCategory"/>
 		<var name="snowVolumeCategory"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="snowVolumeCategory"/>
 		<var name="surfaceTemperature"			type="real"	dimensions="ONE nCategories nCells Time"			name_in_code="surfaceTemperature"/>
@@ -2649,6 +2651,8 @@
 	<var_struct name="berg_state" time_levs="1" packages="pkgBergs">
 		<var name="bergMassCategory"	type="real"	dimensions="nBergCategories nCells Time"	name_in_code="bergMassCategory"		units="kg"	packages="pkgBergs"/>
 		<var name="bergMassCell"		type="real"	dimensions="nCells Time"						name_in_code="bergMassCell"			units="kg"	packages="pkgBergs"/>
+		<var name="bergDisplacedArea"	type="real" dimensions="nCells Time"					name_in_code="bergDisplacedArea"	units="1"	packages="pkgBergs"/>
+		<var name="bergDisplacedAreaVertex"	type="real" dimensions="nVertices Time"					name_in_code="bergDisplacedAreaVertex"	units="1"	packages="pkgBergs"/>
 	</var_struct>
 
 	<!-- iceberg calving -->
@@ -2691,6 +2695,12 @@
 		<var name="uAirVelocityVertex"			type="real"		dimensions="nVertices Time"					name_in_code="uAirVelocityVertex"			units="m/s"		packages="pkgBergs"/>
 		<var name="vAirVelocityVertex"			type="real"		dimensions="nVertices Time"					name_in_code="vAirVelocityVertex"			units="m/s"		packages="pkgBergs"/>
 		<var name="airDensityVertex"			type="real"		dimensions="nVertices Time"					name_in_code="airDensityVertex"				units="kg/m^3"	packages="pkgBergs"/>
+		<var name="bergAreaVertex"	type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergAreaVertex"		units="m^2"		packages="pkgBergs"/>
+		<var name="bergLengthVertex"	type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergLengthVertex"		units="m"		packages="pkgBergs"/>
+		<var name="bergCoefForIceU"	type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefForIceU"		units="kg*m/s^2"		packages="pkgBergs"/>
+		<var name="bergCoefForIceV"	type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefForIceV"		units="kg*m/s^2"		packages="pkgBergs"/>
+		<var name="bergStressU"	type="real"		dimensions="nVertices Time"	name_in_code="bergStressU"		units="kg*m/s^2"		packages="pkgBergs"/>
+		<var name="bergStressV"	type="real"		dimensions="nVertices Time"	name_in_code="bergStressV"		units="kg*m/s^2"		packages="pkgBergs"/>
 		<var name="bergCoefAtmU"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefAtmU"					units="kg*m/s^2"	packages="pkgBergs"/>
 		<var name="bergCoefAtmV"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefAtmV"					units="kg*m/s^2"	packages="pkgBergs"/>
 		<var name="bergCoefOcnU"				type="real"		dimensions="nBergCategories nVertices Time"	name_in_code="bergCoefOcnU"					units="kg*m/s^2"	packages="pkgBergs"/>

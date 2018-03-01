@@ -30,7 +30,8 @@ module cice_berg_velocity_solver
 
   public :: &
        cice_init_berg_velocity_solver, &
-       cice_run_berg_velocity_solver
+       cice_run_berg_velocity_solver, &
+       cice_berg_forcing_for_ice
 
   ! berg velocity solver constants
   real(kind=RKIND), parameter, private :: &
@@ -226,8 +227,7 @@ contains
 !> \brief   Calculate iceberg velocities by solving momentum equation
 !> \author  Darin Comeau, LANL
 !> \date    June 28, 2017
-!> \details This subroutine is a wrapper for the iceberg velocity solver
-!> over a sea ice time step.
+!> \details This subroutine is a wrapper for the iceberg velocity solver.
 !
 !-----------------------------------------------------------------------
 
@@ -239,39 +239,10 @@ contains
     type(MPAS_Clock_type), intent(in) :: &
          clock !< Input:
 
-    ! pre subcycle
-    ! dcnote - with advection, these need to be recalculated each subcycle
-    call mpas_timer_start("Berg velocity solver pre-subcycle")
-    call berg_velocity_solver_pre_subcycle(domain)
-    call mpas_timer_stop("Berg velocity solver pre-subcycle")
+     character(len=strKIND), pointer :: &
+         config_berg_velocity_solver_type
 
-    ! subcycle the dynamics
-    call mpas_timer_start("Berg velocity solver sub-cycle")
-    call berg_velocity_solver_subcycle(domain, clock)
-    call mpas_timer_stop("Berg velocity solver sub-cycle")
-
-  end subroutine cice_run_berg_velocity_solver
-
-!-----------------------------------------------------------------------
-! Pre sub-cycle
-!-----------------------------------------------------------------------
-
-!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-!
-!  berg_velocity_solver_pre_subcycle
-!
-!> \brief   Prepare for iceberg velocity solver subcycling.
-!> \author  Darin Comeau, LANL
-!> \date    June 28, 2017
-!> \details This subroutine initializes and prepares variables & masks
-!> needed for iceberg velocity subcycle step.
-!
-!-----------------------------------------------------------------------
-
-  subroutine berg_velocity_solver_pre_subcycle(domain)
-
-    type(domain_type), intent(inout) :: &
-         domain
+    call MPAS_pool_get_config(domain % configs, "config_berg_velocity_solver_type", config_berg_velocity_solver_type)
 
     ! initialize subcycle variables
     call mpas_timer_start("init subcycle var")
@@ -288,7 +259,32 @@ contains
     call berg_vertical_areas(domain)
     call mpas_timer_stop("berg vertical area")
 
-  end subroutine berg_velocity_solver_pre_subcycle
+    ! solve for velocity
+    if (trim(config_berg_velocity_solver_type) == "forward_euler") then
+
+       call mpas_timer_start("Calculate berg forcing terms")
+       call calculate_berg_forcing(domain)
+       call mpas_timer_stop("Calculate berg forcing terms")
+
+       call mpas_timer_start("Berg velocity solver compute")
+       call solve_berg_velocity_forward_euler(domain)
+       call mpas_timer_stop("Berg velocity solver compute")
+
+    else
+
+       call mpas_log_write(&
+            "berg_velocity_solver: config_berg_velocity_solver_type unknown:"//trim(config_berg_velocity_solver_type), &
+            MPAS_LOG_CRIT)
+
+    endif
+
+    ! halo exchange
+    call mpas_timer_start("Berg velocity solver halo")
+    call MPAS_dmpar_field_halo_exch(domain, 'uBergVelocity')
+    call MPAS_dmpar_field_halo_exch(domain, 'vBergVelocity')
+    call mpas_timer_stop("Berg velocity solver halo")
+
+  end subroutine cice_run_berg_velocity_solver
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -317,7 +313,18 @@ contains
          uBergVelocity, & ! berg velocity
          vBergVelocity, &
          uBergVelocityInitial, & ! storage for berg velocity at beginning of timestep
-         vBergVelocityInitial
+         vBergVelocityInitial, &
+         bergCoefAtmU, & ! atmospheric forcing term (kg*m/s^2)
+         bergCoefAtmV, &
+         bergCoefOcnU, & ! oceanic forcing term (kg*m/s^2)
+         bergCoefOcnV, &
+         bergCoefIceU, & ! sea ice forcing term (kg*m/s^2)
+         bergCoefIceV, &
+         bergCoefCorU, & ! Coriolis forcing term (kg*m/s^2)
+         bergCoefCorV, &
+         bergCoefTltU, & ! sea surface tilt forcing term (kg*m/s^2)
+         bergCoefTltV
+
 
     integer, pointer :: &
          nVerticesSolve, &
@@ -339,6 +346,16 @@ contains
        call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocity)
        call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocityInitial", uBergVelocityInitial)
        call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocityInitial", vBergVelocityInitial)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefAtmU", bergCoefAtmU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefAtmV", bergCoefAtmV)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefOcnU", bergCoefOcnU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefOcnV", bergCoefOcnV)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefIceU", bergCoefIceU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefIceV", bergCoefIceV)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefCorU", bergCoefCorU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefCorV", bergCoefCorV)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefTltU", bergCoefTltU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefTltV", bergCoefTltV)
 
        do iVertex = 1, nVerticesSolve
 
@@ -347,6 +364,16 @@ contains
              ! store berg velocities at beginning of timestep
              uBergVelocityInitial(iCategory,iVertex) = uBergVelocity(iCategory,iVertex)
              vBergVelocityInitial(iCategory,iVertex) = vBergVelocity(iCategory,iVertex)
+             bergCoefAtmU(iCategory,iVertex) = 0.0_RKIND
+             bergCoefAtmV(iCategory,iVertex) = 0.0_RKIND
+             bergCoefOcnU(iCategory,iVertex) = 0.0_RKIND
+             bergCoefOcnV(iCategory,iVertex) = 0.0_RKIND
+             bergCoefIceU(iCategory,iVertex) = 0.0_RKIND
+             bergCoefIceV(iCategory,iVertex) = 0.0_RKIND
+             bergCoefCorU(iCategory,iVertex) = 0.0_RKIND
+             bergCoefCorV(iCategory,iVertex) = 0.0_RKIND
+             bergCoefTltU(iCategory,iVertex) = 0.0_RKIND
+             bergCoefTltV(iCategory,iVertex) = 0.0_RKIND
 
           enddo ! iCategory
 
@@ -706,6 +733,13 @@ contains
 
        bergSnow = 0.0_RKIND ! no snow on bergs for now
 
+       oneBergArea(:,:) = 0.0_RKIND
+       oneBergMass(:,:) = 0.0_RKIND
+       bergDraft(:,:) = 0.0_RKIND
+       bergAirContactArea(:,:) = 0.0_RKIND
+       bergOcnContactArea(:,:) = 0.0_RKIND
+       bergIceContactArea(:,:) = 0.0_RKIND
+
        do iCell = 1, nCellsSolve
 
           seaIceThick = 0.0_RKIND
@@ -803,64 +837,6 @@ contains
     end do ! block
 
   end subroutine berg_vertical_areas
-
-!-----------------------------------------------------------------------
-! Sub-cycle
-!-----------------------------------------------------------------------
-
-!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-!
-!  berg_velocity_solver_subcycle
-!
-!> \brief   Solve for berg velocities
-!> \author  Darin Comeau, LANL
-!> \date    July 17, 2017
-!> \details This subroutine calculates the forcing terms and solves for
-!> iceberg velocities within the subcycle timestep.
-!
-!-----------------------------------------------------------------------
-
-  subroutine berg_velocity_solver_subcycle(&
-       domain, &
-       clock)!{{{
-
-    type(domain_type), intent(inout) :: &
-         domain
-
-    type(MPAS_Clock_type), intent(in) :: &
-         clock !< Input:
-
-    character(len=strKIND), pointer :: &
-         config_berg_velocity_solver_type
-
-    call MPAS_pool_get_config(domain % configs, "config_berg_velocity_solver_type", config_berg_velocity_solver_type)
-
-    ! solve for velocity
-    if (trim(config_berg_velocity_solver_type) == "forward_euler") then
-
-       call mpas_timer_start("Calculate berg forcing terms")
-       call calculate_berg_forcing(domain)
-       call mpas_timer_stop("Calculate berg forcing terms")
-
-       call mpas_timer_start("Berg velocity solver compute")
-       call solve_berg_velocity_forward_euler(domain)
-       call mpas_timer_stop("Berg velocity solver compute")
-
-    else
-
-       call mpas_log_write(&
-            "berg_velocity_solver: config_berg_velocity_solver_type unknown:"//trim(config_berg_velocity_solver_type), &
-            MPAS_LOG_CRIT)
-
-    endif
-
-    ! halo exchange
-    call mpas_timer_start("Berg velocity solver halo")
-    call MPAS_dmpar_field_halo_exch(domain, 'uBergVelocity')
-    call MPAS_dmpar_field_halo_exch(domain, 'vBergVelocity')
-    call mpas_timer_stop("Berg velocity solver halo")
-
-  end subroutine berg_velocity_solver_subcycle!}}}
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -1733,6 +1709,311 @@ contains
     enddo
 
   end subroutine solve_berg_velocity_forward_euler!}}}
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  cice_berg_forcing_for_ice
+!
+!> \brief   Calculate berg forcing for sea ice
+!> \author  Darin Comeau, LANL
+!> \date    Jan 23, 2018
+!> \details This subroutine calculates the iceberg forcing on sea ice,
+!> whether as displaced area to be ridged, or as a forcing term in the
+!> sea ice momentum equation in units of force (kg*m/s^2).
+!
+!-----------------------------------------------------------------------
+
+  subroutine cice_berg_forcing_for_ice(domain)
+
+    use cice_mesh, only: &
+         cice_interpolate_cell_to_vertex, &
+         cice_interpolate_vertex_to_cell
+
+    type(domain_type), intent(inout) :: &
+         domain
+
+    type(block_type), pointer :: &
+         block
+
+    type(MPAS_pool_type), pointer :: &
+         meshPool, &
+         boundaryPool, &
+         iceStatePool, &
+         tracersAggregatePool, &
+         velocitySolverPool, &
+         bergStatePool, &
+         bergTracersPool, &
+         bergVelocitySolverPool
+
+    real(kind=RKIND), dimension(:), pointer :: & ! nVertices
+         iceAreaVertex, &
+         uVelocity, &
+         vVelocity, &
+         bergDisplacedAreaVertex, &
+         bergStressU, &
+         bergStressV
+
+    real(kind=RKIND), dimension(:), pointer :: & !nCells
+         iceAreaCell, &
+         bergDisplacedArea
+
+    real(kind=RKIND), dimension(:,:), pointer :: & ! nBergCategories, nVertices
+         uBergVelocity, & ! berg velocity (m/s)
+         vBergVelocity, &
+         bergAreaVertex, & ! berg area interpolated to vertices
+         bergLengthVertex, &
+         bergCoefForIceU, & ! berg forcing term for sea ice (kg*m/s^2)
+         bergCoefForIceV
+
+    real(kind=RKIND), dimension(:,:,:), pointer :: & ! nBergCategories, nCells
+         bergAreaCategory, &
+         bergLength
+
+    integer, dimension(:,:), pointer :: &
+         bergVelocityMask  ! mask = 1 indicates berg velocity should be calculated, = 0 elsewhere
+
+    integer, pointer :: &
+         nVerticesSolve, &
+         nBergCategories
+
+    real(kind=RKIND), pointer :: &
+         dynamicsTimeStep, & ! sea ice dynamics time step
+         bergDensity ! berg density (kg/m^3)
+
+    integer :: &
+         iVertex, &
+         iCategory
+
+    real(kind=RKIND) :: &
+         dotProductNum, & ! numerator of dot product of berg and ice velocities, used to determine relative motion
+         bergIceHorizContactArea
+
+    real(kind=RKIND), parameter :: &
+         bergVertDragCoef = 0.0_RKIND, &
+         bergIceVertContactArea = 0.0_RKIND, &
+         bergHorizDragCoef = 1.0_RKIND/2.0_RKIND
+
+    call MPAS_pool_get_config(domain % configs, "config_berg_density", bergDensity)
+
+    block => domain % blocklist
+    do while (associated(block))
+
+       call MPAS_pool_get_dimension(block % dimensions, "nVerticesSolve", nVerticesSolve)
+       call MPAS_pool_get_dimension(block % dimensions, "nBergCategories", nBergCategories)
+
+       call MPAS_pool_get_subpool(block % structs, "mesh", meshPool)
+       call MPAS_pool_get_subpool(block % structs, "boundary", boundaryPool)
+       call MPAS_pool_get_subpool(block % structs, "icestate", iceStatePool)
+       call MPAS_pool_get_subpool(block % structs, "tracers_aggregate", tracersAggregatePool)
+       call MPAS_pool_get_subpool(block % structs, "velocity_solver", velocitySolverPool)
+       call MPAS_pool_get_subpool(block % structs, "berg_state", bergStatePool)
+       call MPAS_pool_get_subpool(block % structs, "berg_tracers", bergTracersPool)
+       call MPAS_pool_get_subpool(block % structs, "berg_velocity_solver", bergVelocitySolverPool)
+
+       call MPAS_pool_get_array(iceStatePool, "iceAreaVertex", iceAreaVertex)
+       call MPAS_pool_get_array(tracersAggregatePool, "iceAreaCell", iceAreaCell)
+       call MPAS_pool_get_array(velocitySolverPool, "uVelocity", uVelocity)
+       call MPAS_pool_get_array(velocitySolverPool, "vVelocity", vVelocity)
+       call MPAS_pool_get_array(velocitySolverPool, "dynamicsTimeStep", dynamicsTimeStep)
+
+       call MPAS_pool_get_array(bergStatePool, "bergDisplacedArea", bergDisplacedArea)
+       call MPAS_pool_get_array(bergStatePool, "bergDisplacedAreaVertex", bergDisplacedAreaVertex)
+       call MPAS_pool_get_array(bergTracersPool, "bergAreaCategory", bergAreaCategory, 1)
+       call MPAS_pool_get_array(bergTracersPool, "bergLength", bergLength, 1)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "uBergVelocity", uBergVelocity)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "vBergVelocity", vBergVelocity)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergVelocityMask", bergVelocityMask)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergAreaVertex", bergAreaVertex)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergLengthVertex", bergLengthVertex)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefForIceU", bergCoefForIceU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergCoefForIceV", bergCoefForIceV)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergStressU", bergStressU)
+       call MPAS_pool_get_array(bergVelocitySolverPool, "bergStressV", bergStressV)
+
+       ! interpolate cell to vertex
+       call cice_interpolate_cell_to_vertex(&
+            meshPool, &
+            iceAreaVertex, &
+            iceAreaCell)
+
+       call cice_interpolate_cell_to_vertex(&
+            meshPool, &
+            bergDisplacedAreaVertex, &
+            bergDisplacedArea)
+
+       do iCategory = 1, nBergCategories
+
+          call cice_interpolate_cell_to_vertex(&
+               meshPool, &
+               bergAreaVertex(iCategory,:), &
+               bergAreaCategory(1,iCategory,:))
+
+          call cice_interpolate_cell_to_vertex(&
+               meshPool, &
+               bergLengthVertex(iCategory,:), &
+               bergLength(1,iCategory,:))
+
+       enddo
+
+       do iVertex = 1, nVerticesSolve
+
+          do iCategory = 1, nBergCategories
+
+             if (bergVelocityMask(iCategory,iVertex) > 0) then
+
+                ! if > 0, angle between two velocities is less than 90 degrees
+                ! if < 0, angle between two velocities is greater than 90 degrees
+                dotProductNum = uBergVelocity(iVertex, iCategory) * uVelocity(iVertex) + &
+                                vBergVelocity(iVertex, iCategory) * vVelocity(iVertex)
+
+                if (dotProductNum < 0.0_RKIND) then
+                ! bergs and sea ice are moving in opposing direction, sea ice has additional term in
+                ! momentum equation due to bergs
+
+                   bergIceHorizContactArea = bergAreaVertex(iCategory, iVertex) * iceAreaVertex(iVertex)
+
+                   ! calculate sea ice drag forcing term
+                   call berg_drag_forcing(&
+                        uVelocity(iVertex), &
+                        vVelocity(iVertex), &
+                        uBergVelocity(iCategory,iVertex), &
+                        vBergVelocity(iCategory,iVertex), &
+                        bergDensity, &
+                        bergVertDragCoef, & ! 0
+                        bergHorizDragCoef, &
+                        bergIceVertContactArea, & ! 0
+                        bergIceHorizContactArea, &
+                        bergCoefForIceU(iCategory,iVertex), &
+                        bergCoefForIceV(iCategory,iVertex))
+
+                else
+                ! bergs and sea ice are moving in similar direction, sea ice ridges behind bergs
+
+                   ! need to decide if doing on vertices or cells
+                   call berg_displaced_area_for_sea_ice(&
+                        uBergVelocity(iCategory, iVertex), &
+                        vBergVelocity(iCategory, iVertex), &
+                        uVelocity(iVertex), &
+                        vVelocity(iVertex), &
+                        bergLengthVertex(iCategory, iVertex), &
+                        bergAreaVertex(iCategory, iVertex), &
+                        dynamicsTimeStep, &
+                        bergDisplacedAreaVertex(iVertex), &
+                        domain % configs)
+
+                endif ! dotProductNum
+
+             endif ! bergVelocityMask
+
+          enddo ! iBergCategory
+
+          ! need negative since sign from berg_drag_forcing is oriented for forcing on bergs
+          ! not actually stress, units are kg*m/s^2
+          bergStressU(iVertex) = -sum(bergCoefForIceU(:,iVertex))
+          bergStressV(iVertex) = -sum(bergCoefForIceV(:,iVertex))
+
+       enddo ! iVertex
+
+       ! interpolate back to cells
+       call cice_interpolate_vertex_to_cell(&
+            meshPool, &
+            boundaryPool, &
+            bergDisplacedArea, &
+            bergDisplacedAreaVertex)
+
+       block => block % next
+    enddo
+
+  end subroutine cice_berg_forcing_for_ice
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  berg_displaced_area_for_sea_ice
+!
+!> \brief   Calculate iceberg drag term in sea ice momentum equation
+!> \author  Darin Comeau, LANL
+!> \date    Jan 23, 2018
+!> \details This subroutine calculates the displaced area by icebergs
+!> during advection.
+!
+!-----------------------------------------------------------------------
+
+  subroutine berg_displaced_area_for_sea_ice(&
+       uBergVelocity, &
+       vBergVelocity, &
+       uVelocity, &
+       vVelocity, &
+       bergLength, &
+       bergArea, &
+       dynamicsTimeStep, &
+       bergDisplacedAreaVertex, &
+       configs)
+
+    use cice_constants, only: &
+         pii
+
+    real(kind=RKIND), intent(in) :: &
+         uBergVelocity, &  ! berg velocity (m/s)
+         vBergVelocity, &
+         uVelocity, & ! velocity of field (m/s)
+         vVelocity, &
+         bergLength, &
+         bergArea, &
+         dynamicsTimeStep ! sea ice dynamics time step
+
+    real(kind=RKIND), intent(inout) :: &
+         bergDisplacedAreaVertex ! displaced area for sea ice
+
+    type (MPAS_pool_type), pointer, intent(in) :: &
+         configs
+
+    real(kind=RKIND), pointer :: &
+         bergDensity ! berg density (kg/m^3)
+
+    character(len=strKIND), pointer :: &
+         config_berg_horizontal_shape ! check horizontal shape assumption (tabular or cylindrical)
+
+    real(kind=RKIND) :: &
+         relSpeed, & ! relative speed of berg and field
+         bergLengthFactor    ! coefficient in front of drag term
+
+    real(kind=RKIND), parameter :: &
+         bergWidthFactor = 2.0_RKIND/3.0_RKIND , &
+         bergAvgLengthWidthFactor = 5.0_RKIND/6.0_RKIND, &
+         tabularToCylindricalConvFactor = 2.0_RKIND*sqrt(2.0_RKIND/(3.0_RKIND*pii))
+
+    call MPAS_pool_get_config(configs, "config_berg_density", bergDensity)
+    call MPAS_pool_get_config(configs, "config_berg_horizontal_shape", config_berg_horizontal_shape)
+
+    ! magnitude of relative velocity
+    relSpeed = sqrt((uBergVelocity - uVelocity)**2 + (vBergVelocity - vVelocity)**2)
+
+    ! both of these are equivalent, but first is easier to understand
+    ! delete before merging
+
+    ! calculate number of icebergs in the category (will not be integer)
+!     oneBergMass = bergWidthFactor * bergLength**2 * bergHeight * bergDensity
+!     bergNumberCategory= bergMassCategory / oneBergMass
+!     if (trim(config_berg_horizontal_shape) == "tabular_1:1.5") &
+!        bergLengthFactor = bergAvgLengthWidthFactor * bergLength
+!     if (trim(config_berg_horizontal_shape) == "cylindrical") &
+!        bergLengthFactor = tabularToCylindricalConvFactor * bergLength
+
+!     ! multiply number of bergs in category times length of each berg
+!     bergDisplacedArea(iCell) = bergDisplacedArea(iCell)
+!                              + bergIceVelocityMagnitude * dynamicsTimeStep
+!                              * bergLengthFactor * bergNumberCategory / areaCell(iCell)
+
+    ! this is negligible impact, but noted here so that shape assumption is used here
+    if (trim(config_berg_horizontal_shape) == "tabular_1:1.5") &
+       bergLengthFactor = bergAvgLengthWidthFactor / bergWidthFactor
+    if (trim(config_berg_horizontal_shape) == "cylindrical") &
+       bergLengthFactor = tabularToCylindricalConvFactor / bergWidthFactor
+
+    bergDisplacedAreaVertex = bergDisplacedAreaVertex + relSpeed * dynamicsTimeStep &
+                      * bergArea * bergLengthFactor / bergLength
+
+  end subroutine berg_displaced_area_for_sea_ice
 
 !-----------------------------------------------------------------------
 
