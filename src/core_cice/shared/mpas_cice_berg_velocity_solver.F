@@ -1924,6 +1924,11 @@ contains
        block => block % next
     enddo
 
+    ! halo exchange
+    call mpas_timer_start("Berg velocity solver halo")
+    call MPAS_dmpar_field_halo_exch(domain, 'bergDisplacedArea')
+    call mpas_timer_stop("Berg velocity solver halo")  
+
   end subroutine cice_berg_forcing_for_ice
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
