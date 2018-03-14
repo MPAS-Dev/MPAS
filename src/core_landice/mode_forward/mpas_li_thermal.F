@@ -1239,9 +1239,9 @@ module li_thermal
                            realArgs=(/basalFrictionFlux(iCell) + basalHeatFlux(iCell) + basalConductiveFlux(iCell)/))
                      endif   ! verboseColumn
 
-                     call mpas_log_write('li_thermal, energy conservation error: iCell=$i, imbalance=$r (W/m2):', MPAS_LOG_ERR, &
+                     call mpas_log_write('li_thermal, energy conservation error: iCell=$i, imbalance=$r (W/m2):', MPAS_LOG_WARN, &
                                          intArgs=(/indexToCellID(iCell)/), realArgs=(/(finalEnergy - initialEnergy - deltaEnergy)/deltat/))
-                     err = 1
+                     err = 0
 
                   endif  ! energy conservation error
 
@@ -1677,7 +1677,7 @@ module li_thermal
           weightEdge               ! edge weight for averaging to cell center
 
      real (kind=RKIND), dimension(:), allocatable ::  &
-          flowParamAEdge           ! flow parameter averaged to edge
+          flowParamAEdge           ! flow parameter averaged to edge.
 
      integer :: iCell, iCell1, iCell2, iEdge, iEdgeOnCell, iLayer
 
