@@ -4,6 +4,10 @@ MODEL_FORMULATION =
 dummy:
 	( $(MAKE) error )
 
+# Use settings from the invoking environment.
+custom:
+    ( $(MAKE) all )
+
 xlf:
 	( $(MAKE) all \
 	"FC_PARALLEL = mpxlf90" \
@@ -491,7 +495,7 @@ else # FFLAGS_DEBUG IF
 	DEBUG_MESSAGE="Debugging is on."
 endif # FFLAGS_DEBUG IF
 
-else # DEBUG IF
+elsifneq "$(MAKECMDGOALS)" "custom" # DEBUG IF
 	FFLAGS=$(FFLAGS_OPT)
 	CFLAGS=$(CFLAGS_OPT)
 	CXXFLAGS=$(CXXFLAGS_OPT)
