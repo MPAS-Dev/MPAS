@@ -237,15 +237,13 @@
 !$OMP END PARALLEL DO
     endif
 
-    !call to accumulate long- and short-wave diagnostics if needed:
-     if(config_bucket_update /= 'none' .and. config_bucket_radt .gt. 0._RKIND) then
+    !call to accumulate long- and short-wave diagnostics:
 !$OMP PARALLEL DO
-       do thread=1,nThreads
-          call update_radiation_diagnostics(block%configs,mesh,diag_physics, &
-                                            cellSolveThreadStart(thread), cellSolveThreadEnd(thread))
-       end do
+    do thread=1,nThreads
+       call update_radiation_diagnostics(block%configs,mesh,diag_physics, &
+                                         cellSolveThreadStart(thread), cellSolveThreadEnd(thread))
+    end do
 !$OMP END PARALLEL DO
-     endif
 
     !deallocate all radiation arrays:
     if(config_radt_sw_scheme.ne.'off' .or. config_radt_lw_scheme.ne.'off') &
