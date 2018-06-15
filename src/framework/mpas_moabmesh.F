@@ -13,7 +13,7 @@ module mpas_moabmesh
 #include "moab/MOABConfig.h"
 
 #ifdef MOAB_MPAS_INSIDE_E3SM
-  use seq_comm_mct, only: MPOID
+  use seq_comm_mct, only: MPOID, OCNID
 #else
   integer, public :: MPOID !   app id on moab side, for MPAS ocean
 #endif
@@ -66,7 +66,11 @@ module mpas_moabmesh
     c_comm = domain % dminfo % comm
     appname = 'MPAS_MESH'//CHAR(0)
     MPOID = -1 ! initialized negative , so we know if this register passes
+#ifdef MOAB_MPAS_INSIDE_E3SM
+    ext_comp_id = OCNID(1) ! should be 17
+#else
     ext_comp_id = 17  ! some number less than 33 ! maybe this should be input
+#endif
     ierr = iMOAB_RegisterFortranApplication(appname, c_comm, ext_comp_id, pid)
     MPOID = pid ! this is exported, need for send to work
     call errorout(ierr, 'fail to register MPAS_MOAB mesh')
