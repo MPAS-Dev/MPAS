@@ -35,6 +35,10 @@ module mpas_subdriver
    use test_core_interface
 #endif
 
+#ifdef HAVE_MOAB
+   use mpas_moabmesh
+#endif
+
    type (core_type), pointer :: corelist => null()
    type (dm_info), pointer :: dminfo
    type (domain_type), pointer :: domain_ptr
@@ -81,6 +85,10 @@ module mpas_subdriver
       character(len=StrKIND) :: iotype
       logical :: streamsExists
       integer :: mesh_iotype
+#ifdef HAVE_MOAB
+      integer , external :: iMOAB_InitializeFortran
+#endif
+
 
       interface
          subroutine xml_stream_parser(xmlname, mgr_p, comm, ierr) bind(c)
@@ -289,6 +297,16 @@ module mpas_subdriver
           call mpas_set_timeInterval(filename_interval, timeString=filename_interval_temp, ierr=ierr)
           call mpas_build_stream_filename(ref_time, start_time, filename_interval, mesh_filename_temp, blockID, mesh_filename, ierr)
       end if
+
+#ifdef HAVE_MOAB
+      ierr = iMOAB_InitializeFortran()
+      if ( ierr /= 0 ) then
+         call mpas_log_write('cannot initialize MOAB', messageType=MPAS_LOG_CRIT)
+      else
+         call mpas_log_write(' initialized MOAB', messageType=MPAS_LOG_WARN)
+      end if
+#endif
+
       call mpas_log_write(' ** Attempting to bootstrap MPAS framework using stream: ' // trim(mesh_stream))
       call mpas_bootstrap_framework_phase1(domain_ptr, mesh_filename, mesh_iotype)
 
@@ -332,6 +350,10 @@ module mpas_subdriver
       if ( ierr /= 0 ) then
          call mpas_log_write('Core init failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
       end if
+
+#ifdef HAVE_MOAB
+      call mpas_moab_instance(domain_ptr)
+#endif
 
       call mpas_timer_stop('initialize')
 

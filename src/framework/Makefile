@@ -36,6 +36,10 @@ OBJS = mpas_kind_types.o \
        mpas_field_accessor.o \
        mpas_log.o
 
+ifneq "$(MOAB_PATH)" ""
+  OBJS +=  mpas_moabmesh.o 
+endif
+
 all: framework $(DEPS)
 
 framework: $(OBJS)
