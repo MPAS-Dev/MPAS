@@ -29,6 +29,8 @@ module soundings
     character (len=StrKIND), allocatable, dimension(:) :: stationNames
 
     type (MPAS_clock_type), pointer :: simulationClock
+    character(len=StrKIND+1) :: soundingPath
+    character(len=StrKIND), pointer :: config_sounding_output_path
 
     real (kind=RKIND) :: pi_const = 2.0_RKIND * asin(1.0_RKIND)
 
@@ -67,7 +69,10 @@ module soundings
         character(len=StrKIND), pointer :: soundingInterval
 
         integer :: i, ierr
+        integer :: cmdstat
+        character(len=StrKIND) :: cmdmsg
         integer :: sndUnit
+        character (len=StrKIND+10) :: tempcmd
         real (kind=RKIND) :: station_lat, station_lon
         character (len=StrKIND) :: tempstr
         character (len=StrKIND) :: station_name
@@ -88,6 +93,7 @@ module soundings
         call mpas_pool_get_subpool(all_pools, 'diag', diag)
 
         call mpas_pool_get_config(configs, 'config_sounding_interval', soundingInterval)
+        call mpas_pool_get_config(configs, 'config_sounding_output_path', config_sounding_output_path)
 
         if (trim(soundingInterval) == 'none') then
             return
@@ -142,7 +148,33 @@ module soundings
             return
         end if
 
+        i = len_trim(config_sounding_output_path)
+        if (config_sounding_output_path(i:i) /= '/') then
+            soundingPath = trim(config_sounding_output_path)//'/'
+        else
+            soundingPath = trim(config_sounding_output_path)
+        end if
+        if (dminfo % my_proc_id == IO_NODE) then
+            ierr = -1
+            tempcmd = 'mkdir -p '//trim(soundingPath)
+            call execute_command_line(tempcmd, exitstat=ierr, cmdstat=cmdstat, cmdmsg=cmdmsg)
+        end if
+        call mpas_dmpar_bcast_int(dminfo, ierr)
+        call mpas_dmpar_bcast_int(dminfo, cmdstat)
+        if (ierr /= 0 .or. cmdstat /= 0) then
+            call mpas_log_write('******************************************************************************')
+            call mpas_log_write('* Error: Could not make directory '//trim(soundingPath)//' for sounding files')
+            if (dminfo % my_proc_id == IO_NODE) then
+                call mpas_log_write(trim(cmdmsg))
+            end if
+            call mpas_log_write('******************************************************************************')
+            nSoundings = 0
+            return
+        end if
+
         call mpas_log_write('Read $i sounding locations from ''sounding_locations.txt''', intArgs=(/nSoundings/))
+        call mpas_log_write('Sounding output files will be written to '//trim(soundingPath))
+
 
         if (dminfo % my_proc_id == IO_NODE) then
             rewind(sndUnit)
@@ -222,6 +254,7 @@ module soundings
         integer :: yyyy, mm, dd, h, m, s
         character(len=StrKIND) :: fname
         character(len=10) :: stid
+        integer :: istat
 
 
         if (MPAS_is_alarm_ringing(simulationClock, 'soundingAlarm')) then
@@ -246,8 +279,13 @@ module soundings
                 if (stationOwned(iStn)) then
 !                    call mpas_log_write('Writing sounding for station '//trim(stationNames(iStn)))
 
-                    write(fname,'(a,i4.4,i2.2,i2.2,i2.2,i2.2,a)') trim(stationNames(iStn))//'.', yyyy, mm, dd, h, m, '.snd'
-                    open(97,file=trim(fname),form='formatted',status='replace')
+                    write(fname,'(a,i4.4,i2.2,i2.2,i2.2,i2.2,a)') trim(soundingPath)//trim(stationNames(iStn))//'.',&
+                                                                  yyyy, mm, dd, h, m, '.snd'
+                    open(97,file=trim(fname),form='formatted',status='replace',iostat=istat)
+                    if (istat /= 0) then
+                        call mpas_log_write('Error: Could not create sounding file '//trim(fname))
+                        cycle
+                    end if
 
                     write(stid,'(a)') trim(stationNames(iStn))
 
