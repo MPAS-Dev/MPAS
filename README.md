@@ -1,3 +1,18 @@
+----------------------------------
+  
+<div align="center">
+
+Important Note
+==============
+
+**This repository contains development prior to the MPAS v6.0 release and
+is not actively maintained. Current MPAS development takes place in
+the [MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model) repository.**
+
+</div>
+
+----------------------------------
+
 MPAS-v6.0
 ====
 
