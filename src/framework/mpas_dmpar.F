@@ -1511,7 +1511,8 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
       type (hashtable) :: neededHash
       integer :: nUniqueNeededList, threadNum
       integer, dimension(:,:), pointer :: uniqueSortedNeededList
-
+      ! For threading of binary search blocks
+      integer, dimension(:), allocatable :: karray
 
       !
       ! *** NB: This code assumes that block % blockID values are local block IDs and are in the range [1, numBlocks]
@@ -1770,27 +1771,33 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
           totalSent = 0
 
           currentProc = mod(dminfo % my_proc_id + dminfo % nprocs - i + 1, dminfo % nprocs)
+          allocate(karray(1:nMesgRecv))
+          karray = nOwnedList + 1
+!$OMP parallel do default(shared) private(j)
           do j=1,nMesgRecv
             if (ownerListIn(j) > 0) then
-              k = mpas_binary_search(ownedListSorted, 2, 1, nOwnedList, ownerListIn(j))
-              if (k <= nOwnedList) then
-                iBlock = ownedBlock(ownedListSorted(2,k)) + 1
-                numToSend(iBlock) = numToSend(iBlock) + 1
-                totalSent = totalSent + 1
+              karray(j) = mpas_binary_search(ownedListSorted, 2, 1, nOwnedList, ownerListIn(j))
+            end if
+          end do
+!$OMP end parallel do
+          do j=1,nMesgRecv
+            if (karray(j) <= nOwnedList) then
+              iBlock = ownedBlock(ownedListSorted(2,karray(j))) + 1
+              numToSend(iBlock) = numToSend(iBlock) + 1
+              totalSent = totalSent + 1
 
-                ! recipientList(1,:) represents the index in the srcList to place this data
-                recipientList(1,ownedListSorted(2,k)) = numToSend(iBlock)
-                ! recipientList(2,:) represnets the index in the buffer to place this data
-                recipientList(2,ownedListSorted(2,k)) = totalSent
+              ! recipientList(1,:) represents the index in the srcList to place this data
+              recipientList(1,ownedListSorted(2,karray(j))) = numToSend(iBlock)
+              ! recipientList(2,:) represnets the index in the buffer to place this data
+              recipientList(2,ownedListSorted(2,karray(j))) = totalSent
 
-                ownerListOut(j) = -1 * dminfo % my_proc_id
-              else
-                ownerListOut(j) = ownerListIn(j)
-              end if
+              ownerListOut(j) = -1 * dminfo % my_proc_id
             else
               ownerListOut(j) = ownerListIn(j)
             end if
           end do
+
+          deallocate(karray)
 
           fieldCursor => ownedListField
           do while (associated(fieldCursor))
@@ -1868,15 +1875,24 @@ subroutine mpas_dmpar_get_exch_list(haloLayer, ownedListField, neededListField, 
 
           fieldCursor => neededListField
           do while (associated(fieldCursor))
+
+            allocate(karray(1:fieldCursor % dimSizes(1)))
+!$OMP parallel do default(shared) private(j)
             do j = 1, fieldCursor % dimSizes(1)
-              k = mpas_binary_search(uniqueSortedNeededList, 2, 1, nUniqueNeededList, fieldCursor % array(j))
-              if(k <= nUniqueNeededList) then
-                if(ownerListIn(k) == -i) then
-                  iBlock = fieldCursor % block % localBlockID + 1
-                  numToRecv(iBlock) = numToRecv(iBlock) + 1
-                end if
+              karray(j) = mpas_binary_search(uniqueSortedNeededList, 2, 1, nUniqueNeededList, fieldCursor % array(j))
+            end do
+!$OMP end parallel do
+            do j = 1, fieldCursor % dimSizes(1)
+              if(karray(j) <= nUniqueNeededList) then
+                 if(ownerListIn(karray(j)) == -i) then
+                   iBlock = fieldCursor % block % localBlockID + 1
+                   numToRecv(iBlock) = numToRecv(iBlock) + 1
+                 end if
               end if
             end do
+
+            deallocate(karray)
+
             fieldCursor => fieldCursor % next
           end do
 
